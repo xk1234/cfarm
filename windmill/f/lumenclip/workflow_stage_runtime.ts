@@ -41,20 +41,6 @@ function pipelineStorageBoundaryStages() {
     ),
     atomic(
       "slideshow-generation",
-      204,
-      "list-usage-history-page",
-      "Appwrite usage_ledger listRows",
-      "Read exactly one owner-scoped usage page."
-    ),
-    atomic(
-      "slideshow-generation",
-      205,
-      "list-prior-runs-page",
-      "Template store template_runs listRows",
-      "Read exactly one owner-scoped automation-run page."
-    ),
-    atomic(
-      "slideshow-generation",
       206,
       "get-result-document",
       "Appwrite outputs getRow",
@@ -286,56 +272,6 @@ function pipelineStorageBoundaryStages() {
     ),
     atomic(
       "slideshow-generation",
-      235,
-      "list-results-page",
-      "Appwrite outputs listRows",
-      "Read exactly one owner-scoped slideshow result page."
-    ),
-    stage(
-      "slideshow-generation",
-      236,
-      "find-result-for-slideshow",
-      "Find result for slideshow",
-      "storage",
-      "Page through registered result reads until the requested slideshow result is found.",
-      { ...compositeStage, workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
-      237,
-      "initialize-video-preparation",
-      "Initialize video preparation",
-      "deterministic",
-      "Build resumable local video input paths from a hydrated slideshow result.",
-      { workflowStep: false }
-    ),
-    atomic(
-      "slideshow-generation",
-      238,
-      "read-one-video-slide",
-      "Appwrite Storage getFileView",
-      "Read exactly one rendered slideshow PNG into local video staging."
-    ),
-    stage(
-      "slideshow-generation",
-      239,
-      "stage-video-slides",
-      "Stage video slides",
-      "storage",
-      "Stage every rendered PNG through the singular registered storage read.",
-      { ...compositeStage, workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
-      240,
-      "build-finalized-video-result",
-      "Build finalized video result",
-      "deterministic",
-      "Attach persisted video and thumbnail URLs to a supplied result record.",
-      { workflowStep: false }
-    ),
-    atomic(
-      "slideshow-generation",
       241,
       "get-automation-run-document",
       "Template store template_runs getRow",
@@ -357,38 +293,11 @@ function pipelineStorageBoundaryStages() {
     ),
     stage(
       "slideshow-generation",
-      244,
-      "enrich-collection-usage",
-      "Enrich collection usage",
-      "deterministic",
-      "Attach latest supplied image-usage timestamps to supplied collection candidates.",
-      { workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
-      245,
-      "prepare-one-usage-record",
-      "Prepare one usage record",
-      "deterministic",
-      "Normalize and assign the deterministic ID for one supplied usage record.",
-      { workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
       246,
       "prepare-post-identity-claims",
       "Prepare post identity claims",
       "deterministic",
       "Derive canonical identity claims for one supplied post intent.",
-      { workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
-      247,
-      "prepare-video-thumbnail",
-      "Prepare video thumbnail",
-      "deterministic",
-      "Copy the first staged slide into the local thumbnail input without a remote call.",
       { workflowStep: false }
     ),
     atomic(
@@ -1000,25 +909,11 @@ var init_pipeline_stages = __esm({
         "select-expand-hook",
         "Select and expand hook",
         "deterministic",
-        "Select an unused hook and expand its word-collection substitutions."
+        "Select an enabled hook and expand its word-collection substitutions."
       ),
       stage(
         "slideshow-generation",
         4,
-        "research-hook",
-        "Research selected hook",
-        "provider",
-        "Research the exact selected hook with source URLs.",
-        {
-          ...compositeStage,
-          provider: "OpenRouter + Exa",
-          model: "openai/gpt-5.4-mini",
-          optional: true
-        }
-      ),
-      stage(
-        "slideshow-generation",
-        5,
         "build-text-prompt",
         "Build structured generation prompt",
         "deterministic",
@@ -1026,7 +921,7 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "slideshow-generation",
-        6,
+        5,
         "generate-slide-text",
         "Generate slideshow text",
         "provider",
@@ -1039,42 +934,15 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "slideshow-generation",
-        7,
-        "retry-text-similarity",
-        "Retry similar text",
-        "provider",
-        "Compare with reuse memory and perform the single authoritative rewrite when needed.",
-        {
-          ...compositeStage,
-          provider: "OpenRouter",
-          model: "configured slideshowTextModel",
-          optional: true
-        }
-      ),
-      stage(
-        "slideshow-generation",
-        8,
-        "derive-visual-concepts",
-        "Derive visual concepts",
-        "provider",
-        "Derive concrete visual search concepts for AI-selected slides.",
-        {
-          provider: "OpenRouter",
-          model: "configured slideshowTextModel",
-          optional: true
-        }
-      ),
-      stage(
-        "slideshow-generation",
-        9,
+        6,
         "build-image-shortlists",
         "Build image shortlists",
         "deterministic",
-        "Rank collection candidates locally and retain bounded per-slide shortlists."
+        "Rank image captions directly against slide text and retain bounded per-slide shortlists."
       ),
       stage(
         "slideshow-generation",
-        10,
+        7,
         "select-slide-images",
         "Select slide images",
         "provider",
@@ -1087,7 +955,7 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "slideshow-generation",
-        11,
+        8,
         "assemble-plan",
         "Assemble slideshow plan",
         "deterministic",
@@ -1095,16 +963,7 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "slideshow-generation",
-        12,
-        "translate-plan",
-        "Translate displayed text",
-        "provider",
-        "Translate displayed text for supported non-English targets.",
-        { provider: "DeepL", optional: true }
-      ),
-      stage(
-        "slideshow-generation",
-        13,
+        9,
         "render-store-pngs",
         "Render and store PNG slides",
         "storage",
@@ -1113,33 +972,19 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "slideshow-generation",
-        14,
-        "render-store-mp4",
-        "Render and store MP4",
-        "provider",
-        "Render and persist an H.264 slideshow video when requested.",
-        {
-          ...compositeStage,
-          provider: "Rendi",
-          model: "FFmpeg",
-          optional: true
-        }
-      ),
-      stage(
-        "slideshow-generation",
-        15,
+        10,
         "validate-output",
         "Validate generated output",
         "deterministic",
-        "Run deterministic count, token, word-range, and reuse QA."
+        "Run deterministic checks against the current slideshow only."
       ),
       stage(
         "slideshow-generation",
-        16,
+        11,
         "finalize-output",
         "Finalize generated output",
         "storage",
-        "Finalize result/run state and append reuse-memory records.",
+        "Persist the generated result and run state.",
         compositeStage
       ),
       stage(
@@ -1171,24 +1016,6 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "slideshow-generation",
-        104,
-        "list-usage-history",
-        "List usage history",
-        "storage",
-        "Page through owner-scoped usage history using registered page reads.",
-        { ...compositeStage, workflowStep: false }
-      ),
-      stage(
-        "slideshow-generation",
-        105,
-        "list-prior-runs",
-        "List prior runs",
-        "storage",
-        "Page through owner-scoped automation runs using registered page reads.",
-        { ...compositeStage, workflowStep: false }
-      ),
-      stage(
-        "slideshow-generation",
         106,
         "load-model-settings",
         "Load model settings",
@@ -1198,30 +1025,12 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "slideshow-generation",
-        116,
-        "prepare-generation-context",
-        "Prepare generation memory and model context",
-        "deterministic",
-        "Normalize hook, text, heading, and image reuse memory with the selected slideshow text model.",
-        { workflowStep: false }
-      ),
-      stage(
-        "slideshow-generation",
         117,
         "prepare-image-candidate-pools",
         "Prepare static image candidate pools",
         "deterministic",
         "Resolve each slide's configured collection into a bounded static candidate pool without reading generated text.",
         { workflowStep: false }
-      ),
-      atomicStage(
-        "slideshow-generation",
-        107,
-        "research-hook-attempt",
-        "provider",
-        "OpenRouter chat completion with Exa",
-        "Perform exactly one exact-hook research attempt.",
-        { provider: "OpenRouter + Exa", model: "openai/gpt-5.4-mini" }
       ),
       atomicStage(
         "slideshow-generation",
@@ -1243,15 +1052,6 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "slideshow-generation",
-        110,
-        "append-usage-records",
-        "Append usage records",
-        "storage",
-        "Append supplied usage records by invoking the singular registered storage stage once per record.",
-        { ...compositeStage, workflowStep: false }
-      ),
-      stage(
-        "slideshow-generation",
         111,
         "upsert-automation-run",
         "Persist automation run",
@@ -1259,42 +1059,6 @@ var init_pipeline_stages = __esm({
         "Create or update one automation run through registered one-request document stages.",
         { ...compositeStage, workflowStep: false }
       ),
-      atomicStage(
-        "slideshow-generation",
-        112,
-        "append-one-usage-record",
-        "storage",
-        "Appwrite usage-record create",
-        "Append one usage record through one storage action."
-      ),
-      stage(
-        "slideshow-generation",
-        113,
-        "prepare-video-render",
-        "Prepare video render",
-        "storage",
-        "Stage rendered PNG inputs locally for resumable provider upload.",
-        { ...compositeStage, sideEffect: "storage", workflowStep: false }
-      ),
-      stage(
-        "slideshow-generation",
-        114,
-        "finalize-video-render",
-        "Finalize video render",
-        "storage",
-        "Attach persisted video artifacts to the slideshow result.",
-        { ...compositeStage, sideEffect: "storage", workflowStep: false }
-      ),
-      stage(
-        "slideshow-generation",
-        115,
-        "build-rendi-video-command",
-        "Build Rendi video command",
-        "deterministic",
-        "Build the slideshow FFmpeg command from completed Rendi slide uploads.",
-        { workflowStep: false }
-      ),
-      ...rendiProtocolStages("slideshow-generation", 120),
       stage(
         "ugc-video-generation",
         0,
@@ -2164,160 +1928,10 @@ var init_provider_request_trace = __esm({
   }
 });
 
-// lib/pipeline-executor.ts
-var pipeline_executor_exports = {};
-__export(pipeline_executor_exports, {
-  createPipelineStageRegistry: () => createPipelineStageRegistry,
-  executePipelineStage: () => executePipelineStage,
-  mergePipelineOutput: () => mergePipelineOutput,
-  pipelineCatalog: () => pipelineCatalog
-});
-import { z } from "zod";
-function createPipelineStageRegistry(handlers) {
-  const registry = /* @__PURE__ */ new Map();
-  for (const metadata of PIPELINE_STAGE_CATALOG) {
-    const handler = handlers.get(metadata.id);
-    if (!handler) {
-      throw new Error(
-        `Pipeline stage handler is not registered: ${metadata.id}`
-      );
-    }
-    registry.set(metadata.id, {
-      ...metadata,
-      inputSchema: safeJsonObjectSchema,
-      handler
-    });
-  }
-  return registry;
-}
-async function executePipelineStage(input) {
-  const registered = input.registry.get(input.stageId);
-  if (!registered) throw new Error(`Unknown pipeline stage: ${input.stageId}`);
-  const requestId = cleanRequestId(input.requestId);
-  const parsed = registered.inputSchema.parse(input.stageInput);
-  assertSafePipelineValue(parsed, "input");
-  let externalCalls = 0;
-  const runStage = (stageId, stageInput) => executePipelineStage({
-    registry: input.registry,
-    ownerId: input.ownerId,
-    stageId,
-    stageInput,
-    requestId
-  });
-  const { result: rawOutput, providerRequests } = await captureProviderRequests(
-    () => registered.handler(parsed, {
-      ownerId: input.ownerId,
-      workflowId: registered.workflowId,
-      stageId: registered.id,
-      requestId,
-      runStage,
-      externalCall: async (operation2, task) => {
-        if (externalCalls >= registered.maxExternalCalls) {
-          throw new Error(
-            `Pipeline stage ${registered.id} exceeded maxExternalCalls=${registered.maxExternalCalls} before ${operation2}`
-          );
-        }
-        externalCalls += 1;
-        return task();
-      }
-    })
-  );
-  assertSafePipelineValue(rawOutput, "output");
-  assertSafePipelineValue(providerRequests, "providerRequests");
-  const output = structuredClone(rawOutput);
-  const operation = runningOperation(output);
-  return {
-    stage: stageMetadata(registered),
-    requestId,
-    status: operation ? "running" : "succeeded",
-    externalCalls,
-    output,
-    ...providerRequests.length ? { providerRequests } : {},
-    ...operation ? { operation } : {}
-  };
-}
-function pipelineCatalog() {
-  return PIPELINE_WORKFLOW_IDS.map((workflowId) => ({
-    id: workflowId,
-    workflowStages: pipelineStagesForWorkflow(workflowId),
-    stages: PIPELINE_STAGE_CATALOG.filter(
-      (stage2) => stage2.workflowId === workflowId
-    ).sort((left, right) => left.order - right.order)
-  }));
-}
-function mergePipelineOutput(input, additions) {
-  return { ...input, ...additions };
-}
-function assertSafePipelineValue(value, path22) {
-  if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
-    throw new Error(`Pipeline ${path22} cannot contain media bytes`);
-  }
-  if (typeof value === "string") {
-    if (/^data:(?:image|video|audio)\//i.test(value)) {
-      throw new Error(`Pipeline ${path22} cannot contain media data URLs`);
-    }
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach(
-      (item, index) => assertSafePipelineValue(item, `${path22}.${index}`)
-    );
-    return;
-  }
-  if (!value || typeof value !== "object") return;
-  for (const [key, item] of Object.entries(value)) {
-    if (/^(?:api[-_]?key|authorization|secret|token|password)$/i.test(key)) {
-      throw new Error(`Pipeline ${path22} cannot contain secret field ${key}`);
-    }
-    assertSafePipelineValue(item, `${path22}.${key}`);
-  }
-}
-function runningOperation(output) {
-  const operation = output.operation;
-  if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
-    return void 0;
-  }
-  const status3 = operation.status;
-  return status3 === "queued" || status3 === "running" ? operation : void 0;
-}
-function stageMetadata(stage2) {
-  return {
-    id: stage2.id,
-    workflowId: stage2.workflowId,
-    order: stage2.order,
-    title: stage2.title,
-    kind: stage2.kind,
-    provider: stage2.provider,
-    model: stage2.model,
-    optional: stage2.optional,
-    granularity: stage2.granularity,
-    sideEffect: stage2.sideEffect,
-    operation: stage2.operation,
-    maxExternalCalls: stage2.maxExternalCalls,
-    workflowStep: stage2.workflowStep,
-    description: stage2.description
-  };
-}
-function cleanRequestId(value) {
-  const requestId = value?.trim();
-  return requestId || `pipeline-${crypto.randomUUID()}`;
-}
-var safeJsonObjectSchema;
-var init_pipeline_executor = __esm({
-  "lib/pipeline-executor.ts"() {
+// windmill/runtime/server-only-shim.ts
+var init_server_only_shim = __esm({
+  "windmill/runtime/server-only-shim.ts"() {
     "use strict";
-    init_pipeline_stages();
-    init_provider_request_trace();
-    safeJsonObjectSchema = z.record(z.string(), z.unknown()).superRefine((value, context) => {
-      try {
-        assertSafePipelineValue(value, "input");
-      } catch (error) {
-        context.addIssue({
-          code: "custom",
-          message: error instanceof Error ? error.message : String(error)
-        });
-      }
-    });
   }
 });
 
@@ -2352,523 +1966,6 @@ function sleepIfPositive(ms) {
 var init_guards = __esm({
   "lib/guards.ts"() {
     "use strict";
-  }
-});
-
-// lib/hook-casing.ts
-function applyResolvedHookCase(value, mode) {
-  if (mode === "mixed") return value;
-  const transformed = transformText(value, mode);
-  return mode === "sentence" ? uppercaseFirstVisibleCharacter(transformed) : transformed;
-}
-function transformText(value, mode) {
-  if (mode === "lowercase" || mode === "sentence") return value.toLowerCase();
-  if (mode === "uppercase") return value.toUpperCase();
-  return value.toLowerCase().replace(/(^|[\s\-—–/([{“‘])([a-z])/g, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
-}
-function uppercaseFirstVisibleCharacter(value) {
-  return value.replace(/[a-z]/i, (letter) => letter.toUpperCase());
-}
-var init_hook_casing = __esm({
-  "lib/hook-casing.ts"() {
-    "use strict";
-  }
-});
-
-// lib/hook-variables.ts
-function canonicalRuntimeHookVariableName(name) {
-  return name.trim().toLowerCase();
-}
-function isRuntimeHookVariable(name) {
-  const canonical = canonicalRuntimeHookVariableName(name);
-  return runtimeHookVariableNames.has(canonical) || legacyRuntimeHookVariableNames.has(canonical);
-}
-function runtimeHookVariableValue(name, input = {}) {
-  const variable = canonicalRuntimeHookVariableName(name);
-  if (!isRuntimeHookVariable(variable)) return void 0;
-  const now = validDate(input.now) ? input.now : /* @__PURE__ */ new Date();
-  const timeZone = validTimeZone(input.timeZone) ? input.timeZone : void 0;
-  const format = (options) => new Intl.DateTimeFormat("en-US", { ...options, timeZone }).format(now);
-  switch (variable) {
-    case "slide_count": {
-      const slideCount = Math.round(Number(input.slideCount));
-      return Number.isFinite(slideCount) && slideCount > 0 ? String(slideCount) : void 0;
-    }
-    case "current_year":
-      return format({ year: "numeric" });
-    case "next_year":
-      return String(Number(format({ year: "numeric" })) + 1);
-    case "current_sign":
-      return zodiacSeason(now, timeZone).sign;
-    case "current_sign_cusp": {
-      const season = zodiacSeason(now, timeZone);
-      return `${season.months[0]} ${season.sign.toLowerCase()} vs ${season.months[1]} ${season.sign.toLowerCase()}`;
-    }
-    case "current_month":
-      return format({ month: "long" });
-    case "current_month_number":
-      return format({ month: "2-digit" });
-    case "current_day":
-      return format({ day: "numeric" });
-    case "current_weekday":
-      return format({ weekday: "long" });
-    case "current_date":
-      return format({ year: "numeric", month: "long", day: "numeric" });
-    case "current_iso_date":
-      return isoDate(now, timeZone);
-    case "current_time":
-      return format({ hour: "numeric", minute: "2-digit" });
-    default:
-      return void 0;
-  }
-}
-function hookVariableNameFromLabel(value) {
-  return String(value ?? "").trim().replace(/^\[\[|\]\]$/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-}
-function wordCollectionVariableName(collection) {
-  const id = collection.id.trim();
-  if (!legacyWordCollectionId(id) && /^[a-zA-Z0-9_-]+$/.test(id)) {
-    return id;
-  }
-  return hookVariableNameFromLabel(collection.name) || `variable_${id.replace(/^word-collection-/i, "").slice(0, 8)}`;
-}
-function legacyWordCollectionId(value) {
-  return /^word-collection-[0-9a-f-]{20,}$/i.test(value);
-}
-function validDate(value) {
-  return Boolean(value && Number.isFinite(value.getTime()));
-}
-function validTimeZone(value) {
-  if (!value) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
-    return true;
-  } catch {
-    return false;
-  }
-}
-function isoDate(now, timeZone) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone
-  }).formatToParts(now);
-  const part = (type) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-function zodiacSeason(now, timeZone) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    month: "numeric",
-    day: "numeric",
-    timeZone
-  }).formatToParts(now);
-  const number = (type) => Number(parts.find((item) => item.type === type)?.value);
-  const month = number("month");
-  const day = number("day");
-  const key = month * 100 + day;
-  if (key >= 1222 || key <= 119) {
-    return { sign: "Capricorn", months: ["december", "january"] };
-  }
-  if (key <= 218) {
-    return { sign: "Aquarius", months: ["january", "february"] };
-  }
-  if (key <= 320) {
-    return { sign: "Pisces", months: ["february", "march"] };
-  }
-  if (key <= 419) {
-    return { sign: "Aries", months: ["march", "april"] };
-  }
-  if (key <= 520) {
-    return { sign: "Taurus", months: ["april", "may"] };
-  }
-  if (key <= 620) {
-    return { sign: "Gemini", months: ["may", "june"] };
-  }
-  if (key <= 722) {
-    return { sign: "Cancer", months: ["june", "july"] };
-  }
-  if (key <= 822) {
-    return { sign: "Leo", months: ["july", "august"] };
-  }
-  if (key <= 922) {
-    return { sign: "Virgo", months: ["august", "september"] };
-  }
-  if (key <= 1022) {
-    return { sign: "Libra", months: ["september", "october"] };
-  }
-  if (key <= 1121) {
-    return { sign: "Scorpio", months: ["october", "november"] };
-  }
-  return { sign: "Sagittarius", months: ["november", "december"] };
-}
-var runtimeHookVariables, runtimeHookVariableNames, legacyRuntimeHookVariableNames;
-var init_hook_variables = __esm({
-  "lib/hook-variables.ts"() {
-    "use strict";
-    runtimeHookVariables = [
-      {
-        name: "current_year",
-        label: "Current year",
-        description: "Four-digit year for the scheduled run date."
-      },
-      {
-        name: "next_year",
-        label: "Next year",
-        description: "Four-digit year after the scheduled run date's year."
-      },
-      {
-        name: "current_sign",
-        label: "Current zodiac sign",
-        description: "Zodiac season active on the scheduled run date."
-      },
-      {
-        name: "current_sign_cusp",
-        label: "Current sign cusp",
-        description: "The two month-specific versions of the active sign, such as july leo vs august leo."
-      },
-      {
-        name: "current_month",
-        label: "Current month",
-        description: "Full month name for the scheduled run date."
-      },
-      {
-        name: "current_month_number",
-        label: "Current month number",
-        description: "Two-digit month number for the scheduled run date."
-      },
-      {
-        name: "current_day",
-        label: "Current day",
-        description: "Day of the month for the scheduled run date."
-      },
-      {
-        name: "current_weekday",
-        label: "Current weekday",
-        description: "Full weekday name for the scheduled run date."
-      },
-      {
-        name: "current_date",
-        label: "Current date",
-        description: "Readable scheduled run date."
-      },
-      {
-        name: "current_iso_date",
-        label: "Current ISO date",
-        description: "Scheduled run date in YYYY-MM-DD format."
-      },
-      {
-        name: "current_time",
-        label: "Current time",
-        description: "Scheduled run time with hours and minutes."
-      }
-    ];
-    runtimeHookVariableNames = new Set(
-      runtimeHookVariables.map((variable) => variable.name)
-    );
-    legacyRuntimeHookVariableNames = /* @__PURE__ */ new Set(["slide_count"]);
-  }
-});
-
-// lib/hook-expansion.ts
-function hookTemplateMatchesRenderedText(template, renderedText) {
-  const normalizedTemplate = normalizeHookMatchText(template);
-  const normalizedRenderedText = normalizeHookMatchText(renderedText);
-  if (!normalizedTemplate || !normalizedRenderedText) return false;
-  if (hookTextHasSlots(normalizedTemplate) && hookTemplateLiteralLength(normalizedTemplate) === 0) {
-    return false;
-  }
-  slotPattern.lastIndex = 0;
-  let literalStart = 0;
-  let pattern = "^";
-  for (const match of normalizedTemplate.matchAll(slotPattern)) {
-    pattern += escapeRegExp(
-      normalizedTemplate.slice(literalStart, match.index)
-    );
-    pattern += ".+?";
-    literalStart = (match.index ?? 0) + match[0].length;
-  }
-  pattern += escapeRegExp(normalizedTemplate.slice(literalStart));
-  pattern += "$";
-  return new RegExp(pattern, "i").test(normalizedRenderedText);
-}
-function hookTextHasSlots(text3) {
-  slotPattern.lastIndex = 0;
-  return slotPattern.test(text3);
-}
-function hookTemplateLiteralLength(template) {
-  return normalizeHookMatchText(template.replace(slotPattern, " ")).trim().length;
-}
-function uniqueHookTemplateMatch(items, input) {
-  const normalizedTemplate = normalizeHookMatchText(
-    input.hookTemplate ?? ""
-  ).toLowerCase();
-  if (normalizedTemplate) {
-    const exact = items.filter(
-      (item) => normalizeHookMatchText(item.text).toLowerCase() === normalizedTemplate
-    );
-    return exact.length === 1 ? exact[0] : void 0;
-  }
-  const matches2 = items.filter(
-    (item) => hookTemplateMatchesRenderedText(item.text, input.renderedHook)
-  );
-  const templated = matches2.filter(
-    (item) => hookTextHasSlots(item.text) && hookTemplateLiteralLength(item.text) > 0
-  );
-  if (templated.length === 1) return templated[0];
-  if (templated.length > 1) return void 0;
-  return matches2.length === 1 ? matches2[0] : void 0;
-}
-function expandHook(hook, slots, collections, random = Math.random, options = {}) {
-  const template = clean(hook);
-  const slotMap = slots ?? {};
-  const collectionsById = new Map(
-    collections.flatMap((collection) => {
-      const keys = [
-        collection.id,
-        collection.name,
-        wordCollectionVariableName(collection),
-        collection.id.toLowerCase(),
-        collection.name.toLowerCase(),
-        wordCollectionVariableName(collection).toLowerCase()
-      ];
-      return keys.map((key) => [key, collection]);
-    })
-  );
-  const substitutions = {};
-  const usedWordsByCollection = /* @__PURE__ */ new Map();
-  const occurrenceCounts = /* @__PURE__ */ new Map();
-  const expandedText = template.replace(
-    slotPattern,
-    (match, bracketSlot, braceSlot) => {
-      const baseSlotName = clean(bracketSlot || braceSlot);
-      if (!baseSlotName) {
-        return match;
-      }
-      const count = (occurrenceCounts.get(baseSlotName.toLowerCase()) ?? 0) + 1;
-      occurrenceCounts.set(baseSlotName.toLowerCase(), count);
-      const slotName = options.noDuplicates && count > 1 ? `${baseSlotName}_${count}` : baseSlotName;
-      if (!substitutions[slotName]) {
-        const runtimeValue = runtimeHookVariableValue(baseSlotName, {
-          now: options.now,
-          timeZone: options.timeZone,
-          slideCount: options.slideCount
-        });
-        if (runtimeValue !== void 0) {
-          substitutions[slotName] = runtimeValue;
-          return runtimeValue;
-        }
-        if (isRuntimeHookVariable(baseSlotName)) {
-          throw new Error(
-            `Runtime hook variable ${baseSlotName.toUpperCase()} could not be resolved for this run`
-          );
-        }
-        const collectionId = resolveSlotCollectionId(baseSlotName, slotMap);
-        const collection = collectionId ? collectionsById.get(collectionId) ?? collectionsById.get(collectionId.toLowerCase()) : null;
-        const allWords = collection?.words.filter(Boolean) ?? [];
-        if (allWords.length === 0) {
-          throw new Error(
-            `Hook slot ${slotName} has no words in database collection ${collectionId}`
-          );
-        }
-        const usedKey = (collection?.id ?? collectionId).toLowerCase();
-        const used = usedWordsByCollection.get(usedKey) ?? /* @__PURE__ */ new Set();
-        const freshWords = allWords.filter((word) => !used.has(word));
-        const words = freshWords.length > 0 ? freshWords : allWords;
-        const index = Math.min(
-          words.length - 1,
-          Math.max(0, Math.floor(random() * words.length))
-        );
-        used.add(words[index]);
-        usedWordsByCollection.set(usedKey, used);
-        substitutions[slotName] = formatSlotSubstitution(
-          slotName,
-          words[index],
-          collectionId
-        );
-      }
-      return substitutions[slotName] || match;
-    }
-  );
-  const correctedText = correctIndefiniteArticles(
-    correctPluralSuffixes(expandedText, substitutions)
-  );
-  const text3 = applyResolvedHookCase(correctedText, options.caseMode ?? "mixed");
-  const casedSubstitutions = caseSubstitutions(substitutions, options.caseMode);
-  return { text: text3, template, substitutions: casedSubstitutions };
-}
-function expandAllHookCombinations(hook, slots, collections, options = {}) {
-  const template = clean(hook);
-  const slotMap = slots ?? {};
-  const collectionsById = new Map(
-    collections.flatMap(
-      (collection) => [
-        collection.id,
-        collection.name,
-        wordCollectionVariableName(collection),
-        collection.id.toLowerCase(),
-        collection.name.toLowerCase(),
-        wordCollectionVariableName(collection).toLowerCase()
-      ].map((key) => [key, collection])
-    )
-  );
-  const occurrenceNames = [];
-  const seenCounts = /* @__PURE__ */ new Map();
-  for (const match of template.matchAll(slotPattern)) {
-    const slotName = clean(match[1] || match[2]);
-    if (!slotName) continue;
-    const count = (seenCounts.get(slotName.toLowerCase()) ?? 0) + 1;
-    seenCounts.set(slotName.toLowerCase(), count);
-    occurrenceNames.push(
-      options.noDuplicates && count > 1 ? `${slotName}_${count}` : slotName
-    );
-  }
-  const slotNames = occurrenceNames.filter(
-    (slotName, index, values) => values.indexOf(slotName) === index
-  );
-  if (slotNames.length === 0) {
-    return [{ text: template, template, substitutions: {} }];
-  }
-  const valuesBySlot = slotNames.map((slotName) => {
-    const baseName = options.noDuplicates ? slotName.replace(/_\d+$/, "") : slotName;
-    const runtimeValue = runtimeHookVariableValue(baseName, {
-      now: options.now,
-      timeZone: options.timeZone,
-      slideCount: options.slideCount
-    });
-    if (runtimeValue !== void 0) {
-      return {
-        slotName,
-        collectionKey: `runtime:${baseName.toLowerCase()}`,
-        enforceDistinct: false,
-        hasWords: true,
-        values: [runtimeValue]
-      };
-    }
-    if (isRuntimeHookVariable(baseName)) {
-      throw new Error(
-        `Runtime hook variable ${baseName.toUpperCase()} could not be resolved for this run`
-      );
-    }
-    const collectionId = resolveSlotCollectionId(slotName, slotMap) === slotName ? resolveSlotCollectionId(baseName, slotMap) : resolveSlotCollectionId(slotName, slotMap);
-    const collection = collectionsById.get(collectionId) ?? collectionsById.get(collectionId.toLowerCase());
-    const words = collection?.words.filter(Boolean) ?? [];
-    if (words.length === 0) {
-      throw new Error(
-        `Hook slot ${slotName} has no words in database collection ${collectionId}`
-      );
-    }
-    return {
-      slotName,
-      collectionKey: (collection?.id ?? collectionId).toLowerCase(),
-      enforceDistinct: true,
-      hasWords: true,
-      values: words.map(
-        (word) => formatSlotSubstitution(slotName, word, collectionId)
-      )
-    };
-  });
-  const expansions = [];
-  function visit(index, substitutions) {
-    if (index >= valuesBySlot.length) {
-      let occurrence = -1;
-      const expandedText = template.replace(slotPattern, (match) => {
-        occurrence += 1;
-        return substitutions[occurrenceNames[occurrence]] || match;
-      });
-      expansions.push({
-        text: applyResolvedHookCase(
-          correctIndefiniteArticles(
-            correctPluralSuffixes(expandedText, substitutions)
-          ),
-          options.caseMode ?? "mixed"
-        ),
-        template,
-        substitutions: caseSubstitutions(substitutions, options.caseMode)
-      });
-      return;
-    }
-    const slot3 = valuesBySlot[index];
-    const usedFromSameCollection = new Set(
-      valuesBySlot.slice(0, index).filter(
-        (other) => slot3.enforceDistinct && other.enforceDistinct && slot3.hasWords && other.collectionKey === slot3.collectionKey
-      ).map((other) => substitutions[other.slotName])
-    );
-    for (const value of slot3.values) {
-      if (usedFromSameCollection.has(value)) {
-        continue;
-      }
-      visit(index + 1, { ...substitutions, [slot3.slotName]: value });
-    }
-  }
-  visit(0, {});
-  return expansions;
-}
-function caseSubstitutions(substitutions, mode) {
-  if (!mode || mode === "mixed") return substitutions;
-  const substitutionMode = mode === "sentence" ? "lowercase" : mode;
-  return Object.fromEntries(
-    Object.entries(substitutions).map(([key, value]) => [
-      key,
-      applyResolvedHookCase(value, substitutionMode)
-    ])
-  );
-}
-function resolveSlotCollectionId(slotName, slotMap) {
-  const mapped = clean(slotMap[slotName]) || clean(
-    Object.entries(slotMap).find(
-      ([key]) => key.toLowerCase() === slotName.toLowerCase()
-    )?.[1] ?? ""
-  );
-  return mapped || slotName;
-}
-function formatSlotSubstitution(slotName, value, collectionId) {
-  const normalized = clean(value);
-  if (properTitleCaseSlots.has(slotName.toLowerCase()) || collectionId && properTitleCaseSlots.has(collectionId.toLowerCase())) {
-    return titleCase(normalized);
-  }
-  return normalized;
-}
-function correctPluralSuffixes(value, substitutions) {
-  return Object.values(substitutions).reduce((result, substitution) => {
-    if (!/s$/i.test(substitution)) return result;
-    return result.replace(
-      new RegExp(`\\b${escapeRegExp(substitution)}s\\b`, "g"),
-      substitution
-    );
-  }, value);
-}
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function normalizeHookMatchText(value) {
-  return clean(value).replace(/\s+/g, " ");
-}
-function correctIndefiniteArticles(value) {
-  return value.replace(
-    /\b(a|an)\s+([A-Za-z][A-Za-z'-]*)/g,
-    (match, article, word) => {
-      const nextArticle = /^[aeiou]/i.test(word) ? "an" : "a";
-      if (article.toLowerCase() === nextArticle) {
-        return match;
-      }
-      const corrected = article[0] === article[0]?.toUpperCase() ? `${nextArticle[0].toUpperCase()}${nextArticle.slice(1)}` : nextArticle;
-      return `${corrected} ${word}`;
-    }
-  );
-}
-function titleCase(value) {
-  return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
-}
-var slotPattern, properTitleCaseSlots;
-var init_hook_expansion = __esm({
-  "lib/hook-expansion.ts"() {
-    "use strict";
-    init_guards();
-    init_hook_casing();
-    init_hook_variables();
-    slotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g;
-    properTitleCaseSlots = /* @__PURE__ */ new Set(["zodiac"]);
   }
 });
 
@@ -2942,22 +2039,6 @@ var init_postfast_provider_controls = __esm({
 });
 
 // lib/slideshow-publishing-config.ts
-function deeplTargetLanguage(language) {
-  switch (language.trim().toLowerCase()) {
-    case "chinese":
-      return "ZH-HANS";
-    case "malay":
-      return "MS";
-    case "indian":
-    case "hindi":
-      return "HI";
-    case "spanish":
-      return "ES";
-    case "english":
-    default:
-      return null;
-  }
-}
 function slideshowDurationValue(value) {
   return Math.max(1, Number(value) || defaultSlideshowDuration);
 }
@@ -3113,6 +2194,26 @@ var init_automation_template_defaults = __esm({
         slideshow_sound_url: ""
       }
     };
+  }
+});
+
+// lib/hook-casing.ts
+function applyResolvedHookCase(value, mode) {
+  if (mode === "mixed") return value;
+  const transformed = transformText(value, mode);
+  return mode === "sentence" ? uppercaseFirstVisibleCharacter(transformed) : transformed;
+}
+function transformText(value, mode) {
+  if (mode === "lowercase" || mode === "sentence") return value.toLowerCase();
+  if (mode === "uppercase") return value.toUpperCase();
+  return value.toLowerCase().replace(/(^|[\s\-—–/([{“‘])([a-z])/g, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
+}
+function uppercaseFirstVisibleCharacter(value) {
+  return value.replace(/[a-z]/i, (letter) => letter.toUpperCase());
+}
+var init_hook_casing = __esm({
+  "lib/hook-casing.ts"() {
+    "use strict";
   }
 });
 
@@ -4449,162 +3550,198 @@ var init_realfarm_automation = __esm({
   }
 });
 
-// lib/realfarm-collections.ts
-function slugify(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// lib/hook-variables.ts
+function canonicalRuntimeHookVariableName(name) {
+  return name.trim().toLowerCase();
 }
-function storedCollectionId(collection) {
-  return slugify(collection.name);
+function isRuntimeHookVariable(name) {
+  const canonical = canonicalRuntimeHookVariableName(name);
+  return runtimeHookVariableNames.has(canonical) || legacyRuntimeHookVariableNames.has(canonical);
 }
-function legacyStoredCollectionId(collection) {
-  return `collection-${slugify(`${collection.name}-${collection.created_at}`)}`;
-}
-var init_realfarm_collections = __esm({
-  "lib/realfarm-collections.ts"() {
-    "use strict";
+function runtimeHookVariableValue(name, input = {}) {
+  const variable = canonicalRuntimeHookVariableName(name);
+  if (!isRuntimeHookVariable(variable)) return void 0;
+  const now = validDate(input.now) ? input.now : /* @__PURE__ */ new Date();
+  const timeZone = validTimeZone(input.timeZone) ? input.timeZone : void 0;
+  const format = (options) => new Intl.DateTimeFormat("en-US", { ...options, timeZone }).format(now);
+  switch (variable) {
+    case "slide_count": {
+      const slideCount = Math.round(Number(input.slideCount));
+      return Number.isFinite(slideCount) && slideCount > 0 ? String(slideCount) : void 0;
+    }
+    case "current_year":
+      return format({ year: "numeric" });
+    case "next_year":
+      return String(Number(format({ year: "numeric" })) + 1);
+    case "current_sign":
+      return zodiacSeason(now, timeZone).sign;
+    case "current_sign_cusp": {
+      const season = zodiacSeason(now, timeZone);
+      return `${season.months[0]} ${season.sign.toLowerCase()} vs ${season.months[1]} ${season.sign.toLowerCase()}`;
+    }
+    case "current_month":
+      return format({ month: "long" });
+    case "current_month_number":
+      return format({ month: "2-digit" });
+    case "current_day":
+      return format({ day: "numeric" });
+    case "current_weekday":
+      return format({ weekday: "long" });
+    case "current_date":
+      return format({ year: "numeric", month: "long", day: "numeric" });
+    case "current_iso_date":
+      return isoDate(now, timeZone);
+    case "current_time":
+      return format({ hour: "numeric", minute: "2-digit" });
+    default:
+      return void 0;
   }
-});
-
-// lib/automation-readiness.ts
-function automationGenerationBlockers(input) {
-  const { schema } = input;
-  if (schema.automationKind === "video") {
-    return [
+}
+function hookVariableNameFromLabel(value) {
+  return String(value ?? "").trim().replace(/^\[\[|\]\]$/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+function wordCollectionVariableName(collection) {
+  const id = collection.id.trim();
+  if (!legacyWordCollectionId(id) && /^[a-zA-Z0-9_-]+$/.test(id)) {
+    return id;
+  }
+  return hookVariableNameFromLabel(collection.name) || `variable_${id.replace(/^word-collection-/i, "").slice(0, 8)}`;
+}
+function legacyWordCollectionId(value) {
+  return /^word-collection-[0-9a-f-]{20,}$/i.test(value);
+}
+function validDate(value) {
+  return Boolean(value && Number.isFinite(value.getTime()));
+}
+function validTimeZone(value) {
+  if (!value) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
+function isoDate(now, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone
+  }).formatToParts(now);
+  const part = (type) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+function zodiacSeason(now, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    month: "numeric",
+    day: "numeric",
+    timeZone
+  }).formatToParts(now);
+  const number = (type) => Number(parts.find((item) => item.type === type)?.value);
+  const month = number("month");
+  const day = number("day");
+  const key = month * 100 + day;
+  if (key >= 1222 || key <= 119) {
+    return { sign: "Capricorn", months: ["december", "january"] };
+  }
+  if (key <= 218) {
+    return { sign: "Aquarius", months: ["january", "february"] };
+  }
+  if (key <= 320) {
+    return { sign: "Pisces", months: ["february", "march"] };
+  }
+  if (key <= 419) {
+    return { sign: "Aries", months: ["march", "april"] };
+  }
+  if (key <= 520) {
+    return { sign: "Taurus", months: ["april", "may"] };
+  }
+  if (key <= 620) {
+    return { sign: "Gemini", months: ["may", "june"] };
+  }
+  if (key <= 722) {
+    return { sign: "Cancer", months: ["june", "july"] };
+  }
+  if (key <= 822) {
+    return { sign: "Leo", months: ["july", "august"] };
+  }
+  if (key <= 922) {
+    return { sign: "Virgo", months: ["august", "september"] };
+  }
+  if (key <= 1022) {
+    return { sign: "Libra", months: ["september", "october"] };
+  }
+  if (key <= 1121) {
+    return { sign: "Scorpio", months: ["october", "november"] };
+  }
+  return { sign: "Sagittarius", months: ["november", "december"] };
+}
+var runtimeHookVariables, runtimeHookVariableNames, legacyRuntimeHookVariableNames;
+var init_hook_variables = __esm({
+  "lib/hook-variables.ts"() {
+    "use strict";
+    runtimeHookVariables = [
       {
-        code: "unsupported_runner",
-        message: "Saved video automations do not have a generation runner yet."
+        name: "current_year",
+        label: "Current year",
+        description: "Four-digit year for the scheduled run date."
+      },
+      {
+        name: "next_year",
+        label: "Next year",
+        description: "Four-digit year after the scheduled run date's year."
+      },
+      {
+        name: "current_sign",
+        label: "Current zodiac sign",
+        description: "Zodiac season active on the scheduled run date."
+      },
+      {
+        name: "current_sign_cusp",
+        label: "Current sign cusp",
+        description: "The two month-specific versions of the active sign, such as july leo vs august leo."
+      },
+      {
+        name: "current_month",
+        label: "Current month",
+        description: "Full month name for the scheduled run date."
+      },
+      {
+        name: "current_month_number",
+        label: "Current month number",
+        description: "Two-digit month number for the scheduled run date."
+      },
+      {
+        name: "current_day",
+        label: "Current day",
+        description: "Day of the month for the scheduled run date."
+      },
+      {
+        name: "current_weekday",
+        label: "Current weekday",
+        description: "Full weekday name for the scheduled run date."
+      },
+      {
+        name: "current_date",
+        label: "Current date",
+        description: "Readable scheduled run date."
+      },
+      {
+        name: "current_iso_date",
+        label: "Current ISO date",
+        description: "Scheduled run date in YYYY-MM-DD format."
+      },
+      {
+        name: "current_time",
+        label: "Current time",
+        description: "Scheduled run time with hours and minutes."
       }
     ];
-  }
-  if (schema.automationKind === "ugc") {
-    return ugcLiveConfigurationErrors("live", schema).map((message) => ({
-      code: "invalid_ugc_configuration",
-      message
-    }));
-  }
-  const blockers = [];
-  const hooks = automationHooks2(schema);
-  const primaryCollectionIds = automationCollectionIds(schema);
-  if (primaryCollectionIds.length === 0) {
-    blockers.push({
-      code: "missing_collection_selection",
-      message: "Select an image collection."
-    });
-  }
-  for (const collectionId of referencedCollectionIds(schema)) {
-    const collection = input.collections.find(
-      (candidate) => candidate.aliases.includes(collectionId)
+    runtimeHookVariableNames = new Set(
+      runtimeHookVariables.map((variable) => variable.name)
     );
-    if (!collection) {
-      blockers.push({
-        code: "missing_collection",
-        message: `Collection \u201C${collectionId}\u201D does not exist.`
-      });
-    } else if (collection.mediaType === "video" || collection.assetCount === 0) {
-      blockers.push({
-        code: "empty_collection",
-        message: `Collection \u201C${collection.name}\u201D has no usable images.`
-      });
-    }
-  }
-  const contentSection = automationFormatSection(schema, "content");
-  const validationSlideCount = contentSection.slideCountMode === "varying" ? Math.max(
-    1,
-    Math.round(contentSection.slideCountMin ?? contentSection.slideCount)
-  ) : Math.max(1, Math.round(contentSection.slideCount));
-  const invalidHookMessages = [];
-  let usableHookCount = 0;
-  for (const hook of hooks) {
-    try {
-      expandHook(hook, schema.hook_slots, input.wordCollections, () => 0, {
-        noDuplicates: schema.hook_no_duplicate_slots === true,
-        caseMode: schema.prompt_formatting.hook_case,
-        timeZone: schema.schedule.timezone,
-        // Readiness only needs a valid representative value. The runner
-        // resolves SLIDE_COUNT again after selecting the actual static/varying
-        // body count for this run.
-        slideCount: validationSlideCount
-      });
-      usableHookCount += 1;
-    } catch (error) {
-      invalidHookMessages.push(
-        error instanceof Error ? error.message : "A hook variable cannot be expanded."
-      );
-    }
-  }
-  if (hooks.length > 0 && usableHookCount === 0) {
-    blockers.push(
-      ...invalidHookMessages.map((message) => ({
-        code: "invalid_hook_variable",
-        message
-      }))
-    );
-  }
-  return uniqueBlockers(blockers);
-}
-function referencedCollectionIds(schema) {
-  const ids = new Set(automationCollectionIds(schema));
-  for (const route of schema.content_strategy?.routes ?? []) {
-    for (const collectionId of route.collection_ids) {
-      if (collectionId) ids.add(collectionId);
-    }
-  }
-  for (const section of schema.formatting) {
-    if (section.overlayImage?.enabled && section.overlayImage.collectionId) {
-      ids.add(section.overlayImage.collectionId);
-    }
-    for (const imageItem of section.imageItems ?? []) {
-      if (imageItem.collectionId) ids.add(imageItem.collectionId);
-    }
-  }
-  for (const design of schema.slide_designs) {
-    if (design.overlayImage?.enabled && design.overlayImage.collectionId) {
-      ids.add(design.overlayImage.collectionId);
-    }
-    for (const imageItem of design.imageItems ?? []) {
-      if (imageItem.collectionId) ids.add(imageItem.collectionId);
-    }
-  }
-  return [...ids];
-}
-function uniqueBlockers(blockers) {
-  const seen = /* @__PURE__ */ new Set();
-  return blockers.filter((blocker) => {
-    const key = `${blocker.code}:${blocker.message}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-var init_automation_readiness = __esm({
-  "lib/automation-readiness.ts"() {
-    "use strict";
-    init_hook_expansion();
-    init_realfarm_automation();
-    init_realfarm_collections();
-  }
-});
-
-// lib/fixed-slideshow-count.ts
-function fixedSlideshowCount(schema) {
-  const configured2 = Number(schema.prompt_formatting?.num_of_slides);
-  if (Number.isFinite(configured2) && configured2 > 0) {
-    return Math.max(1, Math.round(configured2));
-  }
-  const total = schema.formatting.reduce(
-    (sum, section) => sum + Math.max(0, Math.round(Number(section.slideCount) || 0)),
-    0
-  );
-  return Math.max(1, total || 1);
-}
-function hookUsesDynamicSlideCount(hook) {
-  return dynamicSlideCountToken.test(hook.text) || Number.isFinite(Number(hook.bodySlideCount)) && Number(hook.bodySlideCount) > 0;
-}
-var dynamicSlideCountToken;
-var init_fixed_slideshow_count = __esm({
-  "lib/fixed-slideshow-count.ts"() {
-    "use strict";
-    dynamicSlideCountToken = /\[\[\s*SLIDE_COUNT\s*\]\]/i;
+    legacyRuntimeHookVariableNames = /* @__PURE__ */ new Set(["slide_count"]);
   }
 });
 
@@ -4757,10 +3894,437 @@ var init_llm_slop = __esm({
   }
 });
 
-// windmill/runtime/server-only-shim.ts
-var init_server_only_shim = __esm({
-  "windmill/runtime/server-only-shim.ts"() {
+// lib/social-post-metadata.ts
+function socialPostMetadataPromptLines(subject, options = {}) {
+  const captionLine = options.captionPolicy === "exact_hook" ? "- caption: return exactly the selected Hook text; do not rewrite, extend, or punctuate it." : `- caption: write a short TikTok/Instagram-style post caption for the ${subject}, one sentence, specific to the hook/topic, no hashtags.`;
+  return [
+    `- title: write an AI-generated title for the ${subject}, 3-8 words, specific to the hook/topic.`,
+    captionLine,
+    "- hashtags: return an array of 3-5 broad lowercase hashtags related to the topic or niche."
+  ];
+}
+function socialPostMetadataSchemaProperties(subject, options = {}) {
+  return {
+    title: {
+      type: "string",
+      minLength: 1,
+      description: `AI-generated ${subject} title, 3-8 words, specific to the hook/topic.`
+    },
+    caption: {
+      type: "string",
+      minLength: 1,
+      description: options.captionPolicy === "exact_hook" ? "Exact selected Hook text, without rewriting or additional punctuation." : `Short TikTok/Instagram-style post caption for the ${subject}, one sentence, specific to the hook/topic, no hashtags.`
+    },
+    hashtags: {
+      type: "array",
+      items: {
+        type: "string",
+        minLength: 2,
+        pattern: "^#[a-z0-9][a-z0-9_-]*$"
+      },
+      description: "Three to five broad lowercase hashtags related to the topic or niche."
+    }
+  };
+}
+function normalizeSocialPostMetadata(output, options = {}) {
+  const record2 = isRecord(output) ? output : {};
+  const maybeLower = (value) => options.lowercase ? value.toLowerCase() : value;
+  return {
+    title: maybeLower(clean(record2.title)),
+    caption: maybeLower(clean(record2.caption)),
+    hashtags: normalizeSocialPostHashtags(record2.hashtags)
+  };
+}
+function normalizeSocialPostHashtags(value) {
+  const tags = Array.isArray(value) ? value.filter((tag) => typeof tag === "string") : typeof value === "string" ? value.split(/[\s,]+/) : [];
+  return [
+    ...new Set(
+      tags.map((tag) => tag.trim().toLowerCase().replace(/^#+/, "")).filter(Boolean).map((tag) => `#${tag}`)
+    )
+  ];
+}
+var init_social_post_metadata = __esm({
+  "lib/social-post-metadata.ts"() {
     "use strict";
+    init_guards();
+  }
+});
+
+// lib/temp-slide-testing-shared.ts
+function buildTempSlideUserPrompt(input) {
+  const placeholderLines = input.placeholders.map((placeholder) => {
+    return `- ${placeholder.id}: ${placeholder.slideId}, ${placeholder.section}, ${placeholderRequirement(placeholder)}`;
+  });
+  const captionPolicy = promptUsesExactHookCaption(input.promptInstructions) ? "exact_hook" : "generated";
+  return [
+    `Automation: ${input.automationName}`,
+    `Hook: ${input.hook}`,
+    "Tone (governs register, diction, rhythm, and casing \u2014 apply to every field; do not substitute a literary default):",
+    `Tone: ${input.tone}`,
+    "Metadata requirements:",
+    ...socialPostMetadataPromptLines("slideshow", { captionPolicy }),
+    "Prompt instructions:",
+    input.promptInstructions,
+    ...performanceMemoryLines(input.performanceMemory),
+    "Hook-to-content coherence rules:",
+    "- The selected Hook above is the source of truth for this one slideshow. First identify its exact subject, people/sign/product, and claim or question.",
+    "- Every body slide must directly answer, explain, support, exemplify, or continue that exact hook. Reuse the hook's specific subject where needed so the connection is unmistakable.",
+    "- Do not switch to a different concept, stock framework, or theme just because it appears in the automation name, tone, or an example inside a content direction.",
+    "- Follow each placeholder's content direction about the selected hook. If a direction specifies format (for example heading, explanation, list item), treat it as format\u2014not as permission to change topics.",
+    "- Text boxes sharing the same slide id are one unit: later text boxes must explain or support the first text box on that slide, never introduce an unrelated point.",
+    "- Across body slides, create a logical progression without repeating the same point.",
+    ...avoidSimilarOutputLines(input.avoidSimilarOutputs),
+    ...avoidSimilarHeadingLines(input.avoidSimilarHeadings),
+    ...strictOutputRuleLines(input.tone),
+    "Placeholders:",
+    ...placeholderLines
+  ].join("\n");
+}
+function performanceMemoryLines(memory) {
+  const proven = (memory?.provenPatterns ?? []).map(clean).filter(Boolean);
+  const avoid = (memory?.avoidPatterns ?? []).map(clean).filter(Boolean);
+  if (proven.length === 0 && avoid.length === 0) return [];
+  return [
+    "Performance memory from prior scored posts:",
+    ...proven.map((value) => `- Proven: ${value}`),
+    ...avoid.map((value) => `- Avoid: ${value}`),
+    "Use this only as strategic guidance; the selected hook and field directions still control the topic."
+  ];
+}
+function toneRequestsLowercase(tone) {
+  return /lower\s*case|all\s*lowercase/i.test(tone ?? "");
+}
+function strictOutputRuleLines(tone) {
+  const lines = [
+    "Strict output rules:",
+    "- Fill EVERY field. Never return an empty string for title, caption, hashtags, or any placeholder.",
+    "- Keep each placeholder within the exact word range stated for it; count words before answering.",
+    "- hashtags must be a JSON array of 3-5 tags, each starting with '#' (e.g. ['#focus', '#wellness', '#mindset'])."
+  ];
+  if (toneRequestsLowercase(tone)) {
+    lines.push(
+      "- Write EVERY value \u2014 title, caption, hashtags, and all slide text \u2014 in all lowercase with no capital letters anywhere."
+    );
+  }
+  return lines;
+}
+function avoidSimilarOutputLines(outputs) {
+  const values = (outputs ?? []).map(clean).filter(Boolean).slice(0, 5);
+  if (values.length === 0) {
+    return [];
+  }
+  return [
+    "Avoid making the title, caption, or body slide text substantially similar to these prior outputs:",
+    ...values.map((value) => `- ${value}`)
+  ];
+}
+function avoidSimilarHeadingLines(headings) {
+  const values = (headings ?? []).map(clean).filter(Boolean).slice(0, 20);
+  if (values.length === 0) return [];
+  return [
+    "Do not reuse these recently published body headings or substantially repeat their angles:",
+    ...values.map((value) => `- ${value}`)
+  ];
+}
+function promptPreviewHook(automation) {
+  return automation.hooks.map(clean).find(Boolean) ?? "Create a high-performing TikTok slideshow.";
+}
+function buildTempSlideStructuredOutputSchema(placeholders, options = {}) {
+  const promptPlaceholders = placeholders.filter(
+    (placeholder) => placeholder.textMode === "prompt"
+  );
+  const properties = Object.fromEntries(
+    promptPlaceholders.map((placeholder) => [
+      placeholder.id,
+      {
+        type: "string",
+        minLength: 1,
+        description: placeholderDescription(placeholder)
+      }
+    ])
+  );
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      ...socialPostMetadataSchemaProperties("slideshow", {
+        captionPolicy: options.exactHookCaption ? "exact_hook" : "generated"
+      }),
+      text: {
+        type: "object",
+        additionalProperties: false,
+        properties,
+        required: promptPlaceholders.map((placeholder) => placeholder.id)
+      }
+    },
+    required: ["title", "caption", "hashtags", "text"]
+  };
+}
+function getTempSlidePromptPlaceholders(automation) {
+  return automation.slides.flatMap(
+    (slide) => slide.displayText ? slide.textItems.filter(
+      (textItem) => textItem.textMode === "prompt" && textItem.section !== "hook"
+    ) : []
+  );
+}
+function buildScheduledSlideshowPrompt(input) {
+  const promptInstructions = clean(input.promptInstructions) || defaultTempSlideUserInstructions;
+  const systemPrompt = clean(input.systemPrompt) || defaultTempSlideSystemPrompt;
+  const exactHookCaption = promptUsesExactHookCaption(promptInstructions);
+  return {
+    system: `${systemPrompt}
+${llmSlopPromptLine()}`,
+    user: buildTempSlideUserPrompt({
+      automationName: input.automationName,
+      hook: input.hook,
+      tone: input.tone,
+      promptInstructions,
+      placeholders: input.placeholders,
+      avoidSimilarOutputs: input.avoidSimilarOutputs,
+      avoidSimilarHeadings: input.avoidSimilarHeadings,
+      performanceMemory: input.performanceMemory
+    }),
+    schema: buildTempSlideStructuredOutputSchema(input.placeholders, {
+      exactHookCaption
+    })
+  };
+}
+function promptUsesExactHookCaption(value) {
+  return /Caption requirement:\s*return exactly the selected Hook text/i.test(
+    value
+  );
+}
+function wordRangeViolation(words, min, max) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  if (words < min) return "below";
+  if (words > max) return "above";
+  return null;
+}
+function countSlideWords(value) {
+  return value.split(/\s+/).filter(Boolean).length;
+}
+function placeholderWordRangeError(placeholder, text3) {
+  const words = countSlideWords(text3);
+  const direction = wordRangeViolation(
+    words,
+    Number(placeholder.wordLengthMin),
+    Number(placeholder.wordLengthMax)
+  );
+  if (!direction) return null;
+  return direction === "below" ? `${placeholder.id} has ${words} words, but its configured minimum is ${placeholder.wordLengthMin}.` : `${placeholder.id} has ${words} words, but its configured maximum is ${placeholder.wordLengthMax}.`;
+}
+function normalizeTempSlideStructuredOutput(output, placeholders, options = {}) {
+  const textRecord = isRecord(output) && isRecord(output.text) ? output.text : {};
+  const maybeLower = (value) => options.lowercase ? value.toLowerCase() : value;
+  const metadata = normalizeSocialPostMetadata(output, options);
+  return {
+    title: metadata.title,
+    caption: metadata.caption,
+    hashtags: metadata.hashtags.join(" "),
+    text: Object.fromEntries(
+      placeholders.map((placeholder) => [
+        placeholder.id,
+        maybeLower(
+          clean(
+            typeof textRecord[placeholder.id] === "string" ? textRecord[placeholder.id] : ""
+          )
+        )
+      ])
+    )
+  };
+}
+function placeholderDescription(placeholder) {
+  return `${placeholder.label}. ${placeholderRequirement(placeholder)}.`;
+}
+function placeholderRequirement(placeholder) {
+  const direction = placeholder.contentDirection || "Fill this slideshow text box.";
+  const normalizedDirection = direction.trim().replace(/[.。]+$/, "");
+  const wordRange = `${placeholder.wordLengthMin}-${placeholder.wordLengthMax} words`;
+  const mentionedRange = firstWordRangeMention(normalizedDirection);
+  if (!mentionedRange) {
+    return `${normalizedDirection}. ${wordRange}`;
+  }
+  return mentionedRange === wordRange ? normalizedDirection : normalizedDirection.replace(mentionedRange, wordRange);
+}
+function firstWordRangeMention(value) {
+  return value.match(/\b\d+\s*[-–—+]\s*\d*\s*words?\b/i)?.[0] ?? null;
+}
+var defaultTempSlideSystemPrompt, defaultTempSlideUserInstructions;
+var init_temp_slide_testing_shared = __esm({
+  "lib/temp-slide-testing-shared.ts"() {
+    "use strict";
+    init_guards();
+    init_llm_slop();
+    init_social_post_metadata();
+    defaultTempSlideSystemPrompt = "You fill metadata and text placeholders for TikTok slideshow posts. The selected hook is the source of truth for the slideshow topic: never change it, and never introduce a different concept from the automation name, a content direction, or an example. Each placeholder's content direction defines what that text box must say about the hook and its required format; treat a content direction as format guidance (heading, list item, explanation), never as permission to change the subject. Within those topic constraints, the configured Tone governs the voice \u2014 register, diction, sentence rhythm, capitalization, and word choice \u2014 and you must follow it exactly, even when it calls for lowercase, slang, a raw or personal register, or a break from polished literary habits. Do not override the configured Tone with a generic literary default. Return only JSON matching the schema. Never invent studies, statistics, or sources, and do not fabricate testimonials as quoted research; first-person voice in character is allowed. Do not add visual parameters, image prompts, commentary, markdown, or extra keys.";
+    defaultTempSlideUserInstructions = "Generate a concise slideshow title, a short social caption, and broad niche hashtags. Fill every non-hook placeholder text box. Use the fixed hook as context only and do not rewrite it. Every body slide must directly develop the exact subject and claim in the selected hook while following its own content direction. Body slides should be specific to the hook, not merely the automation category. Return slide text only in the schema's text object.";
+  }
+});
+
+// lib/automation-output-qa.ts
+function validateAutomationRunOutput(input) {
+  const findings = [];
+  const slides = input.run.plan.slides;
+  const bodySlides = slides.filter((slide) => slide.role === "content");
+  const bodySlideCount = bodySlides.length;
+  findings.push(...countMismatchFindings(input.run, bodySlideCount));
+  findings.push(...unresolvedTokenFindings(input.run));
+  if (input.schema?.distinct_variable_draws !== false) {
+    findings.push(...duplicateVariableDrawFindings(input.run));
+  }
+  findings.push(...slideTextFindings(slides, input.schema));
+  return {
+    valid: !findings.some((finding) => finding.severity === "error"),
+    actualSlideCount: slides.length,
+    bodySlideCount,
+    findings
+  };
+}
+function countMismatchFindings(run, bodySlideCount) {
+  if (bodySlideCount === 0) return [];
+  const substitutions = Object.entries(run.plan.hookSubstitutions ?? {});
+  const explicitCounts = substitutions.flatMap(([name, rawValue]) => {
+    if (!countTokenPattern.test(name)) return [];
+    const numeric2 = integerInRange(rawValue, 1, 100);
+    return numeric2 == null ? [] : [numeric2];
+  });
+  const literalCounts = [...run.plan.hook.matchAll(/\b(\d{1,2}|100)\b/g)].map((match) => Number(match[1])).filter((value) => Number.isInteger(value) && value > 0);
+  const expectedCounts = [.../* @__PURE__ */ new Set([...explicitCounts, ...literalCounts])];
+  if (expectedCounts.length === 0 || expectedCounts.includes(bodySlideCount)) {
+    return [];
+  }
+  const expected = expectedCounts[0];
+  return [
+    {
+      code: "COUNT_MISMATCH",
+      severity: "error",
+      expected,
+      actual: bodySlideCount,
+      message: `The hook promises ${expected} item${expected === 1 ? "" : "s"}, but ${bodySlideCount} body slide${bodySlideCount === 1 ? "" : "s"} rendered.`
+    }
+  ];
+}
+function unresolvedTokenFindings(run) {
+  const values = [{ text: run.plan.hook }];
+  run.plan.slides.forEach((slide, slideIndex) => {
+    if (slide.textItems?.length) {
+      slide.textItems.forEach(
+        (item) => values.push({ text: item.text, slideIndex, textItemId: item.id })
+      );
+    } else {
+      values.push({ text: slide.text, slideIndex });
+    }
+  });
+  return values.flatMap((value) => {
+    const tokens = [...new Set(value.text.match(unresolvedTokenPattern) ?? [])];
+    return tokens.map((token) => ({
+      code: "UNRESOLVED_TOKEN",
+      severity: "error",
+      slideIndex: value.slideIndex === void 0 ? void 0 : value.slideIndex + 1,
+      textItemId: value.textItemId,
+      actual: token,
+      message: `${token} survived variable substitution in rendered text.`
+    }));
+  });
+}
+function duplicateVariableDrawFindings(run) {
+  const byValue = /* @__PURE__ */ new Map();
+  for (const [name, rawValue] of Object.entries(
+    run.plan.hookSubstitutions ?? {}
+  )) {
+    if (isRuntimeHookVariable(name)) continue;
+    const value = rawValue.trim();
+    if (!value) continue;
+    const key = value.toLocaleLowerCase();
+    byValue.set(key, [...byValue.get(key) ?? [], name]);
+  }
+  return [...byValue.entries()].flatMap(
+    ([value, names]) => names.length < 2 ? [] : [
+      {
+        code: "DUPLICATE_VARIABLE_DRAW",
+        severity: "error",
+        expected: "distinct values",
+        actual: value,
+        message: `The value \u201C${value}\u201D was drawn into multiple hook slots: ${names.join(", ")}.`
+      }
+    ]
+  );
+}
+function slideTextFindings(slides, schema) {
+  return slides.flatMap((slide, slideIndex) => {
+    const renderedItems = slide.textItems?.length ? slide.textItems : slide.text ? [{ id: "text", text: slide.text }] : [];
+    const section = schema ? automationFormatSection(
+      schema,
+      slide.role === "hook" ? "hook" : slide.role === "cta" ? "cta" : "content"
+    ) : void 0;
+    if (section?.noText || slide.displayText === false) return [];
+    if (renderedItems.length === 0) {
+      return [
+        {
+          code: "EMPTY_SLIDE_TEXT",
+          severity: "error",
+          slideIndex: slideIndex + 1,
+          message: `Slide ${slideIndex + 1} has no rendered text.`
+        }
+      ];
+    }
+    const configuredById = new Map(
+      (section?.textItems ?? []).map((item) => [item.id, item])
+    );
+    return renderedItems.flatMap((item, itemIndex) => {
+      const text3 = item.text.trim();
+      const configured2 = configuredById.get(item.id) ?? section?.textItems[itemIndex];
+      if (!text3) {
+        return [
+          {
+            code: "EMPTY_SLIDE_TEXT",
+            severity: "error",
+            slideIndex: slideIndex + 1,
+            textItemId: item.id,
+            message: `Slide ${slideIndex + 1} text item ${item.id} is empty.`
+          }
+        ];
+      }
+      return configured2 ? wordLengthFindings(text3, configured2, slideIndex, item.id) : [];
+    });
+  });
+}
+function wordLengthFindings(text3, configured2, slideIndex, textItemId) {
+  const words = text3.split(/\s+/).filter(Boolean).length;
+  const direction = wordRangeViolation(
+    words,
+    configured2.wordLengthMin,
+    configured2.wordLengthMax
+  );
+  if (!direction) return [];
+  const limit = direction === "below" ? configured2.wordLengthMin : configured2.wordLengthMax;
+  return [
+    {
+      code: "WORD_LENGTH_VIOLATION",
+      severity: "error",
+      slideIndex: slideIndex + 1,
+      textItemId,
+      expected: `${direction === "below" ? "at least" : "at most"} ${limit} words`,
+      actual: words,
+      message: `Slide ${slideIndex + 1} text item ${textItemId} has ${words} words; its configured ${direction === "below" ? "minimum" : "maximum"} is ${limit}.`
+    }
+  ];
+}
+function integerInRange(value, min, max) {
+  const match = value.match(/\b\d+\b/);
+  if (!match) return null;
+  const numeric2 = Number(match[0]);
+  return Number.isInteger(numeric2) && numeric2 >= min && numeric2 <= max ? numeric2 : null;
+}
+var unresolvedTokenPattern, countTokenPattern;
+var init_automation_output_qa = __esm({
+  "lib/automation-output-qa.ts"() {
+    "use strict";
+    init_realfarm_automation();
+    init_hook_variables();
+    init_temp_slide_testing_shared();
+    unresolvedTokenPattern = /\[\[[A-Z][A-Z0-9_-]*\]\]/gi;
+    countTokenPattern = /(COUNT|NUMBER|TOTAL|ITEMS?|THINGS?|WAYS?|SIGNS?)/i;
   }
 });
 
@@ -7050,35 +6614,6 @@ var init_http = __esm({
 });
 
 // lib/deepl-translate.ts
-async function translateTextsWithDeepL(input) {
-  const targetLang = deeplTargetLanguage(input.targetLanguage);
-  const texts = input.texts.map((text3) => text3.trim());
-  if (!targetLang || texts.length === 0) {
-    return input.texts;
-  }
-  const payload = await fetchJson(
-    "https://api.deepl.com/v2/translate",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `DeepL-Auth-Key ${input.apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        text: texts,
-        target_lang: targetLang
-      })
-    },
-    {
-      fetchImpl: input.fetchImpl,
-      timeoutMs: 3e4,
-      errorMessage: (_response, payload2) => typeof payload2 === "object" && payload2 !== null && "message" in payload2 && typeof payload2.message === "string" ? payload2.message : "DeepL translation failed"
-    }
-  );
-  return input.texts.map(
-    (original, index) => payload.translations?.[index]?.text?.trim() || original
-  );
-}
 var init_deepl_translate = __esm({
   "lib/deepl-translate.ts"() {
     "use strict";
@@ -7088,270 +6623,19 @@ var init_deepl_translate = __esm({
   }
 });
 
-// lib/social-post-metadata.ts
-function socialPostMetadataPromptLines(subject, options = {}) {
-  const captionLine = options.captionPolicy === "exact_hook" ? "- caption: return exactly the selected Hook text; do not rewrite, extend, or punctuate it." : `- caption: write a short TikTok/Instagram-style post caption for the ${subject}, one sentence, specific to the hook/topic, no hashtags.`;
-  return [
-    `- title: write an AI-generated title for the ${subject}, 3-8 words, specific to the hook/topic.`,
-    captionLine,
-    "- hashtags: return an array of 3-5 broad lowercase hashtags related to the topic or niche."
-  ];
+// lib/realfarm-collections.ts
+function slugify(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
-function socialPostMetadataSchemaProperties(subject, options = {}) {
-  return {
-    title: {
-      type: "string",
-      minLength: 1,
-      description: `AI-generated ${subject} title, 3-8 words, specific to the hook/topic.`
-    },
-    caption: {
-      type: "string",
-      minLength: 1,
-      description: options.captionPolicy === "exact_hook" ? "Exact selected Hook text, without rewriting or additional punctuation." : `Short TikTok/Instagram-style post caption for the ${subject}, one sentence, specific to the hook/topic, no hashtags.`
-    },
-    hashtags: {
-      type: "array",
-      items: {
-        type: "string",
-        minLength: 2,
-        pattern: "^#[a-z0-9][a-z0-9_-]*$"
-      },
-      description: "Three to five broad lowercase hashtags related to the topic or niche."
-    }
-  };
+function storedCollectionId(collection) {
+  return slugify(collection.name);
 }
-function normalizeSocialPostMetadata(output, options = {}) {
-  const record2 = isRecord(output) ? output : {};
-  const maybeLower = (value) => options.lowercase ? value.toLowerCase() : value;
-  return {
-    title: maybeLower(clean(record2.title)),
-    caption: maybeLower(clean(record2.caption)),
-    hashtags: normalizeSocialPostHashtags(record2.hashtags)
-  };
+function legacyStoredCollectionId(collection) {
+  return `collection-${slugify(`${collection.name}-${collection.created_at}`)}`;
 }
-function normalizeSocialPostHashtags(value) {
-  const tags = Array.isArray(value) ? value.filter((tag) => typeof tag === "string") : typeof value === "string" ? value.split(/[\s,]+/) : [];
-  return [
-    ...new Set(
-      tags.map((tag) => tag.trim().toLowerCase().replace(/^#+/, "")).filter(Boolean).map((tag) => `#${tag}`)
-    )
-  ];
-}
-var init_social_post_metadata = __esm({
-  "lib/social-post-metadata.ts"() {
+var init_realfarm_collections = __esm({
+  "lib/realfarm-collections.ts"() {
     "use strict";
-    init_guards();
-  }
-});
-
-// lib/temp-slide-testing-shared.ts
-function buildTempSlideUserPrompt(input) {
-  const placeholderLines = input.placeholders.map((placeholder) => {
-    return `- ${placeholder.id}: ${placeholder.slideId}, ${placeholder.section}, ${placeholderRequirement(placeholder)}`;
-  });
-  const captionPolicy = promptUsesExactHookCaption(input.promptInstructions) ? "exact_hook" : "generated";
-  return [
-    `Automation: ${input.automationName}`,
-    `Hook: ${input.hook}`,
-    "Tone (governs register, diction, rhythm, and casing \u2014 apply to every field; do not substitute a literary default):",
-    `Tone: ${input.tone}`,
-    "Metadata requirements:",
-    ...socialPostMetadataPromptLines("slideshow", { captionPolicy }),
-    "Prompt instructions:",
-    input.promptInstructions,
-    ...performanceMemoryLines(input.performanceMemory),
-    "Hook-to-content coherence rules:",
-    "- The selected Hook above is the source of truth for this one slideshow. First identify its exact subject, people/sign/product, and claim or question.",
-    "- Every body slide must directly answer, explain, support, exemplify, or continue that exact hook. Reuse the hook's specific subject where needed so the connection is unmistakable.",
-    "- Do not switch to a different concept, stock framework, or theme just because it appears in the automation name, tone, or an example inside a content direction.",
-    "- Follow each placeholder's content direction about the selected hook. If a direction specifies format (for example heading, explanation, list item), treat it as format\u2014not as permission to change topics.",
-    "- Text boxes sharing the same slide id are one unit: later text boxes must explain or support the first text box on that slide, never introduce an unrelated point.",
-    "- Across body slides, create a logical progression without repeating the same point.",
-    ...avoidSimilarOutputLines(input.avoidSimilarOutputs),
-    ...avoidSimilarHeadingLines(input.avoidSimilarHeadings),
-    ...strictOutputRuleLines(input.tone),
-    "Placeholders:",
-    ...placeholderLines
-  ].join("\n");
-}
-function performanceMemoryLines(memory) {
-  const proven = (memory?.provenPatterns ?? []).map(clean).filter(Boolean);
-  const avoid = (memory?.avoidPatterns ?? []).map(clean).filter(Boolean);
-  if (proven.length === 0 && avoid.length === 0) return [];
-  return [
-    "Performance memory from prior scored posts:",
-    ...proven.map((value) => `- Proven: ${value}`),
-    ...avoid.map((value) => `- Avoid: ${value}`),
-    "Use this only as strategic guidance; the selected hook and field directions still control the topic."
-  ];
-}
-function toneRequestsLowercase(tone) {
-  return /lower\s*case|all\s*lowercase/i.test(tone ?? "");
-}
-function strictOutputRuleLines(tone) {
-  const lines = [
-    "Strict output rules:",
-    "- Fill EVERY field. Never return an empty string for title, caption, hashtags, or any placeholder.",
-    "- Keep each placeholder within the exact word range stated for it; count words before answering.",
-    "- hashtags must be a JSON array of 3-5 tags, each starting with '#' (e.g. ['#focus', '#wellness', '#mindset'])."
-  ];
-  if (toneRequestsLowercase(tone)) {
-    lines.push(
-      "- Write EVERY value \u2014 title, caption, hashtags, and all slide text \u2014 in all lowercase with no capital letters anywhere."
-    );
-  }
-  return lines;
-}
-function avoidSimilarOutputLines(outputs) {
-  const values = (outputs ?? []).map(clean).filter(Boolean).slice(0, 5);
-  if (values.length === 0) {
-    return [];
-  }
-  return [
-    "Avoid making the title, caption, or body slide text substantially similar to these prior outputs:",
-    ...values.map((value) => `- ${value}`)
-  ];
-}
-function avoidSimilarHeadingLines(headings) {
-  const values = (headings ?? []).map(clean).filter(Boolean).slice(0, 20);
-  if (values.length === 0) return [];
-  return [
-    "Do not reuse these recently published body headings or substantially repeat their angles:",
-    ...values.map((value) => `- ${value}`)
-  ];
-}
-function promptPreviewHook(automation) {
-  return automation.hooks.map(clean).find(Boolean) ?? "Create a high-performing TikTok slideshow.";
-}
-function buildTempSlideStructuredOutputSchema(placeholders, options = {}) {
-  const promptPlaceholders = placeholders.filter(
-    (placeholder) => placeholder.textMode === "prompt"
-  );
-  const properties = Object.fromEntries(
-    promptPlaceholders.map((placeholder) => [
-      placeholder.id,
-      {
-        type: "string",
-        minLength: 1,
-        description: placeholderDescription(placeholder)
-      }
-    ])
-  );
-  return {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      ...socialPostMetadataSchemaProperties("slideshow", {
-        captionPolicy: options.exactHookCaption ? "exact_hook" : "generated"
-      }),
-      text: {
-        type: "object",
-        additionalProperties: false,
-        properties,
-        required: promptPlaceholders.map((placeholder) => placeholder.id)
-      }
-    },
-    required: ["title", "caption", "hashtags", "text"]
-  };
-}
-function getTempSlidePromptPlaceholders(automation) {
-  return automation.slides.flatMap(
-    (slide) => slide.displayText ? slide.textItems.filter(
-      (textItem) => textItem.textMode === "prompt" && textItem.section !== "hook"
-    ) : []
-  );
-}
-function buildScheduledSlideshowPrompt(input) {
-  const promptInstructions = clean(input.promptInstructions) || defaultTempSlideUserInstructions;
-  const systemPrompt = clean(input.systemPrompt) || defaultTempSlideSystemPrompt;
-  const exactHookCaption = promptUsesExactHookCaption(promptInstructions);
-  return {
-    system: `${systemPrompt}
-${llmSlopPromptLine()}`,
-    user: buildTempSlideUserPrompt({
-      automationName: input.automationName,
-      hook: input.hook,
-      tone: input.tone,
-      promptInstructions,
-      placeholders: input.placeholders,
-      avoidSimilarOutputs: input.avoidSimilarOutputs,
-      avoidSimilarHeadings: input.avoidSimilarHeadings,
-      performanceMemory: input.performanceMemory
-    }),
-    schema: buildTempSlideStructuredOutputSchema(input.placeholders, {
-      exactHookCaption
-    })
-  };
-}
-function promptUsesExactHookCaption(value) {
-  return /Caption requirement:\s*return exactly the selected Hook text/i.test(
-    value
-  );
-}
-function wordRangeViolation(words, min, max) {
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-  if (words < min) return "below";
-  if (words > max) return "above";
-  return null;
-}
-function countSlideWords(value) {
-  return value.split(/\s+/).filter(Boolean).length;
-}
-function placeholderWordRangeError(placeholder, text3) {
-  const words = countSlideWords(text3);
-  const direction = wordRangeViolation(
-    words,
-    Number(placeholder.wordLengthMin),
-    Number(placeholder.wordLengthMax)
-  );
-  if (!direction) return null;
-  return direction === "below" ? `${placeholder.id} has ${words} words, but its configured minimum is ${placeholder.wordLengthMin}.` : `${placeholder.id} has ${words} words, but its configured maximum is ${placeholder.wordLengthMax}.`;
-}
-function normalizeTempSlideStructuredOutput(output, placeholders, options = {}) {
-  const textRecord = isRecord(output) && isRecord(output.text) ? output.text : {};
-  const maybeLower = (value) => options.lowercase ? value.toLowerCase() : value;
-  const metadata = normalizeSocialPostMetadata(output, options);
-  return {
-    title: metadata.title,
-    caption: metadata.caption,
-    hashtags: metadata.hashtags.join(" "),
-    text: Object.fromEntries(
-      placeholders.map((placeholder) => [
-        placeholder.id,
-        maybeLower(
-          clean(
-            typeof textRecord[placeholder.id] === "string" ? textRecord[placeholder.id] : ""
-          )
-        )
-      ])
-    )
-  };
-}
-function placeholderDescription(placeholder) {
-  return `${placeholder.label}. ${placeholderRequirement(placeholder)}.`;
-}
-function placeholderRequirement(placeholder) {
-  const direction = placeholder.contentDirection || "Fill this slideshow text box.";
-  const normalizedDirection = direction.trim().replace(/[.。]+$/, "");
-  const wordRange = `${placeholder.wordLengthMin}-${placeholder.wordLengthMax} words`;
-  const mentionedRange = firstWordRangeMention(normalizedDirection);
-  if (!mentionedRange) {
-    return `${normalizedDirection}. ${wordRange}`;
-  }
-  return mentionedRange === wordRange ? normalizedDirection : normalizedDirection.replace(mentionedRange, wordRange);
-}
-function firstWordRangeMention(value) {
-  return value.match(/\b\d+\s*[-–—+]\s*\d*\s*words?\b/i)?.[0] ?? null;
-}
-var defaultTempSlideSystemPrompt, defaultTempSlideUserInstructions;
-var init_temp_slide_testing_shared = __esm({
-  "lib/temp-slide-testing-shared.ts"() {
-    "use strict";
-    init_guards();
-    init_llm_slop();
-    init_social_post_metadata();
-    defaultTempSlideSystemPrompt = "You fill metadata and text placeholders for TikTok slideshow posts. The selected hook is the source of truth for the slideshow topic: never change it, and never introduce a different concept from the automation name, a content direction, or an example. Each placeholder's content direction defines what that text box must say about the hook and its required format; treat a content direction as format guidance (heading, list item, explanation), never as permission to change the subject. Within those topic constraints, the configured Tone governs the voice \u2014 register, diction, sentence rhythm, capitalization, and word choice \u2014 and you must follow it exactly, even when it calls for lowercase, slang, a raw or personal register, or a break from polished literary habits. Do not override the configured Tone with a generic literary default. Return only JSON matching the schema. Never invent studies, statistics, or sources, and do not fabricate testimonials as quoted research; first-person voice in character is allowed. Do not add visual parameters, image prompts, commentary, markdown, or extra keys.";
-    defaultTempSlideUserInstructions = "Generate a concise slideshow title, a short social caption, and broad niche hashtags. Fill every non-hook placeholder text box. Use the fixed hook as context only and do not rewrite it. Every body slide must directly develop the exact subject and claim in the selected hook while following its own content direction. Body slides should be specific to the hook, not merely the automation category. Return slide text only in the schema's text object.";
   }
 });
 
@@ -7432,50 +6716,311 @@ var init_slideshow_text_generation_payload = __esm({
   }
 });
 
+// lib/hook-expansion.ts
+function hookTemplateMatchesRenderedText(template, renderedText) {
+  const normalizedTemplate = normalizeHookMatchText(template);
+  const normalizedRenderedText = normalizeHookMatchText(renderedText);
+  if (!normalizedTemplate || !normalizedRenderedText) return false;
+  if (hookTextHasSlots(normalizedTemplate) && hookTemplateLiteralLength(normalizedTemplate) === 0) {
+    return false;
+  }
+  slotPattern.lastIndex = 0;
+  let literalStart = 0;
+  let pattern = "^";
+  for (const match of normalizedTemplate.matchAll(slotPattern)) {
+    pattern += escapeRegExp(
+      normalizedTemplate.slice(literalStart, match.index)
+    );
+    pattern += ".+?";
+    literalStart = (match.index ?? 0) + match[0].length;
+  }
+  pattern += escapeRegExp(normalizedTemplate.slice(literalStart));
+  pattern += "$";
+  return new RegExp(pattern, "i").test(normalizedRenderedText);
+}
+function hookTextHasSlots(text3) {
+  slotPattern.lastIndex = 0;
+  return slotPattern.test(text3);
+}
+function hookTemplateLiteralLength(template) {
+  return normalizeHookMatchText(template.replace(slotPattern, " ")).trim().length;
+}
+function uniqueHookTemplateMatch(items, input) {
+  const normalizedTemplate = normalizeHookMatchText(
+    input.hookTemplate ?? ""
+  ).toLowerCase();
+  if (normalizedTemplate) {
+    const exact = items.filter(
+      (item) => normalizeHookMatchText(item.text).toLowerCase() === normalizedTemplate
+    );
+    return exact.length === 1 ? exact[0] : void 0;
+  }
+  const matches2 = items.filter(
+    (item) => hookTemplateMatchesRenderedText(item.text, input.renderedHook)
+  );
+  const templated = matches2.filter(
+    (item) => hookTextHasSlots(item.text) && hookTemplateLiteralLength(item.text) > 0
+  );
+  if (templated.length === 1) return templated[0];
+  if (templated.length > 1) return void 0;
+  return matches2.length === 1 ? matches2[0] : void 0;
+}
+function expandHook(hook, slots, collections, random = Math.random, options = {}) {
+  const template = clean(hook);
+  const slotMap = slots ?? {};
+  const collectionsById = new Map(
+    collections.flatMap((collection) => {
+      const keys = [
+        collection.id,
+        collection.name,
+        wordCollectionVariableName(collection),
+        collection.id.toLowerCase(),
+        collection.name.toLowerCase(),
+        wordCollectionVariableName(collection).toLowerCase()
+      ];
+      return keys.map((key) => [key, collection]);
+    })
+  );
+  const substitutions = {};
+  const usedWordsByCollection = /* @__PURE__ */ new Map();
+  const occurrenceCounts = /* @__PURE__ */ new Map();
+  const expandedText = template.replace(
+    slotPattern,
+    (match, bracketSlot, braceSlot) => {
+      const baseSlotName = clean(bracketSlot || braceSlot);
+      if (!baseSlotName) {
+        return match;
+      }
+      const count = (occurrenceCounts.get(baseSlotName.toLowerCase()) ?? 0) + 1;
+      occurrenceCounts.set(baseSlotName.toLowerCase(), count);
+      const slotName = options.noDuplicates && count > 1 ? `${baseSlotName}_${count}` : baseSlotName;
+      if (!substitutions[slotName]) {
+        const runtimeValue = runtimeHookVariableValue(baseSlotName, {
+          now: options.now,
+          timeZone: options.timeZone,
+          slideCount: options.slideCount
+        });
+        if (runtimeValue !== void 0) {
+          substitutions[slotName] = runtimeValue;
+          return runtimeValue;
+        }
+        if (isRuntimeHookVariable(baseSlotName)) {
+          throw new Error(
+            `Runtime hook variable ${baseSlotName.toUpperCase()} could not be resolved for this run`
+          );
+        }
+        const collectionId = resolveSlotCollectionId(baseSlotName, slotMap);
+        const collection = collectionId ? collectionsById.get(collectionId) ?? collectionsById.get(collectionId.toLowerCase()) : null;
+        const allWords = collection?.words.filter(Boolean) ?? [];
+        if (allWords.length === 0) {
+          throw new Error(
+            `Hook slot ${slotName} has no words in database collection ${collectionId}`
+          );
+        }
+        const usedKey = (collection?.id ?? collectionId).toLowerCase();
+        const used = usedWordsByCollection.get(usedKey) ?? /* @__PURE__ */ new Set();
+        const freshWords = allWords.filter((word) => !used.has(word));
+        const words = freshWords.length > 0 ? freshWords : allWords;
+        const index = Math.min(
+          words.length - 1,
+          Math.max(0, Math.floor(random() * words.length))
+        );
+        used.add(words[index]);
+        usedWordsByCollection.set(usedKey, used);
+        substitutions[slotName] = formatSlotSubstitution(
+          slotName,
+          words[index],
+          collectionId
+        );
+      }
+      return substitutions[slotName] || match;
+    }
+  );
+  const correctedText = correctIndefiniteArticles(
+    correctPluralSuffixes(expandedText, substitutions)
+  );
+  const text3 = applyResolvedHookCase(correctedText, options.caseMode ?? "mixed");
+  const casedSubstitutions = caseSubstitutions(substitutions, options.caseMode);
+  return { text: text3, template, substitutions: casedSubstitutions };
+}
+function expandAllHookCombinations(hook, slots, collections, options = {}) {
+  const template = clean(hook);
+  const slotMap = slots ?? {};
+  const collectionsById = new Map(
+    collections.flatMap(
+      (collection) => [
+        collection.id,
+        collection.name,
+        wordCollectionVariableName(collection),
+        collection.id.toLowerCase(),
+        collection.name.toLowerCase(),
+        wordCollectionVariableName(collection).toLowerCase()
+      ].map((key) => [key, collection])
+    )
+  );
+  const occurrenceNames = [];
+  const seenCounts = /* @__PURE__ */ new Map();
+  for (const match of template.matchAll(slotPattern)) {
+    const slotName = clean(match[1] || match[2]);
+    if (!slotName) continue;
+    const count = (seenCounts.get(slotName.toLowerCase()) ?? 0) + 1;
+    seenCounts.set(slotName.toLowerCase(), count);
+    occurrenceNames.push(
+      options.noDuplicates && count > 1 ? `${slotName}_${count}` : slotName
+    );
+  }
+  const slotNames = occurrenceNames.filter(
+    (slotName, index, values) => values.indexOf(slotName) === index
+  );
+  if (slotNames.length === 0) {
+    return [{ text: template, template, substitutions: {} }];
+  }
+  const valuesBySlot = slotNames.map((slotName) => {
+    const baseName = options.noDuplicates ? slotName.replace(/_\d+$/, "") : slotName;
+    const runtimeValue = runtimeHookVariableValue(baseName, {
+      now: options.now,
+      timeZone: options.timeZone,
+      slideCount: options.slideCount
+    });
+    if (runtimeValue !== void 0) {
+      return {
+        slotName,
+        collectionKey: `runtime:${baseName.toLowerCase()}`,
+        enforceDistinct: false,
+        hasWords: true,
+        values: [runtimeValue]
+      };
+    }
+    if (isRuntimeHookVariable(baseName)) {
+      throw new Error(
+        `Runtime hook variable ${baseName.toUpperCase()} could not be resolved for this run`
+      );
+    }
+    const collectionId = resolveSlotCollectionId(slotName, slotMap) === slotName ? resolveSlotCollectionId(baseName, slotMap) : resolveSlotCollectionId(slotName, slotMap);
+    const collection = collectionsById.get(collectionId) ?? collectionsById.get(collectionId.toLowerCase());
+    const words = collection?.words.filter(Boolean) ?? [];
+    if (words.length === 0) {
+      throw new Error(
+        `Hook slot ${slotName} has no words in database collection ${collectionId}`
+      );
+    }
+    return {
+      slotName,
+      collectionKey: (collection?.id ?? collectionId).toLowerCase(),
+      enforceDistinct: true,
+      hasWords: true,
+      values: words.map(
+        (word) => formatSlotSubstitution(slotName, word, collectionId)
+      )
+    };
+  });
+  const expansions = [];
+  function visit2(index, substitutions) {
+    if (index >= valuesBySlot.length) {
+      let occurrence = -1;
+      const expandedText = template.replace(slotPattern, (match) => {
+        occurrence += 1;
+        return substitutions[occurrenceNames[occurrence]] || match;
+      });
+      expansions.push({
+        text: applyResolvedHookCase(
+          correctIndefiniteArticles(
+            correctPluralSuffixes(expandedText, substitutions)
+          ),
+          options.caseMode ?? "mixed"
+        ),
+        template,
+        substitutions: caseSubstitutions(substitutions, options.caseMode)
+      });
+      return;
+    }
+    const slot3 = valuesBySlot[index];
+    const usedFromSameCollection = new Set(
+      valuesBySlot.slice(0, index).filter(
+        (other) => slot3.enforceDistinct && other.enforceDistinct && slot3.hasWords && other.collectionKey === slot3.collectionKey
+      ).map((other) => substitutions[other.slotName])
+    );
+    for (const value of slot3.values) {
+      if (usedFromSameCollection.has(value)) {
+        continue;
+      }
+      visit2(index + 1, { ...substitutions, [slot3.slotName]: value });
+    }
+  }
+  visit2(0, {});
+  return expansions;
+}
+function caseSubstitutions(substitutions, mode) {
+  if (!mode || mode === "mixed") return substitutions;
+  const substitutionMode = mode === "sentence" ? "lowercase" : mode;
+  return Object.fromEntries(
+    Object.entries(substitutions).map(([key, value]) => [
+      key,
+      applyResolvedHookCase(value, substitutionMode)
+    ])
+  );
+}
+function resolveSlotCollectionId(slotName, slotMap) {
+  const mapped = clean(slotMap[slotName]) || clean(
+    Object.entries(slotMap).find(
+      ([key]) => key.toLowerCase() === slotName.toLowerCase()
+    )?.[1] ?? ""
+  );
+  return mapped || slotName;
+}
+function formatSlotSubstitution(slotName, value, collectionId) {
+  const normalized = clean(value);
+  if (properTitleCaseSlots.has(slotName.toLowerCase()) || collectionId && properTitleCaseSlots.has(collectionId.toLowerCase())) {
+    return titleCase(normalized);
+  }
+  return normalized;
+}
+function correctPluralSuffixes(value, substitutions) {
+  return Object.values(substitutions).reduce((result, substitution) => {
+    if (!/s$/i.test(substitution)) return result;
+    return result.replace(
+      new RegExp(`\\b${escapeRegExp(substitution)}s\\b`, "g"),
+      substitution
+    );
+  }, value);
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function normalizeHookMatchText(value) {
+  return clean(value).replace(/\s+/g, " ");
+}
+function correctIndefiniteArticles(value) {
+  return value.replace(
+    /\b(a|an)\s+([A-Za-z][A-Za-z'-]*)/g,
+    (match, article, word) => {
+      const nextArticle = /^[aeiou]/i.test(word) ? "an" : "a";
+      if (article.toLowerCase() === nextArticle) {
+        return match;
+      }
+      const corrected = article[0] === article[0]?.toUpperCase() ? `${nextArticle[0].toUpperCase()}${nextArticle.slice(1)}` : nextArticle;
+      return `${corrected} ${word}`;
+    }
+  );
+}
+function titleCase(value) {
+  return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+var slotPattern, properTitleCaseSlots;
+var init_hook_expansion = __esm({
+  "lib/hook-expansion.ts"() {
+    "use strict";
+    init_guards();
+    init_hook_casing();
+    init_hook_variables();
+    slotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g;
+    properTitleCaseSlots = /* @__PURE__ */ new Set(["zodiac"]);
+  }
+});
+
 // lib/slideshow-image-matching.ts
 function tokenize(value) {
   return clean(value).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((token) => token.length > 2 && !stopWords.has(token));
-}
-function visualConceptsPayload(input) {
-  return {
-    model: clean(input.model) || defaultSlideshowTextModel,
-    messages: [
-      {
-        role: "system",
-        content: "For each slide, list the visual concepts an art director would search for to illustrate it: concrete subjects, objects, settings, lighting and colour. Describe what would be SHOWN, never the wording or the emotion in the abstract. Short noun phrases only."
-      },
-      {
-        role: "user",
-        content: input.slideTexts.map((text3, index) => `Slide ${index}:
-${clean(text3)}`).join("\n\n")
-      }
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "slide_visual_concepts",
-        strict: true,
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["slides"],
-          properties: {
-            slides: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                required: ["concepts"],
-                properties: {
-                  concepts: { type: "array", items: { type: "string" } }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  };
 }
 function rankImageCandidates(input) {
   const limit = input.limit ?? imageShortlistSize;
@@ -7552,43 +7097,6 @@ function parsedContent(response) {
     return typeof content === "string" ? JSON.parse(content) : content;
   } catch {
     return null;
-  }
-}
-async function deriveSlideVisualConcepts(input) {
-  if (input.slideTexts.length === 0) return [];
-  const empty = input.slideTexts.map(() => []);
-  try {
-    const requestBody = visualConceptsPayload(input);
-    recordProviderRequest({
-      provider: "OpenRouter",
-      operation: "visual concept derivation",
-      model: requestBody.model,
-      request: requestBody
-    });
-    const response = await fetchJson(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${input.apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
-      },
-      {
-        fetchImpl: input.fetchImpl,
-        timeoutMs: 6e4,
-        errorMessage: providerErrorMessage("Visual concept derivation failed")
-      }
-    );
-    const parsed = parsedContent(response);
-    if (!parsed?.slides) return empty;
-    return input.slideTexts.map((_, index) => {
-      const concepts = parsed.slides?.[index]?.concepts;
-      return Array.isArray(concepts) ? concepts.map((entry) => clean(String(entry))).filter(Boolean) : [];
-    });
-  } catch {
-    return empty;
   }
 }
 async function selectSlideshowImageWithAi(input) {
@@ -7992,61 +7500,6 @@ function structuredOutputFindings(output, placeholders, selectedHook) {
   }
   return { errors, violations };
 }
-async function researchSelectedHookAttempt(input) {
-  const requestBody = {
-    model: input.model,
-    stream: false,
-    max_tokens: 2e3,
-    plugins: [{ id: "web", engine: "exa", max_results: 5 }],
-    messages: [
-      {
-        role: "system",
-        content: "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche."
-      },
-      {
-        role: "user",
-        content: `Automation: ${input.automationName}
-Exact hook: ${input.hook}`
-      }
-    ]
-  };
-  recordProviderRequest({
-    provider: "OpenRouter",
-    operation: "chat.completions with Exa web search",
-    model: input.model,
-    request: requestBody
-  });
-  const payload = await fetchJson(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(requestBody)
-    },
-    {
-      fetchImpl: input.fetchImpl,
-      timeoutMs: 9e4,
-      errorMessage: providerErrorMessage("OpenRouter hook research failed")
-    }
-  );
-  const choice = payload.choices?.[0];
-  assertCompleteStructuredChoice(choice);
-  const content = typeof choice?.message?.content === "string" ? choice.message.content.trim() : "";
-  const sources = [
-    ...parseLinkedSources(content),
-    ...parseWebSearchSources(choice?.message?.annotations)
-  ];
-  const uniqueSources = [
-    ...new Map(sources.map((source) => [source.url, source])).values()
-  ];
-  if (!content || uniqueSources.length === 0) {
-    throw new Error("Web research returned without content and cited sources.");
-  }
-  return { content, sources: uniqueSources };
-}
 function outputDevelopsHookSubject(output, hook) {
   if (!output || typeof output !== "object" || !("text" in output)) {
     return false;
@@ -8092,14 +7545,6 @@ function parseWebSearchSources(value) {
     ];
   });
   return [...new Map(sources.map((source) => [source.url, source])).values()];
-}
-function parseLinkedSources(content) {
-  const markdownLinks = [
-    ...content.matchAll(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g)
-  ].map((match) => ({ url: match[2], title: clean(match[1]) || void 0 }));
-  const linkedUrls = new Set(markdownLinks.map((source) => source.url));
-  const plainUrls = [...content.matchAll(/https?:\/\/[^\s)\]]+/g)].map((match) => match[0].replace(/[.,;:]+$/, "")).filter((url) => !linkedUrls.has(url)).map((url) => ({ url }));
-  return [...markdownLinks, ...plainUrls];
 }
 function assertCompleteStructuredChoice(choice) {
   if (!choice) {
@@ -10232,25 +9677,6 @@ var init_postfast_metric_snapshots = __esm({
 });
 
 // lib/usage-core.ts
-function usageForPublishedRuns(usage, automationId) {
-  const publishedAtByRun = /* @__PURE__ */ new Map();
-  for (const record2 of usage) {
-    if (record2.automation_id !== automationId || record2.kind !== "hook_published" && record2.kind !== "hook_combination_published") {
-      continue;
-    }
-    const current = publishedAtByRun.get(record2.run_id);
-    if (!publishedAtByRun.has(record2.run_id) || Date.parse(record2.used_at ?? "") > Date.parse(current ?? "")) {
-      publishedAtByRun.set(record2.run_id, record2.used_at);
-    }
-  }
-  return usage.flatMap((record2) => {
-    if (record2.automation_id !== automationId || !publishedAtByRun.has(record2.run_id)) {
-      return [];
-    }
-    const publishedAt = publishedAtByRun.get(record2.run_id);
-    return publishedAt ? [{ ...record2, used_at: publishedAt }] : [record2];
-  });
-}
 var init_usage_core = __esm({
   "lib/usage-core.ts"() {
     "use strict";
@@ -10284,9 +9710,6 @@ function listUsageRecords(input = {}) {
     key: "usage",
     normalize: normalizeUsageRecord
   });
-}
-function usageRecordsForPublishedRuns(records, automationId) {
-  return usageForPublishedRuns(records, automationId);
 }
 function usageKeyForHookCombination(template, substitutions) {
   const parts = Object.entries(substitutions).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}=${value}`).join("|");
@@ -13032,62 +12455,10 @@ var init_temp_slide_testing = __esm({
 });
 
 // lib/text-similarity.ts
-function normalizedTextSignature(parts) {
-  return parts.map(clean).join(" ").toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim().split(" ").map((word) => SMALL_NUMBER_WORDS[word] ?? word).join(" ");
-}
-function trigramJaccardSimilarity(left, right) {
-  const leftTrigrams = trigrams(normalizedTextSignature([left]));
-  const rightTrigrams = trigrams(normalizedTextSignature([right]));
-  if (leftTrigrams.size === 0 && rightTrigrams.size === 0) {
-    return 1;
-  }
-  if (leftTrigrams.size === 0 || rightTrigrams.size === 0) {
-    return 0;
-  }
-  let intersection = 0;
-  for (const value of leftTrigrams) {
-    if (rightTrigrams.has(value)) {
-      intersection += 1;
-    }
-  }
-  const union = leftTrigrams.size + rightTrigrams.size - intersection;
-  return union > 0 ? intersection / union : 0;
-}
-function hasNearDuplicateText(candidate, previous, options = {}) {
-  const threshold = options.threshold ?? 0.85;
-  return previous.some(
-    (value) => trigramJaccardSimilarity(candidate, value) >= threshold
-  );
-}
-function trigrams(value) {
-  if (!value) {
-    return /* @__PURE__ */ new Set();
-  }
-  const padded = `  ${value}  `;
-  const grams = /* @__PURE__ */ new Set();
-  for (let index = 0; index <= padded.length - 3; index += 1) {
-    grams.add(padded.slice(index, index + 3));
-  }
-  return grams;
-}
-var SMALL_NUMBER_WORDS;
 var init_text_similarity = __esm({
   "lib/text-similarity.ts"() {
     "use strict";
     init_guards();
-    SMALL_NUMBER_WORDS = {
-      zero: "0",
-      one: "1",
-      two: "2",
-      three: "3",
-      four: "4",
-      five: "5",
-      six: "6",
-      seven: "7",
-      eight: "8",
-      nine: "9",
-      ten: "10"
-    };
   }
 });
 
@@ -13447,199 +12818,481 @@ var init_automation_runner = __esm({
   }
 });
 
-// lib/automation-output-qa.ts
-function validateAutomationRunOutput(input) {
-  const findings = [];
-  const slides = input.run.plan.slides;
-  const bodySlides = slides.filter((slide) => slide.role === "content");
-  const bodySlideCount = bodySlides.length;
-  findings.push(...countMismatchFindings(input.run, bodySlideCount));
-  findings.push(...unresolvedTokenFindings(input.run));
-  if (input.schema?.distinct_variable_draws !== false) {
-    findings.push(...duplicateVariableDrawFindings(input.run));
+// lib/slideshow-share.ts
+var defaultLifetimeSeconds;
+var init_slideshow_share = __esm({
+  "lib/slideshow-share.ts"() {
+    "use strict";
+    init_server_only_shim();
+    init_automation_output_qa();
+    init_automation_runner();
+    init_automations();
+    init_guards();
+    init_slideshows();
+    init_system_owner_context();
+    defaultLifetimeSeconds = 365 * 24 * 60 * 60;
   }
-  findings.push(
-    ...nearDuplicateFindings(input.run, input.priorRuns ?? []),
-    ...slideTextFindings(slides, input.schema)
+});
+
+// lib/asset-urls.ts
+function configuredBaseUrl() {
+  return clean(process.env.BASE_URL).replace(/\/$/, "");
+}
+function isAlreadyAbsolute(value) {
+  return /^https?:\/\//i.test(value) || value.startsWith("data:") || value.startsWith("lumenclip:");
+}
+function absoluteAssetUrl(path22) {
+  const normalized = clean(path22);
+  if (!normalized) return normalized;
+  if (isAlreadyAbsolute(normalized)) return normalized;
+  const base = configuredBaseUrl();
+  if (!base) return normalized;
+  return `${base}${normalized.startsWith("/") ? "" : "/"}${normalized}`;
+}
+var init_asset_urls = __esm({
+  "lib/asset-urls.ts"() {
+    "use strict";
+    init_server_only_shim();
+    init_guards();
+    init_slideshow_share();
+  }
+});
+
+// lib/workflow-media-artifacts.ts
+function workflowMediaArtifacts(value) {
+  const artifacts = /* @__PURE__ */ new Map();
+  visit(value, "output", artifacts);
+  return [...artifacts.values()];
+}
+function visit(value, path22, artifacts) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => visit(item, `${path22}.${index}`, artifacts));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  const record2 = value;
+  for (const [key, item] of Object.entries(record2)) {
+    if (key === "mediaArtifacts") continue;
+    if (typeof item === "string") {
+      const kind = mediaKind(key, item, record2);
+      if (kind) {
+        const artifact = mediaArtifact(kind, key, item, record2, path22);
+        artifacts.set(`${artifact.kind}:${artifact.source.url}`, artifact);
+      }
+    }
+    visit(item, `${path22}.${key}`, artifacts);
+  }
+}
+function mediaArtifact(kind, key, value, record2, path22) {
+  const url = absoluteAssetUrl(value);
+  const fileName4 = mediaFileName(url, `${kind}-${path22.split(".").at(-1)}`);
+  const thumbnailUrl = cleanUrl(
+    record2.thumbnailUrl ?? record2.thumbnail_url ?? record2.previewUrl
   );
+  const width = positiveNumber(record2.width);
+  const height = positiveNumber(record2.height);
+  const durationSeconds = positiveNumber(
+    record2.durationSeconds ?? record2.duration_seconds ?? record2.duration
+  );
+  const metadata = width || height || durationSeconds ? { width, height, durationSeconds } : void 0;
   return {
-    valid: !findings.some((finding) => finding.severity === "error"),
-    actualSlideCount: slides.length,
-    bodySlideCount,
-    findings
+    id: `${kind}:${url}`,
+    kind,
+    role: mediaRole(key, path22),
+    fileName: fileName4,
+    mimeType: mediaMimeType(kind, url, record2),
+    source: {
+      type: url.includes("/api/local-assets/") ? "appwrite" : "remote",
+      url
+    },
+    preview: {
+      type: kind,
+      url,
+      ...thumbnailUrl ? { thumbnailUrl: absoluteAssetUrl(thumbnailUrl) } : {}
+    },
+    download: { url, fileName: fileName4 },
+    ...metadata ? { metadata } : {}
   };
 }
-function countMismatchFindings(run, bodySlideCount) {
-  if (bodySlideCount === 0) return [];
-  const substitutions = Object.entries(run.plan.hookSubstitutions ?? {});
-  const explicitCounts = substitutions.flatMap(([name, rawValue]) => {
-    if (!countTokenPattern.test(name)) return [];
-    const numeric2 = integerInRange(rawValue, 1, 100);
-    return numeric2 == null ? [] : [numeric2];
-  });
-  const literalCounts = [...run.plan.hook.matchAll(/\b(\d{1,2}|100)\b/g)].map((match) => Number(match[1])).filter((value) => Number.isInteger(value) && value > 0);
-  const expectedCounts = [.../* @__PURE__ */ new Set([...explicitCounts, ...literalCounts])];
-  if (expectedCounts.length === 0 || expectedCounts.includes(bodySlideCount)) {
-    return [];
+function mediaKind(key, value, record2) {
+  if (!isMediaUrl(value)) return void 0;
+  const normalizedKey = key.toLowerCase();
+  const explicitKind = String(
+    record2.kind ?? record2.mediaKind ?? record2.mediaType ?? record2.type ?? ""
+  ).toLowerCase();
+  if (normalizedKey.includes("image") || normalizedKey.includes("thumbnail"))
+    return "image";
+  if (normalizedKey.includes("video")) return "video";
+  if (normalizedKey.includes("audio") || normalizedKey.includes("soundtrack"))
+    return "audio";
+  if (["image", "video", "audio"].includes(explicitKind)) {
+    return explicitKind;
   }
-  const expected = expectedCounts[0];
-  return [
-    {
-      code: "COUNT_MISMATCH",
-      severity: "error",
-      expected,
-      actual: bodySlideCount,
-      message: `The hook promises ${expected} item${expected === 1 ? "" : "s"}, but ${bodySlideCount} body slide${bodySlideCount === 1 ? "" : "s"} rendered.`
-    }
-  ];
+  const pathname = safePathname(value);
+  if (/\.(?:png|jpe?g|gif|webp|avif|svg)$/i.test(pathname)) return "image";
+  if (/\.(?:mp4|mov|m4v|webm|mkv)$/i.test(pathname)) return "video";
+  if (/\.(?:mp3|wav|m4a|aac|ogg|flac)$/i.test(pathname)) return "audio";
+  return void 0;
 }
-function unresolvedTokenFindings(run) {
-  const values = [{ text: run.plan.hook }];
-  run.plan.slides.forEach((slide, slideIndex) => {
-    if (slide.textItems?.length) {
-      slide.textItems.forEach(
-        (item) => values.push({ text: item.text, slideIndex, textItemId: item.id })
-      );
-    } else {
-      values.push({ text: slide.text, slideIndex });
-    }
-  });
-  return values.flatMap((value) => {
-    const tokens = [...new Set(value.text.match(unresolvedTokenPattern) ?? [])];
-    return tokens.map((token) => ({
-      code: "UNRESOLVED_TOKEN",
-      severity: "error",
-      slideIndex: value.slideIndex === void 0 ? void 0 : value.slideIndex + 1,
-      textItemId: value.textItemId,
-      actual: token,
-      message: `${token} survived variable substitution in rendered text.`
-    }));
-  });
+function isMediaUrl(value) {
+  return /^(?:https?:\/\/|\/api\/local-assets\/)/i.test(value);
 }
-function duplicateVariableDrawFindings(run) {
-  const byValue = /* @__PURE__ */ new Map();
-  for (const [name, rawValue] of Object.entries(
-    run.plan.hookSubstitutions ?? {}
-  )) {
-    if (isRuntimeHookVariable(name)) continue;
-    const value = rawValue.trim();
-    if (!value) continue;
-    const key = value.toLocaleLowerCase();
-    byValue.set(key, [...byValue.get(key) ?? [], name]);
+function mediaRole(key, path22) {
+  return key.replace(/(?:_|-)?url$/i, "") || path22.split(".").at(-1) || "media";
+}
+function mediaFileName(url, fallback) {
+  const pathname = safePathname(url);
+  const fileName4 = decodeURIComponent(
+    pathname.split("/").filter(Boolean).at(-1) || ""
+  );
+  return fileName4 || fallback;
+}
+function mediaMimeType(kind, url, record2) {
+  const supplied = String(record2.mimeType ?? record2.contentType ?? "").trim();
+  if (supplied) return supplied;
+  const extension = safePathname(url).split(".").at(-1)?.toLowerCase();
+  const known = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    avif: "image/avif",
+    svg: "image/svg+xml",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    webm: "video/webm",
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    m4a: "audio/mp4",
+    ogg: "audio/ogg"
+  };
+  return extension && known[extension] || `${kind}/*`;
+}
+function safePathname(value) {
+  try {
+    return new URL(value, "https://lumenclip.invalid").pathname;
+  } catch {
+    return value.split(/[?#]/)[0];
   }
-  return [...byValue.entries()].flatMap(
-    ([value, names]) => names.length < 2 ? [] : [
-      {
-        code: "DUPLICATE_VARIABLE_DRAW",
-        severity: "error",
-        expected: "distinct values",
-        actual: value,
-        message: `The value \u201C${value}\u201D was drawn into multiple hook slots: ${names.join(", ")}.`
-      }
-    ]
-  );
 }
-function nearDuplicateFindings(run, priorRuns) {
-  if (!run.plan.hookId) return [];
-  const primary = primaryVariableValue(run);
-  if (!primary) return [];
-  const prior = priorRuns.find(
-    (candidate) => candidate.id !== run.id && candidate.plan.hookId === run.plan.hookId && primaryVariableValue(candidate)?.toLocaleLowerCase() === primary.toLocaleLowerCase()
-  );
-  if (!prior) return [];
-  return [
-    {
-      code: "NEAR_DUPLICATE_OUTPUT",
-      severity: "warning",
-      expected: "a new hook-variable combination",
-      actual: primary,
-      priorOutputId: prior.slideshowId ?? prior.id,
-      message: `This output reuses hook ${run.plan.hookId} with the primary value \u201C${primary}\u201D from an earlier output.`
-    }
-  ];
+function cleanUrl(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
-function primaryVariableValue(run) {
-  const entries = Object.entries(run.plan.hookSubstitutions ?? {});
-  const preferred = entries.find(
-    ([name, value]) => value.trim() && !isRuntimeHookVariable(name)
-  );
-  return preferred?.[1].trim();
+function positiveNumber(value) {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) && number > 0 ? number : void 0;
 }
-function slideTextFindings(slides, schema) {
-  return slides.flatMap((slide, slideIndex) => {
-    const renderedItems = slide.textItems?.length ? slide.textItems : slide.text ? [{ id: "text", text: slide.text }] : [];
-    const section = schema ? automationFormatSection(
-      schema,
-      slide.role === "hook" ? "hook" : slide.role === "cta" ? "cta" : "content"
-    ) : void 0;
-    if (section?.noText || slide.displayText === false) return [];
-    if (renderedItems.length === 0) {
-      return [
-        {
-          code: "EMPTY_SLIDE_TEXT",
-          severity: "error",
-          slideIndex: slideIndex + 1,
-          message: `Slide ${slideIndex + 1} has no rendered text.`
-        }
-      ];
-    }
-    const configuredById = new Map(
-      (section?.textItems ?? []).map((item) => [item.id, item])
-    );
-    return renderedItems.flatMap((item, itemIndex) => {
-      const text3 = item.text.trim();
-      const configured2 = configuredById.get(item.id) ?? section?.textItems[itemIndex];
-      if (!text3) {
-        return [
-          {
-            code: "EMPTY_SLIDE_TEXT",
-            severity: "error",
-            slideIndex: slideIndex + 1,
-            textItemId: item.id,
-            message: `Slide ${slideIndex + 1} text item ${item.id} is empty.`
-          }
-        ];
-      }
-      return configured2 ? wordLengthFindings(text3, configured2, slideIndex, item.id) : [];
-    });
-  });
-}
-function wordLengthFindings(text3, configured2, slideIndex, textItemId) {
-  const words = text3.split(/\s+/).filter(Boolean).length;
-  const direction = wordRangeViolation(
-    words,
-    configured2.wordLengthMin,
-    configured2.wordLengthMax
-  );
-  if (!direction) return [];
-  const limit = direction === "below" ? configured2.wordLengthMin : configured2.wordLengthMax;
-  return [
-    {
-      code: "WORD_LENGTH_VIOLATION",
-      severity: "error",
-      slideIndex: slideIndex + 1,
-      textItemId,
-      expected: `${direction === "below" ? "at least" : "at most"} ${limit} words`,
-      actual: words,
-      message: `Slide ${slideIndex + 1} text item ${textItemId} has ${words} words; its configured ${direction === "below" ? "minimum" : "maximum"} is ${limit}.`
-    }
-  ];
-}
-function integerInRange(value, min, max) {
-  const match = value.match(/\b\d+\b/);
-  if (!match) return null;
-  const numeric2 = Number(match[0]);
-  return Number.isInteger(numeric2) && numeric2 >= min && numeric2 <= max ? numeric2 : null;
-}
-var unresolvedTokenPattern, countTokenPattern;
-var init_automation_output_qa = __esm({
-  "lib/automation-output-qa.ts"() {
+var init_workflow_media_artifacts = __esm({
+  "lib/workflow-media-artifacts.ts"() {
     "use strict";
+    init_asset_urls();
+  }
+});
+
+// lib/pipeline-executor.ts
+var pipeline_executor_exports = {};
+__export(pipeline_executor_exports, {
+  createPipelineStageRegistry: () => createPipelineStageRegistry,
+  executePipelineStage: () => executePipelineStage,
+  mergePipelineOutput: () => mergePipelineOutput,
+  pipelineCatalog: () => pipelineCatalog
+});
+import { z } from "zod";
+function createPipelineStageRegistry(handlers) {
+  const registry = /* @__PURE__ */ new Map();
+  for (const metadata of PIPELINE_STAGE_CATALOG) {
+    const handler = handlers.get(metadata.id);
+    if (!handler) {
+      throw new Error(
+        `Pipeline stage handler is not registered: ${metadata.id}`
+      );
+    }
+    registry.set(metadata.id, {
+      ...metadata,
+      inputSchema: safeJsonObjectSchema,
+      handler
+    });
+  }
+  return registry;
+}
+async function executePipelineStage(input) {
+  const registered = input.registry.get(input.stageId);
+  if (!registered) throw new Error(`Unknown pipeline stage: ${input.stageId}`);
+  const requestId = cleanRequestId(input.requestId);
+  const parsed = registered.inputSchema.parse(input.stageInput);
+  assertSafePipelineValue(parsed, "input");
+  let externalCalls = 0;
+  const runStage = (stageId, stageInput) => executePipelineStage({
+    registry: input.registry,
+    ownerId: input.ownerId,
+    stageId,
+    stageInput,
+    requestId
+  });
+  const { result: rawOutput, providerRequests } = await captureProviderRequests(
+    () => registered.handler(parsed, {
+      ownerId: input.ownerId,
+      workflowId: registered.workflowId,
+      stageId: registered.id,
+      requestId,
+      runStage,
+      externalCall: async (operation2, task) => {
+        if (externalCalls >= registered.maxExternalCalls) {
+          throw new Error(
+            `Pipeline stage ${registered.id} exceeded maxExternalCalls=${registered.maxExternalCalls} before ${operation2}`
+          );
+        }
+        externalCalls += 1;
+        return task();
+      }
+    })
+  );
+  assertSafePipelineValue(rawOutput, "output");
+  assertSafePipelineValue(providerRequests, "providerRequests");
+  const mediaArtifacts = workflowMediaArtifacts(rawOutput);
+  assertSafePipelineValue(mediaArtifacts, "mediaArtifacts");
+  const output = structuredClone({
+    ...rawOutput,
+    ...mediaArtifacts.length ? { mediaArtifacts } : {}
+  });
+  const operation = runningOperation(output);
+  return {
+    stage: stageMetadata(registered),
+    requestId,
+    status: operation ? "running" : "succeeded",
+    externalCalls,
+    output,
+    ...providerRequests.length ? { providerRequests } : {},
+    ...operation ? { operation } : {}
+  };
+}
+function pipelineCatalog() {
+  return PIPELINE_WORKFLOW_IDS.map((workflowId) => ({
+    id: workflowId,
+    workflowStages: pipelineStagesForWorkflow(workflowId),
+    stages: PIPELINE_STAGE_CATALOG.filter(
+      (stage2) => stage2.workflowId === workflowId
+    ).sort((left, right) => left.order - right.order)
+  }));
+}
+function mergePipelineOutput(input, additions) {
+  return { ...input, ...additions };
+}
+function assertSafePipelineValue(value, path22) {
+  if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+    throw new Error(`Pipeline ${path22} cannot contain media bytes`);
+  }
+  if (typeof value === "string") {
+    if (/^data:(?:image|video|audio)\//i.test(value)) {
+      throw new Error(`Pipeline ${path22} cannot contain media data URLs`);
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach(
+      (item, index) => assertSafePipelineValue(item, `${path22}.${index}`)
+    );
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  for (const [key, item] of Object.entries(value)) {
+    if (/^(?:api[-_]?key|authorization|secret|token|password)$/i.test(key)) {
+      throw new Error(`Pipeline ${path22} cannot contain secret field ${key}`);
+    }
+    assertSafePipelineValue(item, `${path22}.${key}`);
+  }
+}
+function runningOperation(output) {
+  const operation = output.operation;
+  if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+    return void 0;
+  }
+  const status3 = operation.status;
+  return status3 === "queued" || status3 === "running" ? operation : void 0;
+}
+function stageMetadata(stage2) {
+  return {
+    id: stage2.id,
+    workflowId: stage2.workflowId,
+    order: stage2.order,
+    title: stage2.title,
+    kind: stage2.kind,
+    provider: stage2.provider,
+    model: stage2.model,
+    optional: stage2.optional,
+    granularity: stage2.granularity,
+    sideEffect: stage2.sideEffect,
+    operation: stage2.operation,
+    maxExternalCalls: stage2.maxExternalCalls,
+    workflowStep: stage2.workflowStep,
+    description: stage2.description
+  };
+}
+function cleanRequestId(value) {
+  const requestId = value?.trim();
+  return requestId || `pipeline-${crypto.randomUUID()}`;
+}
+var safeJsonObjectSchema;
+var init_pipeline_executor = __esm({
+  "lib/pipeline-executor.ts"() {
+    "use strict";
+    init_pipeline_stages();
+    init_provider_request_trace();
+    init_workflow_media_artifacts();
+    safeJsonObjectSchema = z.record(z.string(), z.unknown()).superRefine((value, context) => {
+      try {
+        assertSafePipelineValue(value, "input");
+      } catch (error) {
+        context.addIssue({
+          code: "custom",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+  }
+});
+
+// lib/automation-readiness.ts
+function automationGenerationBlockers(input) {
+  const { schema } = input;
+  if (schema.automationKind === "video") {
+    return [
+      {
+        code: "unsupported_runner",
+        message: "Saved video automations do not have a generation runner yet."
+      }
+    ];
+  }
+  if (schema.automationKind === "ugc") {
+    return ugcLiveConfigurationErrors("live", schema).map((message) => ({
+      code: "invalid_ugc_configuration",
+      message
+    }));
+  }
+  const blockers = [];
+  const hooks = automationHooks2(schema);
+  const primaryCollectionIds = automationCollectionIds(schema);
+  if (primaryCollectionIds.length === 0) {
+    blockers.push({
+      code: "missing_collection_selection",
+      message: "Select an image collection."
+    });
+  }
+  for (const collectionId of referencedCollectionIds(schema)) {
+    const collection = input.collections.find(
+      (candidate) => candidate.aliases.includes(collectionId)
+    );
+    if (!collection) {
+      blockers.push({
+        code: "missing_collection",
+        message: `Collection \u201C${collectionId}\u201D does not exist.`
+      });
+    } else if (collection.mediaType === "video" || collection.assetCount === 0) {
+      blockers.push({
+        code: "empty_collection",
+        message: `Collection \u201C${collection.name}\u201D has no usable images.`
+      });
+    }
+  }
+  const contentSection = automationFormatSection(schema, "content");
+  const validationSlideCount = contentSection.slideCountMode === "varying" ? Math.max(
+    1,
+    Math.round(contentSection.slideCountMin ?? contentSection.slideCount)
+  ) : Math.max(1, Math.round(contentSection.slideCount));
+  const invalidHookMessages = [];
+  let usableHookCount = 0;
+  for (const hook of hooks) {
+    try {
+      expandHook(hook, schema.hook_slots, input.wordCollections, () => 0, {
+        noDuplicates: schema.hook_no_duplicate_slots === true,
+        caseMode: schema.prompt_formatting.hook_case,
+        timeZone: schema.schedule.timezone,
+        // Readiness only needs a valid representative value. The runner
+        // resolves SLIDE_COUNT again after selecting the actual static/varying
+        // body count for this run.
+        slideCount: validationSlideCount
+      });
+      usableHookCount += 1;
+    } catch (error) {
+      invalidHookMessages.push(
+        error instanceof Error ? error.message : "A hook variable cannot be expanded."
+      );
+    }
+  }
+  if (hooks.length > 0 && usableHookCount === 0) {
+    blockers.push(
+      ...invalidHookMessages.map((message) => ({
+        code: "invalid_hook_variable",
+        message
+      }))
+    );
+  }
+  return uniqueBlockers(blockers);
+}
+function referencedCollectionIds(schema) {
+  const ids = new Set(automationCollectionIds(schema));
+  for (const route of schema.content_strategy?.routes ?? []) {
+    for (const collectionId of route.collection_ids) {
+      if (collectionId) ids.add(collectionId);
+    }
+  }
+  for (const section of schema.formatting) {
+    if (section.overlayImage?.enabled && section.overlayImage.collectionId) {
+      ids.add(section.overlayImage.collectionId);
+    }
+    for (const imageItem of section.imageItems ?? []) {
+      if (imageItem.collectionId) ids.add(imageItem.collectionId);
+    }
+  }
+  for (const design of schema.slide_designs) {
+    if (design.overlayImage?.enabled && design.overlayImage.collectionId) {
+      ids.add(design.overlayImage.collectionId);
+    }
+    for (const imageItem of design.imageItems ?? []) {
+      if (imageItem.collectionId) ids.add(imageItem.collectionId);
+    }
+  }
+  return [...ids];
+}
+function uniqueBlockers(blockers) {
+  const seen = /* @__PURE__ */ new Set();
+  return blockers.filter((blocker) => {
+    const key = `${blocker.code}:${blocker.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+var init_automation_readiness = __esm({
+  "lib/automation-readiness.ts"() {
+    "use strict";
+    init_hook_expansion();
     init_realfarm_automation();
-    init_hook_variables();
-    init_temp_slide_testing_shared();
-    unresolvedTokenPattern = /\[\[[A-Z][A-Z0-9_-]*\]\]/gi;
-    countTokenPattern = /(COUNT|NUMBER|TOTAL|ITEMS?|THINGS?|WAYS?|SIGNS?)/i;
+    init_realfarm_collections();
+  }
+});
+
+// lib/fixed-slideshow-count.ts
+function fixedSlideshowCount(schema) {
+  const configured2 = Number(schema.prompt_formatting?.num_of_slides);
+  if (Number.isFinite(configured2) && configured2 > 0) {
+    return Math.max(1, Math.round(configured2));
+  }
+  const total = schema.formatting.reduce(
+    (sum, section) => sum + Math.max(0, Math.round(Number(section.slideCount) || 0)),
+    0
+  );
+  return Math.max(1, total || 1);
+}
+function hookUsesDynamicSlideCount(hook) {
+  return dynamicSlideCountToken.test(hook.text) || Number.isFinite(Number(hook.bodySlideCount)) && Number(hook.bodySlideCount) > 0;
+}
+var dynamicSlideCountToken;
+var init_fixed_slideshow_count = __esm({
+  "lib/fixed-slideshow-count.ts"() {
+    "use strict";
+    dynamicSlideCountToken = /\[\[\s*SLIDE_COUNT\s*\]\]/i;
   }
 });
 
@@ -16739,46 +16392,6 @@ var init_pipeline_ugc_rendi = __esm({
   }
 });
 
-// lib/slideshow-share.ts
-var defaultLifetimeSeconds;
-var init_slideshow_share = __esm({
-  "lib/slideshow-share.ts"() {
-    "use strict";
-    init_server_only_shim();
-    init_automation_output_qa();
-    init_automation_runner();
-    init_automations();
-    init_guards();
-    init_slideshows();
-    init_system_owner_context();
-    defaultLifetimeSeconds = 365 * 24 * 60 * 60;
-  }
-});
-
-// lib/asset-urls.ts
-function configuredBaseUrl() {
-  return clean(process.env.BASE_URL).replace(/\/$/, "");
-}
-function isAlreadyAbsolute(value) {
-  return /^https?:\/\//i.test(value) || value.startsWith("data:") || value.startsWith("lumenclip:");
-}
-function absoluteAssetUrl(path22) {
-  const normalized = clean(path22);
-  if (!normalized) return normalized;
-  if (isAlreadyAbsolute(normalized)) return normalized;
-  const base = configuredBaseUrl();
-  if (!base) return normalized;
-  return `${base}${normalized.startsWith("/") ? "" : "/"}${normalized}`;
-}
-var init_asset_urls = __esm({
-  "lib/asset-urls.ts"() {
-    "use strict";
-    init_server_only_shim();
-    init_guards();
-    init_slideshow_share();
-  }
-});
-
 // lib/video-format-rendi.ts
 function buildFixedVideoRenderPlan(format, input) {
   return format === "react_reveal" ? buildReactRevealPlan(input) : buildGreenscreenMemePlan(input);
@@ -17854,23 +17467,8 @@ function createProductionPipelineHandlers(services) {
     "storagePage"
   );
   addPageRead(
-    "slideshow-generation.list-results-page",
-    "results",
-    "storagePage"
-  );
-  addPageRead(
     "slideshow-generation.list-word-collections-page",
     "word-collections",
-    "storagePage"
-  );
-  addPageRead(
-    "slideshow-generation.list-usage-history-page",
-    "usage-history",
-    "storagePage"
-  );
-  addPageRead(
-    "slideshow-generation.list-prior-runs-page",
-    "template-runs",
     "storagePage"
   );
   addDocumentRead(
@@ -19126,58 +18724,16 @@ ${clean(input.hook)}`
     "slideshow-generation.list-word-collections-page",
     "wordCollections"
   );
-  addPagedCollectionComposite(
-    "slideshow-generation.list-usage-history",
-    "slideshow-generation.list-usage-history-page",
-    "usageHistory"
-  );
-  addPagedCollectionComposite(
-    "slideshow-generation.list-prior-runs",
-    "slideshow-generation.list-prior-runs-page",
-    "priorRuns",
-    (record2, input) => clean(record2.automationId) === clean(input.automationId) && record2.kind !== "ugc" && !isRecord(record2.checkpoints)
-  );
-  add("slideshow-generation.enrich-collection-usage", async (input) => {
-    const latest = /* @__PURE__ */ new Map();
-    for (const usage of requiredArray(
-      input.usageHistory,
-      "usageHistory",
-      true
-    )) {
-      if (usage.kind !== "image") continue;
-      const key = clean(usage.key);
-      const usedAt = clean(usage.used_at);
-      const previous = latest.get(key);
-      if (key && usedAt && (!previous || Date.parse(usedAt) > Date.parse(previous)))
-        latest.set(key, usedAt);
-    }
-    const collections = requiredArray(
-      input.collections,
-      "collections"
-    ).map((collection) => ({
-      ...collection,
-      images: requiredArray(
-        collection.images,
-        "collection.images",
-        true
-      ).map((image) => {
-        const lastUsedAt = latest.get(clean(image.hash)) ?? latest.get(clean(image.image_link));
-        return lastUsedAt ? { ...image, last_used_at: lastUsedAt } : image;
-      })
-    }));
-    return mergePipelineOutput(input, {
-      collections,
-      collectionUsageEnriched: true
-    });
-  });
   add("slideshow-generation.load-model-settings", async (input, context) => {
     const state = (await context.runStage(
       "slideshow-generation.get-model-settings-document",
       { ...input, modelSettingsId: "generation-models" }
     )).output;
     const stored = isRecord(state.modelSettingsDocument) ? asRecord4(state.modelSettingsDocument).record : null;
+    const generationSettings = normalizeGenerationModelSettings(stored) ?? defaultGenerationModelSettings();
     return mergePipelineOutput(state, {
-      generationSettings: normalizeGenerationModelSettings(stored) ?? defaultGenerationModelSettings()
+      generationSettings,
+      textModel: clean(generationSettings.slideshowTextModel) || generationModelRegistry.openRouter.slideshowText.model
     });
   });
   add("slideshow-generation.validate-input", async (input, context) => {
@@ -19271,36 +18827,6 @@ ${clean(input.hook)}`
       blockers: []
     });
   });
-  add("slideshow-generation.prepare-generation-context", async (input) => {
-    const automation = requiredRecord(input.automation, "automation");
-    const usageRecords = requiredArray(
-      input.usageHistory,
-      "usageHistory"
-    );
-    const modelSettings = requiredRecord(
-      input.generationSettings,
-      "generationSettings"
-    );
-    const publishedUsage = usageRecordsForPublishedRuns(
-      usageRecords,
-      requiredString2(automation.id, "automation.id")
-    );
-    const usageFor = (kind) => publishedUsage.filter((record2) => record2.kind === kind);
-    return mergePipelineOutput(input, {
-      recentPublishedHookKeys: usageFor("hook_published").map(
-        (record2) => record2.key
-      ),
-      recentPublishedHookCombinationKeys: usageFor(
-        "hook_combination_published"
-      ).map((record2) => record2.key),
-      recentPublishedSignatures: usageFor("text").map((record2) => record2.key),
-      recentHeadingExclusions: usageFor("heading").map((record2) => record2.key),
-      recentImageUsage: Object.fromEntries(
-        usageFor("image").map((record2) => [record2.key, record2.used_at])
-      ),
-      textModel: clean(modelSettings.slideshowTextModel) || generationModelRegistry.openRouter.slideshowText.model
-    });
-  });
   add("slideshow-generation.prepare-image-candidate-pools", async (input) => {
     const slides = requiredArray(
       asRecord4(input.textAutomation).slides,
@@ -19386,10 +18912,8 @@ ${clean(input.hook)}`
         input.wordCollections,
         "wordCollections"
       ),
-      usedHookKeys: new Set(stringArray(input.recentPublishedHookKeys)),
-      usedHookCombinationKeys: new Set(
-        stringArray(input.recentPublishedHookCombinationKeys)
-      ),
+      usedHookKeys: /* @__PURE__ */ new Set(),
+      usedHookCombinationKeys: /* @__PURE__ */ new Set(),
       noDuplicateSlots: schema.distinct_variable_draws !== false,
       caseMode: schema.prompt_formatting.hook_case,
       now: new Date(clean(input.scheduledFor) || services.now()),
@@ -19406,63 +18930,14 @@ ${clean(input.hook)}`
     };
     return mergePipelineOutput(input, additions);
   });
-  add("slideshow-generation.research-hook-attempt", async (input, context) => {
-    const apiKey = clean(process.env.OPENROUTER_API_KEY);
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
-    const research = await context.externalCall(
-      "OpenRouter chat completion with Exa",
-      () => researchSelectedHookAttempt({
-        apiKey,
-        model: clean(input.model) || "openai/gpt-5.4-mini",
-        hook: requiredString2(input.hook, "hook"),
-        automationName: clean(input.automationName) || clean(asRecord4(input.automation).name) || "Slideshow"
-      })
-    );
-    return mergePipelineOutput(input, {
-      research,
-      webSearchSources: research.sources.map((source) => source.url)
-    });
-  });
-  add("slideshow-generation.research-hook", async (input, context) => {
-    const schema = requiredSchema(input);
-    if (input.enabled === false || input.researchEnabled === false || !schema.web_search_enabled) {
-      return mergePipelineOutput(input, {
-        research: null,
-        webSearchSources: []
-      });
-    }
-    let lastError;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        return (await context.runStage("slideshow-generation.research-hook-attempt", {
-          ...input,
-          attempt
-        })).output;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError;
-  });
   add("slideshow-generation.build-text-prompt", async (input) => {
     const automation = requiredRecord(input.textAutomation, "textAutomation");
-    const research = isRecord(input.research) ? input.research : null;
     const promptPayload = slideshowTextGenerationPayload({
       automation,
       model: clean(input.textModel) || void 0,
       selectedHook: requiredString2(input.hook, "hook"),
       systemPrompt: clean(input.systemPrompt) || void 0,
-      promptInstructions: [
-        clean(input.promptInstructions),
-        research ? `Exact-hook web research:
-${clean(research.content)}
-
-Use these sources only for claims that directly answer the selected hook.` : ""
-      ].filter(Boolean).join("\n\n"),
-      avoidSimilarOutputs: stringArray(
-        input.recentTextExclusions ?? input.recentPublishedSignatures
-      ),
-      avoidSimilarHeadings: stringArray(input.recentHeadingExclusions)
+      promptInstructions: clean(input.promptInstructions) || void 0
     });
     return mergePipelineOutput(input, {
       promptPayload,
@@ -19504,13 +18979,6 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       });
     }
   );
-  add("slideshow-generation.prepare-one-usage-record", async (input) => {
-    const usageRecord = normalizeUsageRecord(
-      requiredRecord(input.usageRecord, "usageRecord")
-    );
-    if (!usageRecord) throw new Error("Invalid usage record");
-    return mergePipelineOutput(input, { usageRecord });
-  });
   add("slideshow-generation.generate-slide-text", async (input, context) => {
     let repairFeedback = "";
     for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -19529,96 +18997,6 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       }
     }
     throw new Error("Slideshow text generation exhausted its attempts");
-  });
-  add("slideshow-generation.retry-text-similarity", async (input, context) => {
-    const generatedText = requiredRecord(input.generatedText, "generatedText");
-    const signature = normalizedTextSignature([
-      clean(generatedText.title),
-      clean(generatedText.caption),
-      ...Object.values(asRecord4(generatedText.text)).map(clean)
-    ]);
-    const recent = stringArray(input.recentPublishedSignatures);
-    if (!hasNearDuplicateText(signature, recent, {
-      threshold: numberValue3(input.similarityThreshold) || 0.85
-    })) {
-      return mergePipelineOutput(input, {
-        generatedSignature: signature,
-        textSimilarityRetry: false
-      });
-    }
-    const prompt = slideshowTextGenerationPayload({
-      automation: requiredRecord(
-        input.textAutomation,
-        "textAutomation"
-      ),
-      model: clean(input.textModel) || void 0,
-      selectedHook: requiredString2(input.hook, "hook"),
-      promptInstructions: clean(input.promptInstructions) || void 0,
-      avoidSimilarOutputs: recent,
-      avoidSimilarHeadings: stringArray(input.recentHeadingExclusions)
-    });
-    const retry = await context.runStage(
-      "slideshow-generation.generate-slide-text",
-      mergePipelineOutput(input, { promptPayload: prompt })
-    );
-    return mergePipelineOutput(retry.output, { textSimilarityRetry: true });
-  });
-  add("slideshow-generation.derive-visual-concepts", async (input, context) => {
-    const generatedText = asRecord4(asRecord4(input.generatedText).text);
-    const candidatePools = Array.isArray(input.candidatesBySlide) ? input.candidatesBySlide : [];
-    const slides = Array.isArray(input.visualSlides) ? input.visualSlides : candidatePools.length ? candidatePools.map((pool) => {
-      const slideId = requiredString2(
-        pool.slideId,
-        "candidatePool.slideId"
-      );
-      const slide = requiredArray(
-        asRecord4(input.textAutomation).slides,
-        "textAutomation.slides"
-      ).find((candidate) => clean(candidate.id) === slideId);
-      if (!slide)
-        throw new Error(`Slide not found for candidate pool ${slideId}`);
-      const promptItem = requiredArray(
-        slide.textItems,
-        "slide.textItems"
-      ).find((item) => item.textMode === "prompt");
-      return {
-        id: slideId,
-        aiImageSelection: Boolean(pool.aiImageSelection),
-        text: clean(slide.section) === "hook" ? clean(input.hook) : clean(generatedText[clean(promptItem?.id)])
-      };
-    }) : requiredArray(
-      asRecord4(input.textAutomation).slides,
-      "textAutomation.slides"
-    ).map((slide) => {
-      const promptItem = requiredArray(
-        slide.textItems,
-        "slide.textItems"
-      ).find((item) => item.textMode === "prompt");
-      return {
-        id: slide.id,
-        aiImageSelection: Boolean(slide.aiImageSelection),
-        text: clean(slide.section) === "hook" ? clean(input.hook) : clean(generatedText[clean(promptItem?.id)])
-      };
-    });
-    if (!slides.some((slide) => slide.aiImageSelection !== false)) {
-      return mergePipelineOutput(input, { visualConceptsBySlide: [] });
-    }
-    const apiKey = clean(process.env.OPENROUTER_API_KEY);
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
-    const concepts = await context.externalCall(
-      "OpenRouter visual-concept derivation",
-      () => deriveSlideVisualConcepts({
-        slideTexts: slides.map((slide) => clean(slide.text)),
-        apiKey,
-        model: clean(input.textModel) || void 0
-      })
-    );
-    return mergePipelineOutput(input, {
-      visualConceptsBySlide: slides.map((slide, index) => ({
-        slideId: clean(slide.id) || `slide-${index + 1}`,
-        concepts: concepts[index] ?? []
-      }))
-    });
   });
   add("slideshow-generation.build-image-shortlists", async (input) => {
     const textSlides = requiredArray(
@@ -19656,12 +19034,6 @@ Use these sources only for claims that directly answer the selected hook.` : ""
         }))
       };
     });
-    const conceptMap = new Map(
-      requiredArray(
-        input.visualConceptsBySlide,
-        "visualConceptsBySlide"
-      ).map((item) => [clean(item.slideId), stringArray(item.concepts)])
-    );
     const shortlists = candidatesBySlide.map((item, index) => {
       const slideId = requiredString2(item.slideId, "slideId");
       const candidates = requiredArray(
@@ -19673,7 +19045,7 @@ Use these sources only for claims that directly answer the selected hook.` : ""
         (candidate) => candidate.id === pinnedId || candidate.imageUrl === pinnedId
       ) : void 0;
       const ranked = rankImageCandidates({
-        concepts: conceptMap.get(slideId) ?? [],
+        concepts: [],
         slideText: clean(item.slideText),
         candidates,
         limit: Math.min(12, numberValue3(input.shortlistLimit) || 12)
@@ -19688,7 +19060,7 @@ Use these sources only for claims that directly answer the selected hook.` : ""
         slideId,
         slideText: clean(item.slideText),
         aiImageSelection: Boolean(item.aiImageSelection),
-        concepts: conceptMap.get(slideId) ?? [],
+        concepts: [],
         candidates: shortlistCandidates.map((candidate, candidateIndex) => ({
           ...candidate,
           index: candidateIndex
@@ -19704,7 +19076,6 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       "shortlist candidates"
     );
     if (!candidates.length) throw new Error("Image shortlist is empty");
-    const recentUsage = asRecord4(input.recentImageUsage);
     const usedIds = new Set(stringArray(input.usedImageIds));
     const usedUrls = new Set(stringArray(input.usedImageUrls));
     const pinnedId = clean(input.pinnedImageId);
@@ -19715,16 +19086,7 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       (candidate) => !usedIds.has(candidate.id) && !usedUrls.has(candidate.imageUrl)
     );
     const pool = available.length ? available : candidates;
-    const fresh = pool.filter(
-      (candidate) => !recentUsage[candidate.id] && !recentUsage[candidate.imageUrl]
-    );
-    const deterministic = (fresh.length ? fresh : pool).toSorted(
-      (left, right) => Date.parse(
-        clean(recentUsage[left.id] ?? recentUsage[left.imageUrl]) || "0"
-      ) - Date.parse(
-        clean(recentUsage[right.id] ?? recentUsage[right.imageUrl]) || "0"
-      )
-    )[0];
+    const deterministic = pool[0];
     const selectedId = pinned?.id ?? (shortlist.aiImageSelection === false || pool.length === 1 ? deterministic.id : await context.externalCall(
       "OpenRouter image choice",
       () => selectSlideshowImageWithAi({
@@ -19745,10 +19107,7 @@ Use these sources only for claims that directly answer the selected hook.` : ""
         slideId: clean(shortlist.slideId),
         id: selected.id,
         imageUrl: selected.imageUrl,
-        imageCaption: selected.caption,
-        reusedRecently: Boolean(
-          recentUsage[selected.id] || recentUsage[selected.imageUrl]
-        )
+        imageCaption: selected.caption
       }
     });
   });
@@ -19764,7 +19123,6 @@ Use these sources only for claims that directly answer the selected hook.` : ""
         {
           shortlist,
           textModel: input.textModel,
-          recentImageUsage: input.recentImageUsage,
           usedImageIds: selectedImages.map((image) => clean(image.id)),
           usedImageUrls: selectedImages.map((image) => clean(image.imageUrl)),
           pinnedImageId: index === 0 ? input.firstSlidePinnedImageId : index === shortlists.length - 1 ? input.ctaPinnedImageId : void 0
@@ -19840,49 +19198,12 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       language: clean(input.language) || "English",
       autoMusic: false,
       autoPost: false,
-      reuseWarnings: [],
       violations: stringArray(input.violations),
       hookCandidates: automationHookItems2(requiredSchema(input)).map(
         (item) => item.text
       )
     };
     return mergePipelineOutput(input, { plan: plan2 });
-  });
-  add("slideshow-generation.translate-plan", async (input, context) => {
-    const plan2 = requiredRecord(input.plan, "plan");
-    const slides = requiredArray(
-      plan2.slides,
-      "plan.slides"
-    );
-    const language = clean(input.language) || "English";
-    if (language === "English") {
-      return mergePipelineOutput(input, { localizedPlan: plan2 });
-    }
-    const apiKey = clean(process.env.DEEPL_KEY);
-    if (!apiKey) throw new Error("DEEPL_KEY is not configured");
-    const texts = slides.map((slide) => clean(slide.text));
-    const translated = await context.externalCall(
-      "DeepL translation",
-      () => translateTextsWithDeepL({
-        apiKey,
-        targetLanguage: language,
-        texts
-      })
-    );
-    return mergePipelineOutput(input, {
-      localizedPlan: {
-        ...plan2,
-        language,
-        slides: slides.map((slide, index) => ({
-          ...slide,
-          text: translated[index],
-          textItems: requiredArray(
-            slide.textItems,
-            "slide.textItems"
-          ).map((item) => ({ ...item, text: translated[index] }))
-        }))
-      }
-    });
   });
   add("slideshow-generation.render-store-pngs", async (input, context) => {
     let state = input;
@@ -19903,7 +19224,7 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       "renderedSlideshow"
     );
     const slides = requiredArray(
-      requiredRecord(input.localizedPlan ?? input.plan, "plan").slides,
+      requiredRecord(input.plan, "plan").slides,
       "plan.slides"
     );
     const completed = mergePipelineOutput(state, {
@@ -20371,52 +19692,11 @@ Use these sources only for claims that directly answer the selected hook.` : ""
     };
     const qa = validateAutomationRunOutput({
       run,
-      schema: requiredSchema(input),
-      priorRuns: Array.isArray(input.priorRuns) ? input.priorRuns : []
+      schema: requiredSchema(input)
     });
     return mergePipelineOutput(input, {
       qa,
       runRecord: run
-    });
-  });
-  add(
-    "slideshow-generation.append-one-usage-record",
-    async (input, context) => {
-      const usageRecord = requiredRecord(input.usageRecord, "usageRecord");
-      try {
-        await context.externalCall(
-          "Appwrite usage-record create",
-          () => createPipelineDomainDocumentOnce({
-            domain: "usage-history",
-            ownerId: context.ownerId,
-            record: usageRecord
-          })
-        );
-      } catch (error) {
-        if (appwriteErrorCode(error) !== 409) throw error;
-      }
-      return mergePipelineOutput(input, { usageRecordPersisted: true });
-    }
-  );
-  add("slideshow-generation.append-usage-records", async (input, context) => {
-    const records = requiredArray(
-      input.usageRecords,
-      "usageRecords"
-    );
-    for (const usageRecord of records) {
-      const prepared = await context.runStage(
-        "slideshow-generation.prepare-one-usage-record",
-        {
-          usageRecord
-        }
-      );
-      await context.runStage(
-        "slideshow-generation.append-one-usage-record",
-        prepared.output
-      );
-    }
-    return mergePipelineOutput(input, {
-      usageRecordsPersisted: records.length
     });
   });
   add("slideshow-generation.upsert-automation-run", async (input, context) => {
@@ -20436,66 +19716,16 @@ Use these sources only for claims that directly answer the selected hook.` : ""
     const plan2 = requiredRecord(input.plan, "plan");
     const runId = clean(input.runId) || contextId(input);
     const automationId = clean(asRecord4(input.automation).id) || "standalone";
-    const usedAt = services.now().toISOString();
-    const records = [
-      ...requiredArray(
-        plan2.slides,
-        "plan.slides"
-      ).flatMap(
-        (slide) => clean(slide.imageUrl) ? [
-          {
-            automation_id: automationId,
-            run_id: runId,
-            kind: "image",
-            key: clean(slide.imageUrl),
-            used_at: usedAt
-          }
-        ] : []
-      ),
-      {
-        automation_id: automationId,
-        run_id: runId,
-        kind: "text",
-        key: normalizedTextSignature([
-          clean(plan2.title),
-          clean(plan2.caption),
-          ...requiredArray(
-            plan2.slides,
-            "plan.slides"
-          ).map((slide) => clean(slide.text))
-        ]),
-        used_at: usedAt
-      },
-      ...requiredArray(
-        plan2.slides,
-        "plan.slides"
-      ).flatMap((slide) => {
-        const key = normalizedTextSignature([clean(slide.text)]);
-        return clean(slide.role) === "content" && key ? [
-          {
-            automation_id: automationId,
-            run_id: runId,
-            kind: "heading",
-            key,
-            used_at: usedAt
-          }
-        ] : [];
-      })
-    ];
     const runRecord = requiredRecord(
       input.runRecord,
       "runRecord"
     );
-    await context.runStage("slideshow-generation.append-usage-records", {
-      usageRecords: records
-    });
     await context.runStage("slideshow-generation.upsert-automation-run", {
       runToPersist: {
         ...runRecord,
         status: asRecord4(input.qa).valid === false ? "failed" : "succeeded",
         slideshowId: clean(input.slideshowId) || void 0,
         outputImages: stringArray(input.outputImages),
-        videoUrl: clean(input.videoUrl) || void 0,
         thumbnailUrl: clean(input.thumbnailUrl) || void 0,
         updatedAt: services.now().toISOString()
       }
@@ -20511,7 +19741,6 @@ Use these sources only for claims that directly answer the selected hook.` : ""
         artifacts: {
           slideshowId: clean(input.slideshowId),
           outputImages: stringArray(input.outputImages),
-          videoUrl: clean(input.videoUrl) || void 0,
           thumbnailUrl: clean(input.thumbnailUrl) || void 0
         },
         payload: {
@@ -20525,11 +19754,6 @@ Use these sources only for claims that directly answer the selected hook.` : ""
         status: asRecord4(input.qa).valid === false ? "failed" : "succeeded",
         slideshowId: clean(input.slideshowId),
         qa: input.qa
-      },
-      reuseMemory: {
-        images: records.filter((record2) => record2.kind === "image").length,
-        textSignatures: 1,
-        headingSignatures: records.filter((record2) => record2.kind === "heading").length
       }
     };
   });
@@ -22780,7 +22004,12 @@ ${run.hook || automation.name}`
       throw new Error(`Production pipeline handler missing: ${metadata.id}`);
     }
   }
-  return handlers;
+  return new Map(
+    PIPELINE_STAGE_CATALOG.map((metadata) => [
+      metadata.id,
+      handlers.get(metadata.id)
+    ])
+  );
 }
 async function renderAndStoreRendiVideo(input, context, workflowId) {
   const stageId = (name) => `${workflowId}.${name}`;
@@ -23161,11 +22390,8 @@ var init_production_pipeline_handlers = __esm({
     init_slideshow_generation_engine();
     init_slideshow_text_generation_payload();
     init_slideshow_image_matching();
-    init_deepl_translate();
     init_slideshows();
     init_automation_output_qa();
-    init_usage_ledger();
-    init_text_similarity();
     init_linkedin_automation_generation();
     init_ugc_video_generation();
     init_fal_client();

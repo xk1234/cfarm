@@ -69,9 +69,9 @@ describe("slideshow workflow trace", () => {
     expect(trace.workflowId).toBe("slideshow-generation")
     expect(trace.runId).toBe("run-1")
     expect(trace.outputId).toBe("slideshow-1")
-    expect(trace.stages).toHaveLength(16)
+    expect(trace.stages).toHaveLength(11)
     expect(trace.stages.map((stage) => stage.order)).toEqual(
-      Array.from({ length: 16 }, (_, index) => index + 1)
+      Array.from({ length: 11 }, (_, index) => index + 1)
     )
     expect(
       trace.stages.find(
@@ -93,10 +93,16 @@ describe("slideshow workflow trace", () => {
       ],
     })
     expect(
-      trace.stages.find(
-        (stage) => stage.id === "slideshow-generation.translate-plan"
-      )?.status
-    ).toBe("skipped")
+      trace.stages.some((stage) =>
+        [
+          "slideshow-generation.research-hook",
+          "slideshow-generation.retry-text-similarity",
+          "slideshow-generation.derive-visual-concepts",
+          "slideshow-generation.translate-plan",
+          "slideshow-generation.render-store-mp4",
+        ].includes(stage.id)
+      )
+    ).toBe(false)
     expect(trace.output).toMatchObject({
       title: "One thing Libra hides",
       slideCount: 2,

@@ -14,7 +14,6 @@ export type AutomationOutputQaFindingCode =
   | "COUNT_MISMATCH"
   | "UNRESOLVED_TOKEN"
   | "DUPLICATE_VARIABLE_DRAW"
-  | "NEAR_DUPLICATE_OUTPUT"
   | "EMPTY_SLIDE_TEXT"
   | "WORD_LENGTH_VIOLATION"
 
@@ -26,7 +25,6 @@ export type AutomationOutputQaFinding = {
   textItemId?: string
   expected?: number | string
   actual?: number | string
-  priorOutputId?: string
 }
 
 export type AutomationOutputQaReport = {
@@ -41,7 +39,6 @@ const countTokenPattern = /(COUNT|NUMBER|TOTAL|ITEMS?|THINGS?|WAYS?|SIGNS?)/i
 export function validateAutomationRunOutput(input: {
   run: AutomationRunRecord
   schema?: AutomationSchema
-  priorRuns?: AutomationRunRecord[]
 }): AutomationOutputQaReport {
   const findings: AutomationOutputQaFinding[] = []
   const slides = input.run.plan.slides
@@ -53,10 +50,7 @@ export function validateAutomationRunOutput(input: {
   if (input.schema?.distinct_variable_draws !== false) {
     findings.push(...duplicateVariableDrawFindings(input.run))
   }
-  findings.push(
-    ...nearDuplicateFindings(input.run, input.priorRuns ?? []),
-    ...slideTextFindings(slides, input.schema)
-  )
+  findings.push(...slideTextFindings(slides, input.schema))
 
   return {
     valid: !findings.some((finding) => finding.severity === "error"),
@@ -153,41 +147,6 @@ function duplicateVariableDrawFindings(
           },
         ]
   )
-}
-
-function nearDuplicateFindings(
-  run: AutomationRunRecord,
-  priorRuns: AutomationRunRecord[]
-): AutomationOutputQaFinding[] {
-  if (!run.plan.hookId) return []
-  const primary = primaryVariableValue(run)
-  if (!primary) return []
-  const prior = priorRuns.find(
-    (candidate) =>
-      candidate.id !== run.id &&
-      candidate.plan.hookId === run.plan.hookId &&
-      primaryVariableValue(candidate)?.toLocaleLowerCase() ===
-        primary.toLocaleLowerCase()
-  )
-  if (!prior) return []
-  return [
-    {
-      code: "NEAR_DUPLICATE_OUTPUT",
-      severity: "warning",
-      expected: "a new hook-variable combination",
-      actual: primary,
-      priorOutputId: prior.slideshowId ?? prior.id,
-      message: `This output reuses hook ${run.plan.hookId} with the primary value “${primary}” from an earlier output.`,
-    },
-  ]
-}
-
-function primaryVariableValue(run: AutomationRunRecord) {
-  const entries = Object.entries(run.plan.hookSubstitutions ?? {})
-  const preferred = entries.find(
-    ([name, value]) => value.trim() && !isRuntimeHookVariable(name)
-  )
-  return preferred?.[1].trim()
 }
 
 function slideTextFindings(

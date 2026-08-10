@@ -461,13 +461,13 @@ export function createLumenClipMcpServer(
               generationSource: "manual",
             },
           })
-          const priorRuns = await services.listAutomationRuns({
+          const automationRuns = await services.listAutomationRuns({
             automationId,
             limit: 500,
           })
           const completedRun =
-            priorRuns.find((run) => run.requestId === traceId) ??
-            priorRuns.find(
+            automationRuns.find((run) => run.requestId === traceId) ??
+            automationRuns.find(
               (run) => run.id === clean(record(workflow.result.run).id)
             )
           if (!completedRun) {
@@ -481,7 +481,6 @@ export function createLumenClipMcpServer(
                 ? validateAutomationRunOutput({
                     run,
                     schema: automation.schema,
-                    priorRuns,
                   })
                 : undefined
             return generatedRunSummary(run, ownerId, qa)
@@ -831,10 +830,7 @@ export function createLumenClipMcpServer(
 function registerPipelineTools(
   server: McpServer,
   ownerId: string,
-  services: Pick<
-    LumenClipMcpServices,
-    "queuePipelineWorkflow"
-  >
+  services: Pick<LumenClipMcpServices, "queuePipelineWorkflow">
 ) {
   server.registerTool(
     "lumenclip_pipeline_catalog",
@@ -3406,7 +3402,6 @@ function registerOutputAndPublishingTools(
               false,
               {
                 schema: automation?.schema,
-                priorRuns: regularRuns,
               },
               ownerId
             )
@@ -3679,10 +3674,6 @@ async function runAutomationDraft(
   const standard = await services.getAutomationRecord(input.automationId)
   if (standard) {
     if (standard.schema.automationKind === "slideshow") {
-      const priorRuns = await services.listAutomationRuns({
-        automationId: input.automationId,
-        limit: 100,
-      })
       const workflow = await services.runPipelineWorkflow({
         workflowId: "slideshow-generation",
         ownerId,
@@ -3697,22 +3688,19 @@ async function runAutomationDraft(
         automationId: input.automationId,
         limit: 100,
       })
-      const run = currentRuns.find(
-        (candidate) => candidate.requestId === input.requestId
-      ) ?? currentRuns.find(
-        (candidate) => candidate.id === clean(record(workflow.result.run).id)
-      )
+      const run =
+        currentRuns.find(
+          (candidate) => candidate.requestId === input.requestId
+        ) ??
+        currentRuns.find(
+          (candidate) => candidate.id === clean(record(workflow.result.run).id)
+        )
       if (!run) {
         throw new Error(
           "Windmill completed slideshow generation without a persisted run"
         )
       }
-      return regularOperation(
-        run,
-        false,
-        { schema: standard.schema, priorRuns },
-        ownerId
-      )
+      return regularOperation(run, false, { schema: standard.schema }, ownerId)
     }
 
     if (input.hook) {
@@ -4212,9 +4200,6 @@ async function listOutputSummaries(
           ? validateAutomationRunOutput({
               run,
               schema: automationById.get(run.automationId)?.schema,
-              priorRuns: runs.filter(
-                (candidate) => candidate.automationId === run.automationId
-              ),
             })
           : undefined
       const resolvedPublicationState = publicationState(
@@ -4347,9 +4332,6 @@ async function getAutomationOutput(
     const qa = validateAutomationRunOutput({
       run,
       schema: automation?.schema,
-      priorRuns: runs.filter(
-        (candidate) => candidate.automationId === run.automationId
-      ),
     })
     const rendered = slideshow?.images ?? []
     const slides = run.plan.slides.map((planSlide, index) => {
@@ -4494,7 +4476,6 @@ async function slideshowWorkflowTrace(
   const qa = validateAutomationRunOutput({
     run,
     schema: automation?.schema,
-    priorRuns: runs,
   })
   return buildSlideshowWorkflowTrace({ run, automation, slideshow, qa })
 }
@@ -4693,7 +4674,6 @@ function regularOperation(
   reused = false,
   qaContext: {
     schema?: AutomationSchema
-    priorRuns?: AutomationRunRecord[]
   } = {},
   ownerId = ""
 ) {
@@ -4705,7 +4685,6 @@ function regularOperation(
       ? validateAutomationRunOutput({
           run,
           schema: qaContext.schema,
-          priorRuns: qaContext.priorRuns,
         })
       : undefined
   const delivery = outputId
@@ -6871,14 +6850,10 @@ async function qaForAutomationRun(
   services: LumenClipMcpServices,
   run: AutomationRunRecord
 ) {
-  const [automation, runs] = await Promise.all([
-    services.getAutomationRecord(run.automationId),
-    services.listAutomationRuns({ automationId: run.automationId, limit: 500 }),
-  ])
+  const automation = await services.getAutomationRecord(run.automationId)
   return validateAutomationRunOutput({
     run,
     schema: automation?.schema,
-    priorRuns: runs,
   })
 }
 

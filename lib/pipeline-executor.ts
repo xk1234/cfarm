@@ -10,6 +10,7 @@ import {
   type RegisteredPipelineStage,
 } from "@/lib/pipeline-stages"
 import { captureProviderRequests } from "@/lib/provider-request-trace"
+import { workflowMediaArtifacts } from "@/lib/workflow-media-artifacts"
 
 export type PipelineHandlerMap = ReadonlyMap<string, PipelineStageHandler>
 
@@ -75,7 +76,12 @@ export async function executePipelineStage(input: {
   )
   assertSafePipelineValue(rawOutput, "output")
   assertSafePipelineValue(providerRequests, "providerRequests")
-  const output = structuredClone(rawOutput)
+  const mediaArtifacts = workflowMediaArtifacts(rawOutput)
+  assertSafePipelineValue(mediaArtifacts, "mediaArtifacts")
+  const output = structuredClone({
+    ...rawOutput,
+    ...(mediaArtifacts.length ? { mediaArtifacts } : {}),
+  })
   const operation = runningOperation(output)
   return {
     stage: stageMetadata(registered),

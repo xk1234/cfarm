@@ -189,30 +189,18 @@ ${indent(stageNode({ id: "load_word_collections", summary: "Load word collection
     inputExpr:
       "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook, scheduledFor: flow_input.scheduled_for, generationSource: flow_input.generation_source })",
   })
-  const loadGenerationContext = `              - id: load_generation_context
-                summary: "Load memory and model inputs consumed by text generation"
-                value:
-                  type: branchall
-                  parallel: true
-                  branches:
-                    - summary: "Published reuse memory"
-                      modules:
-${indent(stageNode({ id: "load_usage", summary: "Load usage history", stageId: "slideshow-generation.list-usage-history", inputExpr: "({})" }), 22)}
-                    - summary: "Generation model settings"
-                      modules:
-${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", stageId: "slideshow-generation.load-model-settings", inputExpr: "({})" }), 22)}`
-  const context = stageNode({
-    id: "prepare_generation_context",
-    summary: "Normalize reuse memory and generation model",
-    stageId: "slideshow-generation.prepare-generation-context",
-    inputExpr:
-      "({ ...results.validate_input.output, usageHistory: results.load_generation_context[0].output.usageHistory, generationSettings: results.load_generation_context[1].output.generationSettings })",
+  const modelSettings = stageNode({
+    id: "load_model_settings",
+    summary: "Load text generation model",
+    stageId: "slideshow-generation.load-model-settings",
+    inputExpr: "results.validate_input.output",
   })
   const count = stageNode({
     id: "apply_fixed_slide_count",
     summary: "Apply fixed slide count",
     stageId: "slideshow-generation.apply-fixed-slide-count",
-    inputExpr: "results.prepare_generation_context.output",
+    inputExpr:
+      "({ ...results.load_model_settings.output, textModel: results.load_model_settings.output.generationSettings.slideshowTextModel })",
   })
   const hook = stageNode({
     id: "select_expand_hook",
@@ -220,29 +208,17 @@ ${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", 
     stageId: "slideshow-generation.select-expand-hook",
     inputExpr: "results.apply_fixed_slide_count.output",
   })
-  const research = stageNode({
-    id: "research_hook",
-    summary: "Research selected hook",
-    stageId: "slideshow-generation.research-hook",
-    inputExpr: "results.select_expand_hook.output",
-  })
   const prompt = stageNode({
     id: "build_text_prompt",
     summary: "Build structured text prompt",
     stageId: "slideshow-generation.build-text-prompt",
-    inputExpr: "results.research_hook.output",
+    inputExpr: "results.select_expand_hook.output",
   })
   const generate = stageNode({
     id: "generate_slide_text",
     summary: "Generate slide text",
     stageId: "slideshow-generation.generate-slide-text",
     inputExpr: "results.build_text_prompt.output",
-  })
-  const retry = stageNode({
-    id: "retry_text_similarity",
-    summary: "Check and repair text similarity",
-    stageId: "slideshow-generation.retry-text-similarity",
-    inputExpr: "results.generate_slide_text.output",
   })
   const candidatePools = stageNode({
     id: "prepare_image_candidate_pools",
@@ -255,7 +231,8 @@ ${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", 
     id: "build_image_shortlists",
     summary: "Visual path — build image shortlists",
     stageId: "slideshow-generation.build-image-shortlists",
-    inputExpr: "results.derive_visual_concepts.output",
+    inputExpr:
+      "({ ...results.produce_text_and_candidates[0].output, candidatesBySlide: results.produce_text_and_candidates[1].output.candidatesBySlide })",
   })
   const images = stageNode({
     id: "select_slide_images",
@@ -271,71 +248,35 @@ ${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", 
         branches:
           - summary: "Text generation"
             modules:
-${loadGenerationContext}
-${indent(context, 14)}
+${indent(modelSettings, 14)}
 ${indent(count, 14)}
 ${indent(hook, 14)}
-${indent(research, 14)}
 ${indent(prompt, 14)}
 ${indent(generate, 14)}
-${indent(retry, 14)}
           - summary: "Static image candidate preparation"
             modules:
 ${indent(candidatePools, 14)}`
-  const concepts = stageNode({
-    id: "derive_visual_concepts",
-    summary: "Derive concepts from accepted text and eligible candidate pools",
-    stageId: "slideshow-generation.derive-visual-concepts",
-    inputExpr:
-      "({ ...results.produce_text_and_candidates[0].output, candidatesBySlide: results.produce_text_and_candidates[1].output.candidatesBySlide })",
-  })
   const assemble = stageNode({
     id: "assemble_plan",
     summary: "Join text and images into slide plan",
     stageId: "slideshow-generation.assemble-plan",
     inputExpr: "results.select_slide_images.output",
   })
-  const translate = stageNode({
-    id: "translate_plan",
-    summary: "Translate displayed text",
-    stageId: "slideshow-generation.translate-plan",
-    inputExpr: "results.assemble_plan.output",
-  })
   const png = stageNode({
     id: "render_store_pngs",
     summary: "Render and persist slide PNGs",
     stageId: "slideshow-generation.render-store-pngs",
-    inputExpr: "results.translate_plan.output",
+    inputExpr: "results.assemble_plan.output",
   })
-  const mp4 = stageNode({
-    id: "render_store_mp4",
-    summary: "Render optional slideshow MP4",
-    stageId: "slideshow-generation.render-store-mp4",
-    inputExpr: "results.render_store_pngs.output",
-  })
-  const renderAndQa = `    - id: render_and_qa_context
-      summary: "Render output while prior-run QA context loads"
-      value:
-        type: branchall
-        parallel: true
-        branches:
-          - summary: "Rendered slideshow artifacts"
-            modules:
-${indent(png, 14)}
-${indent(mp4, 14)}
-          - summary: "Prior-run QA context"
-            modules:
-${indent(stageNode({ id: "load_prior_runs", summary: "Load prior runs for output QA", stageId: "slideshow-generation.list-prior-runs", inputExpr: "({ automationId: flow_input.automation_id })" }), 14)}`
   const qa = stageNode({
     id: "validate_output",
     summary: "Validate generated output",
     stageId: "slideshow-generation.validate-output",
-    inputExpr:
-      "({ ...results.render_and_qa_context[0].output, priorRuns: results.render_and_qa_context[1].output.priorRuns })",
+    inputExpr: "results.render_store_pngs.output",
   })
   const finalize = stageNode({
     id: "finalize_output",
-    summary: "Persist run, output, media and reuse memory",
+    summary: "Persist run, output, and media",
     stageId: "slideshow-generation.finalize-output",
     inputExpr: "results.validate_output.output",
   })
@@ -346,12 +287,10 @@ value:
 ${validationInputs}
 ${validate}
 ${split}
-${concepts}
 ${shortlists}
 ${images}
 ${assemble}
-${translate}
-${renderAndQa}
+${png}
 ${qa}
 ${finalize}
 schema:

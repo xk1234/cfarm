@@ -83,8 +83,13 @@ dependency changes, then lint before importing.
   tool is deployed.
 - Slideshow validation loads only template, collection, and word-variable
   inputs. Text generation then runs in parallel with static image-candidate
-  preparation. Prior runs are loaded later, alongside rendering, and first
-  join rendered output at output QA.
+  preparation. Generation does not read usage history or prior runs, perform
+  web research or cross-output similarity repair, translate finished text, or
+  produce an MP4. Those concerns are outside the slideshow-generation DAG.
+- Every stage output includes typed `mediaArtifacts` when image, video, or
+  audio values are present. Each artifact carries its role, MIME type, source,
+  preview, download, filename, and available dimensions or duration, so
+  intermediate media is not represented as an untyped URL string alone.
 - UGC loads template defaults once, then real component resolvers merge and
   validate each override at its first consumer. Product analysis joins script
   configuration at script generation; actor and voice first join at lip-sync;

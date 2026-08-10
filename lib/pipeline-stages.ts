@@ -100,25 +100,11 @@ export const PIPELINE_STAGE_CATALOG = [
     "select-expand-hook",
     "Select and expand hook",
     "deterministic",
-    "Select an unused hook and expand its word-collection substitutions."
+    "Select an enabled hook and expand its word-collection substitutions."
   ),
   stage(
     "slideshow-generation",
     4,
-    "research-hook",
-    "Research selected hook",
-    "provider",
-    "Research the exact selected hook with source URLs.",
-    {
-      ...compositeStage,
-      provider: "OpenRouter + Exa",
-      model: "openai/gpt-5.4-mini",
-      optional: true,
-    }
-  ),
-  stage(
-    "slideshow-generation",
-    5,
     "build-text-prompt",
     "Build structured generation prompt",
     "deterministic",
@@ -126,7 +112,7 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    6,
+    5,
     "generate-slide-text",
     "Generate slideshow text",
     "provider",
@@ -139,42 +125,15 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    7,
-    "retry-text-similarity",
-    "Retry similar text",
-    "provider",
-    "Compare with reuse memory and perform the single authoritative rewrite when needed.",
-    {
-      ...compositeStage,
-      provider: "OpenRouter",
-      model: "configured slideshowTextModel",
-      optional: true,
-    }
-  ),
-  stage(
-    "slideshow-generation",
-    8,
-    "derive-visual-concepts",
-    "Derive visual concepts",
-    "provider",
-    "Derive concrete visual search concepts for AI-selected slides.",
-    {
-      provider: "OpenRouter",
-      model: "configured slideshowTextModel",
-      optional: true,
-    }
-  ),
-  stage(
-    "slideshow-generation",
-    9,
+    6,
     "build-image-shortlists",
     "Build image shortlists",
     "deterministic",
-    "Rank collection candidates locally and retain bounded per-slide shortlists."
+    "Rank image captions directly against slide text and retain bounded per-slide shortlists."
   ),
   stage(
     "slideshow-generation",
-    10,
+    7,
     "select-slide-images",
     "Select slide images",
     "provider",
@@ -187,7 +146,7 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    11,
+    8,
     "assemble-plan",
     "Assemble slideshow plan",
     "deterministic",
@@ -195,16 +154,7 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    12,
-    "translate-plan",
-    "Translate displayed text",
-    "provider",
-    "Translate displayed text for supported non-English targets.",
-    { provider: "DeepL", optional: true }
-  ),
-  stage(
-    "slideshow-generation",
-    13,
+    9,
     "render-store-pngs",
     "Render and store PNG slides",
     "storage",
@@ -213,33 +163,19 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    14,
-    "render-store-mp4",
-    "Render and store MP4",
-    "provider",
-    "Render and persist an H.264 slideshow video when requested.",
-    {
-      ...compositeStage,
-      provider: "Rendi",
-      model: "FFmpeg",
-      optional: true,
-    }
-  ),
-  stage(
-    "slideshow-generation",
-    15,
+    10,
     "validate-output",
     "Validate generated output",
     "deterministic",
-    "Run deterministic count, token, word-range, and reuse QA."
+    "Run deterministic checks against the current slideshow only."
   ),
   stage(
     "slideshow-generation",
-    16,
+    11,
     "finalize-output",
     "Finalize generated output",
     "storage",
-    "Finalize result/run state and append reuse-memory records.",
+    "Persist the generated result and run state.",
     compositeStage
   ),
 
@@ -272,24 +208,6 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    104,
-    "list-usage-history",
-    "List usage history",
-    "storage",
-    "Page through owner-scoped usage history using registered page reads.",
-    { ...compositeStage, workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
-    105,
-    "list-prior-runs",
-    "List prior runs",
-    "storage",
-    "Page through owner-scoped automation runs using registered page reads.",
-    { ...compositeStage, workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
     106,
     "load-model-settings",
     "Load model settings",
@@ -299,30 +217,12 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    116,
-    "prepare-generation-context",
-    "Prepare generation memory and model context",
-    "deterministic",
-    "Normalize hook, text, heading, and image reuse memory with the selected slideshow text model.",
-    { workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
     117,
     "prepare-image-candidate-pools",
     "Prepare static image candidate pools",
     "deterministic",
     "Resolve each slide's configured collection into a bounded static candidate pool without reading generated text.",
     { workflowStep: false }
-  ),
-  atomicStage(
-    "slideshow-generation",
-    107,
-    "research-hook-attempt",
-    "provider",
-    "OpenRouter chat completion with Exa",
-    "Perform exactly one exact-hook research attempt.",
-    { provider: "OpenRouter + Exa", model: "openai/gpt-5.4-mini" }
   ),
   atomicStage(
     "slideshow-generation",
@@ -344,15 +244,6 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    110,
-    "append-usage-records",
-    "Append usage records",
-    "storage",
-    "Append supplied usage records by invoking the singular registered storage stage once per record.",
-    { ...compositeStage, workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
     111,
     "upsert-automation-run",
     "Persist automation run",
@@ -360,42 +251,6 @@ export const PIPELINE_STAGE_CATALOG = [
     "Create or update one automation run through registered one-request document stages.",
     { ...compositeStage, workflowStep: false }
   ),
-  atomicStage(
-    "slideshow-generation",
-    112,
-    "append-one-usage-record",
-    "storage",
-    "Appwrite usage-record create",
-    "Append one usage record through one storage action."
-  ),
-  stage(
-    "slideshow-generation",
-    113,
-    "prepare-video-render",
-    "Prepare video render",
-    "storage",
-    "Stage rendered PNG inputs locally for resumable provider upload.",
-    { ...compositeStage, sideEffect: "storage", workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
-    114,
-    "finalize-video-render",
-    "Finalize video render",
-    "storage",
-    "Attach persisted video artifacts to the slideshow result.",
-    { ...compositeStage, sideEffect: "storage", workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
-    115,
-    "build-rendi-video-command",
-    "Build Rendi video command",
-    "deterministic",
-    "Build the slideshow FFmpeg command from completed Rendi slide uploads.",
-    { workflowStep: false }
-  ),
-  ...rendiProtocolStages("slideshow-generation", 120),
 
   stage(
     "ugc-video-generation",
@@ -1275,20 +1130,6 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
     ),
     atomic(
       "slideshow-generation",
-      204,
-      "list-usage-history-page",
-      "Appwrite usage_ledger listRows",
-      "Read exactly one owner-scoped usage page."
-    ),
-    atomic(
-      "slideshow-generation",
-      205,
-      "list-prior-runs-page",
-      "Template store template_runs listRows",
-      "Read exactly one owner-scoped automation-run page."
-    ),
-    atomic(
-      "slideshow-generation",
       206,
       "get-result-document",
       "Appwrite outputs getRow",
@@ -1520,56 +1361,6 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
     ),
     atomic(
       "slideshow-generation",
-      235,
-      "list-results-page",
-      "Appwrite outputs listRows",
-      "Read exactly one owner-scoped slideshow result page."
-    ),
-    stage(
-      "slideshow-generation",
-      236,
-      "find-result-for-slideshow",
-      "Find result for slideshow",
-      "storage",
-      "Page through registered result reads until the requested slideshow result is found.",
-      { ...compositeStage, workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
-      237,
-      "initialize-video-preparation",
-      "Initialize video preparation",
-      "deterministic",
-      "Build resumable local video input paths from a hydrated slideshow result.",
-      { workflowStep: false }
-    ),
-    atomic(
-      "slideshow-generation",
-      238,
-      "read-one-video-slide",
-      "Appwrite Storage getFileView",
-      "Read exactly one rendered slideshow PNG into local video staging."
-    ),
-    stage(
-      "slideshow-generation",
-      239,
-      "stage-video-slides",
-      "Stage video slides",
-      "storage",
-      "Stage every rendered PNG through the singular registered storage read.",
-      { ...compositeStage, workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
-      240,
-      "build-finalized-video-result",
-      "Build finalized video result",
-      "deterministic",
-      "Attach persisted video and thumbnail URLs to a supplied result record.",
-      { workflowStep: false }
-    ),
-    atomic(
-      "slideshow-generation",
       241,
       "get-automation-run-document",
       "Template store template_runs getRow",
@@ -1591,38 +1382,11 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
     ),
     stage(
       "slideshow-generation",
-      244,
-      "enrich-collection-usage",
-      "Enrich collection usage",
-      "deterministic",
-      "Attach latest supplied image-usage timestamps to supplied collection candidates.",
-      { workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
-      245,
-      "prepare-one-usage-record",
-      "Prepare one usage record",
-      "deterministic",
-      "Normalize and assign the deterministic ID for one supplied usage record.",
-      { workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
       246,
       "prepare-post-identity-claims",
       "Prepare post identity claims",
       "deterministic",
       "Derive canonical identity claims for one supplied post intent.",
-      { workflowStep: false }
-    ),
-    stage(
-      "slideshow-generation",
-      247,
-      "prepare-video-thumbnail",
-      "Prepare video thumbnail",
-      "deterministic",
-      "Copy the first staged slide into the local thumbnail input without a remote call.",
       { workflowStep: false }
     ),
 

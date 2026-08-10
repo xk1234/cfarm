@@ -14,7 +14,7 @@ export function validateAutomationRunOutput(input) {
     if (input.schema?.distinct_variable_draws !== false) {
         findings.push(...duplicateVariableDrawFindings(input.run));
     }
-    findings.push(...nearDuplicateFindings(input.run, input.priorRuns ?? []), ...slideTextFindings(slides, input.schema));
+    findings.push(...slideTextFindings(slides, input.schema));
     return {
         valid: !findings.some((finding) => finding.severity === "error"),
         actualSlideCount: slides.length,
@@ -94,34 +94,6 @@ function duplicateVariableDrawFindings(run) {
                 message: `The value “${value}” was drawn into multiple hook slots: ${names.join(", ")}.`,
             },
         ]);
-}
-function nearDuplicateFindings(run, priorRuns) {
-    if (!run.plan.hookId)
-        return [];
-    const primary = primaryVariableValue(run);
-    if (!primary)
-        return [];
-    const prior = priorRuns.find((candidate) => candidate.id !== run.id &&
-        candidate.plan.hookId === run.plan.hookId &&
-        primaryVariableValue(candidate)?.toLocaleLowerCase() ===
-            primary.toLocaleLowerCase());
-    if (!prior)
-        return [];
-    return [
-        {
-            code: "NEAR_DUPLICATE_OUTPUT",
-            severity: "warning",
-            expected: "a new hook-variable combination",
-            actual: primary,
-            priorOutputId: prior.slideshowId ?? prior.id,
-            message: `This output reuses hook ${run.plan.hookId} with the primary value “${primary}” from an earlier output.`,
-        },
-    ];
-}
-function primaryVariableValue(run) {
-    const entries = Object.entries(run.plan.hookSubstitutions ?? {});
-    const preferred = entries.find(([name, value]) => value.trim() && !isRuntimeHookVariable(name));
-    return preferred?.[1].trim();
 }
 function slideTextFindings(slides, schema) {
     return slides.flatMap((slide, slideIndex) => {

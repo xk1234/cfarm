@@ -29,10 +29,11 @@ branch dependencies. For isolated testing, Windmill MCP runs
 `f/lumenclip/workflow_stage_runtime` directly with `runScriptByPath`.
 
 Slideshow validation joins only template/schema, collections/assets, and word
-variables. Reuse memory and model settings are loaded inside the text path,
-while static image candidates are prepared independently. Accepted text and
-candidate pools first meet at visual-concept preparation. Prior runs are loaded
-alongside rendering and first meet the rendered result at output QA.
+variables. Model settings are loaded inside the text path, while static image
+candidates are prepared independently. Generated text and candidate pools
+first meet at caption-based shortlisting. Usage history, prior runs, web
+research, similarity repair, translation, and slideshow MP4 post-processing
+are absent from the generation workflow.
 
 UGC loads template defaults once. Product and script component resolvers do
 real merge/validation work before script generation; actor/motion and voice

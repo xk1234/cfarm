@@ -25,17 +25,14 @@ import {
 import { automationSchemaToTempSlideTestingAutomation } from "@/lib/temp-slide-testing"
 import {
   generateSlideshowTextAttemptFromPayload,
-  researchSelectedHookAttempt,
   selectSlideshowHook,
 } from "@/lib/slideshow-generation-engine"
 import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-payload"
 import {
-  deriveSlideVisualConcepts,
   rankImageCandidates,
   selectSlideshowImageWithAi,
   type SlideshowImageCandidate,
 } from "@/lib/slideshow-image-matching"
-import { translateTextsWithDeepL } from "@/lib/deepl-translate"
 import {
   assembleSlideshowRenderRecord,
   discardSlideshowScratch,
@@ -49,15 +46,6 @@ import {
   type StagedSlideshowAsset,
 } from "@/lib/slideshows"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
-import {
-  normalizeUsageRecord,
-  usageRecordsForPublishedRuns,
-  type UsageRecord,
-} from "@/lib/usage-ledger"
-import {
-  hasNearDuplicateText,
-  normalizedTextSignature,
-} from "@/lib/text-similarity"
 import {
   buildLinkedInGenerationRequest,
   composePost,
@@ -277,23 +265,8 @@ export function createProductionPipelineHandlers(
     "storagePage"
   )
   addPageRead(
-    "slideshow-generation.list-results-page",
-    "results",
-    "storagePage"
-  )
-  addPageRead(
     "slideshow-generation.list-word-collections-page",
     "word-collections",
-    "storagePage"
-  )
-  addPageRead(
-    "slideshow-generation.list-usage-history-page",
-    "usage-history",
-    "storagePage"
-  )
-  addPageRead(
-    "slideshow-generation.list-prior-runs-page",
-    "template-runs",
     "storagePage"
   )
   addDocumentRead(
@@ -1712,58 +1685,6 @@ export function createProductionPipelineHandlers(
     "slideshow-generation.list-word-collections-page",
     "wordCollections"
   )
-  addPagedCollectionComposite(
-    "slideshow-generation.list-usage-history",
-    "slideshow-generation.list-usage-history-page",
-    "usageHistory"
-  )
-  addPagedCollectionComposite(
-    "slideshow-generation.list-prior-runs",
-    "slideshow-generation.list-prior-runs-page",
-    "priorRuns",
-    (record, input) =>
-      clean(record.automationId) === clean(input.automationId) &&
-      record.kind !== "ugc" &&
-      !isRecord(record.checkpoints)
-  )
-  add("slideshow-generation.enrich-collection-usage", async (input) => {
-    const latest = new Map<string, string>()
-    for (const usage of requiredArray<Record<string, unknown>>(
-      input.usageHistory,
-      "usageHistory",
-      true
-    )) {
-      if (usage.kind !== "image") continue
-      const key = clean(usage.key)
-      const usedAt = clean(usage.used_at)
-      const previous = latest.get(key)
-      if (
-        key &&
-        usedAt &&
-        (!previous || Date.parse(usedAt) > Date.parse(previous))
-      )
-        latest.set(key, usedAt)
-    }
-    const collections = requiredArray<Record<string, unknown>>(
-      input.collections,
-      "collections"
-    ).map((collection) => ({
-      ...collection,
-      images: requiredArray<Record<string, unknown>>(
-        collection.images,
-        "collection.images",
-        true
-      ).map((image) => {
-        const lastUsedAt =
-          latest.get(clean(image.hash)) ?? latest.get(clean(image.image_link))
-        return lastUsedAt ? { ...image, last_used_at: lastUsedAt } : image
-      }),
-    }))
-    return mergePipelineOutput(input, {
-      collections,
-      collectionUsageEnriched: true,
-    })
-  })
   add("slideshow-generation.load-model-settings", async (input, context) => {
     const state = (
       await context.runStage(
@@ -1774,10 +1695,14 @@ export function createProductionPipelineHandlers(
     const stored = isRecord(state.modelSettingsDocument)
       ? asRecord(state.modelSettingsDocument).record
       : null
+    const generationSettings =
+      normalizeGenerationModelSettings(stored) ??
+      defaultGenerationModelSettings()
     return mergePipelineOutput(state, {
-      generationSettings:
-        normalizeGenerationModelSettings(stored) ??
-        defaultGenerationModelSettings(),
+      generationSettings,
+      textModel:
+        clean(generationSettings.slideshowTextModel) ||
+        generationModelRegistry.openRouter.slideshowText.model,
     })
   })
 
@@ -1888,40 +1813,6 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("slideshow-generation.prepare-generation-context", async (input) => {
-    const automation = requiredRecord(input.automation, "automation")
-    const usageRecords = requiredArray<UsageRecord>(
-      input.usageHistory,
-      "usageHistory"
-    )
-    const modelSettings = requiredRecord(
-      input.generationSettings,
-      "generationSettings"
-    )
-    const publishedUsage = usageRecordsForPublishedRuns(
-      usageRecords,
-      requiredString(automation.id, "automation.id")
-    )
-    const usageFor = (kind: UsageRecord["kind"]) =>
-      publishedUsage.filter((record) => record.kind === kind)
-    return mergePipelineOutput(input, {
-      recentPublishedHookKeys: usageFor("hook_published").map(
-        (record) => record.key
-      ),
-      recentPublishedHookCombinationKeys: usageFor(
-        "hook_combination_published"
-      ).map((record) => record.key),
-      recentPublishedSignatures: usageFor("text").map((record) => record.key),
-      recentHeadingExclusions: usageFor("heading").map((record) => record.key),
-      recentImageUsage: Object.fromEntries(
-        usageFor("image").map((record) => [record.key, record.used_at])
-      ),
-      textModel:
-        clean(modelSettings.slideshowTextModel) ||
-        generationModelRegistry.openRouter.slideshowText.model,
-    })
-  })
-
   add("slideshow-generation.prepare-image-candidate-pools", async (input) => {
     const slides = requiredArray<Record<string, unknown>>(
       asRecord(input.textAutomation).slides,
@@ -2015,10 +1906,8 @@ export function createProductionPipelineHandlers(
         input.wordCollections,
         "wordCollections"
       ),
-      usedHookKeys: new Set(stringArray(input.recentPublishedHookKeys)),
-      usedHookCombinationKeys: new Set(
-        stringArray(input.recentPublishedHookCombinationKeys)
-      ),
+      usedHookKeys: new Set(),
+      usedHookCombinationKeys: new Set(),
       noDuplicateSlots: schema.distinct_variable_draws !== false,
       caseMode: schema.prompt_formatting.hook_case,
       now: new Date(clean(input.scheduledFor) || services.now()),
@@ -2036,76 +1925,14 @@ export function createProductionPipelineHandlers(
     return mergePipelineOutput(input, additions)
   })
 
-  add("slideshow-generation.research-hook-attempt", async (input, context) => {
-    const apiKey = clean(process.env.OPENROUTER_API_KEY)
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-    const research = await context.externalCall(
-      "OpenRouter chat completion with Exa",
-      () =>
-        researchSelectedHookAttempt({
-          apiKey,
-          model: clean(input.model) || "openai/gpt-5.4-mini",
-          hook: requiredString(input.hook, "hook"),
-          automationName:
-            clean(input.automationName) ||
-            clean(asRecord(input.automation).name) ||
-            "Slideshow",
-        })
-    )
-    return mergePipelineOutput(input, {
-      research,
-      webSearchSources: research.sources.map((source) => source.url),
-    })
-  })
-
-  add("slideshow-generation.research-hook", async (input, context) => {
-    const schema = requiredSchema(input)
-    if (
-      input.enabled === false ||
-      input.researchEnabled === false ||
-      !schema.web_search_enabled
-    ) {
-      return mergePipelineOutput(input, {
-        research: null,
-        webSearchSources: [],
-      })
-    }
-    let lastError: unknown
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        return (
-          await context.runStage("slideshow-generation.research-hook-attempt", {
-            ...input,
-            attempt,
-          })
-        ).output
-      } catch (error) {
-        lastError = error
-      }
-    }
-    throw lastError
-  })
-
   add("slideshow-generation.build-text-prompt", async (input) => {
     const automation = requiredRecord(input.textAutomation, "textAutomation")
-    const research = isRecord(input.research) ? input.research : null
     const promptPayload = slideshowTextGenerationPayload({
       automation: automation as never,
       model: clean(input.textModel) || undefined,
       selectedHook: requiredString(input.hook, "hook"),
       systemPrompt: clean(input.systemPrompt) || undefined,
-      promptInstructions: [
-        clean(input.promptInstructions),
-        research
-          ? `Exact-hook web research:\n${clean(research.content)}\n\nUse these sources only for claims that directly answer the selected hook.`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-      avoidSimilarOutputs: stringArray(
-        input.recentTextExclusions ?? input.recentPublishedSignatures
-      ),
-      avoidSimilarHeadings: stringArray(input.recentHeadingExclusions),
+      promptInstructions: clean(input.promptInstructions) || undefined,
     })
     return mergePipelineOutput(input, {
       promptPayload,
@@ -2150,14 +1977,6 @@ export function createProductionPipelineHandlers(
     }
   )
 
-  add("slideshow-generation.prepare-one-usage-record", async (input) => {
-    const usageRecord = normalizeUsageRecord(
-      requiredRecord(input.usageRecord, "usageRecord") as unknown as UsageRecord
-    )
-    if (!usageRecord) throw new Error("Invalid usage record")
-    return mergePipelineOutput(input, { usageRecord })
-  })
-
   add("slideshow-generation.generate-slide-text", async (input, context) => {
     let repairFeedback = ""
     for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -2178,113 +1997,6 @@ export function createProductionPipelineHandlers(
       }
     }
     throw new Error("Slideshow text generation exhausted its attempts")
-  })
-
-  add("slideshow-generation.retry-text-similarity", async (input, context) => {
-    const generatedText = requiredRecord(input.generatedText, "generatedText")
-    const signature = normalizedTextSignature([
-      clean(generatedText.title),
-      clean(generatedText.caption),
-      ...Object.values(asRecord(generatedText.text)).map(clean),
-    ])
-    const recent = stringArray(input.recentPublishedSignatures)
-    if (
-      !hasNearDuplicateText(signature, recent, {
-        threshold: numberValue(input.similarityThreshold) || 0.85,
-      })
-    ) {
-      return mergePipelineOutput(input, {
-        generatedSignature: signature,
-        textSimilarityRetry: false,
-      })
-    }
-    const prompt = slideshowTextGenerationPayload({
-      automation: requiredRecord(
-        input.textAutomation,
-        "textAutomation"
-      ) as never,
-      model: clean(input.textModel) || undefined,
-      selectedHook: requiredString(input.hook, "hook"),
-      promptInstructions: clean(input.promptInstructions) || undefined,
-      avoidSimilarOutputs: recent,
-      avoidSimilarHeadings: stringArray(input.recentHeadingExclusions),
-    })
-    const retry = await context.runStage(
-      "slideshow-generation.generate-slide-text",
-      mergePipelineOutput(input, { promptPayload: prompt })
-    )
-    return mergePipelineOutput(retry.output, { textSimilarityRetry: true })
-  })
-
-  add("slideshow-generation.derive-visual-concepts", async (input, context) => {
-    const generatedText = asRecord(asRecord(input.generatedText).text)
-    const candidatePools = Array.isArray(input.candidatesBySlide)
-      ? (input.candidatesBySlide as Record<string, unknown>[])
-      : []
-    const slides = Array.isArray(input.visualSlides)
-      ? (input.visualSlides as Record<string, unknown>[])
-      : candidatePools.length
-        ? candidatePools.map((pool) => {
-            const slideId = requiredString(
-              pool.slideId,
-              "candidatePool.slideId"
-            )
-            const slide = requiredArray<Record<string, unknown>>(
-              asRecord(input.textAutomation).slides,
-              "textAutomation.slides"
-            ).find((candidate) => clean(candidate.id) === slideId)
-            if (!slide)
-              throw new Error(`Slide not found for candidate pool ${slideId}`)
-            const promptItem = requiredArray<Record<string, unknown>>(
-              slide.textItems,
-              "slide.textItems"
-            ).find((item) => item.textMode === "prompt")
-            return {
-              id: slideId,
-              aiImageSelection: Boolean(pool.aiImageSelection),
-              text:
-                clean(slide.section) === "hook"
-                  ? clean(input.hook)
-                  : clean(generatedText[clean(promptItem?.id)]),
-            }
-          })
-        : requiredArray<Record<string, unknown>>(
-            asRecord(input.textAutomation).slides,
-            "textAutomation.slides"
-          ).map((slide) => {
-            const promptItem = requiredArray<Record<string, unknown>>(
-              slide.textItems,
-              "slide.textItems"
-            ).find((item) => item.textMode === "prompt")
-            return {
-              id: slide.id,
-              aiImageSelection: Boolean(slide.aiImageSelection),
-              text:
-                clean(slide.section) === "hook"
-                  ? clean(input.hook)
-                  : clean(generatedText[clean(promptItem?.id)]),
-            }
-          })
-    if (!slides.some((slide) => slide.aiImageSelection !== false)) {
-      return mergePipelineOutput(input, { visualConceptsBySlide: [] })
-    }
-    const apiKey = clean(process.env.OPENROUTER_API_KEY)
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-    const concepts = await context.externalCall(
-      "OpenRouter visual-concept derivation",
-      () =>
-        deriveSlideVisualConcepts({
-          slideTexts: slides.map((slide) => clean(slide.text)),
-          apiKey,
-          model: clean(input.textModel) || undefined,
-        })
-    )
-    return mergePipelineOutput(input, {
-      visualConceptsBySlide: slides.map((slide, index) => ({
-        slideId: clean(slide.id) || `slide-${index + 1}`,
-        concepts: concepts[index] ?? [],
-      })),
-    })
   })
 
   add("slideshow-generation.build-image-shortlists", async (input) => {
@@ -2328,12 +2040,6 @@ export function createProductionPipelineHandlers(
             })),
           }
         })
-    const conceptMap = new Map(
-      requiredArray<Record<string, unknown>>(
-        input.visualConceptsBySlide,
-        "visualConceptsBySlide"
-      ).map((item) => [clean(item.slideId), stringArray(item.concepts)])
-    )
     const shortlists = candidatesBySlide.map((item, index) => {
       const slideId = requiredString(item.slideId, "slideId")
       const candidates = requiredArray<SlideshowImageCandidate>(
@@ -2353,7 +2059,7 @@ export function createProductionPipelineHandlers(
           )
         : undefined
       const ranked = rankImageCandidates({
-        concepts: conceptMap.get(slideId) ?? [],
+        concepts: [],
         slideText: clean(item.slideText),
         candidates,
         limit: Math.min(12, numberValue(input.shortlistLimit) || 12),
@@ -2372,7 +2078,7 @@ export function createProductionPipelineHandlers(
         slideId,
         slideText: clean(item.slideText),
         aiImageSelection: Boolean(item.aiImageSelection),
-        concepts: conceptMap.get(slideId) ?? [],
+        concepts: [],
         candidates: shortlistCandidates.map((candidate, candidateIndex) => ({
           ...candidate,
           index: candidateIndex,
@@ -2389,7 +2095,6 @@ export function createProductionPipelineHandlers(
       "shortlist candidates"
     )
     if (!candidates.length) throw new Error("Image shortlist is empty")
-    const recentUsage = asRecord(input.recentImageUsage)
     const usedIds = new Set(stringArray(input.usedImageIds))
     const usedUrls = new Set(stringArray(input.usedImageUrls))
     const pinnedId = clean(input.pinnedImageId)
@@ -2404,19 +2109,7 @@ export function createProductionPipelineHandlers(
         !usedIds.has(candidate.id) && !usedUrls.has(candidate.imageUrl)
     )
     const pool = available.length ? available : candidates
-    const fresh = pool.filter(
-      (candidate) =>
-        !recentUsage[candidate.id] && !recentUsage[candidate.imageUrl]
-    )
-    const deterministic = (fresh.length ? fresh : pool).toSorted(
-      (left, right) =>
-        Date.parse(
-          clean(recentUsage[left.id] ?? recentUsage[left.imageUrl]) || "0"
-        ) -
-        Date.parse(
-          clean(recentUsage[right.id] ?? recentUsage[right.imageUrl]) || "0"
-        )
-    )[0]
+    const deterministic = pool[0]
     const selectedId =
       pinned?.id ??
       (shortlist.aiImageSelection === false || pool.length === 1
@@ -2442,9 +2135,6 @@ export function createProductionPipelineHandlers(
         id: selected.id,
         imageUrl: selected.imageUrl,
         imageCaption: selected.caption,
-        reusedRecently: Boolean(
-          recentUsage[selected.id] || recentUsage[selected.imageUrl]
-        ),
       },
     })
   })
@@ -2461,7 +2151,6 @@ export function createProductionPipelineHandlers(
         {
           shortlist,
           textModel: input.textModel,
-          recentImageUsage: input.recentImageUsage,
           usedImageIds: selectedImages.map((image) => clean(image.id)),
           usedImageUrls: selectedImages.map((image) => clean(image.imageUrl)),
           pinnedImageId:
@@ -2548,49 +2237,12 @@ export function createProductionPipelineHandlers(
       language: clean(input.language) || "English",
       autoMusic: false,
       autoPost: false,
-      reuseWarnings: [],
       violations: stringArray(input.violations),
       hookCandidates: automationHookItems(requiredSchema(input)).map(
         (item) => item.text
       ),
     }
     return mergePipelineOutput(input, { plan })
-  })
-
-  add("slideshow-generation.translate-plan", async (input, context) => {
-    const plan = requiredRecord(input.plan, "plan")
-    const slides = requiredArray<Record<string, unknown>>(
-      plan.slides,
-      "plan.slides"
-    )
-    const language = clean(input.language) || "English"
-    if (language === "English") {
-      return mergePipelineOutput(input, { localizedPlan: plan })
-    }
-    const apiKey = clean(process.env.DEEPL_KEY)
-    if (!apiKey) throw new Error("DEEPL_KEY is not configured")
-    const texts = slides.map((slide) => clean(slide.text))
-    const translated = await context.externalCall("DeepL translation", () =>
-      translateTextsWithDeepL({
-        apiKey,
-        targetLanguage: language,
-        texts,
-      })
-    )
-    return mergePipelineOutput(input, {
-      localizedPlan: {
-        ...plan,
-        language,
-        slides: slides.map((slide, index) => ({
-          ...slide,
-          text: translated[index],
-          textItems: requiredArray<Record<string, unknown>>(
-            slide.textItems,
-            "slide.textItems"
-          ).map((item) => ({ ...item, text: translated[index] })),
-        })),
-      },
-    })
   })
 
   add("slideshow-generation.render-store-pngs", async (input, context) => {
@@ -2612,7 +2264,7 @@ export function createProductionPipelineHandlers(
       "renderedSlideshow"
     ) as unknown as SlideshowRecord
     const slides = requiredArray<Record<string, unknown>>(
-      requiredRecord(input.localizedPlan ?? input.plan, "plan").slides,
+      requiredRecord(input.plan, "plan").slides,
       "plan.slides"
     )
     const completed = mergePipelineOutput(state, {
@@ -3139,54 +2791,10 @@ export function createProductionPipelineHandlers(
     const qa = validateAutomationRunOutput({
       run,
       schema: requiredSchema(input),
-      priorRuns: Array.isArray(input.priorRuns)
-        ? (input.priorRuns as AutomationRunRecord[])
-        : [],
     })
     return mergePipelineOutput(input, {
       qa,
       runRecord: run,
-    })
-  })
-
-  add(
-    "slideshow-generation.append-one-usage-record",
-    async (input, context) => {
-      const usageRecord = requiredRecord(input.usageRecord, "usageRecord")
-      try {
-        await context.externalCall("Appwrite usage-record create", () =>
-          createPipelineDomainDocumentOnce({
-            domain: "usage-history",
-            ownerId: context.ownerId,
-            record: usageRecord,
-          })
-        )
-      } catch (error) {
-        if (appwriteErrorCode(error) !== 409) throw error
-      }
-      return mergePipelineOutput(input, { usageRecordPersisted: true })
-    }
-  )
-
-  add("slideshow-generation.append-usage-records", async (input, context) => {
-    const records = requiredArray<UsageRecord>(
-      input.usageRecords,
-      "usageRecords"
-    )
-    for (const usageRecord of records) {
-      const prepared = await context.runStage(
-        "slideshow-generation.prepare-one-usage-record",
-        {
-          usageRecord,
-        }
-      )
-      await context.runStage(
-        "slideshow-generation.append-one-usage-record",
-        prepared.output
-      )
-    }
-    return mergePipelineOutput(input, {
-      usageRecordsPersisted: records.length,
     })
   })
 
@@ -3214,70 +2822,16 @@ export function createProductionPipelineHandlers(
     const plan = requiredRecord(input.plan, "plan")
     const runId = clean(input.runId) || contextId(input)
     const automationId = clean(asRecord(input.automation).id) || "standalone"
-    const usedAt = services.now().toISOString()
-    const records: UsageRecord[] = [
-      ...requiredArray<Record<string, unknown>>(
-        plan.slides,
-        "plan.slides"
-      ).flatMap((slide) =>
-        clean(slide.imageUrl)
-          ? [
-              {
-                automation_id: automationId,
-                run_id: runId,
-                kind: "image" as const,
-                key: clean(slide.imageUrl),
-                used_at: usedAt,
-              },
-            ]
-          : []
-      ),
-      {
-        automation_id: automationId,
-        run_id: runId,
-        kind: "text",
-        key: normalizedTextSignature([
-          clean(plan.title),
-          clean(plan.caption),
-          ...requiredArray<Record<string, unknown>>(
-            plan.slides,
-            "plan.slides"
-          ).map((slide) => clean(slide.text)),
-        ]),
-        used_at: usedAt,
-      },
-      ...requiredArray<Record<string, unknown>>(
-        plan.slides,
-        "plan.slides"
-      ).flatMap((slide) => {
-        const key = normalizedTextSignature([clean(slide.text)])
-        return clean(slide.role) === "content" && key
-          ? [
-              {
-                automation_id: automationId,
-                run_id: runId,
-                kind: "heading" as const,
-                key,
-                used_at: usedAt,
-              },
-            ]
-          : []
-      }),
-    ]
     const runRecord = requiredRecord(
       input.runRecord,
       "runRecord"
     ) as unknown as AutomationRunRecord
-    await context.runStage("slideshow-generation.append-usage-records", {
-      usageRecords: records,
-    })
     await context.runStage("slideshow-generation.upsert-automation-run", {
       runToPersist: {
         ...runRecord,
         status: asRecord(input.qa).valid === false ? "failed" : "succeeded",
         slideshowId: clean(input.slideshowId) || undefined,
         outputImages: stringArray(input.outputImages),
-        videoUrl: clean(input.videoUrl) || undefined,
         thumbnailUrl: clean(input.thumbnailUrl) || undefined,
         updatedAt: services.now().toISOString(),
       },
@@ -3293,7 +2847,6 @@ export function createProductionPipelineHandlers(
         artifacts: {
           slideshowId: clean(input.slideshowId),
           outputImages: stringArray(input.outputImages),
-          videoUrl: clean(input.videoUrl) || undefined,
           thumbnailUrl: clean(input.thumbnailUrl) || undefined,
         },
         payload: {
@@ -3307,12 +2860,6 @@ export function createProductionPipelineHandlers(
         status: asRecord(input.qa).valid === false ? "failed" : "succeeded",
         slideshowId: clean(input.slideshowId),
         qa: input.qa,
-      },
-      reuseMemory: {
-        images: records.filter((record) => record.kind === "image").length,
-        textSignatures: 1,
-        headingSignatures: records.filter((record) => record.kind === "heading")
-          .length,
       },
     }
   })
@@ -5935,7 +5482,12 @@ export function createProductionPipelineHandlers(
       throw new Error(`Production pipeline handler missing: ${metadata.id}`)
     }
   }
-  return handlers
+  return new Map(
+    PIPELINE_STAGE_CATALOG.map((metadata) => [
+      metadata.id,
+      handlers.get(metadata.id)!,
+    ])
+  )
 }
 
 async function renderAndStoreRendiVideo(

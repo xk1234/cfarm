@@ -94,6 +94,45 @@ describe("production pipeline executor", () => {
     expect(execution.output).not.toHaveProperty("providerRequests")
   })
 
+  it("represents intermediate media as typed preview and download artifacts", async () => {
+    const registry = createPipelineStageRegistry(
+      handlers({
+        "slideshow-generation.select-slide-images": vi.fn(async () => ({
+          selectedImages: [
+            {
+              id: "image-1",
+              imageUrl: "https://cdn.example/slide.webp",
+              width: 1080,
+              height: 1920,
+            },
+          ],
+        })),
+      })
+    )
+    const execution = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.select-slide-images",
+      stageInput: {},
+    })
+
+    expect(execution.output.mediaArtifacts).toEqual([
+      expect.objectContaining({
+        kind: "image",
+        mimeType: "image/webp",
+        preview: {
+          type: "image",
+          url: "https://cdn.example/slide.webp",
+        },
+        download: {
+          url: "https://cdn.example/slide.webp",
+          fileName: "slide.webp",
+        },
+        metadata: { width: 1080, height: 1920 },
+      }),
+    ])
+  })
+
   it("rejects secrets and media bytes at either side of a handler", async () => {
     const registry = createPipelineStageRegistry(handlers())
     await expect(
@@ -177,7 +216,7 @@ describe("production pipeline executor", () => {
       "x-threads-generation",
     ])
     expect(catalog.map((workflow) => workflow.workflowStages.length)).toEqual([
-      16, 11, 6, 6, 9, 8, 13,
+      11, 11, 6, 6, 9, 8, 13,
     ])
     expect(
       catalog.reduce((total, workflow) => total + workflow.stages.length, 0)
@@ -201,21 +240,12 @@ describe("production pipeline executor", () => {
     ).toBe(true)
     expect(allStages.map((stage) => stage.id)).toEqual(
       expect.arrayContaining([
-        "slideshow-generation.rendi-init-upload",
-        "slideshow-generation.rendi-upload-part",
-        "slideshow-generation.rendi-complete-upload",
-        "slideshow-generation.rendi-get-file",
-        "slideshow-generation.rendi-submit-command",
-        "slideshow-generation.rendi-get-command",
-        "slideshow-generation.rendi-download-output",
-        "slideshow-generation.rendi-persist-output",
         "slideshow-generation.list-image-collections-page",
         "slideshow-generation.read-one-source-asset",
         "slideshow-generation.create-one-output-asset",
         "slideshow-generation.create-result-document",
         "slideshow-generation.create-one-result-media",
         "slideshow-generation.create-one-post-intent",
-        "slideshow-generation.read-one-video-slide",
         "ugc-video-generation.elevenlabs-synthesize-speech",
         "ugc-video-generation.persist-voice-audio",
         "ugc-video-generation.persist-voice-timings",
@@ -251,12 +281,17 @@ describe("production pipeline executor", () => {
         )
     ).toBe(true)
     expect(
-      catalog
-        .flatMap((workflow) => workflow.stages)
-        .find((stage) => stage.id === "slideshow-generation.research-hook")
-    ).toMatchObject({
-      provider: "OpenRouter + Exa",
-      model: "openai/gpt-5.4-mini",
-    })
+      allStages.some((stage) =>
+        [
+          "slideshow-generation.research-hook",
+          "slideshow-generation.retry-text-similarity",
+          "slideshow-generation.derive-visual-concepts",
+          "slideshow-generation.translate-plan",
+          "slideshow-generation.render-store-mp4",
+          "slideshow-generation.list-usage-history",
+          "slideshow-generation.list-prior-runs",
+        ].includes(stage.id)
+      )
+    ).toBe(false)
   })
 })
