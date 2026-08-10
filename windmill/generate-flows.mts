@@ -1262,8 +1262,7 @@ function required(name: string, value: unknown) {
   if (!text) throw new Error("Lumenclip variable " + name + " is not configured")
   return text
 }
-
-}`
+`
 }
 
 function indent(value: string, spaces: number) {

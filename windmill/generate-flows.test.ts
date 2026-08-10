@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
+import ts from "typescript"
 import { describe, expect, it } from "vitest"
 
 import { WINDMILL_WORKFLOW_DEPENDENCIES } from "./workflow-dependencies"
@@ -199,6 +200,33 @@ describe("generated Lumenclip Windmill flows", () => {
     expect(greenscreen).toContain(
       "collectionId: flow_input.background_collection_id"
     )
+  })
+
+  it("emits syntactically valid dynamic collection helper scripts", async () => {
+    for (const workflowId of [
+      "ugc-video-generation",
+      "react-reveal-generation",
+      "greenscreen-meme-generation",
+    ] as const) {
+      const source = await sourceFor(workflowId)
+      const line = source
+        .split("\n")
+        .find((candidate) =>
+          candidate.trimStart().startsWith("x-windmill-dyn-select-code:")
+        )
+      expect(line).toBeDefined()
+      const code = JSON.parse(line!.slice(line!.indexOf(":") + 1).trim())
+      const diagnostics =
+        ts.transpileModule(code, {
+          compilerOptions: { module: ts.ModuleKind.ESNext },
+          reportDiagnostics: true,
+        }).diagnostics ?? []
+      expect(
+        diagnostics.filter(
+          (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error
+        )
+      ).toEqual([])
+    }
   })
 
   it("joins generic video copy and media only at renderer assembly", async () => {
