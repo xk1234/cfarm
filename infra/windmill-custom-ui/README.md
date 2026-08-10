@@ -11,8 +11,8 @@ frontend. It applies three narrow patches:
 - `responsive-flow-forms.patch` lays compact scalar fields out in two columns
   on flow preview and run forms when space allows, keeps structured and
   long-form inputs full width, and
-  increases visual media selector height from 256 pixels to as much as 560
-  pixels (capped at 70 percent of the viewport).
+  increases media, collection, and template selector height from 256 pixels to
+  as much as 560 pixels (capped at 70 percent of the viewport).
 
 Hiding the graph node does not remove or alter the flow input schema, run form,
 API arguments, or `flow_input` values. The first real resolver/normalizer DAG

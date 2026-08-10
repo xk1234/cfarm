@@ -1,3 +1,22 @@
+diff --git a/frontend/src/lib/components/DynamicInput.svelte b/frontend/src/lib/components/DynamicInput.svelte
+--- a/frontend/src/lib/components/DynamicInput.svelte
++++ b/frontend/src/lib/components/DynamicInput.svelte
+@@ -46,6 +46,7 @@
+ 	}: Props = $props()
+ 
+ 	let [inputType, entrypoint] = $derived(format.includes('-') ? format.split('-', 2) : [format, ''])
++	let isMediaPicker = $derived(/(?:image|photo|video|asset|collection|template)/i.test(entrypoint))
+ 
+ 	let isMultiple = $derived(inputType === 'dynmultiselect')
+ 	let isSelect = $derived(inputType === 'dynselect' || inputType === 'dynmultiselect')
+@@ -197,6 +198,7 @@
+ 				bind:value
+ 				bind:open
+ 				{items}
++				maxHeight={isMediaPicker ? 560 : undefined}
+ 				bind:filterText
+ 				loading={!open && _items.status === 'loading'}
+ 				clearable
 diff --git a/frontend/src/lib/components/FlowPreviewContent.svelte b/frontend/src/lib/components/FlowPreviewContent.svelte
 --- a/frontend/src/lib/components/FlowPreviewContent.svelte
 +++ b/frontend/src/lib/components/FlowPreviewContent.svelte
@@ -110,7 +129,7 @@ diff --git a/frontend/src/lib/components/select/SelectDropdown.svelte b/frontend
  	)
  	let hasMedia = $derived(processedItems?.some((item) => item.image || item.mediaUrl) ?? false)
 +	let effectiveMaxHeight = $derived(
-+		hasMedia
++		hasMedia || maxHeight > 256
 +			? typeof window === 'undefined'
 +				? 560
 +				: Math.min(560, Math.max(320, Math.floor(window.innerHeight * 0.7)))
@@ -128,3 +147,30 @@ diff --git a/frontend/src/lib/components/select/SelectDropdown.svelte b/frontend
  	{getInputRect}
  	class={className}
  >
+diff --git a/frontend/src/lib/components/select/Select.svelte b/frontend/src/lib/components/select/Select.svelte
+--- a/frontend/src/lib/components/select/Select.svelte
++++ b/frontend/src/lib/components/select/Select.svelte
+@@ -46,6 +46,7 @@
+ 		size = 'md',
+ 		showPlaceholderOnOpen = false,
+ 		dropdownClass,
++		maxHeight,
+ 		transformInputSelectedText,
+ 		groupBy,
+ 		sortBy,
+@@ -84,6 +85,7 @@
+ 		size?: 'sm' | 'md' | 'lg'
+ 		showPlaceholderOnOpen?: boolean
+ 		dropdownClass?: string
++		maxHeight?: number
+ 		transformInputSelectedText?: (text: string, value: Value) => string
+ 		groupBy?: (item: Item) => string
+ 		sortBy?: (a: Item, b: Item) => number
+@@ -289,6 +291,7 @@
+ 	{/if}
+ 	<SelectDropdown
+ 		class={dropdownClass}
++		{maxHeight}
+ 		{disablePortal}
+ 		onSelectValue={setValue}
+ 		{open}
