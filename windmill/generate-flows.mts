@@ -175,7 +175,7 @@ ${indent(stageNode({ id: "load_word_collections", summary: "Load word collection
     summary: "Validate template, collections, and word variables",
     stageId: "slideshow-generation.validate-input",
     inputExpr:
-      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook, contentControls: flow_input.content_controls, collectionOverrides: flow_input.collection_overrides, slideOverrides: flow_input.slide_overrides })",
+      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook, contentControls: flow_input.content_controls, collectionOverrides: { hook_collection_id: flow_input.hook_collection_id, body_collection_id: flow_input.body_collection_id, cta_collection_id: flow_input.cta_collection_id }, slideOverrides: flow_input.slide_overrides })",
   })
   const modelSettings = stageNode({
     id: "load_model_settings",
@@ -287,11 +287,11 @@ schema:
   x-lumenclip-hide-input-node: true
   properties:
     automation_id:
-      type: string
+      type: object
       format: dynselect-automation_id
       title: Template
     hook:
-      type: string
+      type: object
       format: dynselect-hook
       title: Hook override (optional)
       description: Choose one saved hook instead of letting the template rotate hooks automatically.
@@ -324,23 +324,18 @@ schema:
           type: string
           format: textarea
           title: CTA content direction
-    collection_overrides:
+    hook_collection_id:
       type: object
-      title: Collection overrides
-      additionalProperties: false
-      properties:
-        hook_collection_id:
-          type: string
-          format: dynselect-hook_collection_id
-          title: Hook collection
-        body_collection_id:
-          type: string
-          format: dynselect-body_collection_id
-          title: Content collection
-        cta_collection_id:
-          type: string
-          format: dynselect-cta_collection_id
-          title: CTA collection
+      format: dynselect-hook_collection_id
+      title: Hook collection override
+    body_collection_id:
+      type: object
+      format: dynselect-body_collection_id
+      title: Content collection override
+    cta_collection_id:
+      type: object
+      format: dynselect-cta_collection_id
+      title: CTA collection override
     slide_overrides:
       type: array
       title: Individual slide overrides
@@ -357,10 +352,6 @@ schema:
             type: string
             format: textarea
             title: Content direction
-          collection_id:
-            type: string
-            format: dynselect-slide_collection_id
-            title: Collection
         required: [slide_number]
   required: [automation_id]
   x-windmill-dyn-select-lang: bun
@@ -374,7 +365,6 @@ schema:
         hook_collection_id: "image",
         body_collection_id: "image",
         cta_collection_id: "image",
-        slide_collection_id: "image",
       },
     })
   )}
@@ -602,7 +592,7 @@ schema:
   x-lumenclip-hide-input-node: true
   properties:
     automation_id:
-      type: string
+      type: object
       format: dynselect-automation_id
       title: Template
     topic:
@@ -823,7 +813,7 @@ function fixedVideoSchema(format: "react_reveal" | "greenscreen_meme") {
   x-lumenclip-hide-input-node: true
   properties:
     template_id:
-      type: string
+      type: object
       format: dynselect-template_id
       title: Template (optional)
 ${media}
@@ -946,7 +936,7 @@ schema:
   x-lumenclip-hide-input-node: true
   properties:
     template_id:
-      type: string
+      type: object
       format: dynselect-template_id
       title: Video template
   required: [template_id]
@@ -1230,7 +1220,7 @@ function ugcComponentSchema() {
     - render
   properties:
     template_id:
-      type: string
+      type: object
       format: dynselect-template_id
       title: Template (optional)
       description: Load defaults from a UGC template; every component below can override it.
