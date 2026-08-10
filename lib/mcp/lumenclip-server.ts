@@ -6,7 +6,10 @@ import {
   PIPELINE_STAGE_CATALOG,
   PIPELINE_WORKFLOW_IDS,
 } from "@/lib/pipeline-stages"
-import { queueWindmillWorkflow } from "@/lib/windmill-workflows"
+import {
+  queueWindmillWorkflow,
+  windmillWorkflowInputNames,
+} from "@/lib/windmill-workflows"
 import { runProductionPipelineStage } from "@/lib/production-pipeline-runtime"
 import { toLumenClipDataError } from "@/lib/appwrite-errors"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
@@ -846,7 +849,13 @@ function registerPipelineTools(
         openWorldHint: false,
       },
     },
-    async () => mcpResult({ workflows: pipelineCatalog() })
+    async () =>
+      mcpResult({
+        workflows: pipelineCatalog().map((workflow) => ({
+          ...workflow,
+          inputs: windmillWorkflowInputNames(workflow.id),
+        })),
+      })
   )
 
   server.registerTool(
@@ -890,13 +899,10 @@ function registerPipelineTools(
     {
       title: "Run a named production generation pipeline",
       description:
-        "Queues the registered Windmill DAG with named top-level inputs, branch artifacts, and dependency joins. Use lumenclip_pipeline_stage_run to debug or execute one component; linear startAt/stopAfter windows are rejected because they cannot safely preserve DAG dependencies. Generation never publishes; publishing remains a separate confirmed MCP action.",
+        "Queues the registered Windmill DAG using only the output-affecting inputs declared by that workflow's Windmill form. Operational owner, request, tracing, and persistence fields are derived internally. Unsupported input keys are rejected. Use lumenclip_pipeline_stage_run to debug or execute one component. Generation never publishes; publishing remains a separate confirmed MCP action.",
       inputSchema: {
         workflowId: z.enum(PIPELINE_WORKFLOW_IDS),
         input: z.record(z.string(), z.unknown()),
-        requestId: z.string().trim().min(1).max(200).optional(),
-        startAt: z.string().trim().min(1).optional(),
-        stopAfter: z.string().trim().min(1).optional(),
       },
       annotations: {
         readOnlyHint: false,
@@ -912,9 +918,6 @@ function registerPipelineTools(
             ownerId,
             workflowId: input.workflowId,
             workflowInput: input.input,
-            requestId: input.requestId,
-            startAt: input.startAt,
-            stopAfter: input.stopAfter,
           })
         )
       )

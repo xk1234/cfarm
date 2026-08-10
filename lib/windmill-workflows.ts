@@ -25,15 +25,11 @@ export async function queueWindmillWorkflow(input: {
   workflowId: PipelineWorkflowId
   ownerId: string
   workflowInput: Record<string, unknown>
-  requestId?: string
-  startAt?: string
-  stopAfter?: string
   fetchImpl?: typeof fetch
 }): Promise<WindmillWorkflowRun> {
-  assertNoLinearExecutionWindow(input.startAt, input.stopAfter)
   const config = windmillConfig()
   const flowPath = WINDMILL_FLOW_PATHS[input.workflowId]
-  const requestId = clean(input.requestId) || `pipeline-${crypto.randomUUID()}`
+  const requestId = `pipeline-${crypto.randomUUID()}`
   const response = await (input.fetchImpl ?? fetch)(
     windmillApiUrl(config, `jobs/run/f/${flowPath}`),
     {
@@ -102,61 +98,98 @@ function requiredEnv(name: string) {
   return value
 }
 
-function assertNoLinearExecutionWindow(startAt?: string, stopAfter?: string) {
-  if (startAt || stopAfter) {
-    throw new Error(
-      "DAG workflow runs do not support linear startAt/stopAfter windows; run the named stage directly"
-    )
-  }
-}
-
 function windmillFlowInput(
   workflowId: PipelineWorkflowId,
   input: Record<string, unknown>
 ) {
-  const normalized = { ...input }
-  if (
-    workflowId === "slideshow-generation" ||
-    workflowId === "x-threads-generation"
-  ) {
-    normalized.automation_id ??= input.automationId
+  const contract = WINDMILL_WORKFLOW_INPUTS[workflowId]
+  const aliases = WINDMILL_WORKFLOW_INPUT_ALIASES[workflowId]
+  const accepted = new Set<string>([...contract, ...Object.keys(aliases)])
+  const unsupported = Object.keys(input).filter((key) => !accepted.has(key))
+  if (unsupported.length) {
+    throw new Error(
+      `${workflowId} does not accept input ${unsupported.sort().join(", ")}. Accepted inputs: ${contract.join(", ")}`
+    )
   }
-  if (
-    workflowId === "ugc-video-generation" ||
-    workflowId === "react-reveal-generation" ||
-    workflowId === "greenscreen-meme-generation"
-  ) {
-    normalized.template_id ??= input.templateId
+
+  const normalized: Record<string, unknown> = {}
+  for (const key of contract) {
+    const alias = Object.entries(aliases).find(
+      ([, canonical]) => canonical === key
+    )?.[0]
+    const value = input[key] ?? (alias ? input[alias] : undefined)
+    if (value !== undefined) normalized[key] = value
   }
-  if (workflowId === "ugc-video-generation") {
-    normalized.generation_id ??= input.generationId
-    normalized.scheduled_for ??= input.scheduledFor
-  }
-  if (workflowId === "react-reveal-generation") {
-    normalized.hook_caption ??= input.hookCaption
-    normalized.payoff_caption ??= input.payoffCaption
-  }
-  if (workflowId === "greenscreen-meme-generation") {
-    normalized.text_placement ??= input.textPlacement
-  }
-  if (workflowId === "linkedin-generation") {
-    normalized.excluded_topics ??= input.excludedTopics
-    normalized.brief_model ??= input.briefModel
-  }
-  if (workflowId === "x-threads-generation") {
-    normalized.source_candidate ??= input.sourceCandidate
-  }
-  delete normalized.automationId
-  delete normalized.templateId
-  delete normalized.sourceCandidate
-  delete normalized.generationId
-  delete normalized.scheduledFor
-  delete normalized.hookCaption
-  delete normalized.payoffCaption
-  delete normalized.textPlacement
-  delete normalized.excludedTopics
-  delete normalized.briefModel
   return normalized
+}
+
+const WINDMILL_WORKFLOW_INPUTS = {
+  "slideshow-generation": ["automation_id"],
+  "ugc-video-generation": [
+    "template_id",
+    "product",
+    "script",
+    "actor",
+    "voice",
+    "broll",
+    "render",
+  ],
+  "react-reveal-generation": [
+    "template_id",
+    "anticipation",
+    "reveal",
+    "hook_caption",
+    "payoff_caption",
+    "audio",
+    "output",
+  ],
+  "greenscreen-meme-generation": [
+    "template_id",
+    "meme",
+    "background",
+    "caption",
+    "text_placement",
+    "audio",
+    "output",
+  ],
+  "linkedin-generation": [
+    "niche",
+    "topic",
+    "excluded_topics",
+    "proof",
+    "persona",
+    "brief",
+    "brief_model",
+    "model",
+    "count",
+  ],
+  "x-threads-generation": ["automation_id", "topic", "source_candidate"],
+} as const satisfies Record<PipelineWorkflowId, readonly string[]>
+
+const WINDMILL_WORKFLOW_INPUT_ALIASES = {
+  "slideshow-generation": { automationId: "automation_id" },
+  "ugc-video-generation": { templateId: "template_id" },
+  "react-reveal-generation": {
+    templateId: "template_id",
+    hookCaption: "hook_caption",
+    payoffCaption: "payoff_caption",
+  },
+  "greenscreen-meme-generation": {
+    templateId: "template_id",
+    textPlacement: "text_placement",
+  },
+  "linkedin-generation": {
+    excludedTopics: "excluded_topics",
+    briefModel: "brief_model",
+  },
+  "x-threads-generation": {
+    automationId: "automation_id",
+    sourceCandidate: "source_candidate",
+  },
+} as const satisfies Record<PipelineWorkflowId, Record<string, string>>
+
+export function windmillWorkflowInputNames(workflowId: PipelineWorkflowId) {
+  return [...WINDMILL_WORKFLOW_INPUTS[workflowId]]
 }
 
 export function isPipelineWorkflowId(
