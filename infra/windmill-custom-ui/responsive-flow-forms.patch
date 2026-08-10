@@ -18,6 +18,21 @@ diff --git a/frontend/src/lib/components/FlowPreviewContent.svelte b/frontend/sr
  										workspace={opWs}
  										schema={flowStore.val.schema}
  										bind:args={previewArgs.val}
+diff --git a/frontend/src/lib/components/RunForm.svelte b/frontend/src/lib/components/RunForm.svelte
+--- a/frontend/src/lib/components/RunForm.svelte
++++ b/frontend/src/lib/components/RunForm.svelte
+@@ -328,8 +328,10 @@
+ 			<div class="text-sm italic">{`This ${runnable.kind ?? 'runnable'} takes no arguments`}</div>
+ 		{:else}
+ 			{#key reloadArgs}
+-				<div bind:clientHeight={schemaHeight}>
++				<div bind:clientHeight={schemaHeight} class="lumenclip-flow-form-container">
+ 					<SchemaForm
++						className="lumenclip-responsive-schema-form"
++						nestedClasses="lumenclip-responsive-schema-form"
+ 						helperScript={{
+ 							source: 'deployed',
+ 							path: runnable.path!,
 diff --git a/frontend/src/lib/components/SchemaForm.svelte b/frontend/src/lib/components/SchemaForm.svelte
 --- a/frontend/src/lib/components/SchemaForm.svelte
 +++ b/frontend/src/lib/components/SchemaForm.svelte

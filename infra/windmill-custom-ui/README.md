@@ -9,7 +9,8 @@ frontend. It applies three narrow patches:
   `Input` graph node with the JSON Schema extension
   `x-lumenclip-hide-input-node: true`.
 - `responsive-flow-forms.patch` lays compact scalar fields out in two columns
-  when space allows, keeps structured and long-form inputs full width, and
+  on flow preview and run forms when space allows, keeps structured and
+  long-form inputs full width, and
   increases visual media selector height from 256 pixels to as much as 560
   pixels (capped at 70 percent of the viewport).
 
