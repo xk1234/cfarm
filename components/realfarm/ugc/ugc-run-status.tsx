@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { WorkflowArtifactPreview } from "@/components/realfarm/workflow-artifacts/artifact-preview"
 import type { UgcCostBreakdown } from "@/lib/ugc-cost"
 import type { UgcRunStatus } from "@/lib/ugc-run-status"
 
@@ -107,31 +108,46 @@ export function UgcRunStatusPanel({ runId }: { runId: string }) {
 
       <ol className="grid gap-2 sm:grid-cols-2">
         {data.run.stages.map((stage, index) => (
-          <li
-            key={stage.name}
-            className="flex items-start gap-3 rounded-xl border border-border p-3"
-          >
-            <span
-              aria-hidden
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${stage.status === "done" ? "bg-emerald-500/15 text-emerald-600" : stage.status === "failed" ? "bg-destructive/15 text-destructive" : stage.status === "active" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}
-            >
-              {stage.status === "done" ? "✓" : index + 1}
-            </span>
-            <div className="min-w-0">
-              <p className="font-medium capitalize">{stage.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">
-                {stage.status}
-              </p>
-              {stage.assetPaths.length ? (
-                <p
-                  className="mt-1 truncate font-mono text-[11px] text-muted-foreground"
-                  title={stage.assetPaths.join("\n")}
-                >
-                  {stage.assetPaths.length} cached asset
-                  {stage.assetPaths.length === 1 ? "" : "s"}
+          <li key={stage.name} className="rounded-xl border border-border p-3">
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${stage.status === "done" ? "bg-emerald-500/15 text-emerald-600" : stage.status === "failed" ? "bg-destructive/15 text-destructive" : stage.status === "active" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}
+              >
+                {stage.status === "done" ? "✓" : index + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="font-medium capitalize">{stage.name}</p>
+                <p className="text-xs text-muted-foreground capitalize">
+                  {stage.status}
                 </p>
-              ) : null}
+                {stage.assetPaths.length ? (
+                  <p
+                    className="mt-1 truncate font-mono text-[11px] text-muted-foreground"
+                    title={stage.assetPaths.join("\n")}
+                  >
+                    {stage.assetPaths.length} cached asset
+                    {stage.assetPaths.length === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+              </div>
             </div>
+            {data.run.checkpoints[stage.name] ? (
+              <details className="mt-3 border-t border-border pt-3">
+                <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
+                  View result
+                </summary>
+                <div className="mt-3 max-h-96 overflow-auto rounded-xl bg-muted/40 p-3">
+                  <WorkflowArtifactPreview
+                    value={data.run.checkpoints[stage.name]}
+                    context={{
+                      stageId: `ugc-video-generation.${stage.name}`,
+                      direction: "output",
+                    }}
+                  />
+                </div>
+              </details>
+            ) : null}
           </li>
         ))}
       </ol>

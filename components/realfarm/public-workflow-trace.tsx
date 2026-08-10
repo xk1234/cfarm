@@ -14,6 +14,8 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { WorkflowArtifactPreview } from "@/components/realfarm/workflow-artifacts/artifact-preview"
+import type { WorkflowArtifactContext } from "@/components/realfarm/workflow-artifacts/artifact-utils"
 import type {
   SlideshowWorkflowTrace,
   SlideshowWorkflowTraceStage,
@@ -107,8 +109,16 @@ export function PublicWorkflowTrace({
               ))}
             </section>
             <aside className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:self-start">
-              <TracePanel title="Workflow input" value={trace.input} />
-              <TracePanel title="Final output" value={trace.output} />
+              <TracePanel
+                title="Workflow input"
+                value={trace.input}
+                artifactContext={{ direction: "input" }}
+              />
+              <TracePanel
+                title="Final output"
+                value={trace.output}
+                artifactContext={{ direction: "output" }}
+              />
             </aside>
           </div>
         )}
@@ -162,8 +172,18 @@ function WorkflowStageCard({
         <IconChevronDown className="size-5 shrink-0 text-app-text-faint transition group-open:rotate-180" />
       </summary>
       <div className="grid gap-3 border-t border-app-panel-border bg-app-surface-subtle p-3 sm:grid-cols-2 sm:p-4">
-        <TracePanel title="Input" value={stage.input} compact />
-        <TracePanel title="Output" value={stage.output} compact />
+        <TracePanel
+          title="Input"
+          value={stage.input}
+          compact
+          artifactContext={{ stageId: stage.id, direction: "input" }}
+        />
+        <TracePanel
+          title="Output"
+          value={stage.output}
+          compact
+          artifactContext={{ stageId: stage.id, direction: "output" }}
+        />
       </div>
     </details>
   )
@@ -173,10 +193,12 @@ function TracePanel({
   title,
   value,
   compact = false,
+  artifactContext,
 }: {
   title: string
   value: unknown
   compact?: boolean
+  artifactContext?: WorkflowArtifactContext
 }) {
   return (
     <section className="min-w-0 rounded-xl border border-app-panel-border bg-background p-4 shadow-sm">
@@ -186,81 +208,10 @@ function TracePanel({
       <div
         className={cn("mt-3", compact && "max-h-[420px] overflow-auto pr-1")}
       >
-        <StructuredValue value={value} />
+        <WorkflowArtifactPreview value={value} context={artifactContext} />
       </div>
     </section>
   )
-}
-
-function StructuredValue({
-  value,
-  depth = 0,
-}: {
-  value: unknown
-  depth?: number
-}) {
-  if (value === null || value === undefined || value === "") {
-    return <span className="text-sm text-app-text-faint">None</span>
-  }
-  if (typeof value === "boolean") {
-    return <span className="text-sm font-medium">{value ? "Yes" : "No"}</span>
-  }
-  if (typeof value === "string" || typeof value === "number") {
-    return (
-      <span className="text-sm leading-6 break-words whitespace-pre-wrap">
-        {String(value)}
-      </span>
-    )
-  }
-  if (Array.isArray(value)) {
-    if (value.length === 0)
-      return <span className="text-sm text-app-text-faint">Empty</span>
-    return (
-      <div className="space-y-2">
-        {value.map((item, index) => (
-          <div
-            key={index}
-            className={cn(
-              "min-w-0",
-              typeof item === "object" &&
-                item !== null &&
-                "rounded-lg border border-app-panel-border bg-app-surface-subtle p-3"
-            )}
-          >
-            <StructuredValue value={item} depth={depth + 1} />
-          </div>
-        ))}
-      </div>
-    )
-  }
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).filter(
-      ([, item]) => item !== undefined
-    )
-    if (entries.length === 0)
-      return <span className="text-sm text-app-text-faint">Empty</span>
-    return (
-      <dl className="space-y-2.5">
-        {entries.map(([key, item]) => (
-          <div
-            key={key}
-            className={cn(
-              "min-w-0",
-              depth > 0 && "border-l border-app-panel-border pl-3"
-            )}
-          >
-            <dt className="text-[11px] font-semibold tracking-[0.06em] text-app-text-faint uppercase">
-              {humanizeKey(key)}
-            </dt>
-            <dd className="mt-0.5 min-w-0">
-              <StructuredValue value={item} depth={depth + 1} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-    )
-  }
-  return <span className="text-sm">{String(value)}</span>
 }
 
 function TraceChip({ children }: { children: ReactNode }) {
@@ -286,8 +237,4 @@ function modeButtonClass(active: boolean) {
       ? "bg-app-strong text-white shadow-sm"
       : "text-app-muted-text hover:bg-app-control-hover"
   )
-}
-
-function humanizeKey(value: string) {
-  return value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replaceAll("_", " ")
 }
