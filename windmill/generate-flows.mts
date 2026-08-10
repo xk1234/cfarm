@@ -994,7 +994,7 @@ ${indent(resolver("script", "({ generation: results.load_template_defaults.outpu
                   branches:
                     - summary: "Actor and motion"
                       modules:
-${indent(resolver("actor", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { ...flow_input.actor, assetCollectionId: flow_input.actor_asset_collection_id } })"), 22)}
+${indent(resolver("actor", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { ...flow_input.actor, collectionId: flow_input.actor_collection_id } })"), 22)}
 ${indent(actor, 22)}
 ${indent(motion, 22)}
                     - summary: "Voice track"
@@ -1150,7 +1150,7 @@ function ugcComponentSchema() {
         source:
           type: string
           title: Source
-          enum: [generate, asset]
+          enum: [generate, collection]
           default: generate
         prompt:
           type: string
@@ -1160,11 +1160,11 @@ function ugcComponentSchema() {
           type: string
           title: Motion prompt
           format: textarea
-    actor_asset_collection_id:
+    actor_collection_id:
       type: object
-      format: dynselect-actor_asset_collection_id
+      format: dynselect-actor_collection_id
       title: Actor portrait collection
-      description: Used when Actor source is asset; each run selects one portrait from this photo collection.
+      description: Used when Actor source is collection; each run selects one portrait from this photo collection.
     voice:
       type: object
       title: Voice
@@ -1215,7 +1215,7 @@ function ugcComponentSchema() {
           title: Hook overlay
   x-windmill-dyn-select-lang: bun
   x-windmill-dyn-select-code: ${yamlString(
-    mediaCollectionDynamicSelectCode({ actor_asset_collection_id: "image" })
+    mediaCollectionDynamicSelectCode({ actor_collection_id: "image" })
   )}
 `
 }

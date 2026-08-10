@@ -263,15 +263,6 @@ export const PIPELINE_STAGE_CATALOG = [
 
   stage(
     "ugc-video-generation",
-    0,
-    "resolve-components",
-    "Resolve generation components",
-    "storage",
-    "Load an optional UGC template and merge explicit product, script, actor, voice, b-roll, and render overrides.",
-    compositeStage
-  ),
-  stage(
-    "ugc-video-generation",
     8,
     "load-template-defaults",
     "Load UGC template defaults",
@@ -594,14 +585,12 @@ export const PIPELINE_STAGE_CATALOG = [
   ...fixedVideoFormatStages(
     "react-reveal-generation",
     "anticipation",
-    "reveal",
-    "Resolve an optional React & Reveal template plus explicit clip, caption, audio, and output components."
+    "reveal"
   ),
   ...fixedVideoFormatStages(
     "greenscreen-meme-generation",
     "meme",
-    "background",
-    "Resolve an optional Greenscreen Meme template plus explicit meme clip, background, caption, audio, and output components."
+    "background"
   ),
 
   ...[
@@ -1812,19 +1801,9 @@ function fixedVideoFormatStages(
     | "template-video-generation"
   >,
   primaryRole: string,
-  secondaryRole: string,
-  resolveDescription: string
+  secondaryRole: string
 ): PipelineStageMetadata[] {
   return [
-    stage(
-      workflowId,
-      1,
-      "resolve-components",
-      "Resolve format components",
-      "storage",
-      resolveDescription,
-      compositeStage
-    ),
     stage(
       workflowId,
       9,

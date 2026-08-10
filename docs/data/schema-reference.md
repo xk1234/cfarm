@@ -450,25 +450,25 @@ continue to resolve.
 
 ### `AutomationUgcConfig`
 
-| Field                    | Type        | Required | Allowed values / format         | Meaning                    |
-| ------------------------ | ----------- | -------- | ------------------------------- | -------------------------- |
-| `enabled`                | boolean     | Yes      | `true`, `false`                 | Enable UGC flow.           |
-| `productUrl`             | string      | No       | URL                             | Product source.            |
-| `productBrief`           | string      | No       | Free string                     | Product direction.         |
-| `actorSource`            | string enum | Yes      | `generate`, `gallery`, `upload` | Actor source.              |
-| `actorAssetUrl`          | string      | No       | URL/path                        | Selected actor media.      |
-| `actorPrompt`            | string      | No       | Free string                     | Actor generation prompt.   |
-| `voiceId`                | string      | Yes      | Provider voice ID               | Voice selection.           |
-| `voiceModel`             | string      | No       | Provider model ID               | Voice model.               |
-| `lipSyncTier`            | string enum | Yes      | `standard`, `premium`           | Lip-sync quality tier.     |
-| `targetDurationSeconds`  | number      | Yes      | Positive number                 | Target duration.           |
-| `brollCount`             | number      | Yes      | Non-negative integer            | B-roll count.              |
-| `captions.enabled`       | boolean     | Yes      | `true`, `false`                 | Caption rendering.         |
-| `captions.style`         | string      | Yes      | Registered/free style           | Caption style.             |
-| `captions.fallback`      | string enum | Yes      | `drawtext`, `png_frames`        | Caption fallback renderer. |
-| `hookOverlay.enabled`    | boolean     | Yes      | `true`, `false`                 | Hook overlay.              |
-| `hookOverlay.durationMs` | number      | Yes      | Non-negative integer            | Overlay duration.          |
-| `hookOverlay.style`      | string      | Yes      | Registered/free style           | Overlay style.             |
+| Field                    | Type        | Required | Allowed values / format  | Meaning                    |
+| ------------------------ | ----------- | -------- | ------------------------ | -------------------------- |
+| `enabled`                | boolean     | Yes      | `true`, `false`          | Enable UGC flow.           |
+| `productUrl`             | string      | No       | URL                      | Product source.            |
+| `productBrief`           | string      | No       | Free string              | Product direction.         |
+| `actorSource`            | string enum | Yes      | `generate`, `collection` | Actor source.              |
+| `actorCollectionId`      | string      | No       | Collection ID            | Actor portrait collection. |
+| `actorPrompt`            | string      | No       | Free string              | Actor generation prompt.   |
+| `voiceId`                | string      | Yes      | Provider voice ID        | Voice selection.           |
+| `voiceModel`             | string      | No       | Provider model ID        | Voice model.               |
+| `lipSyncTier`            | string enum | Yes      | `standard`, `premium`    | Lip-sync quality tier.     |
+| `targetDurationSeconds`  | number      | Yes      | Positive number          | Target duration.           |
+| `brollCount`             | number      | Yes      | Non-negative integer     | B-roll count.              |
+| `captions.enabled`       | boolean     | Yes      | `true`, `false`          | Caption rendering.         |
+| `captions.style`         | string      | Yes      | Registered/free style    | Caption style.             |
+| `captions.fallback`      | string enum | Yes      | `drawtext`, `png_frames` | Caption fallback renderer. |
+| `hookOverlay.enabled`    | boolean     | Yes      | `true`, `false`          | Hook overlay.              |
+| `hookOverlay.durationMs` | number      | Yes      | Non-negative integer     | Overlay duration.          |
+| `hookOverlay.style`      | string      | Yes      | Registered/free style    | Overlay style.             |
 
 ## Template execution and output
 

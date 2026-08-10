@@ -344,9 +344,8 @@ export type AutomationUgcConfig = {
   enabled: boolean
   productUrl?: string
   productBrief?: string
-  actorSource: "generate" | "gallery" | "upload"
+  actorSource: "generate" | "collection"
   actorCollectionId?: string
-  actorAssetUrl?: string
   actorPrompt?: string
   voiceId: string
   voiceModel?: string
@@ -827,11 +826,8 @@ export function normalizeUgcConfig(value: unknown): AutomationUgcConfig {
     productUrl: clean(source.productUrl) || undefined,
     productBrief: clean(source.productBrief) || undefined,
     actorSource:
-      source.actorSource === "gallery" || source.actorSource === "upload"
-        ? source.actorSource
-        : "generate",
+      source.actorSource === "collection" ? "collection" : "generate",
     actorCollectionId: clean(source.actorCollectionId) || undefined,
-    actorAssetUrl: clean(source.actorAssetUrl) || undefined,
     actorPrompt: clean(source.actorPrompt) || undefined,
     voiceId: clean(source.voiceId),
     voiceModel: clean(source.voiceModel) || undefined,
@@ -884,6 +880,8 @@ export function ugcLiveConfigurationErrors(
   const errors: string[] = []
   if (!ugc.productUrl && !ugc.productBrief)
     errors.push("AI UGC requires a product URL or brief")
+  if (ugc.actorSource === "collection" && !ugc.actorCollectionId)
+    errors.push("AI UGC requires an actor image collection")
   if (!ugc.voiceId) errors.push("AI UGC requires an ElevenLabs voice id")
   return errors
 }

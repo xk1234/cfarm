@@ -76,7 +76,7 @@ describe("UgcAutomationFormatPanel", () => {
     const html = renderToStaticMarkup(
       <UgcAutomationFormatPanel
         config={schema({
-          actorSource: "gallery",
+          actorSource: "collection",
           actorCollectionId: "actor-portraits",
         })}
         collections={[

@@ -2261,7 +2261,7 @@ describe("LumenClip MCP server", () => {
       name: "lumenclip_ugc_estimate",
       arguments: {
         templateId: current.id,
-        actorSource: "gallery",
+        actorSource: "collection",
         actorCollectionId: "actor-portraits",
         lipSyncTier: "premium",
       },
@@ -2271,7 +2271,7 @@ describe("LumenClip MCP server", () => {
     expect(result.structuredContent).toMatchObject({
       templateId: current.id,
       estimate: { currency: "USD", tier: "premium" },
-      assumptions: { actorSource: "gallery", lipSyncTier: "premium" },
+      assumptions: { actorSource: "collection", lipSyncTier: "premium" },
     })
   })
 

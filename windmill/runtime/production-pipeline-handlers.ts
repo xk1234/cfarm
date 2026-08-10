@@ -3255,19 +3255,16 @@ export function createProductionPipelineHandlers(
     })
   })
   resolveUgcComponent("actor", async (actor, defaults, context) => {
-    const requestedSource =
+    const source =
       clean(firstPresent(actor.source, defaults.actorSource)) || "generate"
-    const source = ["gallery", "upload"].includes(requestedSource)
-      ? "asset"
-      : requestedSource
-    if (!["generate", "asset"].includes(source)) {
-      throw new Error("Actor source must be generate or asset")
+    if (!["generate", "collection"].includes(source)) {
+      throw new Error("Actor source must be generate or collection")
     }
     const collectionMedia =
-      source === "asset"
+      source === "collection"
         ? await mediaFromCollection({
             collectionId: firstPresent(
-              actor.assetCollectionId,
+              actor.collectionId,
               defaults.actorCollectionId
             ),
             mediaKind: "image",
@@ -3277,17 +3274,13 @@ export function createProductionPipelineHandlers(
         : null
     const component = compactRecord({
       source,
-      assetCollectionId: collectionMedia?.collectionId,
-      assetUrl: firstPresent(
-        collectionMedia?.url,
-        actor.assetUrl,
-        defaults.actorAssetUrl
-      ),
+      collectionId: collectionMedia?.collectionId,
+      portraitUrl: collectionMedia?.url,
       prompt: firstPresent(actor.prompt, defaults.actorPrompt),
       motionPrompt: firstPresent(actor.motionPrompt, defaults.motionPrompt),
     })
-    if (source === "asset" && !clean(component.assetUrl)) {
-      throw new Error("Asset actor requires an actor image collection")
+    if (source === "collection" && !clean(component.portraitUrl)) {
+      throw new Error("Collection actor requires an actor image collection")
     }
     return component
   })
@@ -3335,38 +3328,6 @@ export function createProductionPipelineHandlers(
       lipsync: requiredRecord(input.lipsync, "lipsync"),
     },
   }))
-
-  add("ugc-video-generation.resolve-components", async (input, context) => {
-    const loaded = await context.runStage(
-      "ugc-video-generation.load-template-defaults",
-      input
-    )
-    const supplied = asRecord(input.components)
-    const components: Record<string, unknown> = {}
-    for (const name of [
-      "product",
-      "script",
-      "actor",
-      "voice",
-      "broll",
-      "render",
-    ] as const) {
-      const resolved = await context.runStage(
-        `ugc-video-generation.resolve-${name}-component`,
-        {
-          generation: loaded.output.generation,
-          templateDefaults: loaded.output.templateDefaults,
-          override: input[name] ?? supplied[name],
-        }
-      )
-      components[name] = resolved.output.component
-    }
-    return {
-      generation: loaded.output.generation,
-      components,
-      source: loaded.output.source,
-    }
-  })
 
   add(
     "ugc-video-generation.generate-one-broll-image",
@@ -3969,135 +3930,48 @@ export function createProductionPipelineHandlers(
           collectionId: collectionMedia?.collectionId,
           url: firstPresent(
             collectionMedia?.url,
-            override.url,
             templateRole(defaults, role).url
           ),
         })
         if (!clean(component.url)) {
-          throw new Error(`${role} component requires a media URL`)
+          throw new Error(`${role} component requires a media collection`)
         }
         return component
       })
     }
-    addFixedResolver("audio", (override, defaults, state) =>
+    addFixedResolver("audio", (_override, defaults) =>
       compactRecord({
-        url: firstPresent(
-          override.url,
-          asRecord(defaults.audio).url,
-          state.soundUrl
-        ),
+        url: asRecord(defaults.audio).url,
       })
     )
-    addFixedResolver("caption", (override, defaults, state) =>
+    addFixedResolver("caption", (override, defaults) =>
       input.format === "react_reveal"
         ? compactRecord({
             hookCaption: firstPresent(
               override.hookCaption,
-              defaults.hookCaption,
-              state.hookCaption
+              defaults.hookCaption
             ),
             payoffCaption: firstPresent(
               override.payoffCaption,
-              defaults.payoffCaption,
-              state.payoffCaption
+              defaults.payoffCaption
             ),
           })
         : compactRecord({
-            caption: firstPresent(
-              override.caption,
-              defaults.caption,
-              state.caption
-            ),
+            caption: firstPresent(override.caption, defaults.caption),
             textPlacement: firstPresent(
               override.textPlacement,
               defaults.textPlacement,
-              state.textPlacement,
               "top"
             ),
           })
     )
-    addFixedResolver("output", (override, defaults, state) => ({
-      title: firstPresent(override.title, defaults.title, state.title),
-      description: firstPresent(
-        override.description,
-        defaults.description,
-        state.description
-      ),
+    addFixedResolver("output", (override, defaults) => ({
+      title: firstPresent(override.title, defaults.title),
+      description: firstPresent(override.description, defaults.description),
       hashtags: stringArray(
-        firstPresent(override.hashtags, defaults.hashtags, state.hashtags, [])
+        firstPresent(override.hashtags, defaults.hashtags, [])
       ),
     }))
-
-    add(id("resolve-components"), async (state, context) => {
-      const loaded = await context.runStage(id("load-template-defaults"), state)
-      const supplied = asRecord(state.components)
-      const components: Record<string, unknown> = {}
-      for (const role of [
-        input.primaryRole,
-        input.secondaryRole,
-        "audio",
-        "caption",
-        "output",
-      ]) {
-        const override =
-          role === "caption"
-            ? input.format === "react_reveal"
-              ? {
-                  hookCaption: firstPresent(
-                    supplied.hookCaption,
-                    state.hookCaption
-                  ),
-                  payoffCaption: firstPresent(
-                    supplied.payoffCaption,
-                    state.payoffCaption
-                  ),
-                }
-              : {
-                  caption: firstPresent(supplied.caption, state.caption),
-                  textPlacement: firstPresent(
-                    supplied.textPlacement,
-                    state.textPlacement
-                  ),
-                }
-            : role === "output"
-              ? asRecord(state.output ?? supplied.output)
-              : role === "audio"
-                ? asRecord(state.audio ?? supplied.audio)
-                : {
-                    ...asRecord(state[role] ?? supplied[role]),
-                    url: firstPresent(
-                      asRecord(state[role] ?? supplied[role]).url,
-                      role === "anticipation"
-                        ? state.anticipationVideoUrl
-                        : role === "reveal"
-                          ? state.revealVideoUrl
-                          : role === "meme"
-                            ? state.memeVideoUrl
-                            : state.backgroundImageUrl
-                    ),
-                  }
-        const resolved = await context.runStage(id(`resolve-${role}`), {
-          generation: loaded.output.generation,
-          templateDefaults: loaded.output.templateDefaults,
-          override,
-          soundUrl: state.soundUrl,
-        })
-        const component = requiredRecord(
-          resolved.output.component,
-          `${role} component`
-        )
-        if (role === "caption" || role === "output") {
-          Object.assign(components, component)
-        } else {
-          components[role] = component
-        }
-      }
-      return {
-        generation: loaded.output.generation,
-        components,
-        source: loaded.output.source,
-      }
-    })
 
     const addStageMedia = (role: string) =>
       add(id(`stage-${role}`), async (state, context) => {

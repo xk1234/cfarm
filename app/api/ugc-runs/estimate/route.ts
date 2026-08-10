@@ -10,9 +10,8 @@ export const dynamic = "force-dynamic"
 const ugcSchema = z
   .object({
     enabled: z.boolean().optional(),
-    actorSource: z.enum(["generate", "gallery", "upload"]).optional(),
+    actorSource: z.enum(["generate", "collection"]).optional(),
     actorCollectionId: z.string().optional(),
-    actorAssetUrl: z.string().optional(),
     voiceModel: z.string().optional(),
     lipSyncTier: z.enum(["standard", "premium"]).optional(),
     targetDurationSeconds: z.number().min(15).max(180).optional(),
