@@ -2,13 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 
 import { pipelineCatalog } from "@/lib/pipeline-executor"
-import {
-  PIPELINE_STAGE_CATALOG,
-  PIPELINE_WORKFLOW_IDS,
-} from "@/lib/pipeline-stages"
+import { PIPELINE_WORKFLOW_IDS } from "@/lib/pipeline-stages"
 import {
   queueWindmillWorkflow,
-  runWindmillPipelineStage,
   runWindmillWorkflow,
   windmillWorkflowInputNames,
 } from "@/lib/windmill-workflows"
@@ -304,7 +300,6 @@ export type LumenClipMcpServices = {
   getUgcRunStatus: typeof getUgcRunStatus
   estimateUgcCost: typeof estimateUgcCost
   ugcGenerationEnabled: () => boolean
-  runPipelineStage: typeof runWindmillPipelineStage
   queuePipelineWorkflow: typeof queueWindmillWorkflow
   runPipelineWorkflow: typeof runWindmillWorkflow
 }
@@ -379,7 +374,6 @@ const defaultServices: LumenClipMcpServices = {
   getUgcRunStatus,
   estimateUgcCost,
   ugcGenerationEnabled: () => process.env.ENABLE_UGC_AUTOMATION === "true",
-  runPipelineStage: runWindmillPipelineStage,
   queuePipelineWorkflow: queueWindmillWorkflow,
   runPipelineWorkflow: runWindmillWorkflow,
 }
@@ -839,7 +833,7 @@ function registerPipelineTools(
   ownerId: string,
   services: Pick<
     LumenClipMcpServices,
-    "runPipelineStage" | "queuePipelineWorkflow"
+    "queuePipelineWorkflow"
   >
 ) {
   server.registerTool(
@@ -866,47 +860,11 @@ function registerPipelineTools(
   )
 
   server.registerTool(
-    "lumenclip_pipeline_stage_run",
-    {
-      title: "Run one production pipeline stage",
-      description:
-        "Queues one registered atomic or composite generation stage in Windmill with explicit structured JSON input. The application never executes the stage locally. Secrets and media bytes are rejected; provider and storage stages return durable references or operations.",
-      inputSchema: {
-        stageId: z.enum(
-          PIPELINE_STAGE_CATALOG.map((stage) => stage.id) as [
-            (typeof PIPELINE_STAGE_CATALOG)[number]["id"],
-            ...(typeof PIPELINE_STAGE_CATALOG)[number]["id"][],
-          ]
-        ),
-        input: z.record(z.string(), z.unknown()),
-        requestId: z.string().trim().min(1).max(200).optional(),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (input) =>
-      mcpResult(
-        await ownedMcpTask(ownerId, () =>
-          services.runPipelineStage({
-            ownerId,
-            stageId: input.stageId,
-            stageInput: input.input,
-            requestId: input.requestId,
-          })
-        )
-      )
-  )
-
-  server.registerTool(
     "lumenclip_pipeline_run",
     {
       title: "Run a named production generation pipeline",
       description:
-        "Queues the registered Windmill DAG using only the output-affecting inputs declared by that workflow's Windmill form. Operational owner, request, tracing, and persistence fields are derived internally. Unsupported input keys are rejected. Use lumenclip_pipeline_stage_run to debug or execute one component. Generation never publishes; publishing remains a separate confirmed MCP action.",
+        "Queues the registered Windmill DAG using only the output-affecting inputs declared by that workflow's Windmill form. Operational owner, request, tracing, and persistence fields are derived internally. Unsupported input keys are rejected. Use Windmill MCP's runScriptByPath on f/lumenclip/workflow_stage_runtime to debug one component. Generation never publishes; publishing remains a separate confirmed MCP action.",
       inputSchema: {
         workflowId: z.enum(PIPELINE_WORKFLOW_IDS),
         input: z.record(z.string(), z.unknown()),

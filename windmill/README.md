@@ -15,7 +15,6 @@ workflow callback endpoint or a generation worker.
 | `f/lumenclip/template_video_generation`   | `lumenclip - template video generation`   |
 | `f/lumenclip/linkedin_generation`         | `lumenclip - LinkedIn generation`         |
 | `f/lumenclip/x_threads_generation`        | `lumenclip - X and Threads generation`    |
-| `f/lumenclip/workflow_stage_execution`    | `lumenclip - execute one workflow stage`  |
 
 Every Lumenclip workflow is generated from an explicit DAG definition. Input
 groups are separate branch nodes, independent work runs with `branchall`, and
@@ -27,9 +26,10 @@ formats expose their actual media slots. Manual runs derive their owner from
 `f/lumenclip/default_owner_id` and use Windmill's root flow job ID as their
 idempotency key.
 
-API and MCP callers pass only the named product fields shown by each flow form.
-The Lumenclip boundary derives `owner_id` and `request_id` internally. Use
-`lumenclip_pipeline_stage_run` for isolated component debugging.
+API and LumenClip MCP callers pass only the named product fields shown by each
+flow form. The LumenClip boundary derives `owner_id` and `request_id`
+internally. For isolated component debugging, use Windmill MCP's
+`runScriptByPath` with `f/lumenclip/workflow_stage_runtime`.
 
 ## Inspect generated prompts
 
@@ -78,8 +78,9 @@ dependency changes, then lint before importing.
 - UI, API, and MCP callers start Windmill flows and inspect Windmill jobs.
 - Every flow node invokes `f/lumenclip/workflow_stage_runtime`, a bundled
   native Windmill script. It never calls back to a LumenClip HTTP endpoint.
-- Individual MCP stage runs use `f/lumenclip/workflow_stage_execution`, so
-  debugging follows the same runtime path as complete workflows.
+- Windmill MCP can run `f/lumenclip/workflow_stage_runtime` directly for
+  isolated stage tests, so no wrapper flow or duplicate LumenClip MCP stage
+  tool is deployed.
 - Slideshow validation loads only template, collection, and word-variable
   inputs. Text generation then runs in parallel with static image-candidate
   preparation. Prior runs are loaded later, alongside rendering, and first

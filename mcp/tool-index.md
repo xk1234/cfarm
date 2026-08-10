@@ -6,7 +6,6 @@ several workflows, but its input/output contract has one obvious owner.
 | Tool                                             | Primary use case                                | Availability       |
 | ------------------------------------------------ | ----------------------------------------------- | ------------------ |
 | `lumenclip_pipeline_catalog`                     | [Workflows](workflows/README.md)                | Implemented        |
-| `lumenclip_pipeline_stage_run`                   | [Workflows](workflows/README.md)                | Implemented        |
 | `lumenclip_pipeline_run`                         | [Workflows](workflows/README.md)                | Implemented        |
 | `lumenclip_workspace_get`                        | [Workspace](workspace/README.md)                | Proposed v1        |
 | `lumenclip_templates_list`                       | [Templates](templates/README.md)                | Implemented        |

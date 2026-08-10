@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   getWindmillWorkflowJob,
   queueWindmillWorkflow,
-  runWindmillPipelineStage,
   runWindmillWorkflow,
   windmillConfigured,
 } from "@/lib/windmill-workflows"
@@ -183,49 +182,6 @@ describe("Windmill workflow client", () => {
       result: { run: { id: "xrun-1" } },
     })
     expect(sleep).toHaveBeenCalledOnce()
-  })
-
-  it("runs exact stages through the native Windmill stage flow", async () => {
-    configureWindmill()
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response("stage-job-1", { status: 201 }))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: "stage-job-1",
-            type: "CompletedJob",
-            success: true,
-            result: {
-              stage: { id: "slideshow-generation.resolve-slide-count" },
-              status: "succeeded",
-              output: { slideCount: 8 },
-            },
-          })
-        )
-      )
-
-    await expect(
-      runWindmillPipelineStage({
-        ownerId: "owner-1",
-        stageId: "slideshow-generation.resolve-slide-count",
-        stageInput: { minimum: 8 },
-        requestId: "request-1",
-        fetchImpl,
-      })
-    ).resolves.toMatchObject({
-      status: "succeeded",
-      output: { slideCount: 8 },
-    })
-    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
-      "https://windmill.example/api/w/lumenclip/jobs/run/f/f/lumenclip/workflow_stage_execution"
-    )
-    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual({
-      owner_id: "owner-1",
-      request_id: "request-1",
-      stage_id: "slideshow-generation.resolve-slide-count",
-      stage_input: { minimum: 8 },
-    })
   })
 
   it("surfaces the Windmill failure message", async () => {

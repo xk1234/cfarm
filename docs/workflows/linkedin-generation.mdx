@@ -41,9 +41,11 @@ consumer. Downstream stages remain sequential where each genuinely depends on th
 }
 ```
 
-To run a single stage, call `lumenclip_pipeline_stage_run` with a stage ID such as
-`linkedin-generation.validate-input` and an explicit `input` object. Linear `startAt` and
-`stopAfter` windows are rejected for the DAG because they cannot preserve input-branch dependencies.
+To run a single stage, use Windmill MCP's `runScriptByPath` on
+`f/lumenclip/workflow_stage_runtime` with a stage ID such as
+`linkedin-generation.validate-input` and an explicit `stage_input` object.
+Linear `startAt` and `stopAfter` windows are rejected for the DAG because they
+cannot preserve input-branch dependencies.
 
 </Tab>
 

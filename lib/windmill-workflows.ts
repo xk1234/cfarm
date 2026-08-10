@@ -165,61 +165,6 @@ export async function runWindmillWorkflow(
   })
 }
 
-export async function runWindmillPipelineStage(input: {
-  ownerId: string
-  stageId: string
-  stageInput: Record<string, unknown>
-  requestId?: string
-  timeoutMs?: number
-  pollIntervalMs?: number
-  fetchImpl?: typeof fetch
-  sleep?: (milliseconds: number) => Promise<void>
-}) {
-  const config = windmillConfig()
-  const fetchImpl = input.fetchImpl ?? fetch
-  const requestId = clean(input.requestId) || `pipeline-${crypto.randomUUID()}`
-  const response = await fetchImpl(
-    windmillApiUrl(
-      config,
-      "jobs/run/f/f/lumenclip/workflow_stage_execution"
-    ),
-    {
-      method: "POST",
-      headers: windmillHeaders(config.token),
-      body: JSON.stringify({
-        owner_id: requiredValue("ownerId", input.ownerId),
-        request_id: requestId,
-        stage_id: requiredValue("stageId", input.stageId),
-        stage_input: input.stageInput,
-      }),
-    }
-  )
-  const jobId = clean(await response.text())
-  if (!response.ok || !jobId) {
-    throw new Error(
-      `Windmill rejected stage ${input.stageId}: ${response.status} ${jobId || response.statusText}`
-    )
-  }
-  const deadline = Date.now() + Math.max(1_000, input.timeoutMs ?? 25 * 60_000)
-  const sleep = input.sleep ?? delay
-  while (Date.now() < deadline) {
-    const job = await getWindmillWorkflowJob({ jobId, fetchImpl })
-    if (job.status === "failed") {
-      throw new Error(job.error || `Windmill stage ${input.stageId} failed`)
-    }
-    if (job.status === "succeeded") {
-      if (!isRecord(job.result)) {
-        throw new Error(`Windmill stage ${input.stageId} returned no execution`)
-      }
-      return job.result
-    }
-    await sleep(Math.max(100, input.pollIntervalMs ?? 1_000))
-  }
-  throw new Error(
-    `Windmill stage ${input.stageId} timed out after ${input.timeoutMs ?? 25 * 60_000}ms`
-  )
-}
-
 export function windmillConfigured() {
   return Boolean(
     process.env.WINDMILL_BASE_URL?.trim() &&

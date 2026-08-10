@@ -110,20 +110,6 @@ describe("generated Lumenclip Windmill flows", () => {
     expect(source).toContain('value: "store"')
   })
 
-  it("runs exact-stage debugging through the same native Windmill runtime", async () => {
-    const source = await readFile(
-      path.join(
-        import.meta.dirname,
-        "f/lumenclip/workflow_stage_execution__flow/flow.yaml"
-      ),
-      "utf8"
-    )
-    expect(source).toContain("path: f/lumenclip/workflow_stage_runtime")
-    expect(source).toContain("expr: flow_input.stage_id")
-    expect(source).not.toContain("type: rawscript")
-    expect(source).not.toContain("/api/internal/windmill/")
-  })
-
   it("bundles the production handlers into Windmill without Clerk or app callbacks", async () => {
     const source = await readFile(
       path.join(import.meta.dirname, "f/lumenclip/workflow_stage_runtime.ts"),

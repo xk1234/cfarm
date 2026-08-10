@@ -1,8 +1,8 @@
 # Production generation pipelines
 
-The pipeline MCP surface exposes the six Windmill-owned generation workflows.
-Callers can queue a complete workflow, invoke one named stage with JSON, or
-retain a stage envelope and pass it to another stage.
+The LumenClip pipeline MCP surface exposes the Windmill-owned generation
+workflows. Callers can queue a complete workflow. Isolated stage tests use
+Windmill MCP directly instead of duplicating stage execution in LumenClip MCP.
 
 ## Execution model
 
@@ -31,10 +31,10 @@ composite may return a running operation so the caller can resume later with
 the retained structured output.
 
 Full workflow execution is queued in Windmill. Each stage, branch, and join is
-visible in the Windmill DAG and uses the same private stage boundary as
-`lumenclip_pipeline_stage_run`; there is no standalone Windmill stage-runner
-script. Decomposed convenience composites still call
-atomic handlers through the registry during the incremental handler migration.
+visible in the Windmill DAG. Windmill MCP's `runScriptByPath` invokes
+`f/lumenclip/workflow_stage_runtime` directly for isolated tests; there is no
+wrapper flow or duplicate LumenClip MCP stage tool. Decomposed convenience
+composites still call atomic handlers through the registry.
 
 Provider nodes expose their exact outbound request in a top-level
 `providerRequests` array beside `output`. Open a Windmill run and select the
@@ -48,8 +48,30 @@ workflow stage. Failed nodes include the same request trace in their error.
 | Tool                           | Purpose                                                                                               |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `lumenclip_pipeline_catalog`   | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance. |
-| `lumenclip_pipeline_stage_run` | Invoke one registered atomic or composite stage directly with explicit JSON.                          |
 | `lumenclip_pipeline_run`       | Queue a named Windmill DAG and return its Windmill job ID.                                            |
+
+## Test one stage with Windmill MCP
+
+Use Windmill MCP's `runScriptByPath` for
+`f/lumenclip/workflow_stage_runtime`. Pass the script arguments below; Windmill
+resolves the two `$var:` references inside the workspace, so the MCP client
+never reads either value.
+
+```json
+{
+  "runtime_env_json": "$var:f/lumenclip/runtime_env_json",
+  "default_owner_id": "$var:f/lumenclip/default_owner_id",
+  "stage_id": "linkedin-generation.normalize-audience-topic",
+  "stage_input": {
+    "niche": "B2B SaaS",
+    "topic": "Activation"
+  },
+  "request_id": "stage-test-001"
+}
+```
+
+The result uses the same stage registry, provider tracing, persistence clients,
+and runtime bundle as the corresponding node in a complete DAG.
 
 ## Generate slideshow text for a fixed hook
 
@@ -265,8 +287,9 @@ Named runs accept only the output-affecting top-level inputs shown in their
 Windmill forms. Unknown keys are rejected instead of being silently ignored or
 forwarded. Owner identity, request IDs, tracing, and persistence metadata are
 derived internally and are not caller inputs. For isolated debugging, call
-`lumenclip_pipeline_stage_run` with one stage and explicit named artifacts. For
-an async atomic sequence, retain the complete output containing the provider
+Windmill MCP's `runScriptByPath` on `f/lumenclip/workflow_stage_runtime` with
+the stage ID and explicit named artifacts. For an async atomic sequence, retain
+the complete output containing the provider
 task ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
 succeeded output to download and persistence.
 
