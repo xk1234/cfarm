@@ -133,7 +133,8 @@ describe("generated Lumenclip Windmill flows", () => {
     expect(source).toContain('value: "analysis"')
     expect(source).toContain('value: "store"')
     expect(source).toContain("format: dynselect-actor_asset_collection_id")
-    expect(source).toContain("actor_asset_collection_id:\n      type: string")
+    expect(source).toContain("actor_asset_collection_id:\n      type: object")
+    expect(source).toContain("actor_asset_collection_id(filterText")
     expect(source).toContain(
       "assetCollectionId: flow_input.actor_asset_collection_id"
     )
@@ -184,7 +185,7 @@ describe("generated Lumenclip Windmill flows", () => {
       "format: dynselect-anticipation_collection_id"
     )
     expect(reactReveal).toContain(
-      "anticipation_collection_id:\n      type: string"
+      "anticipation_collection_id:\n      type: object"
     )
     expect(reactReveal).toContain("format: dynselect-reveal_collection_id")
     expect(reactReveal).toContain(
@@ -192,7 +193,7 @@ describe("generated Lumenclip Windmill flows", () => {
     )
     expect(greenscreen).toContain("format: dynselect-meme_collection_id")
     expect(greenscreen).toContain(
-      "background_collection_id:\n      type: string"
+      "background_collection_id:\n      type: object"
     )
     expect(greenscreen).toContain("format: dynselect-background_collection_id")
     expect(greenscreen).toContain(
