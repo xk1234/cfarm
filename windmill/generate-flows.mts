@@ -296,6 +296,7 @@ ${finalize}
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
+  x-lumenclip-hide-input-node: true
   properties:
     automation_id:
       type: string
@@ -403,6 +404,7 @@ ${modules}
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
+  x-lumenclip-hide-input-node: true
 ${linkedinInputSchema()}
 `
 }
@@ -533,6 +535,7 @@ ${generateImage}
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
+  x-lumenclip-hide-input-node: true
   properties:
     automation_id:
       type: string
@@ -723,6 +726,7 @@ function fixedVideoSchema(format: "react_reveal" | "greenscreen_meme") {
       default: top`
   return `  $schema: https://json-schema.org/draft/2020-12/schema
   type: object
+  x-lumenclip-hide-input-node: true
   properties:
     template_id:
       type: string
@@ -836,6 +840,7 @@ ${discard}
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
+  x-lumenclip-hide-input-node: true
   properties:
     template_id:
       type: string
@@ -1098,6 +1103,7 @@ ${
 function ugcComponentSchema() {
   return `  $schema: https://json-schema.org/draft/2020-12/schema
   type: object
+  x-lumenclip-hide-input-node: true
   order:
     - template_id
     - product

@@ -48,8 +48,40 @@ describe("generated Lumenclip Windmill flows", () => {
       expect(source).not.toContain("artifactNode")
       expect(source).not.toMatch(/results\.[^\n]+\?\?\s*results\./)
       expect(source).not.toContain("flow_input.input ??")
+      expect(source).toContain("x-lumenclip-hide-input-node: true")
     })
   }
+
+  it("hides only opted-in synthetic Input nodes in the shared Windmill graph", async () => {
+    const patch = await readFile(
+      path.join(
+        import.meta.dirname,
+        "..",
+        "infra",
+        "windmill-custom-ui",
+        "lumenclip-input-roots.patch"
+      ),
+      "utf8"
+    )
+    const dockerfile = await readFile(
+      path.join(
+        import.meta.dirname,
+        "..",
+        "infra",
+        "windmill-custom-ui",
+        "Dockerfile"
+      ),
+      "utf8"
+    )
+
+    expect(patch).toContain("x-lumenclip-hide-input-node")
+    expect(patch).toContain("if (!extra.hideInputNode) nodes.push(inputNode)")
+    expect(patch).toContain("preprocessorModule ?? triggerNode ?? inputNode")
+    expect(dockerfile).toContain("ARG WINDMILL_REF=")
+    expect(dockerfile).toContain(
+      "git apply --check /tmp/lumenclip-input-roots.patch"
+    )
+  })
 
   it("surfaces provider request traces from the native Windmill runtime", async () => {
     const runtime = await readFile(
