@@ -2,12 +2,28 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { recordProviderRequest } from "./provider-request-trace.js";
 export async function synthesizeElevenLabsSpeech(input) {
     if (!input.apiKey.trim())
         throw new Error("Missing ELEVENLABS_API_KEY");
     if (!input.voiceId.trim())
         throw new Error("ElevenLabs voiceId is required");
     const endpoint = input.endpoint ?? "https://api.elevenlabs.io/v1/text-to-speech";
+    const requestBody = {
+        text: input.text,
+        model_id: input.modelId,
+        voice_settings: input.voiceSettings,
+    };
+    recordProviderRequest({
+        provider: "ElevenLabs",
+        operation: "text-to-speech with timestamps",
+        model: input.modelId,
+        request: {
+            voiceId: input.voiceId,
+            outputFormat: input.outputFormat ?? "mp3_44100_128",
+            ...requestBody,
+        },
+    });
     const response = await (input.fetchImpl ?? fetch)(`${endpoint}/${encodeURIComponent(input.voiceId)}/with-timestamps?output_format=${encodeURIComponent(input.outputFormat ?? "mp3_44100_128")}`, {
         method: "POST",
         headers: {
@@ -15,11 +31,7 @@ export async function synthesizeElevenLabsSpeech(input) {
             "Content-Type": "application/json",
             Accept: "application/json",
         },
-        body: JSON.stringify({
-            text: input.text,
-            model_id: input.modelId,
-            voice_settings: input.voiceSettings,
-        }),
+        body: JSON.stringify(requestBody),
     });
     const payload = (await response.json().catch(() => null));
     if (!response.ok)

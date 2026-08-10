@@ -19,6 +19,7 @@ import { clean, isRecord } from "@/lib/guards"
 import { fetchJson, providerErrorMessage } from "@/lib/http"
 import { llmSlopMatches, normalizeLlmPunctuation } from "@/lib/llm-slop"
 import { parseOpenRouterContent } from "@/lib/openrouter"
+import { recordProviderRequest } from "@/lib/provider-request-trace"
 import {
   expandAllHookCombinations,
   type HookExpansionResult,
@@ -726,6 +727,13 @@ async function requestStructuredOutputAttempt(input: {
   requireHookSubjectCoverage?: boolean
   allowViolations: boolean
 }) {
+  const requestBody = { ...input.promptPayload, model: input.model }
+  recordProviderRequest({
+    provider: "OpenRouter",
+    operation: "chat.completions",
+    model: input.model,
+    request: requestBody,
+  })
   const payload = await fetchJson<OpenRouterResponse>(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -734,7 +742,7 @@ async function requestStructuredOutputAttempt(input: {
         Authorization: `Bearer ${input.apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ ...input.promptPayload, model: input.model }),
+      body: JSON.stringify(requestBody),
     },
     {
       fetchImpl: input.fetchImpl,
@@ -1001,6 +1009,29 @@ export async function researchSelectedHookAttempt(input: {
   hook: string
   automationName: string
 }) {
+  const requestBody = {
+    model: input.model,
+    stream: false,
+    max_tokens: 2_000,
+    plugins: [{ id: "web", engine: "exa", max_results: 5 }],
+    messages: [
+      {
+        role: "system",
+        content:
+          "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
+      },
+      {
+        role: "user",
+        content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
+      },
+    ],
+  }
+  recordProviderRequest({
+    provider: "OpenRouter",
+    operation: "chat.completions with Exa web search",
+    model: input.model,
+    request: requestBody,
+  })
   const payload = await fetchJson<OpenRouterResponse>(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -1009,23 +1040,7 @@ export async function researchSelectedHookAttempt(input: {
         Authorization: `Bearer ${input.apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: input.model,
-        stream: false,
-        max_tokens: 2_000,
-        plugins: [{ id: "web", engine: "exa", max_results: 5 }],
-        messages: [
-          {
-            role: "system",
-            content:
-              "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
-          },
-          {
-            role: "user",
-            content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
-          },
-        ],
-      }),
+      body: JSON.stringify(requestBody),
     },
     {
       fetchImpl: input.fetchImpl,

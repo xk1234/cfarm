@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import type { ProviderRequestTrace } from "@/lib/provider-request-trace"
+
 export type PipelineStageKind = "deterministic" | "provider" | "storage"
 export type PipelineStageGranularity = "atomic" | "composite"
 export type PipelineStageSideEffect = "none" | "network" | "storage"
@@ -52,6 +54,7 @@ export type PipelineStageExecution = {
   output: Record<string, unknown>
   operation?: Record<string, unknown>
   externalCalls: number
+  providerRequests?: ProviderRequestTrace[]
 }
 
 export const PIPELINE_WORKFLOW_IDS = [

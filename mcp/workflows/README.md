@@ -36,6 +36,13 @@ visible in the Windmill DAG and uses the same private stage boundary as
 script. Decomposed convenience composites still call
 atomic handlers through the registry during the incremental handler migration.
 
+Provider nodes expose their exact outbound request in a top-level
+`providerRequests` array beside `output`. Open a Windmill run and select the
+node to inspect its system prompt, user prompt, structured-output schema,
+model, and any retry attempts in order. The trace is deliberately outside
+`output`, so it is visible for diagnosis without becoming input to the next
+workflow stage. Failed nodes include the same request trace in their error.
+
 ## Tools
 
 | Tool                           | Purpose                                                                                               |

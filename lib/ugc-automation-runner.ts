@@ -1,5 +1,7 @@
 import crypto from "node:crypto"
 
+import { captureProviderRequests } from "@/lib/provider-request-trace"
+
 export type UgcCheckpoint = Record<string, unknown> & {
   storagePath?: string
   storagePaths?: string[]
@@ -110,9 +112,12 @@ export async function runUgcAutomation(input: {
       if (input.stopAfter) continue
       throw new Error(`UGC stage ${stage} is not configured`)
     }
-    const value = await handler({ runId, exportId, checkpoints })
+    const { result: value, providerRequests } = await captureProviderRequests(
+      () => handler({ runId, exportId, checkpoints })
+    )
     const checkpoint =
       value && typeof value === "object" ? (value as UgcCheckpoint) : { value }
+    if (providerRequests.length) checkpoint.providerRequests = providerRequests
     checkpoints[stage] = checkpoint
     await input.saveCheckpoint?.(stage, checkpoint, checkpoints)
     if (input.stopAfter === stage) break

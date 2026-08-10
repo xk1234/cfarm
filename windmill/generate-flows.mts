@@ -100,6 +100,7 @@ function pipelineStageModuleSource() {
   externalCalls: number
   output: Record<string, unknown>
   operation?: Record<string, unknown>
+  providerRequests?: Array<Record<string, unknown>>
 }
 
 export async function main(
@@ -136,9 +137,13 @@ export async function main(
   const payload = (await response.json().catch(() => null)) as {
     execution?: PipelineStageExecution
     error?: string
+    providerRequests?: Array<Record<string, unknown>>
   } | null
   if (!response.ok || !payload?.execution) {
-    throw new Error(payload?.error || \`Lumenclip stage request failed with \${response.status}\`)
+    const providerRequests = payload?.providerRequests?.length
+      ? \`\nProvider requests:\n\${JSON.stringify(payload.providerRequests, null, 2)}\`
+      : ""
+    throw new Error((payload?.error || \`Lumenclip stage request failed with \${response.status}\`) + providerRequests)
   }
   return payload.execution
 }
@@ -1164,6 +1169,7 @@ function ugcComponentModuleSource() {
   externalCalls: number
   output: Record<string, unknown>
   operation?: { id?: string; status?: string }
+  providerRequests?: Array<Record<string, unknown>>
 }
 
 export async function main(
@@ -1229,6 +1235,7 @@ export async function main(
       requestId,
       status: "succeeded",
       externalCalls: queued.externalCalls + polled.externalCalls,
+      ...(Array.isArray(artifact.providerRequests) ? { providerRequests: artifact.providerRequests } : {}),
       output: {
         component: checkpoint_name,
         artifact,
@@ -1260,9 +1267,12 @@ async function callStage(
       body: JSON.stringify({ ownerId, requestId, input }),
     }
   )
-  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null
+  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string; providerRequests?: Array<Record<string, unknown>> } | null
   if (!response.ok || !payload?.execution) {
-    throw new Error(payload?.error || \`Lumenclip stage request failed with \${response.status}\`)
+    const providerRequests = payload?.providerRequests?.length
+      ? \`\nProvider requests:\n\${JSON.stringify(payload.providerRequests, null, 2)}\`
+      : ""
+    throw new Error((payload?.error || \`Lumenclip stage request failed with \${response.status}\`) + providerRequests)
   }
   return payload.execution
 }

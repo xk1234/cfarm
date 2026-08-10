@@ -1,5 +1,6 @@
 // Generated from lib/ugc-automation-runner.ts. Do not edit by hand.
 import crypto from "node:crypto";
+import { captureProviderRequests } from "./provider-request-trace.js";
 export class UgcConfigurationError extends Error {
     nonRetryable = true;
     telegramNotified;
@@ -60,8 +61,10 @@ export async function runUgcAutomation(input) {
                 continue;
             throw new Error(`UGC stage ${stage} is not configured`);
         }
-        const value = await handler({ runId, exportId, checkpoints });
+        const { result: value, providerRequests } = await captureProviderRequests(() => handler({ runId, exportId, checkpoints }));
         const checkpoint = value && typeof value === "object" ? value : { value };
+        if (providerRequests.length)
+            checkpoint.providerRequests = providerRequests;
         checkpoints[stage] = checkpoint;
         await input.saveCheckpoint?.(stage, checkpoint, checkpoints);
         if (input.stopAfter === stage)

@@ -1,6 +1,7 @@
 import { clean } from "@/lib/guards"
 import { fetchJson, providerErrorMessage } from "@/lib/http"
 import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
+import { recordProviderRequest } from "@/lib/provider-request-trace"
 
 export type SlideshowImageCandidate = {
   id: string
@@ -24,10 +25,44 @@ type OpenRouterContentResponse = {
 export const imageShortlistSize = 12
 
 const stopWords = new Set([
-  "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from",
-  "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or",
-  "she", "that", "the", "their", "them", "they", "this", "to", "was",
-  "what", "when", "who", "will", "with", "you", "your",
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "but",
+  "by",
+  "for",
+  "from",
+  "has",
+  "have",
+  "how",
+  "in",
+  "into",
+  "is",
+  "it",
+  "its",
+  "of",
+  "on",
+  "or",
+  "she",
+  "that",
+  "the",
+  "their",
+  "them",
+  "they",
+  "this",
+  "to",
+  "was",
+  "what",
+  "when",
+  "who",
+  "will",
+  "with",
+  "you",
+  "your",
 ])
 
 function tokenize(value: string) {
@@ -220,6 +255,13 @@ export async function deriveSlideVisualConcepts(input: {
   if (input.slideTexts.length === 0) return []
   const empty = input.slideTexts.map(() => [] as string[])
   try {
+    const requestBody = visualConceptsPayload(input)
+    recordProviderRequest({
+      provider: "OpenRouter",
+      operation: "visual concept derivation",
+      model: requestBody.model,
+      request: requestBody,
+    })
     const response = await fetchJson<OpenRouterContentResponse>(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -228,7 +270,7 @@ export async function deriveSlideVisualConcepts(input: {
           Authorization: `Bearer ${input.apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(visualConceptsPayload(input)),
+        body: JSON.stringify(requestBody),
       },
       {
         fetchImpl: input.fetchImpl,
@@ -236,9 +278,9 @@ export async function deriveSlideVisualConcepts(input: {
         errorMessage: providerErrorMessage("Visual concept derivation failed"),
       }
     )
-    const parsed = parsedContent(response) as
-      | { slides?: { concepts?: unknown }[] }
-      | null
+    const parsed = parsedContent(response) as {
+      slides?: { concepts?: unknown }[]
+    } | null
     if (!parsed?.slides) return empty
     // Concepts only narrow a shortlist, so a partial or malformed answer should
     // degrade ranking rather than fail the generation.
@@ -271,6 +313,16 @@ export async function selectSlideshowImageWithAi(input: {
   })
   if (shortlist.length === 1) return shortlist[0].id
 
+  const requestBody = slideshowImageMatchingPayload({
+    ...input,
+    candidates: shortlist,
+  })
+  recordProviderRequest({
+    provider: "OpenRouter",
+    operation: "slideshow image choice",
+    model: requestBody.model,
+    request: requestBody,
+  })
   const response = await fetchJson<OpenRouterContentResponse>(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -279,9 +331,7 @@ export async function selectSlideshowImageWithAi(input: {
         Authorization: `Bearer ${input.apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(
-        slideshowImageMatchingPayload({ ...input, candidates: shortlist })
-      ),
+      body: JSON.stringify(requestBody),
     },
     {
       fetchImpl: input.fetchImpl,
@@ -289,9 +339,9 @@ export async function selectSlideshowImageWithAi(input: {
       errorMessage: providerErrorMessage("AI image matching failed"),
     }
   )
-  const parsed = parsedContent(response) as
-    | { selectedImageIndex?: unknown }
-    | null
+  const parsed = parsedContent(response) as {
+    selectedImageIndex?: unknown
+  } | null
   const index = parsed?.selectedImageIndex
   // The schema cannot express the bound, so the caller enforces it. Falling back
   // to the top-ranked candidate keeps a healthy generation from dying on a

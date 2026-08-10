@@ -40,6 +40,8 @@ describe("generated Lumenclip Windmill flows", () => {
       expect(source).not.toContain("artifactNode")
       expect(source).not.toMatch(/results\.[^\n]+\?\?\s*results\./)
       expect(source).not.toContain("flow_input.input ??")
+      expect(source).toContain("providerRequests?")
+      expect(source).toContain("Provider requests:")
     })
   }
 

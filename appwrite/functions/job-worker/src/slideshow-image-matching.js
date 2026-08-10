@@ -2,6 +2,7 @@
 import { clean } from "./guards.js";
 import { fetchJson, providerErrorMessage } from "./http.js";
 import { defaultSlideshowTextModel } from "./realfarm-generation-model-registry.js";
+import { recordProviderRequest } from "./provider-request-trace.js";
 /**
  * How many candidates survive local ranking and reach the model.
  *
@@ -13,10 +14,44 @@ import { defaultSlideshowTextModel } from "./realfarm-generation-model-registry.
  */
 export const imageShortlistSize = 12;
 const stopWords = new Set([
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from",
-    "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or",
-    "she", "that", "the", "their", "them", "they", "this", "to", "was",
-    "what", "when", "who", "will", "with", "you", "your",
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "but",
+    "by",
+    "for",
+    "from",
+    "has",
+    "have",
+    "how",
+    "in",
+    "into",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "or",
+    "she",
+    "that",
+    "the",
+    "their",
+    "them",
+    "they",
+    "this",
+    "to",
+    "was",
+    "what",
+    "when",
+    "who",
+    "will",
+    "with",
+    "you",
+    "your",
 ]);
 function tokenize(value) {
     return clean(value)
@@ -184,13 +219,20 @@ export async function deriveSlideVisualConcepts(input) {
         return [];
     const empty = input.slideTexts.map(() => []);
     try {
+        const requestBody = visualConceptsPayload(input);
+        recordProviderRequest({
+            provider: "OpenRouter",
+            operation: "visual concept derivation",
+            model: requestBody.model,
+            request: requestBody,
+        });
         const response = await fetchJson("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
                 Authorization: `Bearer ${input.apiKey}`,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(visualConceptsPayload(input)),
+            body: JSON.stringify(requestBody),
         }, {
             fetchImpl: input.fetchImpl,
             timeoutMs: 60_000,
@@ -224,13 +266,23 @@ export async function selectSlideshowImageWithAi(input) {
     });
     if (shortlist.length === 1)
         return shortlist[0].id;
+    const requestBody = slideshowImageMatchingPayload({
+        ...input,
+        candidates: shortlist,
+    });
+    recordProviderRequest({
+        provider: "OpenRouter",
+        operation: "slideshow image choice",
+        model: requestBody.model,
+        request: requestBody,
+    });
     const response = await fetchJson("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
             Authorization: `Bearer ${input.apiKey}`,
             "Content-Type": "application/json",
         },
-        body: JSON.stringify(slideshowImageMatchingPayload({ ...input, candidates: shortlist })),
+        body: JSON.stringify(requestBody),
     }, {
         fetchImpl: input.fetchImpl,
         timeoutMs: 60_000,
