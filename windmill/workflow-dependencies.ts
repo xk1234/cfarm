@@ -24,8 +24,22 @@ export const WINDMILL_WORKFLOW_DEPENDENCIES: Record<
     dependency(
       "validate_input",
       "slideshow-generation.validate-input",
-      ["load_template", "load_collections", "load_word_collections"],
-      ["automationRecord", "collections", "wordCollections"],
+      [
+        "load_template",
+        "normalize_run_brief",
+        "normalize_collection_overrides",
+        "normalize_slide_overrides",
+        "load_collections",
+        "load_word_collections",
+      ],
+      [
+        "automationRecord",
+        "runBrief",
+        "collectionOverrides",
+        "slideOverrides",
+        "collections",
+        "wordCollections",
+      ],
       ["schema", "textAutomation", "slideSpecs"]
     ),
     dependency(

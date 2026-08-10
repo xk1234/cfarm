@@ -2,16 +2,16 @@ summary: "lumenclip - slideshow generation"
 description: "Generate a complete slideshow through individually observable and composable stages."
 value:
   modules:
-    - id: load_validation_inputs
-      summary: "Load inputs consumed together by slideshow validation"
+    - id: resolve_generation_inputs
+      summary: "Resolve independent slideshow input groups"
       value:
         type: branchall
         parallel: true
         branches:
-          - summary: "Template schema"
+          - summary: "Template"
             modules:
               - id: load_template
-                summary: "Load template schema"
+                summary: "Load selected template"
                 timeout:
                   type: static
                   value: 300
@@ -36,8 +36,95 @@ value:
                       expr: flow_input.request_id
                     stage_input:
                       type: javascript
-                      expr: "({ automationId: flow_input.automation_id })"
-          - summary: "Image collections and assets"
+                      expr: "({ automationId: flow_input.template_inputs.automation_id })"
+          - summary: "Hook and content controls"
+            modules:
+              - id: normalize_run_brief
+                summary: "Normalize hook and content controls"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: script
+                  path: f/lumenclip/workflow_stage_runtime
+                  input_transforms:
+                    runtime_env_json:
+                      type: static
+                      value: $var:f/lumenclip/runtime_env_json
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.normalize-run-brief"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ hook: flow_input.template_inputs.hook, contentControls: flow_input.content_inputs })"
+          - summary: "Collection controls"
+            modules:
+              - id: normalize_collection_overrides
+                summary: "Normalize collection selections"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: script
+                  path: f/lumenclip/workflow_stage_runtime
+                  input_transforms:
+                    runtime_env_json:
+                      type: static
+                      value: $var:f/lumenclip/runtime_env_json
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.normalize-collection-overrides"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "flow_input.collection_inputs"
+          - summary: "Individual slide controls"
+            modules:
+              - id: normalize_slide_overrides
+                summary: "Normalize individual slide overrides"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: script
+                  path: f/lumenclip/workflow_stage_runtime
+                  input_transforms:
+                    runtime_env_json:
+                      type: static
+                      value: $var:f/lumenclip/runtime_env_json
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.normalize-slide-overrides"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ slideOverrides: flow_input.slide_overrides })"
+          - summary: "Image collection context"
             modules:
               - id: load_collections
                 summary: "Load image collections"
@@ -66,7 +153,7 @@ value:
                     stage_input:
                       type: javascript
                       expr: "({})"
-          - summary: "Word variables and hooks"
+          - summary: "Word-variable context"
             modules:
               - id: load_word_collections
                 summary: "Load word collections"
@@ -122,7 +209,7 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook, contentControls: flow_input.content_controls, collectionOverrides: { hook_collection_id: flow_input.hook_collection_id, body_collection_id: flow_input.body_collection_id, cta_collection_id: flow_input.cta_collection_id }, slideOverrides: flow_input.slide_overrides })"
+            expr: "({ automationId: flow_input.template_inputs.automation_id, automationRecord: results.resolve_generation_inputs[0].output.automationRecord, hook: results.resolve_generation_inputs[1].output.runBrief.hook, contentControls: results.resolve_generation_inputs[1].output.runBrief.contentControls, collectionOverrides: results.resolve_generation_inputs[2].output.collectionOverrides, slideOverrides: results.resolve_generation_inputs[3].output.slideOverrides, collections: results.resolve_generation_inputs[4].output.collections, wordCollections: results.resolve_generation_inputs[5].output.wordCollections })"
     - id: produce_text_and_candidates
       summary: "Generate text while static image pools are prepared"
       value:
@@ -462,18 +549,24 @@ schema:
   type: object
   x-lumenclip-hide-input-node: true
   properties:
-    automation_id:
+    template_inputs:
       type: object
-      format: dynselect-automation_id
-      title: Template
-    hook:
+      title: Template and hook
+      additionalProperties: false
+      properties:
+        automation_id:
+          type: object
+          format: dynselect-automation_id
+          title: Template
+        hook:
+          type: object
+          format: dynselect-hook
+          title: Hook override (optional)
+          description: Choose one saved hook instead of letting the template rotate hooks automatically.
+      required: [automation_id]
+    content_inputs:
       type: object
-      format: dynselect-hook
-      title: Hook override (optional)
-      description: Choose one saved hook instead of letting the template rotate hooks automatically.
-    content_controls:
-      type: object
-      title: Content overrides
+      title: Content controls
       additionalProperties: false
       properties:
         language:
@@ -500,21 +593,26 @@ schema:
           type: string
           format: textarea
           title: CTA content direction
-    hook_collection_id:
+    collection_inputs:
       type: object
-      format: dynselect-hook_collection_id
-      title: Hook collection override
-    body_collection_id:
-      type: object
-      format: dynselect-body_collection_id
-      title: Content collection override
-    cta_collection_id:
-      type: object
-      format: dynselect-cta_collection_id
-      title: CTA collection override
+      title: Collection controls
+      additionalProperties: false
+      properties:
+        hook_collection_id:
+          type: object
+          format: dynselect-hook_collection_id
+          title: Hook collection override
+        body_collection_id:
+          type: object
+          format: dynselect-body_collection_id
+          title: Content collection override
+        cta_collection_id:
+          type: object
+          format: dynselect-cta_collection_id
+          title: CTA collection override
     slide_overrides:
       type: array
-      title: Individual slide overrides
+      title: Individual slide controls
       items:
         type: object
         additionalProperties: false
@@ -528,7 +626,11 @@ schema:
             type: string
             format: textarea
             title: Content direction
+          collection_id:
+            type: object
+            format: dynselect-slide_collection_id
+            title: Collection override
         required: [slide_number]
-  required: [automation_id]
+  required: [template_inputs]
   x-windmill-dyn-select-lang: bun
-  x-windmill-dyn-select-code: "import { Client, Query, TablesDB } from \"node-appwrite\"\nimport * as wmill from \"windmill-client\"\n\nexport async function automation_id(filterText = \"\") {\n  return templateOptions({\"table\":\"templates\",\"automationKind\":\"slideshow\"}, filterText)\n}\n\nexport async function hook(automation_id = \"\", filterText = \"\") {\n  return hookOptions(automation_id, filterText)\n}\n\nexport async function hook_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nexport async function body_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nexport async function cta_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nasync function templateOptions(config: {\n  table: \"templates\" | \"social_templates\"\n  automationKind?: string\n  videoFormat?: string\n  excludedVideoFormats?: string[]\n  platforms?: string[]\n}, filterText = \"\") {\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await listRowsWithFallback(\n    tables,\n    databaseId,\n    config.table === \"templates\"\n      ? [\"templates\", \"automations\"]\n      : [\"social_templates\", \"x_automations\"],\n    [Query.equal(\"owner_id\", [ownerId]), Query.limit(100)]\n  )\n  const query = clean(filterText).toLowerCase()\n  return response.rows.flatMap((row) => {\n    const record = parseRecord(row.data)\n    if (!record || record.hidden === true || record.deletedAt) return []\n    const schema = parseRecord(record.schema) || {}\n    const automationKind = clean(schema.automationKind)\n    const videoFormat = clean(parseRecord(schema.video_format)?.template)\n    const platform = clean(record.platform)\n    if (config.automationKind && automationKind !== config.automationKind) return []\n    if (config.videoFormat && videoFormat !== config.videoFormat) return []\n    if (config.excludedVideoFormats?.includes(videoFormat)) return []\n    if (config.platforms?.length && !config.platforms.includes(platform)) return []\n    const value = clean(record.id) || clean(row.rid)\n    const name = clean(record.name)\n    if (!value || !name) return []\n    const detail = platform || videoFormat.replaceAll(\"_\", \" \") || automationKind\n    const label = detail ? name + \" · \" + detail : name\n    if (query && !label.toLowerCase().includes(query)) return []\n    return [{ value, label }]\n  })\n}\n\nasync function hookOptions(templateId = \"\", filterText = \"\") {\n  const id = clean(templateId)\n  if (!id) return []\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await listRowsWithFallback(\n    tables,\n    databaseId,\n    [\"templates\", \"automations\"],\n    [\n      Query.equal(\"owner_id\", [ownerId]),\n      Query.equal(\"rid\", [id]),\n      Query.limit(1),\n    ]\n  )\n  const record = parseRecord(response.rows[0]?.data)\n  const schema = parseRecord(record?.schema)\n  const hooks = Array.isArray(schema?.hooks) ? schema.hooks : []\n  const query = clean(filterText).toLowerCase()\n  return hooks.flatMap((candidate) => {\n    const hook = parseRecord(candidate)\n    const text = clean(hook?.text)\n    if (!text || hook?.enabled === false) return []\n    if (query && !text.toLowerCase().includes(query)) return []\n    return [{ value: text, label: text }]\n  })\n}\n\nasync function mediaCollections(kind: \"video\" | \"image\", filterText = \"\") {\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await listRowsWithFallback(\n    tables,\n    databaseId,\n    [\"permanent_assets\", \"image_collections\"],\n    [Query.equal(\"owner_id\", [ownerId]), Query.limit(100)],\n    { permanent_assets: Query.equal(\"source_key\", [\"image_collection\"]) }\n  )\n  const query = String(filterText || \"\").trim().toLowerCase()\n  return response.rows.flatMap((row) => {\n    const collection = parseRecord(row.data)\n    if (!collection || collection.deletedAt) return []\n    const mediaKind = collection.mediaType === \"video\" ? \"video\" : \"image\"\n    const assetCount = Array.isArray(collection.images)\n      ? collection.images.filter((asset) => clean(asset?.image_link)).length\n      : 0\n    const name = clean(collection.name)\n    if (!name || !assetCount || mediaKind !== kind) return []\n    const label = name + \" (\" + assetCount + \")\"\n    if (query && !label.toLowerCase().includes(query)) return []\n    return [{\n      value: clean(collection.id) || clean(collection.externalId) || slug(name),\n      label,\n      mediaKind,\n      assetCount,\n    }]\n  })\n}\n\nasync function listRowsWithFallback(\n  tables: TablesDB,\n  databaseId: string,\n  tableIds: string[],\n  queries: string[],\n  tableQueries: Record<string, string> = {}\n) {\n  for (const tableId of tableIds) {\n    try {\n      return await tables.listRows(databaseId, tableId, [\n        ...queries,\n        ...(tableQueries[tableId] ? [tableQueries[tableId]] : []),\n      ])\n    } catch (error) {\n      if (Number((error as { code?: unknown })?.code) !== 404) throw error\n    }\n  }\n  throw new Error(\"No compatible LumenClip Appwrite table was found\")\n}\n\nasync function appwrite() {\n  const [runtimeEnv, defaultOwnerId] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/runtime_env_json\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const env = JSON.parse(required(\"runtime_env_json\", runtimeEnv))\n  const client = new Client()\n    .setEndpoint(required(\"APPWRITE_ENDPOINT\", env.APPWRITE_ENDPOINT))\n    .setProject(required(\"APPWRITE_PROJECT_ID\", env.APPWRITE_PROJECT_ID))\n    .setKey(required(\"APPWRITE_API_KEY\", env.APPWRITE_API_KEY))\n  return {\n    tables: new TablesDB(client),\n    databaseId: required(\"APPWRITE_DATABASE_ID\", env.APPWRITE_DATABASE_ID),\n    ownerId: required(\"default_owner_id\", defaultOwnerId),\n  }\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(\"Lumenclip variable \" + name + \" is not configured\")\n  return text\n}\n\nfunction parseRecord(value: unknown): Record<string, any> | null {\n  if (value && typeof value === \"object\" && !Array.isArray(value)) {\n    return value as Record<string, any>\n  }\n  if (typeof value !== \"string\") return null\n  try {\n    const parsed = JSON.parse(value)\n    return parsed && typeof parsed === \"object\" ? parsed : null\n  } catch {\n    return null\n  }\n}\n\nfunction clean(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\n\nfunction slug(value: string) {\n  return value.toLowerCase().replace(/[^a-z0-9]+/g, \"-\").replace(/^-|-$/g, \"\")\n}\n"
+  x-windmill-dyn-select-code: "import { Client, Query, TablesDB } from \"node-appwrite\"\nimport * as wmill from \"windmill-client\"\n\nexport async function automation_id(filterText = \"\") {\n  return templateOptions({\"table\":\"templates\",\"automationKind\":\"slideshow\"}, filterText)\n}\n\nexport async function hook(automation_id = \"\", filterText = \"\") {\n  return hookOptions(automation_id, filterText)\n}\n\nexport async function hook_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nexport async function body_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nexport async function cta_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nexport async function slide_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nasync function templateOptions(config: {\n  table: \"templates\" | \"social_templates\"\n  automationKind?: string\n  videoFormat?: string\n  excludedVideoFormats?: string[]\n  platforms?: string[]\n}, filterText = \"\") {\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await listRowsWithFallback(\n    tables,\n    databaseId,\n    config.table === \"templates\"\n      ? [\"templates\", \"automations\"]\n      : [\"social_templates\", \"x_automations\"],\n    [Query.equal(\"owner_id\", [ownerId]), Query.limit(100)]\n  )\n  const query = clean(filterText).toLowerCase()\n  return response.rows.flatMap((row) => {\n    const record = parseRecord(row.data)\n    if (!record || record.hidden === true || record.deletedAt) return []\n    const schema = parseRecord(record.schema) || {}\n    const automationKind = clean(schema.automationKind)\n    const videoFormat = clean(parseRecord(schema.video_format)?.template)\n    const platform = clean(record.platform)\n    if (config.automationKind && automationKind !== config.automationKind) return []\n    if (config.videoFormat && videoFormat !== config.videoFormat) return []\n    if (config.excludedVideoFormats?.includes(videoFormat)) return []\n    if (config.platforms?.length && !config.platforms.includes(platform)) return []\n    const value = clean(record.id) || clean(row.rid)\n    const name = clean(record.name)\n    if (!value || !name) return []\n    const detail = platform || videoFormat.replaceAll(\"_\", \" \") || automationKind\n    const label = detail ? name + \" · \" + detail : name\n    if (query && !label.toLowerCase().includes(query)) return []\n    return [{ value, label }]\n  })\n}\n\nasync function hookOptions(templateId = \"\", filterText = \"\") {\n  const id = clean(templateId)\n  if (!id) return []\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await listRowsWithFallback(\n    tables,\n    databaseId,\n    [\"templates\", \"automations\"],\n    [\n      Query.equal(\"owner_id\", [ownerId]),\n      Query.equal(\"rid\", [id]),\n      Query.limit(1),\n    ]\n  )\n  const record = parseRecord(response.rows[0]?.data)\n  const schema = parseRecord(record?.schema)\n  const hooks = Array.isArray(schema?.hooks) ? schema.hooks : []\n  const query = clean(filterText).toLowerCase()\n  return hooks.flatMap((candidate) => {\n    const hook = parseRecord(candidate)\n    const text = clean(hook?.text)\n    if (!text || hook?.enabled === false) return []\n    if (query && !text.toLowerCase().includes(query)) return []\n    return [{ value: text, label: text }]\n  })\n}\n\nasync function mediaCollections(kind: \"video\" | \"image\", filterText = \"\") {\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await listRowsWithFallback(\n    tables,\n    databaseId,\n    [\"permanent_assets\", \"image_collections\"],\n    [Query.equal(\"owner_id\", [ownerId]), Query.limit(100)],\n    { permanent_assets: Query.equal(\"source_key\", [\"image_collection\"]) }\n  )\n  const query = String(filterText || \"\").trim().toLowerCase()\n  return response.rows.flatMap((row) => {\n    const collection = parseRecord(row.data)\n    if (!collection || collection.deletedAt) return []\n    const mediaKind = collection.mediaType === \"video\" ? \"video\" : \"image\"\n    const assetCount = Array.isArray(collection.images)\n      ? collection.images.filter((asset) => clean(asset?.image_link)).length\n      : 0\n    const name = clean(collection.name)\n    if (!name || !assetCount || mediaKind !== kind) return []\n    const label = name + \" (\" + assetCount + \")\"\n    if (query && !label.toLowerCase().includes(query)) return []\n    return [{\n      value: clean(collection.id) || clean(collection.externalId) || slug(name),\n      label,\n      mediaKind,\n      assetCount,\n    }]\n  })\n}\n\nasync function listRowsWithFallback(\n  tables: TablesDB,\n  databaseId: string,\n  tableIds: string[],\n  queries: string[],\n  tableQueries: Record<string, string> = {}\n) {\n  for (const tableId of tableIds) {\n    try {\n      return await tables.listRows(databaseId, tableId, [\n        ...queries,\n        ...(tableQueries[tableId] ? [tableQueries[tableId]] : []),\n      ])\n    } catch (error) {\n      if (Number((error as { code?: unknown })?.code) !== 404) throw error\n    }\n  }\n  throw new Error(\"No compatible LumenClip Appwrite table was found\")\n}\n\nasync function appwrite() {\n  const [runtimeEnv, defaultOwnerId] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/runtime_env_json\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const env = JSON.parse(required(\"runtime_env_json\", runtimeEnv))\n  const client = new Client()\n    .setEndpoint(required(\"APPWRITE_ENDPOINT\", env.APPWRITE_ENDPOINT))\n    .setProject(required(\"APPWRITE_PROJECT_ID\", env.APPWRITE_PROJECT_ID))\n    .setKey(required(\"APPWRITE_API_KEY\", env.APPWRITE_API_KEY))\n  return {\n    tables: new TablesDB(client),\n    databaseId: required(\"APPWRITE_DATABASE_ID\", env.APPWRITE_DATABASE_ID),\n    ownerId: required(\"default_owner_id\", defaultOwnerId),\n  }\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(\"Lumenclip variable \" + name + \" is not configured\")\n  return text\n}\n\nfunction parseRecord(value: unknown): Record<string, any> | null {\n  if (value && typeof value === \"object\" && !Array.isArray(value)) {\n    return value as Record<string, any>\n  }\n  if (typeof value !== \"string\") return null\n  try {\n    const parsed = JSON.parse(value)\n    return parsed && typeof parsed === \"object\" ? parsed : null\n  } catch {\n    return null\n  }\n}\n\nfunction clean(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\n\nfunction slug(value: string) {\n  return value.toLowerCase().replace(/[^a-z0-9]+/g, \"-\").replace(/^-|-$/g, \"\")\n}\n"

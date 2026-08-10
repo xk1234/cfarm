@@ -1726,6 +1726,82 @@ export function createProductionPipelineHandlers(
     "slideshow-generation.list-word-collections-page",
     "wordCollections"
   )
+  add("slideshow-generation.normalize-run-brief", async (input) => {
+    const content = asRecord(input.contentControls)
+    const suppliedSlideCount = content.slide_count
+    const slideCount =
+      suppliedSlideCount === undefined || suppliedSlideCount === null
+        ? null
+        : Math.round(numberValue(suppliedSlideCount))
+    if (
+      slideCount !== null &&
+      (slideCount < 1 ||
+        slideCount > 30 ||
+        slideCount !== Number(suppliedSlideCount))
+    ) {
+      throw new Error("Slide count must be a whole number between 1 and 30")
+    }
+    return {
+      runBrief: {
+        hook: dynamicInputValue(input.hook) || null,
+        contentControls: compactRecord({
+          language: clean(content.language) || undefined,
+          tone: clean(content.tone) || undefined,
+          slide_count: slideCount ?? undefined,
+          hook_content_direction:
+            clean(content.hook_content_direction) || undefined,
+          body_content_direction:
+            clean(content.body_content_direction) || undefined,
+          cta_content_direction:
+            clean(content.cta_content_direction) || undefined,
+        }),
+      },
+    }
+  })
+  add("slideshow-generation.normalize-collection-overrides", async (input) => ({
+    collectionOverrides: compactRecord({
+      hook_collection_id:
+        dynamicInputValue(input.hook_collection_id) || undefined,
+      body_collection_id:
+        dynamicInputValue(input.body_collection_id) || undefined,
+      cta_collection_id:
+        dynamicInputValue(input.cta_collection_id) || undefined,
+    }),
+  }))
+  add("slideshow-generation.normalize-slide-overrides", async (input) => {
+    const overrides: Record<string, unknown>[] = []
+    const seen = new Set<number>()
+    for (const candidate of requiredArray<Record<string, unknown>>(
+      input.slideOverrides,
+      "slideOverrides",
+      true
+    )) {
+      const override = requiredRecord(candidate, "slideOverrides item")
+      const slideNumber = Number(override.slide_number)
+      if (
+        !Number.isInteger(slideNumber) ||
+        slideNumber < 1 ||
+        slideNumber > 30
+      ) {
+        throw new Error(
+          "Every slide override needs a slide number from 1 to 30"
+        )
+      }
+      if (seen.has(slideNumber)) {
+        throw new Error(`Slide ${slideNumber} has more than one override`)
+      }
+      seen.add(slideNumber)
+      const contentDirection = clean(override.content_direction)
+      const collectionId = dynamicInputValue(override.collection_id)
+      if (!contentDirection && !collectionId) continue
+      overrides.push({
+        slide_number: slideNumber,
+        ...(contentDirection ? { content_direction: contentDirection } : {}),
+        ...(collectionId ? { collection_id: collectionId } : {}),
+      })
+    }
+    return { slideOverrides: overrides }
+  })
   add("slideshow-generation.load-model-settings", async (input, context) => {
     const state = (
       await context.runStage(
@@ -6006,6 +6082,10 @@ function stringArray(value: unknown) {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {}
+}
+
+function dynamicInputValue(value: unknown) {
+  return clean(value) || clean(asRecord(value).value)
 }
 
 function numberValue(value: unknown) {

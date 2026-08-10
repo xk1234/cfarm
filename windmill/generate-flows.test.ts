@@ -73,6 +73,16 @@ describe("generated Lumenclip Windmill flows", () => {
       ),
       "utf8"
     )
+    const nestedDynamicInputsPatch = await readFile(
+      path.join(
+        import.meta.dirname,
+        "..",
+        "infra",
+        "windmill-custom-ui",
+        "nested-dynamic-inputs.patch"
+      ),
+      "utf8"
+    )
 
     expect(patch).toContain("x-lumenclip-hide-input-node")
     expect(patch).toContain("if (!extra.hideInputNode) nodes.push(inputNode)")
@@ -81,6 +91,11 @@ describe("generated Lumenclip Windmill flows", () => {
     expect(dockerfile).toContain(
       "git apply --check /tmp/lumenclip-input-roots.patch"
     )
+    expect(dockerfile).toContain(
+      "git apply --check /tmp/nested-dynamic-inputs.patch"
+    )
+    expect(nestedDynamicInputsPatch).toContain("{helperScript}")
+    expect(nestedDynamicInputsPatch).toContain("{workspace}")
   })
 
   it("surfaces provider request traces from the native Windmill runtime", async () => {
@@ -102,7 +117,10 @@ describe("generated Lumenclip Windmill flows", () => {
   it("keeps slideshow generation independent from legacy history and post-processing", async () => {
     const source = await sourceFor("slideshow-generation")
 
-    expect(source).toContain("id: load_validation_inputs")
+    expect(source).toContain("id: resolve_generation_inputs")
+    expect(source).toContain("id: normalize_run_brief")
+    expect(source).toContain("id: normalize_collection_overrides")
+    expect(source).toContain("id: normalize_slide_overrides")
     expect(source).toContain("id: produce_text_and_candidates")
     expect(source).toContain("id: prepare_image_candidate_pools")
     expect(source).toContain(
@@ -133,22 +151,20 @@ describe("generated Lumenclip Windmill flows", () => {
   it("exposes non-destructive slideshow content and collection overrides", async () => {
     const source = await sourceFor("slideshow-generation")
 
-    expect(source).toContain("contentControls: flow_input.content_controls")
+    expect(source).toContain("contentControls: flow_input.content_inputs")
     expect(source).toContain(
-      "hook_collection_id: flow_input.hook_collection_id"
+      "slideshow-generation.normalize-collection-overrides"
     )
-    expect(source).toContain(
-      "body_collection_id: flow_input.body_collection_id"
-    )
-    expect(source).toContain("cta_collection_id: flow_input.cta_collection_id")
     expect(source).toContain("slideOverrides: flow_input.slide_overrides")
-    expect(source).toContain("title: Content overrides")
-    expect(source).toContain("title: Individual slide overrides")
+    expect(source).toContain("title: Template and hook")
+    expect(source).toContain("title: Content controls")
+    expect(source).toContain("title: Collection controls")
+    expect(source).toContain("title: Individual slide controls")
     expect(source).toContain("format: dynselect-hook_collection_id")
     expect(source).toContain("format: dynselect-body_collection_id")
     expect(source).toContain("format: dynselect-cta_collection_id")
     expect(source).toContain("hook_collection_id(filterText")
-    expect(source).not.toContain("format: dynselect-slide_collection_id")
+    expect(source).toContain("format: dynselect-slide_collection_id")
   })
 
   it("uses the object schema type required by the deployed Windmill dynamic input renderer", async () => {

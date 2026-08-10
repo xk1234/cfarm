@@ -154,19 +154,28 @@ function stageNode(input: {
 }
 
 function slideshowDagFlowYaml(summary: string, description: string) {
-  const validationInputs = `    - id: load_validation_inputs
-      summary: "Load inputs consumed together by slideshow validation"
+  const validationInputs = `    - id: resolve_generation_inputs
+      summary: "Resolve independent slideshow input groups"
       value:
         type: branchall
         parallel: true
         branches:
-          - summary: "Template schema"
+          - summary: "Template"
             modules:
-${indent(stageNode({ id: "load_template", summary: "Load template schema", stageId: "slideshow-generation.load-automation-record", inputExpr: "({ automationId: flow_input.automation_id })" }), 14)}
-          - summary: "Image collections and assets"
+${indent(stageNode({ id: "load_template", summary: "Load selected template", stageId: "slideshow-generation.load-automation-record", inputExpr: "({ automationId: flow_input.template_inputs.automation_id })" }), 14)}
+          - summary: "Hook and content controls"
+            modules:
+${indent(stageNode({ id: "normalize_run_brief", summary: "Normalize hook and content controls", stageId: "slideshow-generation.normalize-run-brief", inputExpr: "({ hook: flow_input.template_inputs.hook, contentControls: flow_input.content_inputs })" }), 14)}
+          - summary: "Collection controls"
+            modules:
+${indent(stageNode({ id: "normalize_collection_overrides", summary: "Normalize collection selections", stageId: "slideshow-generation.normalize-collection-overrides", inputExpr: "flow_input.collection_inputs" }), 14)}
+          - summary: "Individual slide controls"
+            modules:
+${indent(stageNode({ id: "normalize_slide_overrides", summary: "Normalize individual slide overrides", stageId: "slideshow-generation.normalize-slide-overrides", inputExpr: "({ slideOverrides: flow_input.slide_overrides })" }), 14)}
+          - summary: "Image collection context"
             modules:
 ${indent(stageNode({ id: "load_collections", summary: "Load image collections", stageId: "slideshow-generation.list-image-collections", inputExpr: "({})" }), 14)}
-          - summary: "Word variables and hooks"
+          - summary: "Word-variable context"
             modules:
 ${indent(stageNode({ id: "load_word_collections", summary: "Load word collections", stageId: "slideshow-generation.list-word-collections", inputExpr: "({})" }), 14)}
 `
@@ -175,7 +184,7 @@ ${indent(stageNode({ id: "load_word_collections", summary: "Load word collection
     summary: "Validate template, collections, and word variables",
     stageId: "slideshow-generation.validate-input",
     inputExpr:
-      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook, contentControls: flow_input.content_controls, collectionOverrides: { hook_collection_id: flow_input.hook_collection_id, body_collection_id: flow_input.body_collection_id, cta_collection_id: flow_input.cta_collection_id }, slideOverrides: flow_input.slide_overrides })",
+      "({ automationId: flow_input.template_inputs.automation_id, automationRecord: results.resolve_generation_inputs[0].output.automationRecord, hook: results.resolve_generation_inputs[1].output.runBrief.hook, contentControls: results.resolve_generation_inputs[1].output.runBrief.contentControls, collectionOverrides: results.resolve_generation_inputs[2].output.collectionOverrides, slideOverrides: results.resolve_generation_inputs[3].output.slideOverrides, collections: results.resolve_generation_inputs[4].output.collections, wordCollections: results.resolve_generation_inputs[5].output.wordCollections })",
   })
   const modelSettings = stageNode({
     id: "load_model_settings",
@@ -286,18 +295,24 @@ schema:
   type: object
   x-lumenclip-hide-input-node: true
   properties:
-    automation_id:
+    template_inputs:
       type: object
-      format: dynselect-automation_id
-      title: Template
-    hook:
+      title: Template and hook
+      additionalProperties: false
+      properties:
+        automation_id:
+          type: object
+          format: dynselect-automation_id
+          title: Template
+        hook:
+          type: object
+          format: dynselect-hook
+          title: Hook override (optional)
+          description: Choose one saved hook instead of letting the template rotate hooks automatically.
+      required: [automation_id]
+    content_inputs:
       type: object
-      format: dynselect-hook
-      title: Hook override (optional)
-      description: Choose one saved hook instead of letting the template rotate hooks automatically.
-    content_controls:
-      type: object
-      title: Content overrides
+      title: Content controls
       additionalProperties: false
       properties:
         language:
@@ -324,21 +339,26 @@ schema:
           type: string
           format: textarea
           title: CTA content direction
-    hook_collection_id:
+    collection_inputs:
       type: object
-      format: dynselect-hook_collection_id
-      title: Hook collection override
-    body_collection_id:
-      type: object
-      format: dynselect-body_collection_id
-      title: Content collection override
-    cta_collection_id:
-      type: object
-      format: dynselect-cta_collection_id
-      title: CTA collection override
+      title: Collection controls
+      additionalProperties: false
+      properties:
+        hook_collection_id:
+          type: object
+          format: dynselect-hook_collection_id
+          title: Hook collection override
+        body_collection_id:
+          type: object
+          format: dynselect-body_collection_id
+          title: Content collection override
+        cta_collection_id:
+          type: object
+          format: dynselect-cta_collection_id
+          title: CTA collection override
     slide_overrides:
       type: array
-      title: Individual slide overrides
+      title: Individual slide controls
       items:
         type: object
         additionalProperties: false
@@ -352,8 +372,12 @@ schema:
             type: string
             format: textarea
             title: Content direction
+          collection_id:
+            type: object
+            format: dynselect-slide_collection_id
+            title: Collection override
         required: [slide_number]
-  required: [automation_id]
+  required: [template_inputs]
   x-windmill-dyn-select-lang: bun
   x-windmill-dyn-select-code: ${yamlString(
     workflowDynamicSelectCode({
@@ -365,6 +389,7 @@ schema:
         hook_collection_id: "image",
         body_collection_id: "image",
         cta_collection_id: "image",
+        slide_collection_id: "image",
       },
     })
   )}

@@ -1032,6 +1032,33 @@ var init_pipeline_stages = __esm({
         "Return bounded collection IDs, labels, media types, and asset counts for generated Windmill selectors.",
         { ...compositeStage, workflowStep: false }
       ),
+      stage(
+        "slideshow-generation",
+        119,
+        "normalize-run-brief",
+        "Normalize run brief",
+        "deterministic",
+        "Normalize the selected hook and output-affecting content controls independently of template loading.",
+        { workflowStep: false }
+      ),
+      stage(
+        "slideshow-generation",
+        120,
+        "normalize-collection-overrides",
+        "Normalize collection overrides",
+        "deterministic",
+        "Normalize optional hook, content, and CTA collection selections into one typed override artifact.",
+        { workflowStep: false }
+      ),
+      stage(
+        "slideshow-generation",
+        121,
+        "normalize-slide-overrides",
+        "Normalize slide overrides",
+        "deterministic",
+        "Validate and normalize individual slide content-direction and collection overrides.",
+        { workflowStep: false }
+      ),
       atomicStage(
         "slideshow-generation",
         108,
@@ -18764,6 +18791,64 @@ ${clean(input.hook)}`
     "slideshow-generation.list-word-collections-page",
     "wordCollections"
   );
+  add("slideshow-generation.normalize-run-brief", async (input) => {
+    const content = asRecord4(input.contentControls);
+    const suppliedSlideCount = content.slide_count;
+    const slideCount = suppliedSlideCount === void 0 || suppliedSlideCount === null ? null : Math.round(numberValue3(suppliedSlideCount));
+    if (slideCount !== null && (slideCount < 1 || slideCount > 30 || slideCount !== Number(suppliedSlideCount))) {
+      throw new Error("Slide count must be a whole number between 1 and 30");
+    }
+    return {
+      runBrief: {
+        hook: dynamicInputValue(input.hook) || null,
+        contentControls: compactRecord({
+          language: clean(content.language) || void 0,
+          tone: clean(content.tone) || void 0,
+          slide_count: slideCount ?? void 0,
+          hook_content_direction: clean(content.hook_content_direction) || void 0,
+          body_content_direction: clean(content.body_content_direction) || void 0,
+          cta_content_direction: clean(content.cta_content_direction) || void 0
+        })
+      }
+    };
+  });
+  add("slideshow-generation.normalize-collection-overrides", async (input) => ({
+    collectionOverrides: compactRecord({
+      hook_collection_id: dynamicInputValue(input.hook_collection_id) || void 0,
+      body_collection_id: dynamicInputValue(input.body_collection_id) || void 0,
+      cta_collection_id: dynamicInputValue(input.cta_collection_id) || void 0
+    })
+  }));
+  add("slideshow-generation.normalize-slide-overrides", async (input) => {
+    const overrides = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const candidate of requiredArray(
+      input.slideOverrides,
+      "slideOverrides",
+      true
+    )) {
+      const override = requiredRecord(candidate, "slideOverrides item");
+      const slideNumber = Number(override.slide_number);
+      if (!Number.isInteger(slideNumber) || slideNumber < 1 || slideNumber > 30) {
+        throw new Error(
+          "Every slide override needs a slide number from 1 to 30"
+        );
+      }
+      if (seen.has(slideNumber)) {
+        throw new Error(`Slide ${slideNumber} has more than one override`);
+      }
+      seen.add(slideNumber);
+      const contentDirection = clean(override.content_direction);
+      const collectionId = dynamicInputValue(override.collection_id);
+      if (!contentDirection && !collectionId) continue;
+      overrides.push({
+        slide_number: slideNumber,
+        ...contentDirection ? { content_direction: contentDirection } : {},
+        ...collectionId ? { collection_id: collectionId } : {}
+      });
+    }
+    return { slideOverrides: overrides };
+  });
   add("slideshow-generation.load-model-settings", async (input, context) => {
     const state = (await context.runStage(
       "slideshow-generation.get-model-settings-document",
@@ -22407,6 +22492,9 @@ function stringArray(value) {
 }
 function asRecord4(value) {
   return isRecord(value) ? value : {};
+}
+function dynamicInputValue(value) {
+  return clean(value) || clean(asRecord4(value).value);
 }
 function numberValue3(value) {
   const number = Number(value);

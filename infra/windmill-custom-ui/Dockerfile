@@ -12,12 +12,15 @@ WORKDIR /src/windmill
 COPY enum-image-select.patch /tmp/enum-image-select.patch
 COPY lumenclip-input-roots.patch /tmp/lumenclip-input-roots.patch
 COPY responsive-flow-forms.patch /tmp/responsive-flow-forms.patch
+COPY nested-dynamic-inputs.patch /tmp/nested-dynamic-inputs.patch
 RUN git apply --check /tmp/enum-image-select.patch \
   && git apply /tmp/enum-image-select.patch \
   && git apply --check /tmp/lumenclip-input-roots.patch \
   && git apply /tmp/lumenclip-input-roots.patch \
   && git apply --check /tmp/responsive-flow-forms.patch \
-  && git apply /tmp/responsive-flow-forms.patch
+  && git apply /tmp/responsive-flow-forms.patch \
+  && git apply --check /tmp/nested-dynamic-inputs.patch \
+  && git apply /tmp/nested-dynamic-inputs.patch
 
 WORKDIR /src/windmill/frontend
 RUN npm ci

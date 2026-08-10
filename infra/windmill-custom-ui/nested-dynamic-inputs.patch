@@ -1,0 +1,17 @@
+diff --git a/frontend/src/lib/components/ArgInput.svelte b/frontend/src/lib/components/ArgInput.svelte
+--- a/frontend/src/lib/components/ArgInput.svelte
++++ b/frontend/src/lib/components/ArgInput.svelte
+@@ -1004,3 +1004,5 @@
+ 															schema={getSchemaFromProperties(itemsType?.properties)}
+ 															bind:args={value[i]}
++															{helperScript}
++															{workspace}
+ 														/>
+@@ -1329,4 +1331,6 @@
+ 							bind:args={value}
+ 							diff={diffStatus && typeof diffStatus.diff === 'object' ? diffStatus.diff : {}}
+ 							nestedParent={{ label, nestedParent }}
++							{helperScript}
++							{workspace}
+ 							on:acceptChange={(e) => {
+
