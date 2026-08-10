@@ -8,12 +8,6 @@ export type RuntimeHookVariableDefinition = {
 
 export const runtimeHookVariables = [
   {
-    name: "slide_count",
-    label: "Body slide count",
-    description:
-      "The actual number of body slides selected for the current run.",
-  },
-  {
     name: "current_year",
     label: "Current year",
     description: "Four-digit year for the scheduled run date.",
@@ -74,13 +68,21 @@ export const runtimeHookVariables = [
 const runtimeHookVariableNames = new Set<string>(
   runtimeHookVariables.map((variable) => variable.name)
 )
+// Read compatibility only for historical run plans and disabled published
+// hooks. It is intentionally absent from runtimeHookVariables so clients do
+// not advertise it for new hooks.
+const legacyRuntimeHookVariableNames = new Set(["slide_count"])
 
 function canonicalRuntimeHookVariableName(name: string) {
   return name.trim().toLowerCase()
 }
 
 export function isRuntimeHookVariable(name: string) {
-  return runtimeHookVariableNames.has(canonicalRuntimeHookVariableName(name))
+  const canonical = canonicalRuntimeHookVariableName(name)
+  return (
+    runtimeHookVariableNames.has(canonical) ||
+    legacyRuntimeHookVariableNames.has(canonical)
+  )
 }
 
 export function runtimeHookVariableValue(

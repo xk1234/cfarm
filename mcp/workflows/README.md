@@ -185,7 +185,7 @@ calls OpenRouter directly.
 
 The full-workflow order remains aligned with the four production specs:
 
-- Slideshow: `validate-input` → `resolve-slide-count` →
+- Slideshow: `validate-input` → `apply-fixed-slide-count` →
   `select-expand-hook` → `research-hook` → `build-text-prompt` →
   `generate-slide-text` → `retry-text-similarity` →
   `derive-visual-concepts` → `build-image-shortlists` →

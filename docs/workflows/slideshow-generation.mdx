@@ -76,30 +76,30 @@ does not opt into automatic publishing.
 
 ## Stage map
 
-| #   | Stage                        | Output                                                                     |
-| --- | ---------------------------- | -------------------------------------------------------------------------- |
-| 1   | Validate input               | Normalized template, media collections, variables, model settings          |
-| 2   | Select topic                 | Exact hook, an expanded saved hook, or an agent-created topic brief        |
-| 3   | Plan sequence                | Agent-chosen slide count and ordered design IDs with one purpose per slide |
-| 4   | Build text schema            | One structured placeholder set for the planned designs                     |
-| 5   | Generate text                | Title, caption, hashtags, and every visible text item                      |
-| 6   | Similarity and word-range QA | Accepted draft or repaired/retried copy                                    |
-| 7   | Select images                | One pinned, deterministic, or AI-matched image per planned slide           |
-| 8   | Assemble and translate       | Styled slide objects, with optional DeepL translation                      |
-| 9   | Render and store             | PNG slides, thumbnail, preview URL, and downloadable ZIP                   |
-| 10  | Finalize                     | Unpublished result, run record, QA findings, and reuse-memory entries      |
+| #   | Stage                        | Output                                                                    |
+| --- | ---------------------------- | ------------------------------------------------------------------------- |
+| 1   | Validate input               | Normalized template, media collections, variables, model settings         |
+| 2   | Select topic                 | Exact hook, an expanded saved hook, or an agent-created topic brief       |
+| 3   | Plan sequence                | Fixed slide count with agent-ordered design IDs and one purpose per slide |
+| 4   | Build text schema            | One structured placeholder set for the planned designs                    |
+| 5   | Generate text                | Title, caption, hashtags, and every visible text item                     |
+| 6   | Similarity and word-range QA | Accepted draft or repaired/retried copy                                   |
+| 7   | Select images                | One pinned, deterministic, or AI-matched image per planned slide          |
+| 8   | Assemble and translate       | Styled slide objects, with optional DeepL translation                     |
+| 9   | Render and store             | PNG slides, thumbnail, preview URL, and downloadable ZIP                  |
+| 10  | Finalize                     | Unpublished result, run record, QA findings, and reuse-memory entries     |
 
 ## Sequence contract
 
 The schema stores `slide_designs[]`. Each design has a stable `id`, display
 `name`, agent-facing `instructions`, `collectionId`, text items, aspect ratio,
 image grid, overlay, AI image-matching flag, and optional visual preset. It has
-no Hook/Content/CTA role and no fixed repetition count.
+no Hook/Content/CTA role; designs can repeat within the fixed sequence.
 
-Text settings store `slide_count_min`, `slide_count_max`, and
-`slide_planning_prompt`. The planner must return between those bounds and may
-only choose IDs present in `slide_designs`. Invalid IDs or out-of-range plans
-fail before copy generation.
+Text settings store the fixed `num_of_slides` and `slide_planning_prompt`. The
+planner must return exactly that many entries and may only choose IDs present
+in `slide_designs`. Invalid IDs or a mismatched count fail before copy
+generation. The text model never decides the count.
 
 Legacy `formatting` blocks remain readable only as a migration source. When a
 record has no `slide_designs`, normalization deterministically expands its old

@@ -34,12 +34,12 @@ const collections: WordCollectionRecord[] = [
 ]
 
 describe("automation hook token validation", () => {
-  it("accepts canonical collection and runtime tokens", () => {
+  it("accepts canonical collection and supported runtime tokens", () => {
     expect(
       validateAutomationHookTokens({
         hooks: [
           {
-            text: "[[SLIDE_COUNT]] things [[ZODIAC]] needs in [[CURRENT_YEAR]]",
+            text: "What [[ZODIAC]] needs in [[CURRENT_YEAR]]",
           },
         ],
         collections,
@@ -83,7 +83,7 @@ describe("automation hook token validation", () => {
     ).toThrow("did you mean [[ZODIAC]]")
   })
 
-  it("warns when NUMBER is used where SLIDE_COUNT may be intended", () => {
+  it("warns that NUMBER is unrelated to the fixed slide count", () => {
     expect(
       validateAutomationHookTokens({
         hooks: [{ id: "count", text: "[[NUMBER]] signs they like you" }],

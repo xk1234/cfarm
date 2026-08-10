@@ -14,7 +14,7 @@ an old binary continuing to enqueue work.
 ```text
 Generate button / MCP / POST /api/templates/run
   -> claim one manual run
-  -> text agent plans slide count and design sequence
+  -> fixed template count + text agent plans design sequence
   -> generate text and choose media
   -> render and store draft
   -> preview + ZIP + Telegram generation-complete notification

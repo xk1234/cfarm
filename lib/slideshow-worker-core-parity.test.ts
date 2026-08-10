@@ -132,7 +132,7 @@ describe("app and generated worker core parity", () => {
 
     const appCount = appSelectedBodySlideCount(schema, 5)
     const workerCount = worker.selectedBodySlideCount(schema, 5)
-    expect(appCount).toBe(4)
+    expect(appCount).toBe(2)
     expect(appCount).toBe(workerCount)
 
     const appSpecs = appSlideSpecs(schema, "3 signs you need a reset", appCount)
@@ -143,11 +143,9 @@ describe("app and generated worker core parity", () => {
     )
     expect(appSpecs).toEqual(workerSpecs)
     expect(appSpecs.map((spec) => spec.id)).toEqual([
-      "hook-1",
+      "content-1",
       "content-2",
-      "content-3",
-      "content-4",
-      "cta-5",
+      "cta-3",
     ])
     expect(
       appSpecForSection(schema, schema.formatting[1]!, "content", 2)

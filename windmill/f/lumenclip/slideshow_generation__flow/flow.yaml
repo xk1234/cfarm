@@ -250,8 +250,8 @@ value:
                     stage_input:
                       type: javascript
                       expr: "({ ...results.validate_input.output, usageHistory: results.load_generation_context[0].output.usageHistory, generationSettings: results.load_generation_context[1].output.generationSettings })"
-              - id: resolve_slide_count
-                summary: "Resolve slide count"
+              - id: apply_fixed_slide_count
+                summary: "Apply fixed slide count"
                 timeout:
                   type: static
                   value: 300
@@ -271,7 +271,7 @@ value:
                       value: $var:f/lumenclip/default_owner_id
                     stage_id:
                       type: static
-                      value: "slideshow-generation.resolve-slide-count"
+                      value: "slideshow-generation.apply-fixed-slide-count"
                     owner_id:
                       type: javascript
                       expr: flow_input.owner_id
@@ -311,7 +311,7 @@ value:
                       expr: flow_input.request_id
                     stage_input:
                       type: javascript
-                      expr: "results.resolve_slide_count.output"
+                      expr: "results.apply_fixed_slide_count.output"
               - id: research_hook
                 summary: "Research selected hook"
                 timeout:

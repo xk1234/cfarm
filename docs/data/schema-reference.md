@@ -303,9 +303,9 @@ continue to resolve.
 | ----------------------- | ------ | -------- | -------------------------------------------------- | --------------------------------------- |
 | `style`                 | string | Yes      | Free string                                        | Slide-copy direction.                   |
 | `narrative`             | string | Yes      | Compatibility string                               | Legacy narrative input.                 |
-| `num_of_slides`         | number | Yes      | Positive integer                                   | Legacy/migration count hint.            |
-| `slide_count_min`       | number | No       | Positive integer                                   | Agent-planned sequence lower bound.     |
-| `slide_count_max`       | number | No       | Positive integer                                   | Agent-planned sequence upper bound.     |
+| `num_of_slides`         | number | Yes      | Positive integer                                   | Fixed generation count.                 |
+| `slide_count_min`       | number | No       | Same as `num_of_slides`                            | Deprecated compatibility mirror.        |
+| `slide_count_max`       | number | No       | Same as `num_of_slides`                            | Deprecated compatibility mirror.        |
 | `slide_planning_prompt` | string | No       | Free string                                        | Sequence-planner direction.             |
 | `hook_case`             | string | No       | Hook-case modes registered in `lib/hook-casing.ts` | Optional hook capitalization transform. |
 

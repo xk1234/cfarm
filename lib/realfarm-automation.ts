@@ -1367,17 +1367,6 @@ export function automationTotalSlideCount(
     "prompt_formatting" | "formatting" | "slide_designs"
   >
 ) {
-  if (schema.slide_designs.length > 0) {
-    const min = Math.max(
-      1,
-      Math.round(Number(schema.prompt_formatting.slide_count_min) || 3)
-    )
-    const max = Math.max(
-      min,
-      Math.round(Number(schema.prompt_formatting.slide_count_max) || 12)
-    )
-    return Math.round((min + max) / 2)
-  }
   const configured = Number(schema.prompt_formatting?.num_of_slides)
   if (Number.isFinite(configured) && configured > 0) {
     return Math.max(1, Math.round(configured))
@@ -1798,30 +1787,21 @@ function normalizePromptFormatting(
   fallback: PromptFormatting
 ): PromptFormatting {
   const record = isRecord(value) ? value : {}
+  const numOfSlides = Math.max(
+    1,
+    Math.round(numberValue(record.num_of_slides, fallback.num_of_slides))
+  )
   return {
     style: clean(record.style) || fallback.style,
     narrative:
       typeof record.narrative === "string"
         ? record.narrative.trim()
         : fallback.narrative,
-    num_of_slides: numberValue(record.num_of_slides, fallback.num_of_slides),
-    slide_count_min: Math.max(
-      1,
-      Math.round(
-        numberValue(record.slide_count_min, fallback.slide_count_min ?? 3)
-      )
-    ),
-    slide_count_max: Math.max(
-      Math.max(
-        1,
-        Math.round(
-          numberValue(record.slide_count_min, fallback.slide_count_min ?? 3)
-        )
-      ),
-      Math.round(
-        numberValue(record.slide_count_max, fallback.slide_count_max ?? 12)
-      )
-    ),
+    num_of_slides: numOfSlides,
+    // Kept equal only while older records and clients still carry these keys.
+    // Generation uses num_of_slides as its single fixed source of truth.
+    slide_count_min: numOfSlides,
+    slide_count_max: numOfSlides,
     slide_planning_prompt:
       typeof record.slide_planning_prompt === "string"
         ? record.slide_planning_prompt.trim()
@@ -1917,16 +1897,9 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
         record.slideCount,
         defaultAutomationSection(id).slideCount
       ),
-      slideCountMode:
-        record.slideCountMode === "varying" ? "varying" : "static",
-      slideCountMin:
-        record.slideCountMin === undefined
-          ? undefined
-          : Math.max(1, numberValue(record.slideCountMin, 1)),
-      slideCountMax:
-        record.slideCountMax === undefined
-          ? undefined
-          : Math.max(1, numberValue(record.slideCountMax, 1)),
+      slideCountMode: "static",
+      slideCountMin: undefined,
+      slideCountMax: undefined,
       noText: Boolean(record.noText),
       overlay:
         typeof record.overlay === "boolean"

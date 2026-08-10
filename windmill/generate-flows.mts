@@ -299,16 +299,16 @@ ${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", 
       "({ ...results.validate_input.output, usageHistory: results.load_generation_context[0].output.usageHistory, generationSettings: results.load_generation_context[1].output.generationSettings })",
   })
   const count = stageNode({
-    id: "resolve_slide_count",
-    summary: "Resolve slide count",
-    stageId: "slideshow-generation.resolve-slide-count",
+    id: "apply_fixed_slide_count",
+    summary: "Apply fixed slide count",
+    stageId: "slideshow-generation.apply-fixed-slide-count",
     inputExpr: "results.prepare_generation_context.output",
   })
   const hook = stageNode({
     id: "select_expand_hook",
     summary: "Select and expand hook",
     stageId: "slideshow-generation.select-expand-hook",
-    inputExpr: "results.resolve_slide_count.output",
+    inputExpr: "results.apply_fixed_slide_count.output",
   })
   const research = stageNode({
     id: "research_hook",

@@ -4,16 +4,18 @@ import {
   automationFormatSection,
   automationHookItems,
   automationPublishType,
-  automationTotalSlideCount,
-  updateAutomationFormatSection,
+  automationSlideDesigns,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
+import {
+  fixedSlideshowCount,
+  hookUsesDynamicSlideCount,
+} from "@/lib/fixed-slideshow-count"
 import {
   legacyStoredCollectionId,
   storedCollectionId,
 } from "@/lib/realfarm-collections"
 import {
-  selectContentSlideCount,
   automationSlideshowSettings,
   type AutomationRunPlan,
   type AutomationRunRecord,
@@ -1830,9 +1832,18 @@ export function createProductionPipelineHandlers(
       id: saved?.id || clean(input.automationId) || "standalone-slideshow",
       name: saved?.name || clean(input.automationName) || "Slideshow",
     }
+    const designs = automationSlideDesigns(schema)
+    const fixedCount = fixedSlideshowCount(schema)
+    const slidePlan =
+      designs.length > 0
+        ? Array.from({ length: fixedCount }, (_, index) => ({
+            designId: designs[index % designs.length]!.id,
+            purpose: "",
+          }))
+        : undefined
     const textAutomation = automationSchemaToTempSlideTestingAutomation(
       schema,
-      automation
+      { ...automation, slidePlan }
     )
     return mergePipelineOutput(state, {
       automation,
@@ -1941,39 +1952,38 @@ export function createProductionPipelineHandlers(
     }
   })
 
-  add("slideshow-generation.resolve-slide-count", async (input) => {
+  add("slideshow-generation.apply-fixed-slide-count", async (input) => {
     const schema = requiredSchema(input)
-    const hook = automationFormatSection(schema, "hook").slideCount
-    const content = automationFormatSection(schema, "content")
-    const cta = automationFormatSection(schema, "cta").slideCount
-    const selected = selectContentSlideCount({
-      mode: content.slideCountMode ?? "static",
-      count: content.slideCount,
-      min: content.slideCountMin,
-      max: content.slideCountMax,
-    })
+    const total = fixedSlideshowCount(schema)
+    const usesSlideDesigns = schema.slide_designs.length > 0
+    const hook = usesSlideDesigns
+      ? 0
+      : Math.max(0, automationFormatSection(schema, "hook").slideCount)
+    const cta = usesSlideDesigns
+      ? 0
+      : Math.max(0, automationFormatSection(schema, "cta").slideCount)
+    const body = Math.max(0, total - hook - cta)
     return mergePipelineOutput(input, {
       slideCount: {
-        mode: content.slideCountMode ?? "static",
+        mode: "static",
         hook,
-        body: selected.count,
+        body,
         cta,
-        total: hook + selected.count + cta,
-        minimum: selected.min,
-        maximum: selected.max,
+        total,
+        minimum: total,
+        maximum: total,
       },
     })
   })
 
   add("slideshow-generation.select-expand-hook", async (input) => {
-    let schema = requiredSchema(input)
+    const schema = requiredSchema(input)
     const selection = selectSlideshowHook({
       hookItems: automationHookItems(schema)
-        .filter((item) => item.enabled)
+        .filter((item) => item.enabled && !hookUsesDynamicSlideCount(item))
         .map((item) => ({
           id: item.id,
           text: item.text,
-          bodySlideCount: item.bodySlideCount,
           tone: item.tone,
         })),
       hookSlots: schema.hook_slots,
@@ -1997,33 +2007,7 @@ export function createProductionPipelineHandlers(
       hookTemplate: selection.expansion.template,
       hookSubstitutions: selection.expansion.substitutions,
       hookToneOverride: selection.tone ?? null,
-      bodySlideCountOverride: selection.bodySlideCount ?? null,
-    }
-    if (
-      selection.bodySlideCount &&
-      selection.bodySlideCount !== numberValue(asRecord(input.slideCount).body)
-    ) {
-      schema = updateAutomationFormatSection(schema, "content", {
-        slideCount: selection.bodySlideCount,
-        slideCountMode: "static",
-      })
-      const textAutomation = automationSchemaToTempSlideTestingAutomation(
-        schema,
-        requiredRecord(input.automation, "automation") as never
-      )
-      additions.schema = schema
-      additions.textAutomation = textAutomation
-      additions.slideSpecs = textAutomation.slides.map((slide) => ({
-        ...slide,
-        textId:
-          slide.textItems.find((item) => item.textMode === "prompt")?.id ||
-          slide.textItems[0]?.id,
-      }))
-      additions.slideCount = {
-        ...asRecord(input.slideCount),
-        body: selection.bodySlideCount,
-        total: automationTotalSlideCount(schema),
-      }
+      bodySlideCountOverride: null,
     }
     return mergePipelineOutput(input, additions)
   })

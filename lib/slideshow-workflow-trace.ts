@@ -170,7 +170,7 @@ export function buildSlideshowWorkflowTrace(input: {
       }),
     ],
     [
-      "slideshow-generation.resolve-slide-count",
+      "slideshow-generation.apply-fixed-slide-count",
       observed({
         input: {
           configured: plan.slideCount,
