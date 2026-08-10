@@ -312,6 +312,8 @@ describe("generated Lumenclip Windmill flows", () => {
       const code = JSON.parse(line!.slice(line!.indexOf(":") + 1).trim())
       expect(code).toContain("new TablesDB(client)")
       expect(code).toContain("templateOptions")
+      expect(code).toContain('["templates", "automations"]')
+      expect(code).toContain('["social_templates", "x_automations"]')
       if (
         workflowId === "ugc-video-generation" ||
         workflowId === "react-reveal-generation" ||
@@ -320,6 +322,7 @@ describe("generated Lumenclip Windmill flows", () => {
         expect(code).toContain(
           'Query.equal("source_key", ["image_collection"])'
         )
+        expect(code).toContain('["permanent_assets", "image_collections"]')
       }
       expect(code).not.toContain("wmill.runScript")
       const diagnostics =
