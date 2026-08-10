@@ -1343,10 +1343,14 @@ async function templateOptions(config: {
   platforms?: string[]
 }, filterText = "") {
   const { tables, databaseId, ownerId } = await appwrite()
-  const response = await tables.listRows(databaseId, config.table, [
-    Query.equal("owner_id", [ownerId]),
-    Query.limit(100),
-  ])
+  const response = await listRowsWithFallback(
+    tables,
+    databaseId,
+    config.table === "templates"
+      ? ["templates", "automations"]
+      : ["social_templates", "x_automations"],
+    [Query.equal("owner_id", [ownerId]), Query.limit(100)]
+  )
   const query = clean(filterText).toLowerCase()
   return response.rows.flatMap((row) => {
     const record = parseRecord(row.data)
@@ -1373,11 +1377,16 @@ async function hookOptions(templateId = "", filterText = "") {
   const id = clean(templateId)
   if (!id) return []
   const { tables, databaseId, ownerId } = await appwrite()
-  const response = await tables.listRows(databaseId, "templates", [
-    Query.equal("owner_id", [ownerId]),
-    Query.equal("rid", [id]),
-    Query.limit(1),
-  ])
+  const response = await listRowsWithFallback(
+    tables,
+    databaseId,
+    ["templates", "automations"],
+    [
+      Query.equal("owner_id", [ownerId]),
+      Query.equal("rid", [id]),
+      Query.limit(1),
+    ]
+  )
   const record = parseRecord(response.rows[0]?.data)
   const schema = parseRecord(record?.schema)
   const hooks = Array.isArray(schema?.hooks) ? schema.hooks : []
@@ -1393,14 +1402,12 @@ async function hookOptions(templateId = "", filterText = "") {
 
 async function mediaCollections(kind: "video" | "image", filterText = "") {
   const { tables, databaseId, ownerId } = await appwrite()
-  const response = await tables.listRows(
+  const response = await listRowsWithFallback(
+    tables,
     databaseId,
-    "permanent_assets",
-    [
-      Query.equal("owner_id", [ownerId]),
-      Query.equal("source_key", ["image_collection"]),
-      Query.limit(100),
-    ]
+    ["permanent_assets", "image_collections"],
+    [Query.equal("owner_id", [ownerId]), Query.limit(100)],
+    { permanent_assets: Query.equal("source_key", ["image_collection"]) }
   )
   const query = String(filterText || "").trim().toLowerCase()
   return response.rows.flatMap((row) => {
@@ -1421,6 +1428,26 @@ async function mediaCollections(kind: "video" | "image", filterText = "") {
       assetCount,
     }]
   })
+}
+
+async function listRowsWithFallback(
+  tables: TablesDB,
+  databaseId: string,
+  tableIds: string[],
+  queries: string[],
+  tableQueries: Record<string, string> = {}
+) {
+  for (const tableId of tableIds) {
+    try {
+      return await tables.listRows(databaseId, tableId, [
+        ...queries,
+        ...(tableQueries[tableId] ? [tableQueries[tableId]] : []),
+      ])
+    } catch (error) {
+      if (Number((error as { code?: unknown })?.code) !== 404) throw error
+    }
+  }
+  throw new Error("No compatible LumenClip Appwrite table was found")
 }
 
 async function appwrite() {
