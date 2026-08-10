@@ -17,32 +17,33 @@ describe("Windmill workflow client", () => {
     const result = await queueWindmillWorkflow({
       workflowId: "slideshow-generation",
       ownerId: "owner-1",
-      requestId: "request-1",
       workflowInput: { automationId: "automation-1" },
       fetchImpl,
     })
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       workflowId: "slideshow-generation",
-      requestId: "request-1",
       status: "queued",
       jobId: "job-123",
       flowPath: "f/lumenclip/slideshow_generation",
     })
+    expect(result.requestId).toMatch(/^pipeline-/)
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://windmill.example/api/w/lumenclip/jobs/run/f/f/lumenclip/slideshow_generation",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({
-          owner_id: "owner-1",
-          request_id: "request-1",
-          automation_id: "automation-1",
-        }),
+        body: expect.stringContaining(
+          JSON.stringify({
+            owner_id: "owner-1",
+            request_id: result.requestId,
+            automation_id: "automation-1",
+          })
+        ),
       })
     )
   })
 
-  it("rejects linear execution windows for dependency graphs", async () => {
+  it("rejects inputs that do not affect the workflow output", async () => {
     configureWindmill()
     const fetchImpl = vi.fn()
 
@@ -50,12 +51,16 @@ describe("Windmill workflow client", () => {
       queueWindmillWorkflow({
         workflowId: "linkedin-generation",
         ownerId: "owner-1",
-        workflowInput: {},
-        startAt: "linkedin-generation.complete-batch",
-        stopAfter: "linkedin-generation.validate-input",
+        workflowInput: {
+          niche: "SaaS",
+          request_id: "caller-controlled",
+          unused: true,
+        },
         fetchImpl,
       })
-    ).rejects.toThrow("do not support linear startAt/stopAfter")
+    ).rejects.toThrow(
+      "linkedin-generation does not accept input request_id, unused"
+    )
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 

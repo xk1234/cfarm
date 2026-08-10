@@ -245,7 +245,6 @@ ordered `workflowStages` list.
 ```json
 {
   "workflowId": "linkedin-generation",
-  "requestId": "linkedin-batch-2026-08-01",
   "input": {
     "niche": "B2B SaaS onboarding",
     "persona": "practitioner",
@@ -255,13 +254,23 @@ ordered `workflowStages` list.
 }
 ```
 
-Named runs accept the same top-level logical input groups as their Windmill
-forms. Linear `startAt` and `stopAfter` windows are rejected because skipping a
-branch would break dependency joins. For isolated debugging, call
+Named runs accept only the output-affecting top-level inputs shown in their
+Windmill forms. Unknown keys are rejected instead of being silently ignored or
+forwarded. Owner identity, request IDs, tracing, and persistence metadata are
+derived internally and are not caller inputs. For isolated debugging, call
 `lumenclip_pipeline_stage_run` with one stage and explicit named artifacts. For
 an async atomic sequence, retain the complete output containing the provider
 task ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
 succeeded output to download and persistence.
+
+| Workflow         | Accepted named inputs                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| Slideshow        | `automation_id`                                                                                   |
+| UGC video        | `template_id`, `product`, `script`, `actor`, `voice`, `broll`, `render`                           |
+| React & Reveal   | `template_id`, `anticipation`, `reveal`, `hook_caption`, `payoff_caption`, `audio`, `output`      |
+| Greenscreen Meme | `template_id`, `meme`, `background`, `caption`, `text_placement`, `audio`, `output`               |
+| LinkedIn         | `niche`, `topic`, `excluded_topics`, `proof`, `persona`, `brief`, `brief_model`, `model`, `count` |
+| X/Threads        | `automation_id`, `topic`, `source_candidate`                                                      |
 
 The generated flows contain no generic identity/pass-through modules. The
 dependency audit in `windmill/workflow-dependencies.ts` records each consumer's

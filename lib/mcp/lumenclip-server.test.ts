@@ -81,6 +81,9 @@ describe("LumenClip MCP server", () => {
     const client = await connectClient()
     const tools = await client.listTools()
     const toolNames = tools.tools.map((tool) => tool.name)
+    const pipelineRun = tools.tools.find(
+      (tool) => tool.name === "lumenclip_pipeline_run"
+    )
 
     expect(toolNames.sort()).toEqual([...LUMENCLIP_MCP_TOOL_NAMES].sort())
     expect(toolNames).toContain("lumenclip_tiktok_studio_analytics_report")
@@ -88,6 +91,9 @@ describe("LumenClip MCP server", () => {
     expect(toolNames).not.toContain(
       "lumenclip_tiktok_studio_analytics_batch_preview"
     )
+    expect(pipelineRun?.inputSchema).not.toHaveProperty("properties.requestId")
+    expect(pipelineRun?.inputSchema).not.toHaveProperty("properties.startAt")
+    expect(pipelineRun?.inputSchema).not.toHaveProperty("properties.stopAfter")
   })
 
   it("runs a named production workflow or one exact registered stage", async () => {
@@ -126,7 +132,7 @@ describe("LumenClip MCP server", () => {
         input: Parameters<LumenClipMcpServices["queuePipelineWorkflow"]>[0]
       ) => ({
         workflowId: input.workflowId,
-        requestId: input.requestId || "pipeline-test",
+        requestId: "pipeline-test",
         status: "queued" as const,
         jobId: "windmill-job-1",
         flowPath: "f/lumenclip/linkedin_generation",
@@ -151,6 +157,7 @@ describe("LumenClip MCP server", () => {
       workflows: expect.arrayContaining([
         expect.objectContaining({
           id: "slideshow-generation",
+          inputs: ["automation_id"],
           stages: expect.arrayContaining([
             expect.objectContaining({
               id: "slideshow-generation.select-one-slide-image",
@@ -181,8 +188,6 @@ describe("LumenClip MCP server", () => {
       arguments: {
         workflowId: "linkedin-generation",
         input: stageInput,
-        requestId: "linkedin-stage-test",
-        stopAfter: "linkedin-generation.validate-input",
       },
     })
     const selectedImage = await client.callTool({
@@ -232,7 +237,7 @@ describe("LumenClip MCP server", () => {
       expect.objectContaining({
         workflowId: "linkedin-generation",
         ownerId: "owner-1",
-        stopAfter: "linkedin-generation.validate-input",
+        workflowInput: stageInput,
       })
     )
   })
