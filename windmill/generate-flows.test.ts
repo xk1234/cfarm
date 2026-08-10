@@ -130,6 +130,25 @@ describe("generated Lumenclip Windmill flows", () => {
     }
   })
 
+  it("exposes non-destructive slideshow content and collection overrides", async () => {
+    const source = await sourceFor("slideshow-generation")
+
+    expect(source).toContain("contentControls: flow_input.content_controls")
+    expect(source).toContain(
+      "collectionOverrides: flow_input.collection_overrides"
+    )
+    expect(source).toContain("slideOverrides: flow_input.slide_overrides")
+    expect(source).toContain("title: Content overrides")
+    expect(source).toContain("title: Collection overrides")
+    expect(source).toContain("title: Individual slide overrides")
+    expect(source).toContain("format: dynselect-hook_collection_id")
+    expect(source).toContain("format: dynselect-body_collection_id")
+    expect(source).toContain("format: dynselect-cta_collection_id")
+    expect(source).toContain("format: dynselect-slide_collection_id")
+    expect(source).toContain("hook_collection_id(filterText")
+    expect(source).toContain("slide_collection_id(filterText")
+  })
+
   it("bundles typed media artifacts for intermediate image and video values", async () => {
     const runtime = await readFile(
       path.join(

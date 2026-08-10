@@ -11,6 +11,7 @@ import {
 } from "@/lib/pipeline-stages"
 import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-payload"
 import type { TempSlideTestingAutomation } from "@/lib/temp-slide-testing"
+import { defaultAutomationSchema } from "@/lib/realfarm-automation"
 
 function services() {
   return {
@@ -128,6 +129,121 @@ describe("production pipeline stage handlers", () => {
       ],
     })
     expect(JSON.stringify(result)).not.toContain("cdn.test")
+  })
+
+  it("applies slideshow run overrides without mutating the saved template", async () => {
+    const schema = defaultAutomationSchema({
+      id: "template-1",
+      name: "Astrology Informational",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      favorite: false,
+      theme: "default",
+      socialIntegrations: [],
+      automationKind: "slideshow",
+    })
+    schema.hooks = [
+      {
+        id: "hook-1",
+        text: "A saved astrology hook",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+    ]
+    schema.image_collection_ids.first_slide.collection = "base"
+    schema.image_collection_ids.all_slides = "base"
+    schema.slide_designs = schema.slide_designs.map((design) => ({
+      ...design,
+      collectionId: "base",
+    }))
+    const original = structuredClone(schema)
+    const collection = (id: string) => ({
+      id,
+      name: id,
+      created_at: "2026-08-01T00:00:00.000Z",
+      images: [{ image_link: `https://cdn.test/${id}.jpg`, caption: id }],
+    })
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const output = await handlers.get("slideshow-generation.validate-input")!(
+      {
+        schema,
+        collections: [
+          collection("base"),
+          collection("hook-new"),
+          collection("body-new"),
+          collection("cta-new"),
+          collection("slide-new"),
+        ],
+        wordCollections: [],
+        contentControls: {
+          language: "Spanish",
+          tone: "Direct and playful",
+          slide_count: 4,
+          hook_content_direction: "Open with a surprising zodiac contrast.",
+          body_content_direction:
+            "Explain the contrast with concrete examples.",
+          cta_content_direction: "Ask readers which sign they are.",
+        },
+        collectionOverrides: {
+          hook_collection_id: "hook-new",
+          body_collection_id: "body-new",
+          cta_collection_id: "cta-new",
+        },
+        slideOverrides: [
+          {
+            slide_number: 2,
+            content_direction: "Make this slide about Leo specifically.",
+            collection_id: "slide-new",
+          },
+        ],
+      },
+      context("slideshow-generation.validate-input", handlers)
+    )
+
+    expect(schema).toEqual(original)
+    expect(output.schema).toMatchObject({
+      language: "Spanish",
+      tone: { value: "Direct and playful", preset: "custom" },
+      prompt_formatting: { num_of_slides: 4 },
+      image_collection_ids: {
+        first_slide: {
+          collection: "hook-new",
+          mode: "collection",
+          single_image: null,
+        },
+        all_slides: "body-new",
+        cta_slide: {
+          check: true,
+          cta_collection_id: "cta-new",
+          image_id: null,
+        },
+      },
+    })
+    expect(output.textAutomation.slides).toHaveLength(4)
+    expect(output.textAutomation.slides[1]).toMatchObject({
+      collectionId: "slide-new",
+      textItems: [
+        expect.objectContaining({
+          contentDirection: "Make this slide about Leo specifically.",
+        }),
+      ],
+    })
+    expect(output.appliedOverrides).toMatchObject({
+      collectionOverrides: {
+        hook: "hook-new",
+        body: "body-new",
+        cta: "cta-new",
+      },
+      slideOverrides: [
+        {
+          slide_number: 2,
+          content_direction: "Make this slide about Leo specifically.",
+          collection_id: "slide-new",
+        },
+      ],
+    })
   })
 
   it("persists an X run by composing registered read, create, and media stages", async () => {

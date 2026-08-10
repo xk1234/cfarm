@@ -175,7 +175,7 @@ ${indent(stageNode({ id: "load_word_collections", summary: "Load word collection
     summary: "Validate template, collections, and word variables",
     stageId: "slideshow-generation.validate-input",
     inputExpr:
-      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook })",
+      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook, contentControls: flow_input.content_controls, collectionOverrides: flow_input.collection_overrides, slideOverrides: flow_input.slide_overrides })",
   })
   const modelSettings = stageNode({
     id: "load_model_settings",
@@ -295,6 +295,73 @@ schema:
       format: dynselect-hook
       title: Hook override (optional)
       description: Choose one saved hook instead of letting the template rotate hooks automatically.
+    content_controls:
+      type: object
+      title: Content overrides
+      additionalProperties: false
+      properties:
+        language:
+          type: string
+          title: Language
+        tone:
+          type: string
+          format: textarea
+          title: Tone
+        slide_count:
+          type: integer
+          title: Slide count
+          minimum: 1
+          maximum: 30
+        hook_content_direction:
+          type: string
+          format: textarea
+          title: Hook content direction
+        body_content_direction:
+          type: string
+          format: textarea
+          title: Content direction
+        cta_content_direction:
+          type: string
+          format: textarea
+          title: CTA content direction
+    collection_overrides:
+      type: object
+      title: Collection overrides
+      additionalProperties: false
+      properties:
+        hook_collection_id:
+          type: string
+          format: dynselect-hook_collection_id
+          title: Hook collection
+        body_collection_id:
+          type: string
+          format: dynselect-body_collection_id
+          title: Content collection
+        cta_collection_id:
+          type: string
+          format: dynselect-cta_collection_id
+          title: CTA collection
+    slide_overrides:
+      type: array
+      title: Individual slide overrides
+      items:
+        type: object
+        additionalProperties: false
+        properties:
+          slide_number:
+            type: integer
+            title: Slide number
+            minimum: 1
+            maximum: 30
+          content_direction:
+            type: string
+            format: textarea
+            title: Content direction
+          collection_id:
+            type: string
+            format: dynselect-slide_collection_id
+            title: Collection
+        required: [slide_number]
   required: [automation_id]
   x-windmill-dyn-select-lang: bun
   x-windmill-dyn-select-code: ${yamlString(
@@ -303,6 +370,12 @@ schema:
         automation_id: { table: "templates", automationKind: "slideshow" },
       },
       hookFields: { hook: { templateField: "automation_id" } },
+      mediaCollectionFields: {
+        hook_collection_id: "image",
+        body_collection_id: "image",
+        cta_collection_id: "image",
+        slide_collection_id: "image",
+      },
     })
   )}
 `
