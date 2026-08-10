@@ -4742,15 +4742,44 @@ export function createProductionPipelineHandlers(
     return { automationId, automation }
   })
 
-  add("x-threads-generation.normalize-run-input", async (input) => ({
-    runInput: {
-      topic: clean(input.topic),
-      sourceCandidate: isRecord(input.sourceCandidate)
-        ? input.sourceCandidate
-        : null,
-      deriveBrief: input.deriveBrief !== false,
-    },
-  }))
+  add("x-threads-generation.normalize-run-input", async (input) => {
+    const suppliedSource = isRecord(input.sourceCandidate)
+      ? input.sourceCandidate
+      : null
+    const sourceUrl = clean(suppliedSource?.url)
+    const sourceText = clean(suppliedSource?.text)
+    const sourceCandidate =
+      sourceUrl || sourceText
+        ? {
+            id: clean(suppliedSource?.id) || `manual-${contextId(input)}`,
+            source:
+              suppliedSource?.source === "tiktok" ||
+              suppliedSource?.source === "instagram"
+                ? suppliedSource.source
+                : "x",
+            url: sourceUrl,
+            author: clean(suppliedSource?.author) || undefined,
+            text: sourceText,
+            mediaUrls: stringArray(suppliedSource?.mediaUrls),
+            metrics: {
+              views: 0,
+              likes: 0,
+              replies: 0,
+              reposts: 0,
+            },
+            engagementRate: 0,
+            relevanceScore: 0,
+            reason: "Manually supplied reaction source",
+          }
+        : null
+    return {
+      runInput: {
+        topic: clean(input.topic),
+        sourceCandidate,
+        deriveBrief: input.deriveBrief !== false,
+      },
+    }
+  })
 
   add("x-threads-generation.validate-input", async (input, context) => {
     let state = input
@@ -4865,7 +4894,13 @@ export function createProductionPipelineHandlers(
       "automation"
     ) as unknown as XAutomationRecord
     return mergePipelineOutput(input, {
-      generationRequest: buildXGenerationRequest({ plan, record: automation }),
+      generationRequest: buildXGenerationRequest({
+        plan,
+        record: automation,
+        sourceCandidate: isRecord(input.sourceCandidate)
+          ? (input.sourceCandidate as never)
+          : undefined,
+      }),
     })
   })
 

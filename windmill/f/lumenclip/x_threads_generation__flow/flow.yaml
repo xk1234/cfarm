@@ -434,12 +434,33 @@ schema:
   properties:
     automation_id:
       type: string
+      format: dynselect-automation_id
       title: Template
     topic:
       type: string
       title: Topic (optional)
     source_candidate:
       type: object
-      title: Source candidate (optional)
-      description: Structured source or trend context for this run.
+      title: Reaction source (optional)
+      description: Add a source post only when the generated post should react to it.
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+          title: Platform
+          enum: [x, tiktok, instagram]
+          default: x
+        url:
+          type: string
+          format: uri
+          title: Source URL
+        author:
+          type: string
+          title: Author (optional)
+        text:
+          type: string
+          format: textarea
+          title: Source text or transcript
   required: [automation_id]
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: "import { Client, Query, TablesDB } from \"node-appwrite\"\nimport * as wmill from \"windmill-client\"\n\nexport async function automation_id(filterText = \"\") {\n  return templateOptions({\"table\":\"social_templates\",\"platforms\":[\"x\",\"threads\"]}, filterText)\n}\n\nasync function templateOptions(config: {\n  table: \"templates\" | \"social_templates\"\n  automationKind?: string\n  videoFormat?: string\n  excludedVideoFormats?: string[]\n  platforms?: string[]\n}, filterText = \"\") {\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await tables.listRows(databaseId, config.table, [\n    Query.equal(\"owner_id\", [ownerId]),\n    Query.limit(100),\n  ])\n  const query = clean(filterText).toLowerCase()\n  return response.rows.flatMap((row) => {\n    const record = parseRecord(row.data)\n    if (!record || record.hidden === true || record.deletedAt) return []\n    const schema = parseRecord(record.schema) || {}\n    const automationKind = clean(schema.automationKind)\n    const videoFormat = clean(parseRecord(schema.video_format)?.template)\n    const platform = clean(record.platform)\n    if (config.automationKind && automationKind !== config.automationKind) return []\n    if (config.videoFormat && videoFormat !== config.videoFormat) return []\n    if (config.excludedVideoFormats?.includes(videoFormat)) return []\n    if (config.platforms?.length && !config.platforms.includes(platform)) return []\n    const value = clean(record.id) || clean(row.rid)\n    const name = clean(record.name)\n    if (!value || !name) return []\n    const detail = platform || videoFormat.replaceAll(\"_\", \" \") || automationKind\n    const label = detail ? name + \" · \" + detail : name\n    if (query && !label.toLowerCase().includes(query)) return []\n    return [{ value, label }]\n  })\n}\n\nasync function hookOptions(templateId = \"\", filterText = \"\") {\n  const id = clean(templateId)\n  if (!id) return []\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await tables.listRows(databaseId, \"templates\", [\n    Query.equal(\"owner_id\", [ownerId]),\n    Query.equal(\"rid\", [id]),\n    Query.limit(1),\n  ])\n  const record = parseRecord(response.rows[0]?.data)\n  const schema = parseRecord(record?.schema)\n  const hooks = Array.isArray(schema?.hooks) ? schema.hooks : []\n  const query = clean(filterText).toLowerCase()\n  return hooks.flatMap((candidate) => {\n    const hook = parseRecord(candidate)\n    const text = clean(hook?.text)\n    if (!text || hook?.enabled === false) return []\n    if (query && !text.toLowerCase().includes(query)) return []\n    return [{ value: text, label: text }]\n  })\n}\n\nasync function mediaCollections(kind: \"video\" | \"image\", filterText = \"\") {\n  const { tables, databaseId, ownerId } = await appwrite()\n  const response = await tables.listRows(\n    databaseId,\n    \"permanent_assets\",\n    [\n      Query.equal(\"owner_id\", [ownerId]),\n      Query.equal(\"source_key\", [\"image_collection\"]),\n      Query.limit(100),\n    ]\n  )\n  const query = String(filterText || \"\").trim().toLowerCase()\n  return response.rows.flatMap((row) => {\n    const collection = parseRecord(row.data)\n    if (!collection || collection.deletedAt) return []\n    const mediaKind = collection.mediaType === \"video\" ? \"video\" : \"image\"\n    const assetCount = Array.isArray(collection.images)\n      ? collection.images.filter((asset) => clean(asset?.image_link)).length\n      : 0\n    const name = clean(collection.name)\n    if (!name || !assetCount || mediaKind !== kind) return []\n    const label = name + \" (\" + assetCount + \")\"\n    if (query && !label.toLowerCase().includes(query)) return []\n    return [{\n      value: clean(collection.id) || clean(collection.externalId) || slug(name),\n      label,\n      mediaKind,\n      assetCount,\n    }]\n  })\n}\n\nasync function appwrite() {\n  const [runtimeEnv, defaultOwnerId] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/runtime_env_json\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const env = JSON.parse(required(\"runtime_env_json\", runtimeEnv))\n  const client = new Client()\n    .setEndpoint(required(\"APPWRITE_ENDPOINT\", env.APPWRITE_ENDPOINT))\n    .setProject(required(\"APPWRITE_PROJECT_ID\", env.APPWRITE_PROJECT_ID))\n    .setKey(required(\"APPWRITE_API_KEY\", env.APPWRITE_API_KEY))\n  return {\n    tables: new TablesDB(client),\n    databaseId: required(\"APPWRITE_DATABASE_ID\", env.APPWRITE_DATABASE_ID),\n    ownerId: required(\"default_owner_id\", defaultOwnerId),\n  }\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(\"Lumenclip variable \" + name + \" is not configured\")\n  return text\n}\n\nfunction parseRecord(value: unknown): Record<string, any> | null {\n  if (value && typeof value === \"object\" && !Array.isArray(value)) {\n    return value as Record<string, any>\n  }\n  if (typeof value !== \"string\") return null\n  try {\n    const parsed = JSON.parse(value)\n    return parsed && typeof parsed === \"object\" ? parsed : null\n  } catch {\n    return null\n  }\n}\n\nfunction clean(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\n\nfunction slug(value: string) {\n  return value.toLowerCase().replace(/[^a-z0-9]+/g, \"-\").replace(/^-|-$/g, \"\")\n}\n"

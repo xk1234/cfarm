@@ -350,9 +350,6 @@ schema:
     - excluded_topics
     - proof
     - persona
-    - brief
-    - brief_model
-    - model
     - count
   properties:
     niche:
@@ -378,15 +375,6 @@ schema:
         - educator
         - practitioner
       default: educator
-    brief:
-      type: object
-      title: Supplied niche brief
-    brief_model:
-      type: string
-      title: Brief model override
-    model:
-      type: string
-      title: Post model override
     count:
       type: integer
       title: Posts

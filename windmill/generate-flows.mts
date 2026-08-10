@@ -109,9 +109,6 @@ function linkedinInputSchema() {
     - excluded_topics
     - proof
     - persona
-    - brief
-    - brief_model
-    - model
     - count
   properties:
     niche:
@@ -137,15 +134,6 @@ function linkedinInputSchema() {
         - educator
         - practitioner
       default: educator
-    brief:
-      type: object
-      title: Supplied niche brief
-    brief_model:
-      type: string
-      title: Brief model override
-    model:
-      type: string
-      title: Post model override
     count:
       type: integer
       title: Posts
@@ -187,7 +175,7 @@ ${indent(stageNode({ id: "load_word_collections", summary: "Load word collection
     summary: "Validate template, collections, and word variables",
     stageId: "slideshow-generation.validate-input",
     inputExpr:
-      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook, scheduledFor: flow_input.scheduled_for, generationSource: flow_input.generation_source })",
+      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook })",
   })
   const modelSettings = stageNode({
     id: "load_model_settings",
@@ -300,20 +288,23 @@ schema:
   properties:
     automation_id:
       type: string
+      format: dynselect-automation_id
       title: Template
     hook:
       type: string
-      title: Exact hook (optional)
-    scheduled_for:
-      type: string
-      format: date-time
-      title: Generation time (optional)
-    generation_source:
-      type: string
-      enum: [manual, scheduled]
-      default: manual
-      title: Generation source
+      format: dynselect-hook
+      title: Hook override (optional)
+      description: Choose one saved hook instead of letting the template rotate hooks automatically.
   required: [automation_id]
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: ${yamlString(
+    workflowDynamicSelectCode({
+      templateFields: {
+        automation_id: { table: "templates", automationKind: "slideshow" },
+      },
+      hookFields: { hook: { templateField: "automation_id" } },
+    })
+  )}
 `
 }
 
@@ -539,15 +530,45 @@ schema:
   properties:
     automation_id:
       type: string
+      format: dynselect-automation_id
       title: Template
     topic:
       type: string
       title: Topic (optional)
     source_candidate:
       type: object
-      title: Source candidate (optional)
-      description: Structured source or trend context for this run.
+      title: Reaction source (optional)
+      description: Add a source post only when the generated post should react to it.
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+          title: Platform
+          enum: [x, tiktok, instagram]
+          default: x
+        url:
+          type: string
+          format: uri
+          title: Source URL
+        author:
+          type: string
+          title: Author (optional)
+        text:
+          type: string
+          format: textarea
+          title: Source text or transcript
   required: [automation_id]
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: ${yamlString(
+    workflowDynamicSelectCode({
+      templateFields: {
+        automation_id: {
+          table: "social_templates",
+          platforms: ["x", "threads"],
+        },
+      },
+    })
+  )}
 `
 }
 
@@ -730,6 +751,7 @@ function fixedVideoSchema(format: "react_reveal" | "greenscreen_meme") {
   properties:
     template_id:
       type: string
+      format: dynselect-template_id
       title: Template (optional)
 ${media}
     output:
@@ -743,17 +765,25 @@ ${media}
           items: { type: string }
   x-windmill-dyn-select-lang: bun
   x-windmill-dyn-select-code: ${yamlString(
-    mediaCollectionDynamicSelectCode(
-      format === "react_reveal"
-        ? {
-            anticipation_collection_id: "video",
-            reveal_collection_id: "video",
-          }
-        : {
-            meme_collection_id: "video",
-            background_collection_id: "image",
-          }
-    )
+    workflowDynamicSelectCode({
+      templateFields: {
+        template_id: {
+          table: "templates",
+          automationKind: "video",
+          videoFormat: format,
+        },
+      },
+      mediaCollectionFields:
+        format === "react_reveal"
+          ? {
+              anticipation_collection_id: "video",
+              reveal_collection_id: "video",
+            }
+          : {
+              meme_collection_id: "video",
+              background_collection_id: "image",
+            },
+    })
   )}
 `
 }
@@ -844,8 +874,21 @@ schema:
   properties:
     template_id:
       type: string
+      format: dynselect-template_id
       title: Video template
   required: [template_id]
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: ${yamlString(
+    workflowDynamicSelectCode({
+      templateFields: {
+        template_id: {
+          table: "templates",
+          automationKind: "video",
+          excludedVideoFormats: ["ugc_ad", "react_reveal", "greenscreen_meme"],
+        },
+      },
+    })
+  )}
 `
 }
 
@@ -1115,6 +1158,7 @@ function ugcComponentSchema() {
   properties:
     template_id:
       type: string
+      format: dynselect-template_id
       title: Template (optional)
       description: Load defaults from a UGC template; every component below can override it.
     product:
@@ -1129,10 +1173,6 @@ function ugcComponentSchema() {
           type: string
           title: Product brief
           format: textarea
-        analysis:
-          type: object
-          title: Supplied analysis
-          description: Optional structured artifact that skips product analysis.
     script:
       type: object
       title: Script
@@ -1144,10 +1184,6 @@ function ugcComponentSchema() {
           minimum: 15
           maximum: 180
           default: 60
-        plan:
-          type: object
-          title: Supplied script plan
-          description: Optional hook, segments, caption and hashtags artifact that skips script generation.
     actor:
       type: object
       title: Actor
@@ -1216,52 +1252,159 @@ function ugcComponentSchema() {
         captions:
           type: object
           title: Captions
+          additionalProperties: false
+          properties:
+            enabled:
+              type: boolean
+              title: Show captions
+              default: true
+            style:
+              type: string
+              title: Caption style
+              default: karaoke
+            fallback:
+              type: string
+              title: Caption renderer
+              enum: [drawtext, png_frames]
+              default: drawtext
         hookOverlay:
           type: object
           title: Hook overlay
+          additionalProperties: false
+          properties:
+            enabled:
+              type: boolean
+              title: Show hook overlay
+              default: true
+            durationMs:
+              type: integer
+              title: Duration (milliseconds)
+              minimum: 500
+              maximum: 10000
+              default: 3000
+            style:
+              type: string
+              title: Overlay style
+              default: bold
   x-windmill-dyn-select-lang: bun
   x-windmill-dyn-select-code: ${yamlString(
-    mediaCollectionDynamicSelectCode({ actor_collection_id: "image" })
+    workflowDynamicSelectCode({
+      templateFields: {
+        template_id: { table: "templates", automationKind: "ugc" },
+      },
+      mediaCollectionFields: { actor_collection_id: "image" },
+    })
   )}
 `
 }
 
-function mediaCollectionDynamicSelectCode(
-  fields: Record<string, "video" | "image">
-) {
-  const entrypoints = Object.entries(fields)
-    .map(
-      ([field, kind]) =>
-        `export async function ${field}(filterText = "") {\n  return mediaCollections(${JSON.stringify(kind)}, filterText)\n}`
-    )
-    .join("\n\n")
+type TemplateSelectorFilter = {
+  table: "templates" | "social_templates"
+  automationKind?: "slideshow" | "video" | "ugc"
+  videoFormat?: string
+  excludedVideoFormats?: string[]
+  platforms?: Array<"x" | "threads">
+}
+
+function workflowDynamicSelectCode(input: {
+  templateFields?: Record<string, TemplateSelectorFilter>
+  hookFields?: Record<string, { templateField: string }>
+  mediaCollectionFields?: Record<string, "video" | "image">
+}) {
+  const templateEntrypoints = Object.entries(input.templateFields ?? {}).map(
+    ([field, filter]) =>
+      `export async function ${field}(filterText = "") {\n  return templateOptions(${JSON.stringify(filter)}, filterText)\n}`
+  )
+  const hookEntrypoints = Object.entries(input.hookFields ?? {}).map(
+    ([field, config]) =>
+      `export async function ${field}(${config.templateField} = "", filterText = "") {\n  return hookOptions(${config.templateField}, filterText)\n}`
+  )
+  const mediaEntrypoints = Object.entries(
+    input.mediaCollectionFields ?? {}
+  ).map(
+    ([field, kind]) =>
+      `export async function ${field}(filterText = "") {\n  return mediaCollections(${JSON.stringify(kind)}, filterText)\n}`
+  )
+  const entrypoints = [
+    ...templateEntrypoints,
+    ...hookEntrypoints,
+    ...mediaEntrypoints,
+  ].join("\n\n")
   return `import { Client, Query, TablesDB } from "node-appwrite"
 import * as wmill from "windmill-client"
 
 ${entrypoints}
 
-async function mediaCollections(kind: "video" | "image", filterText = "") {
-  const [runtimeEnv, defaultOwnerId] = await Promise.all([
-    wmill.getVariable("f/lumenclip/runtime_env_json"),
-    wmill.getVariable("f/lumenclip/default_owner_id"),
+async function templateOptions(config: {
+  table: "templates" | "social_templates"
+  automationKind?: string
+  videoFormat?: string
+  excludedVideoFormats?: string[]
+  platforms?: string[]
+}, filterText = "") {
+  const { tables, databaseId, ownerId } = await appwrite()
+  const response = await tables.listRows(databaseId, config.table, [
+    Query.equal("owner_id", [ownerId]),
+    Query.limit(100),
   ])
-  const env = JSON.parse(required("runtime_env_json", runtimeEnv))
-  const client = new Client()
-    .setEndpoint(required("APPWRITE_ENDPOINT", env.APPWRITE_ENDPOINT))
-    .setProject(required("APPWRITE_PROJECT_ID", env.APPWRITE_PROJECT_ID))
-    .setKey(required("APPWRITE_API_KEY", env.APPWRITE_API_KEY))
-  const response = await new TablesDB(client).listRows(
-    required("APPWRITE_DATABASE_ID", env.APPWRITE_DATABASE_ID),
+  const query = clean(filterText).toLowerCase()
+  return response.rows.flatMap((row) => {
+    const record = parseRecord(row.data)
+    if (!record || record.hidden === true || record.deletedAt) return []
+    const schema = parseRecord(record.schema) || {}
+    const automationKind = clean(schema.automationKind)
+    const videoFormat = clean(parseRecord(schema.video_format)?.template)
+    const platform = clean(record.platform)
+    if (config.automationKind && automationKind !== config.automationKind) return []
+    if (config.videoFormat && videoFormat !== config.videoFormat) return []
+    if (config.excludedVideoFormats?.includes(videoFormat)) return []
+    if (config.platforms?.length && !config.platforms.includes(platform)) return []
+    const value = clean(record.id) || clean(row.rid)
+    const name = clean(record.name)
+    if (!value || !name) return []
+    const detail = platform || videoFormat.replaceAll("_", " ") || automationKind
+    const label = detail ? name + " · " + detail : name
+    if (query && !label.toLowerCase().includes(query)) return []
+    return [{ value, label }]
+  })
+}
+
+async function hookOptions(templateId = "", filterText = "") {
+  const id = clean(templateId)
+  if (!id) return []
+  const { tables, databaseId, ownerId } = await appwrite()
+  const response = await tables.listRows(databaseId, "templates", [
+    Query.equal("owner_id", [ownerId]),
+    Query.equal("rid", [id]),
+    Query.limit(1),
+  ])
+  const record = parseRecord(response.rows[0]?.data)
+  const schema = parseRecord(record?.schema)
+  const hooks = Array.isArray(schema?.hooks) ? schema.hooks : []
+  const query = clean(filterText).toLowerCase()
+  return hooks.flatMap((candidate) => {
+    const hook = parseRecord(candidate)
+    const text = clean(hook?.text)
+    if (!text || hook?.enabled === false) return []
+    if (query && !text.toLowerCase().includes(query)) return []
+    return [{ value: text, label: text }]
+  })
+}
+
+async function mediaCollections(kind: "video" | "image", filterText = "") {
+  const { tables, databaseId, ownerId } = await appwrite()
+  const response = await tables.listRows(
+    databaseId,
     "permanent_assets",
     [
-      Query.equal("owner_id", [required("default_owner_id", defaultOwnerId)]),
+      Query.equal("owner_id", [ownerId]),
       Query.equal("source_key", ["image_collection"]),
       Query.limit(100),
     ]
   )
   const query = String(filterText || "").trim().toLowerCase()
   return response.rows.flatMap((row) => {
-    const collection = parseCollection(row.data)
+    const collection = parseRecord(row.data)
     if (!collection || collection.deletedAt) return []
     const mediaKind = collection.mediaType === "video" ? "video" : "image"
     const assetCount = Array.isArray(collection.images)
@@ -1280,13 +1423,33 @@ async function mediaCollections(kind: "video" | "image", filterText = "") {
   })
 }
 
+async function appwrite() {
+  const [runtimeEnv, defaultOwnerId] = await Promise.all([
+    wmill.getVariable("f/lumenclip/runtime_env_json"),
+    wmill.getVariable("f/lumenclip/default_owner_id"),
+  ])
+  const env = JSON.parse(required("runtime_env_json", runtimeEnv))
+  const client = new Client()
+    .setEndpoint(required("APPWRITE_ENDPOINT", env.APPWRITE_ENDPOINT))
+    .setProject(required("APPWRITE_PROJECT_ID", env.APPWRITE_PROJECT_ID))
+    .setKey(required("APPWRITE_API_KEY", env.APPWRITE_API_KEY))
+  return {
+    tables: new TablesDB(client),
+    databaseId: required("APPWRITE_DATABASE_ID", env.APPWRITE_DATABASE_ID),
+    ownerId: required("default_owner_id", defaultOwnerId),
+  }
+}
+
 function required(name: string, value: unknown) {
   const text = typeof value === "string" ? value.trim() : ""
   if (!text) throw new Error("Lumenclip variable " + name + " is not configured")
   return text
 }
 
-function parseCollection(value: unknown) {
+function parseRecord(value: unknown): Record<string, any> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, any>
+  }
   if (typeof value !== "string") return null
   try {
     const parsed = JSON.parse(value)
