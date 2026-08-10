@@ -157,6 +157,35 @@ describe("UGC worker pipeline", () => {
     )
   })
 
+  it("uses a resolved collection portrait without requiring FAL", async () => {
+    const harness = workerHarness()
+    const clients = mockClients()
+    delete process.env.FAL_KEY
+
+    const result = await runUgcAutomationJob({
+      ...harness.input,
+      payload: {
+        generationId: "component-actor-1",
+        scheduledFor: "2026-07-22T00:00:00Z",
+        componentExecution: true,
+        onlyStage: "actor",
+        components: {
+          actor: {
+            source: "collection",
+            portraitUrl: "https://cdn.test/portrait.png",
+          },
+        },
+      },
+      clients,
+    })
+
+    expect(result.checkpoints.actor).toMatchObject({
+      provider: "collection",
+      storagePath: expect.stringContaining("actor.png"),
+    })
+    expect(clients.generateFalImage).not.toHaveBeenCalled()
+  })
+
   it("leaves a transient FAL failure retryable", async () => {
     const harness = workerHarness()
     const clients = mockClients()

@@ -696,17 +696,8 @@ function rendiProtocolStages(workflowId, firstOrder) {
     )
   ];
 }
-function fixedVideoFormatStages(workflowId, primaryRole, secondaryRole, resolveDescription) {
+function fixedVideoFormatStages(workflowId, primaryRole, secondaryRole) {
   return [
-    stage(
-      workflowId,
-      1,
-      "resolve-components",
-      "Resolve format components",
-      "storage",
-      resolveDescription,
-      compositeStage
-    ),
     stage(
       workflowId,
       9,
@@ -1070,15 +1061,6 @@ var init_pipeline_stages = __esm({
       ),
       stage(
         "ugc-video-generation",
-        0,
-        "resolve-components",
-        "Resolve generation components",
-        "storage",
-        "Load an optional UGC template and merge explicit product, script, actor, voice, b-roll, and render overrides.",
-        compositeStage
-      ),
-      stage(
-        "ugc-video-generation",
         8,
         "load-template-defaults",
         "Load UGC template defaults",
@@ -1399,14 +1381,12 @@ var init_pipeline_stages = __esm({
       ...fixedVideoFormatStages(
         "react-reveal-generation",
         "anticipation",
-        "reveal",
-        "Resolve an optional React & Reveal template plus explicit clip, caption, audio, and output components."
+        "reveal"
       ),
       ...fixedVideoFormatStages(
         "greenscreen-meme-generation",
         "meme",
-        "background",
-        "Resolve an optional Greenscreen Meme template plus explicit meme clip, background, caption, audio, and output components."
+        "background"
       ),
       ...[
         [
@@ -2550,9 +2530,8 @@ function normalizeUgcConfig(value) {
     enabled: source.enabled === true,
     productUrl: clean(source.productUrl) || void 0,
     productBrief: clean(source.productBrief) || void 0,
-    actorSource: source.actorSource === "gallery" || source.actorSource === "upload" ? source.actorSource : "generate",
+    actorSource: source.actorSource === "collection" ? "collection" : "generate",
     actorCollectionId: clean(source.actorCollectionId) || void 0,
-    actorAssetUrl: clean(source.actorAssetUrl) || void 0,
     actorPrompt: clean(source.actorPrompt) || void 0,
     voiceId: clean(source.voiceId),
     voiceModel: clean(source.voiceModel) || void 0,
@@ -2591,6 +2570,8 @@ function ugcLiveConfigurationErrors(status3, schema) {
   const errors = [];
   if (!ugc.productUrl && !ugc.productBrief)
     errors.push("AI UGC requires a product URL or brief");
+  if (ugc.actorSource === "collection" && !ugc.actorCollectionId)
+    errors.push("AI UGC requires an actor image collection");
   if (!ugc.voiceId) errors.push("AI UGC requires an ElevenLabs voice id");
   return errors;
 }
@@ -17357,7 +17338,7 @@ var init_windmill_workflows = __esm({
         "product",
         "script",
         "actor",
-        "actor_asset_collection_id",
+        "actor_collection_id",
         "voice",
         "broll",
         "render"
@@ -17400,7 +17381,7 @@ var init_windmill_workflows = __esm({
       },
       "ugc-video-generation": {
         templateId: "template_id",
-        actorAssetCollectionId: "actor_asset_collection_id"
+        actorCollectionId: "actor_collection_id"
       },
       "react-reveal-generation": {
         templateId: "template_id",
@@ -20113,14 +20094,13 @@ ${clean(input.hook)}`
     });
   });
   resolveUgcComponent("actor", async (actor, defaults, context) => {
-    const requestedSource = clean(firstPresent(actor.source, defaults.actorSource)) || "generate";
-    const source = ["gallery", "upload"].includes(requestedSource) ? "asset" : requestedSource;
-    if (!["generate", "asset"].includes(source)) {
-      throw new Error("Actor source must be generate or asset");
+    const source = clean(firstPresent(actor.source, defaults.actorSource)) || "generate";
+    if (!["generate", "collection"].includes(source)) {
+      throw new Error("Actor source must be generate or collection");
     }
-    const collectionMedia = source === "asset" ? await mediaFromCollection({
+    const collectionMedia = source === "collection" ? await mediaFromCollection({
       collectionId: firstPresent(
-        actor.assetCollectionId,
+        actor.collectionId,
         defaults.actorCollectionId
       ),
       mediaKind: "image",
@@ -20129,17 +20109,13 @@ ${clean(input.hook)}`
     }) : null;
     const component = compactRecord({
       source,
-      assetCollectionId: collectionMedia?.collectionId,
-      assetUrl: firstPresent(
-        collectionMedia?.url,
-        actor.assetUrl,
-        defaults.actorAssetUrl
-      ),
+      collectionId: collectionMedia?.collectionId,
+      portraitUrl: collectionMedia?.url,
       prompt: firstPresent(actor.prompt, defaults.actorPrompt),
       motionPrompt: firstPresent(actor.motionPrompt, defaults.motionPrompt)
     });
-    if (source === "asset" && !clean(component.assetUrl)) {
-      throw new Error("Asset actor requires an actor image collection");
+    if (source === "collection" && !clean(component.portraitUrl)) {
+      throw new Error("Collection actor requires an actor image collection");
     }
     return component;
   });
@@ -20183,37 +20159,6 @@ ${clean(input.hook)}`
       lipsync: requiredRecord(input.lipsync, "lipsync")
     }
   }));
-  add("ugc-video-generation.resolve-components", async (input, context) => {
-    const loaded = await context.runStage(
-      "ugc-video-generation.load-template-defaults",
-      input
-    );
-    const supplied = asRecord4(input.components);
-    const components = {};
-    for (const name of [
-      "product",
-      "script",
-      "actor",
-      "voice",
-      "broll",
-      "render"
-    ]) {
-      const resolved = await context.runStage(
-        `ugc-video-generation.resolve-${name}-component`,
-        {
-          generation: loaded.output.generation,
-          templateDefaults: loaded.output.templateDefaults,
-          override: input[name] ?? supplied[name]
-        }
-      );
-      components[name] = resolved.output.component;
-    }
-    return {
-      generation: loaded.output.generation,
-      components,
-      source: loaded.output.source
-    };
-  });
   add(
     "ugc-video-generation.generate-one-broll-image",
     async (input, context) => {
@@ -20706,119 +20651,48 @@ ${clean(input.hook)}`
           collectionId: collectionMedia?.collectionId,
           url: firstPresent(
             collectionMedia?.url,
-            override.url,
             templateRole(defaults, role).url
           )
         });
         if (!clean(component.url)) {
-          throw new Error(`${role} component requires a media URL`);
+          throw new Error(`${role} component requires a media collection`);
         }
         return component;
       });
     }
     addFixedResolver(
       "audio",
-      (override, defaults, state) => compactRecord({
-        url: firstPresent(
-          override.url,
-          asRecord4(defaults.audio).url,
-          state.soundUrl
-        )
+      (_override, defaults) => compactRecord({
+        url: asRecord4(defaults.audio).url
       })
     );
     addFixedResolver(
       "caption",
-      (override, defaults, state) => input.format === "react_reveal" ? compactRecord({
+      (override, defaults) => input.format === "react_reveal" ? compactRecord({
         hookCaption: firstPresent(
           override.hookCaption,
-          defaults.hookCaption,
-          state.hookCaption
+          defaults.hookCaption
         ),
         payoffCaption: firstPresent(
           override.payoffCaption,
-          defaults.payoffCaption,
-          state.payoffCaption
+          defaults.payoffCaption
         )
       }) : compactRecord({
-        caption: firstPresent(
-          override.caption,
-          defaults.caption,
-          state.caption
-        ),
+        caption: firstPresent(override.caption, defaults.caption),
         textPlacement: firstPresent(
           override.textPlacement,
           defaults.textPlacement,
-          state.textPlacement,
           "top"
         )
       })
     );
-    addFixedResolver("output", (override, defaults, state) => ({
-      title: firstPresent(override.title, defaults.title, state.title),
-      description: firstPresent(
-        override.description,
-        defaults.description,
-        state.description
-      ),
+    addFixedResolver("output", (override, defaults) => ({
+      title: firstPresent(override.title, defaults.title),
+      description: firstPresent(override.description, defaults.description),
       hashtags: stringArray(
-        firstPresent(override.hashtags, defaults.hashtags, state.hashtags, [])
+        firstPresent(override.hashtags, defaults.hashtags, [])
       )
     }));
-    add(id("resolve-components"), async (state, context) => {
-      const loaded = await context.runStage(id("load-template-defaults"), state);
-      const supplied = asRecord4(state.components);
-      const components = {};
-      for (const role of [
-        input.primaryRole,
-        input.secondaryRole,
-        "audio",
-        "caption",
-        "output"
-      ]) {
-        const override = role === "caption" ? input.format === "react_reveal" ? {
-          hookCaption: firstPresent(
-            supplied.hookCaption,
-            state.hookCaption
-          ),
-          payoffCaption: firstPresent(
-            supplied.payoffCaption,
-            state.payoffCaption
-          )
-        } : {
-          caption: firstPresent(supplied.caption, state.caption),
-          textPlacement: firstPresent(
-            supplied.textPlacement,
-            state.textPlacement
-          )
-        } : role === "output" ? asRecord4(state.output ?? supplied.output) : role === "audio" ? asRecord4(state.audio ?? supplied.audio) : {
-          ...asRecord4(state[role] ?? supplied[role]),
-          url: firstPresent(
-            asRecord4(state[role] ?? supplied[role]).url,
-            role === "anticipation" ? state.anticipationVideoUrl : role === "reveal" ? state.revealVideoUrl : role === "meme" ? state.memeVideoUrl : state.backgroundImageUrl
-          )
-        };
-        const resolved = await context.runStage(id(`resolve-${role}`), {
-          generation: loaded.output.generation,
-          templateDefaults: loaded.output.templateDefaults,
-          override,
-          soundUrl: state.soundUrl
-        });
-        const component = requiredRecord(
-          resolved.output.component,
-          `${role} component`
-        );
-        if (role === "caption" || role === "output") {
-          Object.assign(components, component);
-        } else {
-          components[role] = component;
-        }
-      }
-      return {
-        generation: loaded.output.generation,
-        components,
-        source: loaded.output.source
-      };
-    });
     const addStageMedia = (role) => add(id(`stage-${role}`), async (state, context) => {
       const sourceUrl = clean(asRecord4(asRecord4(state.components)[role]).url);
       if (!sourceUrl) {
@@ -22940,13 +22814,14 @@ function credentialsForStage(stage2, ugc = {}) {
     ];
   if (stage2 === "analysis") return ugc.analysis ? [] : ["OPENROUTER_API_KEY"];
   if (stage2 === "script") return ugc.scriptPlan ? [] : ["OPENROUTER_API_KEY"];
-  if (["actor", "motion", "lipsync", "broll"].includes(stage2))
-    return ["FAL_KEY"];
+  if (stage2 === "actor")
+    return ugc.actorSource === "collection" && ugc.actorPortraitUrl ? [] : ["FAL_KEY"];
+  if (["motion", "lipsync", "broll"].includes(stage2)) return ["FAL_KEY"];
   if (stage2 === "voice") return ["ELEVENLABS_API_KEY"];
   if (stage2 === "composite") return ["RENDI_API_KEY"];
   return [];
 }
-function legacyUgcConfig(value) {
+function ugcConfigFromComponents(value) {
   if (!value || typeof value !== "object") return {};
   const product = value.product && typeof value.product === "object" ? value.product : {};
   const script = value.script && typeof value.script === "object" ? value.script : {};
@@ -22964,7 +22839,7 @@ function legacyUgcConfig(value) {
   set("targetDurationSeconds", script.targetDurationSeconds);
   set("scriptPlan", script.plan);
   set("actorSource", actor.source);
-  set("actorAssetUrl", actor.assetUrl);
+  set("actorPortraitUrl", actor.portraitUrl);
   set("actorPrompt", actor.prompt);
   set("motionPrompt", actor.motionPrompt);
   set("voiceId", voice.voiceId);
@@ -23048,7 +22923,7 @@ async function runUgcAutomationJob({
   const schema = automation.schema;
   const ugc = {
     ...schema.ugc || {},
-    ...legacyUgcConfig(payload?.components)
+    ...ugcConfigFromComponents(payload?.components)
   };
   const missing = [
     ...credentialsForStage(onlyStage, ugc),
@@ -23165,8 +23040,13 @@ Missing: ${missing.join(", ")}`
           return { plan: plan2 };
         },
         actor: async ({ checkpoints: checkpoints2 }) => {
-          let sourceUrl = String(ugc.actorAssetUrl || "").trim(), provenance = { provider: "configured_asset" };
-          if (!sourceUrl || ugc.actorSource === "generate") {
+          let sourceUrl = String(ugc.actorPortraitUrl || "").trim(), provenance = { provider: "collection" };
+          if (ugc.actorSource === "collection" && !sourceUrl) {
+            throw new UgcConfigurationError(
+              "windmill-native-ugc: collection actor has no resolved portrait"
+            );
+          }
+          if (ugc.actorSource === "generate") {
             const asset = await api.image({
               endpoint: generationModelRegistry.ugc.falFlux2ProEndpoint,
               apiKey: process.env.FAL_KEY,

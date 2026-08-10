@@ -1,18 +1,60 @@
 import { describe, expect, it } from "vitest"
 
-import { defaultAutomationSchema, normalizeAutomationSchema, ugcLiveConfigurationErrors } from "@/lib/realfarm-automation"
+import {
+  defaultAutomationSchema,
+  normalizeAutomationSchema,
+  ugcLiveConfigurationErrors,
+} from "@/lib/realfarm-automation"
 
-const automation = { id: "a", name: "UGC", status: "paused" as const, account: "", handle: "", times: [], favorite: false, theme: "ugc", socialIntegrations: [], automationKind: "ugc" as const }
+const automation = {
+  id: "a",
+  name: "UGC",
+  status: "paused" as const,
+  account: "",
+  handle: "",
+  times: [],
+  favorite: false,
+  theme: "ugc",
+  socialIntegrations: [],
+  automationKind: "ugc" as const,
+}
 
 describe("UGC automation schema", () => {
   it("migrates UGC disabled and never converts legacy video", () => {
     const defaults = defaultAutomationSchema(automation)
-    const ugc = normalizeAutomationSchema({ ...defaults, automationKind: "ugc" }, automation)
+    const ugc = normalizeAutomationSchema(
+      { ...defaults, automationKind: "ugc" },
+      automation
+    )
     expect(ugc.ugc?.enabled).toBe(false)
-    expect(normalizeAutomationSchema({ ...defaults, automationKind: "video" }, automation).automationKind).toBe("video")
+    expect(
+      normalizeAutomationSchema(
+        { ...defaults, automationKind: "video" },
+        automation
+      ).automationKind
+    ).toBe("video")
   })
 
   it("rejects an enabled live UGC config without product input and voice", () => {
-    expect(ugcLiveConfigurationErrors("live", { automationKind: "ugc", ugc: { enabled: true } as never })).toHaveLength(2)
+    expect(
+      ugcLiveConfigurationErrors("live", {
+        automationKind: "ugc",
+        ugc: { enabled: true } as never,
+      })
+    ).toHaveLength(2)
+  })
+
+  it("requires a photo collection for a collection actor", () => {
+    expect(
+      ugcLiveConfigurationErrors("live", {
+        automationKind: "ugc",
+        ugc: {
+          enabled: true,
+          productBrief: "A useful product",
+          actorSource: "collection",
+          voiceId: "voice-1",
+        } as never,
+      })
+    ).toContain("AI UGC requires an actor image collection")
   })
 })

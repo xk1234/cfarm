@@ -294,12 +294,6 @@ function videoTemplateSource(
     if (actorImage) {
       return { url: actorImage, kind: "image" } as const
     }
-    if (config.ugc?.actorAssetUrl) {
-      return {
-        url: config.ugc.actorAssetUrl,
-        kind: isVideoUrl(config.ugc.actorAssetUrl) ? "video" : "image",
-      } as const
-    }
   }
 
   const segment = config.video_format?.segments[0]

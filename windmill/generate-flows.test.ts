@@ -133,14 +133,13 @@ describe("generated Lumenclip Windmill flows", () => {
     )
     expect(source).toContain('value: "analysis"')
     expect(source).toContain('value: "store"')
-    expect(source).toContain("format: dynselect-actor_asset_collection_id")
-    expect(source).toContain("actor_asset_collection_id:\n      type: object")
-    expect(source).toContain("actor_asset_collection_id(filterText")
-    expect(source).toContain(
-      "assetCollectionId: flow_input.actor_asset_collection_id"
-    )
+    expect(source).toContain("format: dynselect-actor_collection_id")
+    expect(source).toContain("actor_collection_id:\n      type: object")
+    expect(source).toContain("actor_collection_id(filterText")
+    expect(source).toContain("collectionId: flow_input.actor_collection_id")
     expect(source).not.toContain("Portrait asset URL")
     expect(source).not.toContain("assetUrl:")
+    expect(source).not.toContain("actor_asset_collection_id")
   })
 
   it("bundles the production handlers into Windmill without Clerk or app callbacks", async () => {

@@ -149,7 +149,7 @@ export function UgcAutomationFormatPanel({
           value={ugc.actorSource}
           options={[
             ["generate", "Generate"],
-            ["gallery", "Collection"],
+            ["collection", "Collection"],
           ]}
           onChange={(actorSource) => update({ actorSource })}
         />
@@ -167,9 +167,7 @@ export function UgcAutomationFormatPanel({
             label="Actor image collection"
             collection={actorCollection}
             collections={imageCollections}
-            onChange={(actorCollectionId) =>
-              update({ actorCollectionId, actorAssetUrl: undefined })
-            }
+            onChange={(actorCollectionId) => update({ actorCollectionId })}
             onCreateCollection={onCreateCollection}
           />
         )}

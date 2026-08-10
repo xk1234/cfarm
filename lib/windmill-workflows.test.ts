@@ -95,6 +95,38 @@ describe("Windmill workflow client", () => {
     })
   })
 
+  it("maps the UGC actor collection without accepting the removed asset alias", async () => {
+    configureWindmill()
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      Promise.resolve(new Response("job-ugc", { status: 201 }))
+    )
+
+    await queueWindmillWorkflow({
+      workflowId: "ugc-video-generation",
+      ownerId: "owner-1",
+      workflowInput: {
+        actor: { source: "collection" },
+        actorCollectionId: "actor-portraits",
+      },
+      fetchImpl,
+    })
+
+    const request = fetchImpl.mock.calls[0]?.[1]
+    expect(JSON.parse(String(request!.body))).toMatchObject({
+      actor: { source: "collection" },
+      actor_collection_id: "actor-portraits",
+    })
+
+    await expect(
+      queueWindmillWorkflow({
+        workflowId: "ugc-video-generation",
+        ownerId: "owner-1",
+        workflowInput: { actorAssetCollectionId: "actor-portraits" },
+        fetchImpl,
+      })
+    ).rejects.toThrow("does not accept input actorAssetCollectionId")
+  })
+
   it("reports missing Windmill configuration without falling back in-process", async () => {
     vi.stubEnv("WINDMILL_BASE_URL", "")
     vi.stubEnv("WINDMILL_WORKSPACE_ID", "")

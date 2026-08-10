@@ -289,42 +289,15 @@ describe("production pipeline stage handlers", () => {
     expect(runtime.sendGeneratedReminder).not.toHaveBeenCalled()
   })
 
-  it("resolves explicit UGC components without requiring a template", async () => {
+  it("does not expose the removed monolithic component resolvers", () => {
     const handlers = createProductionPipelineHandlers(services() as never)
-    const handler = handlers.get("ugc-video-generation.resolve-components")!
-
-    const output = await handler(
-      {
-        generationId: "debug-run-1",
-        product: { brief: "A compact camera for travel creators" },
-        script: { targetDurationSeconds: 30 },
-        actor: { source: "asset", assetUrl: "https://cdn.test/actor.png" },
-        voice: { voiceId: "voice-1" },
-        broll: { enabled: false },
-        render: { lipSyncTier: "premium" },
-      },
-      context("ugc-video-generation.resolve-components", handlers)
+    expect(handlers.has("ugc-video-generation.resolve-components")).toBe(false)
+    expect(handlers.has("react-reveal-generation.resolve-components")).toBe(
+      false
     )
-
-    expect(output).toMatchObject({
-      generation: {
-        templateId: null,
-        generationId: "debug-run-1",
-        scheduledFor: "2026-08-01T09:00:00.000Z",
-      },
-      source: "explicit_components",
-      components: {
-        product: { brief: "A compact camera for travel creators" },
-        script: { targetDurationSeconds: 30 },
-        actor: {
-          source: "asset",
-          assetUrl: "https://cdn.test/actor.png",
-        },
-        voice: { voiceId: "voice-1" },
-        broll: { enabled: false },
-        render: { aspectRatio: "9:16", lipSyncTier: "premium" },
-      },
-    })
+    expect(handlers.has("greenscreen-meme-generation.resolve-components")).toBe(
+      false
+    )
   })
 
   it("resolves UGC components independently from one loaded template artifact", async () => {
@@ -370,7 +343,7 @@ describe("production pipeline stage handlers", () => {
     })
   })
 
-  it("resolves an asset actor from an image collection", async () => {
+  it("resolves a collection actor from an image collection", async () => {
     const handlers = new Map(
       createProductionPipelineHandlers(services() as never)
     )
@@ -397,8 +370,8 @@ describe("production pipeline stage handlers", () => {
         generation: { generationId: "ugc-1" },
         templateDefaults: {},
         override: {
-          source: "asset",
-          assetCollectionId: "actor-portraits",
+          source: "collection",
+          collectionId: "actor-portraits",
         },
       },
       context("ugc-video-generation.resolve-actor-component", handlers)
@@ -406,9 +379,9 @@ describe("production pipeline stage handlers", () => {
 
     expect(output).toMatchObject({
       component: {
-        source: "asset",
-        assetCollectionId: "actor-portraits",
-        assetUrl: "https://cdn.test/portrait.png",
+        source: "collection",
+        collectionId: "actor-portraits",
+        portraitUrl: "https://cdn.test/portrait.png",
       },
     })
   })
@@ -430,51 +403,6 @@ describe("production pipeline stage handlers", () => {
         voice: { audioUrl: "https://cdn.test/voice.mp3" },
         lipsync: { videoUrl: "https://cdn.test/lipsync.mp4" },
       },
-    })
-  })
-
-  it.each([
-    {
-      stageId: "react-reveal-generation.resolve-components",
-      input: {
-        anticipation: { url: "https://cdn.test/anticipation.mp4" },
-        reveal: { url: "https://cdn.test/reveal.mp4" },
-        hookCaption: "wait for it",
-      },
-      components: {
-        anticipation: { url: "https://cdn.test/anticipation.mp4" },
-        reveal: { url: "https://cdn.test/reveal.mp4" },
-        hookCaption: "wait for it",
-      },
-    },
-    {
-      stageId: "greenscreen-meme-generation.resolve-components",
-      input: {
-        meme: { url: "https://cdn.test/meme.mp4" },
-        background: { url: "https://cdn.test/background.jpg" },
-        caption: "one more revision",
-      },
-      components: {
-        meme: { url: "https://cdn.test/meme.mp4" },
-        background: { url: "https://cdn.test/background.jpg" },
-        caption: "one more revision",
-        textPlacement: "top",
-      },
-    },
-  ])("resolves explicit fixed-video components for $stageId", async (test) => {
-    const handlers = createProductionPipelineHandlers(services() as never)
-    const handler = handlers.get(test.stageId)!
-
-    const output = await handler(test.input, context(test.stageId, handlers))
-
-    expect(output).toMatchObject({
-      generation: {
-        templateId: null,
-        outputId: expect.any(String),
-        createdAt: "2026-08-01T09:00:00.000Z",
-      },
-      source: "explicit_components",
-      components: test.components,
     })
   })
 
@@ -540,19 +468,19 @@ describe("production pipeline stage handlers", () => {
     })
   })
 
-  it("normalizes fixed-video media and output with role-specific handlers", async () => {
+  it("rejects raw fixed-video URLs while normalizing output metadata", async () => {
     const handlers = createProductionPipelineHandlers(services() as never)
     const generation = { outputId: "video-1" }
-    const media = await handlers.get(
-      "react-reveal-generation.resolve-anticipation"
-    )!(
-      {
-        generation,
-        templateDefaults: {},
-        override: { url: "https://cdn.test/anticipation.mp4" },
-      },
-      context("react-reveal-generation.resolve-anticipation", handlers)
-    )
+    await expect(
+      handlers.get("react-reveal-generation.resolve-anticipation")!(
+        {
+          generation,
+          templateDefaults: {},
+          override: { url: "https://cdn.test/anticipation.mp4" },
+        },
+        context("react-reveal-generation.resolve-anticipation", handlers)
+      )
+    ).rejects.toThrow("anticipation component requires a media collection")
     const output = await handlers.get(
       "react-reveal-generation.resolve-output"
     )!(
@@ -563,12 +491,6 @@ describe("production pipeline stage handlers", () => {
       },
       context("react-reveal-generation.resolve-output", handlers)
     )
-
-    expect(media).toEqual({
-      generation,
-      componentRole: "anticipation",
-      component: { url: "https://cdn.test/anticipation.mp4" },
-    })
     expect(output).toEqual({
       generation,
       componentRole: "output",

@@ -279,7 +279,7 @@ const WINDMILL_WORKFLOW_INPUTS = {
     "product",
     "script",
     "actor",
-    "actor_asset_collection_id",
+    "actor_collection_id",
     "voice",
     "broll",
     "render",
@@ -323,7 +323,7 @@ const WINDMILL_WORKFLOW_INPUT_ALIASES = {
   },
   "ugc-video-generation": {
     templateId: "template_id",
-    actorAssetCollectionId: "actor_asset_collection_id",
+    actorCollectionId: "actor_collection_id",
   },
   "react-reveal-generation": {
     templateId: "template_id",

@@ -195,7 +195,7 @@ value:
                               expr: flow_input.request_id
                             stage_input:
                               type: javascript
-                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { ...flow_input.actor, assetCollectionId: flow_input.actor_asset_collection_id } })"
+                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { ...flow_input.actor, collectionId: flow_input.actor_collection_id } })"
                       - id: resolve_actor
                         summary: "Actor component — resolve or generate portrait"
                         timeout:
@@ -575,7 +575,7 @@ schema:
         source:
           type: string
           title: Source
-          enum: [generate, asset]
+          enum: [generate, collection]
           default: generate
         prompt:
           type: string
@@ -585,11 +585,11 @@ schema:
           type: string
           title: Motion prompt
           format: textarea
-    actor_asset_collection_id:
+    actor_collection_id:
       type: object
-      format: dynselect-actor_asset_collection_id
+      format: dynselect-actor_collection_id
       title: Actor portrait collection
-      description: Used when Actor source is asset; each run selects one portrait from this photo collection.
+      description: Used when Actor source is collection; each run selects one portrait from this photo collection.
     voice:
       type: object
       title: Voice
@@ -639,4 +639,4 @@ schema:
           type: object
           title: Hook overlay
   x-windmill-dyn-select-lang: bun
-  x-windmill-dyn-select-code: "import { Client, Query, TablesDB } from \"node-appwrite\"\nimport * as wmill from \"windmill-client\"\n\nexport async function actor_asset_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nasync function mediaCollections(kind: \"video\" | \"image\", filterText = \"\") {\n  const [runtimeEnv, defaultOwnerId] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/runtime_env_json\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const env = JSON.parse(required(\"runtime_env_json\", runtimeEnv))\n  const client = new Client()\n    .setEndpoint(required(\"APPWRITE_ENDPOINT\", env.APPWRITE_ENDPOINT))\n    .setProject(required(\"APPWRITE_PROJECT_ID\", env.APPWRITE_PROJECT_ID))\n    .setKey(required(\"APPWRITE_API_KEY\", env.APPWRITE_API_KEY))\n  const response = await new TablesDB(client).listRows(\n    required(\"APPWRITE_DATABASE_ID\", env.APPWRITE_DATABASE_ID),\n    \"permanent_assets\",\n    [\n      Query.equal(\"owner_id\", [required(\"default_owner_id\", defaultOwnerId)]),\n      Query.equal(\"source_key\", [\"image_collection\"]),\n      Query.limit(100),\n    ]\n  )\n  const query = String(filterText || \"\").trim().toLowerCase()\n  return response.rows.flatMap((row) => {\n    const collection = parseCollection(row.data)\n    if (!collection || collection.deletedAt) return []\n    const mediaKind = collection.mediaType === \"video\" ? \"video\" : \"image\"\n    const assetCount = Array.isArray(collection.images)\n      ? collection.images.filter((asset) => clean(asset?.image_link)).length\n      : 0\n    const name = clean(collection.name)\n    if (!name || !assetCount || mediaKind !== kind) return []\n    const label = name + \" (\" + assetCount + \")\"\n    if (query && !label.toLowerCase().includes(query)) return []\n    return [{\n      value: clean(collection.id) || clean(collection.externalId) || slug(name),\n      label,\n      mediaKind,\n      assetCount,\n    }]\n  })\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(\"Lumenclip variable \" + name + \" is not configured\")\n  return text\n}\n\nfunction parseCollection(value: unknown) {\n  if (typeof value !== \"string\") return null\n  try {\n    const parsed = JSON.parse(value)\n    return parsed && typeof parsed === \"object\" ? parsed : null\n  } catch {\n    return null\n  }\n}\n\nfunction clean(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\n\nfunction slug(value: string) {\n  return value.toLowerCase().replace(/[^a-z0-9]+/g, \"-\").replace(/^-|-$/g, \"\")\n}\n"
+  x-windmill-dyn-select-code: "import { Client, Query, TablesDB } from \"node-appwrite\"\nimport * as wmill from \"windmill-client\"\n\nexport async function actor_collection_id(filterText = \"\") {\n  return mediaCollections(\"image\", filterText)\n}\n\nasync function mediaCollections(kind: \"video\" | \"image\", filterText = \"\") {\n  const [runtimeEnv, defaultOwnerId] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/runtime_env_json\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const env = JSON.parse(required(\"runtime_env_json\", runtimeEnv))\n  const client = new Client()\n    .setEndpoint(required(\"APPWRITE_ENDPOINT\", env.APPWRITE_ENDPOINT))\n    .setProject(required(\"APPWRITE_PROJECT_ID\", env.APPWRITE_PROJECT_ID))\n    .setKey(required(\"APPWRITE_API_KEY\", env.APPWRITE_API_KEY))\n  const response = await new TablesDB(client).listRows(\n    required(\"APPWRITE_DATABASE_ID\", env.APPWRITE_DATABASE_ID),\n    \"permanent_assets\",\n    [\n      Query.equal(\"owner_id\", [required(\"default_owner_id\", defaultOwnerId)]),\n      Query.equal(\"source_key\", [\"image_collection\"]),\n      Query.limit(100),\n    ]\n  )\n  const query = String(filterText || \"\").trim().toLowerCase()\n  return response.rows.flatMap((row) => {\n    const collection = parseCollection(row.data)\n    if (!collection || collection.deletedAt) return []\n    const mediaKind = collection.mediaType === \"video\" ? \"video\" : \"image\"\n    const assetCount = Array.isArray(collection.images)\n      ? collection.images.filter((asset) => clean(asset?.image_link)).length\n      : 0\n    const name = clean(collection.name)\n    if (!name || !assetCount || mediaKind !== kind) return []\n    const label = name + \" (\" + assetCount + \")\"\n    if (query && !label.toLowerCase().includes(query)) return []\n    return [{\n      value: clean(collection.id) || clean(collection.externalId) || slug(name),\n      label,\n      mediaKind,\n      assetCount,\n    }]\n  })\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(\"Lumenclip variable \" + name + \" is not configured\")\n  return text\n}\n\nfunction parseCollection(value: unknown) {\n  if (typeof value !== \"string\") return null\n  try {\n    const parsed = JSON.parse(value)\n    return parsed && typeof parsed === \"object\" ? parsed : null\n  } catch {\n    return null\n  }\n}\n\nfunction clean(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\n\nfunction slug(value: string) {\n  return value.toLowerCase().replace(/[^a-z0-9]+/g, \"-\").replace(/^-|-$/g, \"\")\n}\n"

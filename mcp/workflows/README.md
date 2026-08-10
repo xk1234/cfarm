@@ -292,7 +292,7 @@ succeeded output to download and persistence.
 | Workflow         | Accepted named inputs                                                                                           |
 | ---------------- | --------------------------------------------------------------------------------------------------------------- |
 | Slideshow        | `automation_id`                                                                                                 |
-| UGC video        | `template_id`, `product`, `script`, `actor`, `actor_asset_collection_id`, `voice`, `broll`, `render`            |
+| UGC video        | `template_id`, `product`, `script`, `actor`, `actor_collection_id`, `voice`, `broll`, `render`                  |
 | React & Reveal   | `template_id`, `anticipation_collection_id`, `reveal_collection_id`, `hook_caption`, `payoff_caption`, `output` |
 | Greenscreen Meme | `template_id`, `meme_collection_id`, `background_collection_id`, `caption`, `text_placement`, `output`          |
 | LinkedIn         | `niche`, `topic`, `excluded_topics`, `proof`, `persona`, `brief`, `brief_model`, `model`, `count`               |

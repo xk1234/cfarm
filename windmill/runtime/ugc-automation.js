@@ -61,14 +61,17 @@ function credentialsForStage(stage, ugc = {}) {
     ]
   if (stage === "analysis") return ugc.analysis ? [] : ["OPENROUTER_API_KEY"]
   if (stage === "script") return ugc.scriptPlan ? [] : ["OPENROUTER_API_KEY"]
-  if (["actor", "motion", "lipsync", "broll"].includes(stage))
-    return ["FAL_KEY"]
+  if (stage === "actor")
+    return ugc.actorSource === "collection" && ugc.actorPortraitUrl
+      ? []
+      : ["FAL_KEY"]
+  if (["motion", "lipsync", "broll"].includes(stage)) return ["FAL_KEY"]
   if (stage === "voice") return ["ELEVENLABS_API_KEY"]
   if (stage === "composite") return ["RENDI_API_KEY"]
   return []
 }
 
-function legacyUgcConfig(value) {
+function ugcConfigFromComponents(value) {
   if (!value || typeof value !== "object") return {}
   const product =
     value.product && typeof value.product === "object" ? value.product : {}
@@ -92,7 +95,7 @@ function legacyUgcConfig(value) {
   set("targetDurationSeconds", script.targetDurationSeconds)
   set("scriptPlan", script.plan)
   set("actorSource", actor.source)
-  set("actorAssetUrl", actor.assetUrl)
+  set("actorPortraitUrl", actor.portraitUrl)
   set("actorPrompt", actor.prompt)
   set("motionPrompt", actor.motionPrompt)
   set("voiceId", voice.voiceId)
@@ -194,7 +197,7 @@ export async function runUgcAutomationJob({
   const schema = automation.schema
   const ugc = {
     ...(schema.ugc || {}),
-    ...legacyUgcConfig(payload?.components),
+    ...ugcConfigFromComponents(payload?.components),
   }
 
   const missing = [
@@ -324,9 +327,14 @@ export async function runUgcAutomationJob({
           return { plan }
         },
         actor: async ({ checkpoints }) => {
-          let sourceUrl = String(ugc.actorAssetUrl || "").trim(),
-            provenance = { provider: "configured_asset" }
-          if (!sourceUrl || ugc.actorSource === "generate") {
+          let sourceUrl = String(ugc.actorPortraitUrl || "").trim(),
+            provenance = { provider: "collection" }
+          if (ugc.actorSource === "collection" && !sourceUrl) {
+            throw new UgcConfigurationError(
+              "windmill-native-ugc: collection actor has no resolved portrait"
+            )
+          }
+          if (ugc.actorSource === "generate") {
             const asset = await api.image({
               endpoint: generationModelRegistry.ugc.falFlux2ProEndpoint,
               apiKey: process.env.FAL_KEY,

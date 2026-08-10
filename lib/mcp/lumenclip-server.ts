@@ -516,10 +516,10 @@ export function createLumenClipMcpServer(
           .optional()
           .describe("Optional saved AI UGC template ID to estimate."),
         actorSource: z
-          .enum(["generate", "gallery"])
+          .enum(["generate", "collection"])
           .optional()
           .describe(
-            'Actor source mode: "generate" creates an avatar; "gallery" selects one portrait from actorCollectionId.'
+            'Actor source mode: "generate" creates an avatar; "collection" selects one portrait from actorCollectionId.'
           ),
         actorCollectionId: z
           .string()
@@ -527,7 +527,7 @@ export function createLumenClipMcpServer(
           .min(1)
           .optional()
           .describe(
-            'Saved photo collection ID used when actorSource is "gallery", e.g. "actor-portraits".'
+            'Saved photo collection ID used when actorSource is "collection", e.g. "actor-portraits".'
           ),
         voiceModel: z
           .string()

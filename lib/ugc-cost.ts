@@ -93,8 +93,7 @@ export function estimateUgcCost(
       1,
       UGC_PRICING_USD.openrouter.ugcScript
     ),
-    ...(ugc.actorSource === "generate" ||
-    (!ugc.actorAssetUrl && !ugc.actorCollectionId)
+    ...(ugc.actorSource !== "collection" || !ugc.actorCollectionId
       ? [
           item(
             "actor",
