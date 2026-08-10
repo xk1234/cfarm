@@ -233,6 +233,33 @@ export const PIPELINE_STAGE_CATALOG = [
     "Return bounded collection IDs, labels, media types, and asset counts for generated Windmill selectors.",
     { ...compositeStage, workflowStep: false }
   ),
+  stage(
+    "slideshow-generation",
+    119,
+    "normalize-run-brief",
+    "Normalize run brief",
+    "deterministic",
+    "Normalize the selected hook and output-affecting content controls independently of template loading.",
+    { workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
+    120,
+    "normalize-collection-overrides",
+    "Normalize collection overrides",
+    "deterministic",
+    "Normalize optional hook, content, and CTA collection selections into one typed override artifact.",
+    { workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
+    121,
+    "normalize-slide-overrides",
+    "Normalize slide overrides",
+    "deterministic",
+    "Validate and normalize individual slide content-direction and collection overrides.",
+    { workflowStep: false }
+  ),
   atomicStage(
     "slideshow-generation",
     108,

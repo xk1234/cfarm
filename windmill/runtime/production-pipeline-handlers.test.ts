@@ -131,6 +131,80 @@ describe("production pipeline stage handlers", () => {
     expect(JSON.stringify(result)).not.toContain("cdn.test")
   })
 
+  it("normalizes independent slideshow input groups into typed artifacts", async () => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const runBrief = await handlers.get(
+      "slideshow-generation.normalize-run-brief"
+    )!(
+      {
+        hook: { value: "Selected hook", label: "Selected hook" },
+        contentControls: {
+          language: "Spanish",
+          tone: "Direct",
+          slide_count: 6,
+          body_content_direction: "Use concrete examples.",
+        },
+      },
+      context("slideshow-generation.normalize-run-brief", handlers)
+    )
+    const collections = await handlers.get(
+      "slideshow-generation.normalize-collection-overrides"
+    )!(
+      {
+        hook_collection_id: {
+          value: "hook-images",
+          label: "Hook images",
+        },
+        body_collection_id: "body-images",
+      },
+      context("slideshow-generation.normalize-collection-overrides", handlers)
+    )
+    const slides = await handlers.get(
+      "slideshow-generation.normalize-slide-overrides"
+    )!(
+      {
+        slideOverrides: [
+          {
+            slide_number: 2,
+            content_direction: "Make this about Leo.",
+            collection_id: {
+              value: "leo-images",
+              label: "Leo images",
+            },
+          },
+        ],
+      },
+      context("slideshow-generation.normalize-slide-overrides", handlers)
+    )
+
+    expect(runBrief).toEqual({
+      runBrief: {
+        hook: "Selected hook",
+        contentControls: {
+          language: "Spanish",
+          tone: "Direct",
+          slide_count: 6,
+          body_content_direction: "Use concrete examples.",
+        },
+      },
+    })
+    expect(collections).toEqual({
+      collectionOverrides: {
+        hook_collection_id: "hook-images",
+        body_collection_id: "body-images",
+      },
+    })
+    expect(slides).toEqual({
+      slideOverrides: [
+        {
+          slide_number: 2,
+          content_direction: "Make this about Leo.",
+          collection_id: "leo-images",
+        },
+      ],
+    })
+  })
+
   it("applies slideshow run overrides without mutating the saved template", async () => {
     const schema = defaultAutomationSchema({
       id: "template-1",
