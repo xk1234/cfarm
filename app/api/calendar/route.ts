@@ -15,7 +15,6 @@ import {
 } from "@/lib/automations"
 import {
   calendarItemMatchesFilters,
-  calendarLifecycleForJob,
   calendarLifecycleForLocalPost,
   calendarLifecycleForPostFast,
   dedupeCalendarItems,
@@ -28,7 +27,6 @@ import { clean, isRecord } from "@/lib/guards"
 import { postfastRequest } from "@/lib/postfast-client"
 import { type PostFastPostRecord } from "@/lib/postfast-posts"
 import { listPublicationRecordsForRead } from "@/lib/post-repository"
-import { listJobs, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
 import { listResultRecords, type ResultRecord } from "@/lib/results"
 import {
@@ -73,23 +71,15 @@ export async function GET(request: Request) {
     )
   }
 
-  const [
-    automationRecords,
-    xAutomations,
-    runs,
-    xRuns,
-    results,
-    localPosts,
-    jobs,
-  ] = await Promise.all([
-    listAutomationRecords(),
-    listXAutomations(),
-    listAutomationRuns({ limit: 500 }),
-    listXAutomationRuns(),
-    listResultRecords({ limit: 500 }),
-    listPublicationRecordsForRead({ surface: "calendar" }),
-    listJobs({ limit: 500 }).catch(() => []),
-  ])
+  const [automationRecords, xAutomations, runs, xRuns, results, localPosts] =
+    await Promise.all([
+      listAutomationRecords(),
+      listXAutomations(),
+      listAutomationRuns({ limit: 500 }),
+      listXAutomationRuns(),
+      listResultRecords({ limit: 500 }),
+      listPublicationRecordsForRead({ surface: "calendar" }),
+    ])
   const automations = [
     ...automationRecords.map(automationRecordToSummary),
     ...xAutomations.map(xAutomationToAutomation),
@@ -105,9 +95,6 @@ export async function GET(request: Request) {
   )
 
   const projected = projectionItems(automations, from, to, now)
-  const jobItems = jobs.flatMap((job) =>
-    jobCalendarItem(job, automationById, from, to)
-  )
   const localItems = localPosts.flatMap((post) =>
     localPostCalendarItem(post, runContexts, automationById, from, to)
   )
@@ -120,7 +107,6 @@ export async function GET(request: Request) {
   }).catch(() => [])
   const mergedItems = dedupeCalendarItems([
     ...projected,
-    ...jobItems,
     ...localItems,
     ...remoteItems,
   ])
@@ -180,76 +166,6 @@ function projectionItems(
       }
     )
   })
-}
-
-function jobCalendarItem(
-  job: Job,
-  automationById: Map<string, Automation>,
-  from: Date,
-  to: Date
-): CalendarItem[] {
-  if (
-    job.type !== "run-template" &&
-    job.type !== "run-social-template" &&
-    job.type !== "run-ugc-template"
-  ) {
-    return []
-  }
-  const status = calendarLifecycleForJob(job.status)
-  if (!status) return []
-  const payload = isRecord(job.payload) ? job.payload : {}
-  const slot = clean(payload.scheduledFor)
-  const datetime = slot || clean(job.availableAt || job.createdAt)
-  if (!inRange(datetime, from, to)) return []
-  const automationId = clean(payload.automationId)
-  const automation = automationById.get(automationId)
-  const result = isRecord(job.result) ? job.result : {}
-  const runId = clean(result.runId)
-  return [
-    {
-      id: `job:${job.id}`,
-      status,
-      datetime,
-      slot: slot || undefined,
-      timezone: automationTimezone(automation),
-      automationId: automationId || undefined,
-      automationName: automation?.name,
-      targets: automationTargets(automation, status),
-      source: "job",
-      sourceType:
-        job.type === "run-social-template" ? "x_automation" : "automation",
-      sourceId: job.id,
-      title:
-        status === "generation_failed"
-          ? "Generation failed"
-          : job.status === "processing"
-            ? "Generating content"
-            : job.attempts > 0
-              ? `Generation retry ${job.attempts + 1}`
-              : "Generation queued",
-      error: job.error || undefined,
-      links: {
-        automation: automationId ? automationLink(automationId) : undefined,
-        content:
-          automationId && runId ? contentLink(automationId, runId) : undefined,
-        retry:
-          status === "generation_failed"
-            ? `/api/jobs/${encodeURIComponent(job.id)}/retry`
-            : undefined,
-      },
-      timestamps: {
-        createdAt: job.createdAt || undefined,
-        updatedAt: job.updatedAt || undefined,
-        scheduledAt: slot || undefined,
-        expectedGenerationAt: expectedGenerationAt(
-          automation,
-          slot || datetime,
-          job.type === "run-social-template"
-        ),
-        expectedPublishedAt: slot || undefined,
-      },
-    },
-  ]
 }
 
 function localPostCalendarItem(

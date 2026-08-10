@@ -21,7 +21,6 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
       result.alreadyDeleted &&
       result.deletedSlideshowsCount === 0 &&
       result.deletedRunsCount === 0 &&
-      result.deletedJobsCount === 0 &&
       result.deletedPostFastPostsCount === 0
     ) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 })

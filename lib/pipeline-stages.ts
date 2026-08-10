@@ -62,6 +62,7 @@ export const PIPELINE_WORKFLOW_IDS = [
   "ugc-video-generation",
   "react-reveal-generation",
   "greenscreen-meme-generation",
+  "template-video-generation",
   "linkedin-generation",
   "x-threads-generation",
 ] as const
@@ -580,22 +581,6 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   atomicStage(
     "ugc-video-generation",
-    104,
-    "enqueue-checkpoint-job",
-    "storage",
-    "Appwrite job enqueue",
-    "Enqueue one production UGC checkpoint job."
-  ),
-  atomicStage(
-    "ugc-video-generation",
-    105,
-    "get-checkpoint-job",
-    "storage",
-    "Appwrite job read",
-    "Read one queued UGC checkpoint job."
-  ),
-  atomicStage(
-    "ugc-video-generation",
     106,
     "fal-create-task",
     "provider",
@@ -754,6 +739,99 @@ export const PIPELINE_STAGE_CATALOG = [
     "background",
     "Resolve an optional Greenscreen Meme template plus explicit meme clip, background, caption, audio, and output components."
   ),
+
+  ...[
+    [
+      1,
+      "load-template",
+      "Load video template",
+      "Load and validate the saved generic video template.",
+    ],
+    [
+      2,
+      "generate-copy",
+      "Generate video copy",
+      "Select and expand the hook, then generate captions and publish-gate metadata.",
+    ],
+    [
+      3,
+      "resolve-media",
+      "Resolve template media",
+      "Resolve every segment to its configured collection, demo asset, or composed slideshow output.",
+    ],
+    [
+      4,
+      "assemble-components",
+      "Assemble render components",
+      "Join independently generated copy and resolved media at their first common renderer consumer.",
+    ],
+    [
+      5,
+      "stage-media",
+      "Stage render media",
+      "Download the selected media inputs into isolated render staging.",
+    ],
+    [
+      6,
+      "build-render-command",
+      "Build template render command",
+      "Build the FFmpeg render plan while preserving segment order, duration, full-play, captions, and audio settings.",
+    ],
+    [
+      7,
+      "render-store-output",
+      "Render and store video",
+      "Render the generic video with Rendi and persist video and thumbnail artifacts.",
+    ],
+    [
+      8,
+      "finalize-output",
+      "Finalize video draft",
+      "Persist the canonical unpublished video output.",
+    ],
+    [
+      9,
+      "discard-staged-media",
+      "Discard staged media",
+      "Remove temporary source files after the output is durable.",
+    ],
+    [
+      101,
+      "stage-one-media",
+      "Stage one media input",
+      "Download exactly one selected template-media input.",
+    ],
+  ].map(([order, name, title, description]) =>
+    stage(
+      "template-video-generation",
+      order as number,
+      name as string,
+      title as string,
+      name === "generate-copy" || name === "render-store-output"
+        ? "provider"
+        : name === "load-template" || name === "finalize-output"
+          ? "storage"
+          : "deterministic",
+      description as string,
+      [
+        "load-template",
+        "stage-media",
+        "render-store-output",
+        "finalize-output",
+      ].includes(name as string)
+        ? compositeStage
+        : name === "stage-one-media"
+          ? {
+              granularity: "atomic",
+              sideEffect: "network",
+              operation: "remote media HTTP download",
+              maxExternalCalls: 1,
+              workflowStep: false,
+            }
+          : undefined
+    )
+  ),
+  ...rendiProtocolStages("template-video-generation", 120),
 
   stage(
     "linkedin-generation",
@@ -1956,7 +2034,9 @@ function rendiProtocolStages(
 function fixedVideoFormatStages(
   workflowId: Extract<
     PipelineWorkflowId,
-    "react-reveal-generation" | "greenscreen-meme-generation"
+    | "react-reveal-generation"
+    | "greenscreen-meme-generation"
+    | "template-video-generation"
   >,
   primaryRole: string,
   secondaryRole: string,

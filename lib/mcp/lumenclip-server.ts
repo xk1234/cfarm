@@ -8,9 +8,10 @@ import {
 } from "@/lib/pipeline-stages"
 import {
   queueWindmillWorkflow,
+  runWindmillPipelineStage,
+  runWindmillWorkflow,
   windmillWorkflowInputNames,
 } from "@/lib/windmill-workflows"
-import { runProductionPipelineStage } from "@/lib/production-pipeline-runtime"
 import { toLumenClipDataError } from "@/lib/appwrite-errors"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -18,6 +19,7 @@ import {
   runAutomationExperiment,
 } from "@/lib/automation-experiment"
 import { deriveAutomationVariableBindings } from "@/lib/automation-variable-bindings"
+import { assertNoEnabledDynamicSlideCountHooks } from "@/lib/fixed-slideshow-count"
 import {
   automationRecordToSummary,
   createLocalAutomationRecord,
@@ -37,11 +39,9 @@ import {
 } from "@/lib/automation-hook-pool"
 import { lintAutomationHooks } from "@/lib/automation-hook-lint"
 import { assertValidAutomationHookTokens } from "@/lib/automation-hook-token-validation"
-import { assertNoEnabledDynamicSlideCountHooks } from "@/lib/fixed-slideshow-count"
 import {
   deleteAutomationRuns,
   previewAutomationHookVariants,
-  runDueAutomations,
   listAutomationRuns,
   markAutomationRunPublished,
   updateAutomationRunSlideText,
@@ -156,10 +156,6 @@ import {
 import { draftTikTokCommentReplies } from "@/lib/tiktok-comment-replies"
 import type { XAutomationRecord, XAutomationRun } from "@/lib/x-automation"
 import {
-  generateStoredXAutomationRun,
-  persistGeneratedXAutomationRun,
-} from "@/lib/x-automation-runner"
-import {
   deleteXAutomationRun,
   getXAutomation,
   getXAutomationRun,
@@ -252,14 +248,11 @@ export type LumenClipMcpServices = {
   listXAutomations: typeof listXAutomations
   getXAutomation: typeof getXAutomation
   upsertXAutomation: typeof upsertXAutomation
-  runDueAutomations: typeof runDueAutomations
   previewAutomationHookVariants: typeof previewAutomationHookVariants
   deleteAutomationRuns: typeof deleteAutomationRuns
   listAutomationRuns: typeof listAutomationRuns
   markAutomationRunPublished: typeof markAutomationRunPublished
   updateAutomationRunSlideText: typeof updateAutomationRunSlideText
-  generateStoredXAutomationRun: typeof generateStoredXAutomationRun
-  persistGeneratedXAutomationRun: typeof persistGeneratedXAutomationRun
   getReminderSettings: typeof getReminderSettings
   listXAutomationRuns: typeof listXAutomationRuns
   getXAutomationRun: typeof getXAutomationRun
@@ -311,8 +304,9 @@ export type LumenClipMcpServices = {
   getUgcRunStatus: typeof getUgcRunStatus
   estimateUgcCost: typeof estimateUgcCost
   ugcGenerationEnabled: () => boolean
-  runPipelineStage: typeof runProductionPipelineStage
+  runPipelineStage: typeof runWindmillPipelineStage
   queuePipelineWorkflow: typeof queueWindmillWorkflow
+  runPipelineWorkflow: typeof runWindmillWorkflow
 }
 
 const defaultServices: LumenClipMcpServices = {
@@ -329,14 +323,11 @@ const defaultServices: LumenClipMcpServices = {
   listXAutomations,
   getXAutomation,
   upsertXAutomation,
-  runDueAutomations,
   previewAutomationHookVariants,
   deleteAutomationRuns,
   listAutomationRuns,
   markAutomationRunPublished,
   updateAutomationRunSlideText,
-  generateStoredXAutomationRun,
-  persistGeneratedXAutomationRun,
   getReminderSettings,
   listXAutomationRuns,
   getXAutomationRun,
@@ -388,8 +379,9 @@ const defaultServices: LumenClipMcpServices = {
   getUgcRunStatus,
   estimateUgcCost,
   ugcGenerationEnabled: () => process.env.ENABLE_UGC_AUTOMATION === "true",
-  runPipelineStage: runProductionPipelineStage,
+  runPipelineStage: runWindmillPipelineStage,
   queuePipelineWorkflow: queueWindmillWorkflow,
+  runPipelineWorkflow: runWindmillWorkflow,
 }
 
 function readMcpPublications(
@@ -465,17 +457,31 @@ export function createLumenClipMcpServer(
             throw new Error("The selected template is not a slideshow")
           }
           const traceId = requestId || `mcp-${crypto.randomUUID()}`
-          const result = await services.runDueAutomations({
-            automationId,
-            force: true,
+          const workflow = await services.runPipelineWorkflow({
+            workflowId: "slideshow-generation",
+            ownerId,
             requestId: traceId,
-            hook,
+            workflowInput: {
+              automationId,
+              hook,
+              generationSource: "manual",
+            },
           })
           const priorRuns = await services.listAutomationRuns({
             automationId,
             limit: 500,
           })
-          const runs = result.created.map((run) => {
+          const completedRun =
+            priorRuns.find((run) => run.requestId === traceId) ??
+            priorRuns.find(
+              (run) => run.id === clean(record(workflow.result.run).id)
+            )
+          if (!completedRun) {
+            throw new Error(
+              "Windmill completed slideshow generation without a persisted run"
+            )
+          }
+          const runs = [completedRun].map((run) => {
             const qa =
               run.status === "succeeded"
                 ? validateAutomationRunOutput({
@@ -490,8 +496,8 @@ export function createLumenClipMcpServer(
             templateId: automationId,
             requestId: traceId,
             runs,
-            skipped: result.skipped,
-            nextSteps: result.created.flatMap((run, index) =>
+            skipped: [],
+            nextSteps: [completedRun].flatMap((run, index) =>
               qaNextSteps({
                 automationId,
                 outputId: run.slideshowId,
@@ -604,7 +610,7 @@ export function createLumenClipMcpServer(
     {
       title: "Generate an AI UGC draft",
       description:
-        "Generates one AI UGC draft by queueing a saved AI UGC template, then returns an unpublished draft operation, expected output ID, cost estimate, and polling action. It never publishes content.",
+        "Generates one unpublished AI UGC draft through the saved template's Windmill workflow. It never publishes content.",
       inputSchema: {
         templateId: z
           .string()
@@ -631,10 +637,11 @@ export function createLumenClipMcpServer(
       mcpResult(
         await owned(async () =>
           canonicalTemplateEnvelope(
-            await runUgcDraft(services, {
-              ...input,
-              automationId: templateId,
-            })
+            await runAutomationDraft(
+              services,
+              { ...input, automationId: templateId },
+              ownerId
+            )
           )
         )
       )
@@ -863,7 +870,7 @@ function registerPipelineTools(
     {
       title: "Run one production pipeline stage",
       description:
-        "Runs one registered atomic or composite generation stage with explicit structured JSON input. Atomic network/storage stages declare a one-call boundary; decomposed composites invoke registered stages through the same registry used by full workflow execution. Secrets and media bytes are rejected; provider and storage stages return durable references or operations. The workflow docs identify residual non-provider storage limitations.",
+        "Queues one registered atomic or composite generation stage in Windmill with explicit structured JSON input. The application never executes the stage locally. Secrets and media bytes are rejected; provider and storage stages return durable references or operations.",
       inputSchema: {
         stageId: z.enum(
           PIPELINE_STAGE_CATALOG.map((stage) => stage.id) as [
@@ -2134,7 +2141,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Run a template",
       description:
-        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads template. Slideshow callers may supply an exact hook instead of random selection. AI UGC runs asynchronously and returns a pollable operation. Saved video templates remain discoverable but do not yet have a shared runner. For completed slideshow runs the output entry includes the selected hook, `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, `text`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
+        "Generates one unpublished, unscheduled draft from any saved slideshow, video, AI UGC, X, or Threads template through its Windmill workflow. Slideshow callers may supply an exact hook instead of random selection. For completed slideshow runs the output entry includes the selected hook, `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, `text`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
         templateId: z
           .string()
@@ -3430,10 +3437,6 @@ function registerOutputAndPublishingTools(
     async ({ operationId }) =>
       mcpResult(
         await owned(async () => {
-          const job = await services.getJob(operationId)
-          if (job?.type === "run-ugc-template") {
-            return ugcJobOperation(services, job)
-          }
           const regularRuns = await services.listAutomationRuns({ limit: 500 })
           const regular = regularRuns.find((run) => run.id === operationId)
           if (regular) {
@@ -3717,58 +3720,76 @@ async function runAutomationDraft(
 ) {
   const standard = await services.getAutomationRecord(input.automationId)
   if (standard) {
-    if (standard.schema.automationKind === "ugc") {
-      if (input.hook) {
-        throw new Error("Explicit hooks are supported only for slideshow runs")
-      }
-      return runUgcDraft(services, input)
-    }
-    if (standard.schema.automationKind === "video") {
-      throw new Error(
-        "Saved video automations do not yet have a server-side generation runner. They can be listed, inspected, scheduled, paused, and resumed through MCP."
-      )
-    }
-    const priorRuns = await services.listAutomationRuns({
-      automationId: input.automationId,
-      limit: 100,
-    })
-    const existing = priorRuns.find((run) => run.requestId === input.requestId)
-    if (existing) {
-      return regularOperation(
-        existing,
-        true,
-        {
-          schema: standard.schema,
-          priorRuns,
+    if (standard.schema.automationKind === "slideshow") {
+      const priorRuns = await services.listAutomationRuns({
+        automationId: input.automationId,
+        limit: 100,
+      })
+      const workflow = await services.runPipelineWorkflow({
+        workflowId: "slideshow-generation",
+        ownerId,
+        requestId: input.requestId,
+        workflowInput: {
+          automationId: input.automationId,
+          hook: input.hook,
+          generationSource: "manual",
         },
+      })
+      const currentRuns = await services.listAutomationRuns({
+        automationId: input.automationId,
+        limit: 100,
+      })
+      const run = currentRuns.find(
+        (candidate) => candidate.requestId === input.requestId
+      ) ?? currentRuns.find(
+        (candidate) => candidate.id === clean(record(workflow.result.run).id)
+      )
+      if (!run) {
+        throw new Error(
+          "Windmill completed slideshow generation without a persisted run"
+        )
+      }
+      return regularOperation(
+        run,
+        false,
+        { schema: standard.schema, priorRuns },
         ownerId
       )
     }
 
-    const result = await services.runDueAutomations({
-      automationId: input.automationId,
-      force: true,
-      requestId: input.requestId,
-      hook: input.hook,
-    })
-    const run = result.created[0]
-    if (!run) {
-      return skippedAutomationOperation({
-        automationId: input.automationId,
-        requestId: input.requestId,
-        skipped: result.skipped,
-        now: services.now(),
-      })
+    if (input.hook) {
+      throw new Error("Explicit hooks are supported only for slideshow runs")
     }
-    return regularOperation(
-      run,
-      false,
-      {
-        schema: standard.schema,
-        priorRuns,
-      },
-      ownerId
-    )
+    const format = standard.schema.video_format?.template
+    const workflowId =
+      standard.schema.automationKind === "ugc" || format === "ugc_ad"
+        ? "ugc-video-generation"
+        : format === "react_reveal"
+          ? "react-reveal-generation"
+          : format === "greenscreen_meme"
+            ? "greenscreen-meme-generation"
+            : "template-video-generation"
+    await services.runPipelineWorkflow({
+      workflowId,
+      ownerId,
+      requestId: input.requestId,
+      workflowInput: { templateId: input.automationId },
+    })
+    const video = (await services.listGeneratedVideoExports({ limit: 500 }))
+      .filter(
+        (candidate) =>
+          candidate.sourceAutomationId === input.automationId ||
+          clean(record(candidate.sourceConfig).templateId) ===
+            input.automationId
+      )
+      .find(
+        (candidate) =>
+          clean(record(candidate.sourceConfig).requestId) === input.requestId
+      )
+    if (!video) {
+      throw new Error("Windmill completed video generation without an output")
+    }
+    return videoOperation(video)
   }
 
   const social = await services.getXAutomation(input.automationId)
@@ -3780,11 +3801,21 @@ async function runAutomationDraft(
     await services.listXAutomationRuns(input.automationId)
   ).find((run) => run.requestId === input.requestId)
   if (existing) return socialOperation(existing, true)
-  const run = await services.generateStoredXAutomationRun({
-    automation: social,
-    topic: input.topic,
+  await services.runPipelineWorkflow({
+    workflowId: "x-threads-generation",
+    ownerId,
     requestId: input.requestId,
+    workflowInput: {
+      automationId: input.automationId,
+      topic: input.topic,
+    },
   })
+  const run = (await services.listXAutomationRuns(input.automationId)).find(
+    (candidate) => candidate.requestId === input.requestId
+  )
+  if (!run) {
+    throw new Error("Windmill completed social generation without a draft run")
+  }
   return socialOperation(run)
 }
 
@@ -3807,109 +3838,6 @@ function canonicalizeTemplateFields(value: unknown): unknown {
       canonicalizeTemplateFields(entry),
     ])
   )
-}
-
-async function runUgcDraft(
-  services: LumenClipMcpServices,
-  input: { automationId: string; requestId: string }
-) {
-  const automation = await services.getAutomationRecord(input.automationId)
-  if (!automation) throw new Error("Automation not found")
-  if (automation.schema.automationKind !== "ugc") {
-    throw new Error("The selected automation is not an AI UGC automation")
-  }
-  if (automation.status !== "live") {
-    throw new Error("AI UGC generation requires a live automation")
-  }
-  const configurationErrors = ugcLiveConfigurationErrors(
-    automation.status,
-    automation.schema
-  )
-  if (configurationErrors.length) {
-    throw new Error(configurationErrors.join("; "))
-  }
-  if (!services.ugcGenerationEnabled()) {
-    throw new Error(
-      "AI UGC generation is disabled. Set ENABLE_UGC_AUTOMATION=true for the job worker and MCP process."
-    )
-  }
-
-  const scheduledFor = services.now().toISOString()
-  const queued = await services.enqueueJob({
-    type: "run-ugc-template",
-    payload: {
-      automationId: input.automationId,
-      scheduledFor,
-      requestId: input.requestId,
-      source: "mcp",
-      draftOnly: true,
-    },
-    dedupeKey: `ugc-mcp:${input.automationId}:${input.requestId}`,
-    maxAttempts: 3,
-  })
-  if (!queued) throw new Error("The generation queue is unavailable")
-  const job = await services.getJob(queued.id)
-  const payload = jobPayload(job)
-  const effectiveScheduledFor =
-    typeof payload.scheduledFor === "string"
-      ? payload.scheduledFor
-      : scheduledFor
-  const runId = ugcRunId(input.automationId, effectiveScheduledFor)
-  const outputId = ugcExportId(input.automationId, effectiveScheduledFor)
-  const timestamp = job?.createdAt ?? scheduledFor
-  return {
-    automationId: input.automationId,
-    requestId: input.requestId,
-    runId,
-    expectedOutputId: outputId,
-    estimate: services.estimateUgcCost(automation.schema.ugc ?? {}),
-    operation: {
-      id: queued.id,
-      kind: "ugc.generate",
-      status: "running",
-      stage: queued.status === "duplicate" ? "queued_existing" : "queued",
-      progress: 0,
-      createdAt: timestamp,
-      updatedAt: job?.updatedAt ?? timestamp,
-      nextPollAfterMs: 5000,
-      resourceUri: `lumenclip://operations/${encodeURIComponent(queued.id)}`,
-    },
-    outputs: [],
-    warnings:
-      queued.status === "duplicate"
-        ? ["Returned the existing operation for this requestId."]
-        : [],
-    errors: [],
-    nextActions: [
-      {
-        tool: "lumenclip_operation_get",
-        arguments: { operationId: queued.id },
-      },
-    ],
-  }
-}
-
-function jobPayload(job: Job | null): Record<string, unknown> {
-  return job?.payload && typeof job.payload === "object"
-    ? (job.payload as Record<string, unknown>)
-    : {}
-}
-
-async function ugcJobOperation(services: LumenClipMcpServices, job: Job) {
-  const payload = jobPayload(job)
-  const automationId = clean(payload.automationId)
-  const scheduledFor = clean(payload.scheduledFor)
-  const runId =
-    automationId && scheduledFor ? ugcRunId(automationId, scheduledFor) : ""
-  const run = runId ? await services.getUgcRunStatus(runId) : null
-  return ugcOperationEnvelope(services, {
-    id: job.id,
-    job,
-    run,
-    automationId,
-    scheduledFor,
-    stopAfter: clean(payload.stopAfter) || undefined,
-  })
 }
 
 async function ugcRunOperation(
@@ -4012,79 +3940,6 @@ async function ugcOperationEnvelope(
           },
         ]
       : [],
-  }
-}
-
-function skippedAutomationOperation(input: {
-  automationId: string
-  requestId: string
-  skipped: Array<{
-    automationId: string
-    reason: string
-    scheduledFor?: string
-    blockers?: Array<{ code: string; message: string }>
-  }>
-  now: Date
-}) {
-  const reason = input.skipped[0]?.reason ?? "generation_failed"
-  const blockers = input.skipped.flatMap((item) => item.blockers ?? [])
-  const timestamp = input.now.toISOString()
-  return {
-    automationId: input.automationId,
-    requestId: input.requestId,
-    operation: {
-      id: input.requestId,
-      kind: "automation.run",
-      status: "failed",
-      stage: "precondition",
-      progress: 100,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      nextPollAfterMs: null,
-      resourceUri: `lumenclip://operations/${encodeURIComponent(input.requestId)}`,
-    },
-    outputs: [],
-    skipped: input.skipped,
-    warnings: [],
-    errors: [
-      ...(blockers.length
-        ? blockers.map((blocker) => ({
-            code: automationBlockerErrorCode(blocker.code),
-            message: blocker.message,
-            retryable: false,
-          }))
-        : [
-            {
-              code:
-                reason === "no_images"
-                  ? "COLLECTION_EMPTY"
-                  : "OPERATION_FAILED",
-              message: `Automation did not create an output: ${reason}`,
-              retryable: true,
-            },
-          ]),
-    ],
-  }
-}
-
-function automationBlockerErrorCode(code: string) {
-  switch (code) {
-    case "missing_collection_selection":
-      return "COLLECTION_NOT_SELECTED"
-    case "missing_collection":
-      return "COLLECTION_NOT_FOUND"
-    case "empty_collection":
-      return "COLLECTION_EMPTY"
-    case "missing_hook":
-      return "HOOK_POOL_EMPTY"
-    case "invalid_hook_variable":
-      return "HOOK_VARIABLE_INVALID"
-    case "invalid_ugc_configuration":
-      return "UGC_CONFIGURATION_INVALID"
-    case "unsupported_runner":
-      return "RUNNER_UNSUPPORTED"
-    default:
-      return "AUTOMATION_BLOCKED"
   }
 }
 
@@ -6327,7 +6182,6 @@ export function buildCalendarLifecycleItems(input: {
     paused: boolean
     kind: string
   }>
-  jobs: Job[]
   publications: PostFastPostRecord[]
   remote: unknown
   automationId?: string
@@ -6343,58 +6197,6 @@ export function buildCalendarLifecycleItems(input: {
       timestamp <= input.to.getTime()
     )
   }
-  const jobItems = input.jobs.flatMap((job) => {
-    if (
-      job.type !== "run-template" &&
-      job.type !== "run-social-template" &&
-      job.type !== "run-ugc-template"
-    ) {
-      return []
-    }
-    const payload =
-      job.payload && typeof job.payload === "object"
-        ? (job.payload as Record<string, unknown>)
-        : {}
-    const automationId = clean(payload.automationId)
-    const slot = clean(payload.scheduledFor)
-    const datetime = slot || clean(job.availableAt || job.createdAt)
-    if (
-      (input.automationId && automationId !== input.automationId) ||
-      !inRange(datetime)
-    ) {
-      return []
-    }
-    const status =
-      job.status === "failed" || job.status === "dead"
-        ? ("generation_failed" as const)
-        : job.status === "queued" || job.status === "processing"
-          ? ("generating" as const)
-          : null
-    if (!status) return []
-    return [
-      {
-        id: `job:${job.id}`,
-        status,
-        sourceStatus: job.status,
-        datetime,
-        slot: slot || undefined,
-        automationId: automationId || undefined,
-        source: "job" as const,
-        sourceType: job.type,
-        sourceId: job.id,
-        title:
-          status === "generation_failed"
-            ? "Content generation failed"
-            : "Content is generating",
-        error: job.error,
-        timestamps: {
-          createdAt: job.createdAt,
-          updatedAt: job.updatedAt,
-          expectedPublishedAt: slot || undefined,
-        },
-      },
-    ]
-  })
   const publicationItems = input.publications.flatMap((publication) => {
     const automationId = clean(
       (
@@ -6533,7 +6335,7 @@ export function buildCalendarLifecycleItems(input: {
     (item) => !remoteLocalIds.has(item.id.replace(/^publication:/, ""))
   )
   const materializedSlots = new Set(
-    [...jobItems, ...dedupedPublicationItems, ...remoteItems].flatMap((item) =>
+    [...dedupedPublicationItems, ...remoteItems].flatMap((item) =>
       item.automationId && item.slot
         ? [`${item.automationId}:${item.slot}`]
         : []
@@ -6563,12 +6365,7 @@ export function buildCalendarLifecycleItems(input: {
         expectedPublishedAt: slot.scheduledFor,
       },
     }))
-  const items = [
-    ...projectedItems,
-    ...jobItems,
-    ...dedupedPublicationItems,
-    ...remoteItems,
-  ]
+  const items = [...projectedItems, ...dedupedPublicationItems, ...remoteItems]
     .sort((left, right) => left.datetime.localeCompare(right.datetime))
     .slice(0, input.limit)
   return {
@@ -7259,6 +7056,10 @@ function isJobStatus(value: string | undefined): value is Job["status"] {
     value === "failed" ||
     value === "dead"
   )
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {}
 }
 
 function serializeSchedule(schedule: AutomationSchedule | undefined) {

@@ -4,7 +4,6 @@ import { defaultXAutomation, normalizeXAutomation } from "@/lib/x-automation"
 import {
   buildPostStructuredOutputSchema,
   derivePillarsFromNicheWithDiagnostics,
-  generateXAutomationRun,
   normalizeStructuredOutput,
   selectPostPlan,
   threadsRecycleCandidate,
@@ -265,82 +264,5 @@ describe("preset-driven X generation", () => {
         " "
       )
     ).toContain(expected)
-  })
-
-  it("uses one generation call and one repair at most", async () => {
-    const record = configuredAutomation()
-    const valid = {
-      hook: "unpopular opinion: tools slow creators",
-      belief: "more tools make publishing easier",
-      reasons:
-        "tools add steps hide choices slow work split focus cost money blur goals block learning and make fixes harder",
-      alternative: "use one workflow. which step slows you down?",
-    }
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({ choices: [{ message: { content: "truncated json" } }] })
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          choices: [{ message: { content: JSON.stringify(valid) } }],
-        })
-      )
-    const run = await generateXAutomationRun({
-      automation: record,
-      topic: "workflow sprawl",
-      apiKey: "test-key",
-      fetchImpl: fetchImpl as typeof fetch,
-      random: () => 0,
-    })
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
-    const request = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)) as {
-      max_tokens?: number
-      messages?: Array<{ role: string; content: string }>
-    }
-    expect(request.max_tokens).toBe(2_800)
-    expect(request.messages?.[0]?.content).toContain(
-      "Niche: creator systems. Audience: solo creators. Promise: repeatable content systems."
-    )
-    expect(request.messages?.[0]?.content).toContain(
-      "Core themes: content systems. Reader pains: inconsistent publishing."
-    )
-    expect(run.needsReview).toBe(false)
-    expect(run.plans?.[0]).toMatchObject({ platform: "x" })
-  })
-
-  it("generates Threads with its own short-post plan", async () => {
-    const record = configuredAutomation()
-    record.platform = "threads"
-    record.generation.hookStyles = ["threads_unpopular_opinion"]
-    const fetchImpl = vi.fn(async () =>
-      Response.json({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                label: "UNPOPULAR OPINION",
-                take: "build trust before reach and serve people before metrics. which one are you choosing?",
-              }),
-            },
-          },
-        ],
-      })
-    ) as typeof fetch
-
-    const run = await generateXAutomationRun({
-      automation: record,
-      topic: "trust",
-      apiKey: "test-key",
-      fetchImpl,
-      random: () => 0,
-    })
-
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
-    expect(run.posts[0].platform).toBe("threads")
-    expect(run.plans?.[0]).toMatchObject({
-      platform: "threads",
-      archetype: "label_take",
-    })
   })
 })

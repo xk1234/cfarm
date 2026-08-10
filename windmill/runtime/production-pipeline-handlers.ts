@@ -6,6 +6,8 @@ import {
   automationPublishType,
   automationSlideDesigns,
   type AutomationSchema,
+  type AutomationVideoFormat,
+  type TextItem,
 } from "@/lib/realfarm-automation"
 import {
   fixedSlideshowCount,
@@ -81,8 +83,6 @@ import {
   falGetTaskStatus,
   normalizeFalAsset,
 } from "@/lib/fal-client"
-import { estimateUgcCost } from "@/lib/ugc-cost"
-import { ugcExportId, ugcRunId } from "@/lib/ugc-automation-runner"
 import {
   buildXAutomationRun,
   buildXGenerationRequest,
@@ -95,7 +95,6 @@ import {
   type PostPlan,
 } from "@/lib/x-automation-generation"
 import type { XAutomationRecord, XAutomationRun } from "@/lib/x-automation"
-import { buildXAutomationUsageUpdate } from "@/lib/x-automation-runner"
 import type { BrandProfile } from "@/lib/brand-profile"
 import { humanizeContent, reviewContent } from "@/lib/generation-chain"
 import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
@@ -178,23 +177,23 @@ import {
   PIPELINE_STAGE_CATALOG,
   type PipelineStageContext,
 } from "@/lib/pipeline-stages"
-import type { AutomationRecord } from "@/lib/automations"
+import {
+  normalizeAutomationRecord,
+  type AutomationRecord,
+} from "@/lib/automations"
 import type { StoredImageCollection } from "@/lib/image-collections"
 import type { WordCollectionRecord } from "@/lib/word-collections"
-import type { Job } from "@/lib/queue"
 import type { ReminderSettings } from "@/lib/reminder-settings"
+import { listMediaLibraryAssets } from "@/lib/media-library"
+import { generateVideoCopy } from "@/lib/video-copy-generation"
+import { videoSegmentPlaysFull } from "@/lib/video-automation-templates"
+import { buildTemplateVideoRenderPlan } from "@/lib/template-video-rendi"
+import { runWindmillWorkflow } from "@/lib/windmill-workflows"
 
 export type ProductionPipelineServices = {
   now: () => Date
   getReminderSettings: () => Promise<ReminderSettings>
-  enqueueJob: (input: {
-    type: string
-    payload: Record<string, unknown>
-    dedupeKey?: string
-    maxAttempts?: number
-  }) => Promise<{ id: string; status: string } | null>
-  getJob: (id: string) => Promise<Job | null>
-  ugcGenerationEnabled: () => boolean
+  sendGeneratedReminder: (text: string) => Promise<{ sent: boolean }>
 }
 
 export function createProductionPipelineHandlers(
@@ -733,22 +732,17 @@ export function createProductionPipelineHandlers(
     async (input, context) => {
       const sourceId = requiredString(input.outputId, "outputId")
       const runId = requiredString(input.runId, "runId")
-      const queued = await context.externalCall("Appwrite jobs createRow", () =>
-        services.enqueueJob({
-          type: "send-notification",
-          payload: {
-            event: "generated",
-            sourceType: "generated_video",
-            sourceId,
-            runId,
-            text: `UGC video generated\n${clean(input.hook)}`,
-          },
-          dedupeKey: `reminder:generated:generated_video:${sourceId}`,
-          maxAttempts: 5,
-        })
+      const delivery = await context.externalCall(
+        "Telegram generated reminder",
+        () =>
+          services.sendGeneratedReminder(
+            `UGC video generated\n${clean(input.hook)}`
+          )
       )
       return mergePipelineOutput(input, {
-        notificationJobId: queued?.id ?? null,
+        notificationSent: delivery.sent,
+        notificationSourceId: sourceId,
+        notificationRunId: runId,
       })
     }
   )
@@ -1394,6 +1388,7 @@ export function createProductionPipelineHandlers(
       | "ugc-video-generation"
       | "react-reveal-generation"
       | "greenscreen-meme-generation"
+      | "template-video-generation"
   ) => {
     const id = (name: string) => `${workflowId}.${name}`
     add(id("rendi-init-upload"), async (input, context) => {
@@ -1484,6 +1479,13 @@ export function createProductionPipelineHandlers(
       )
       const succeeded =
         clean(file.status) === "STORED" && Boolean(file.storage_url)
+      if (
+        ["FAILED", "ERROR", "CANCELED", "CANCELLED"].includes(
+          clean(file.status)
+        )
+      ) {
+        throw new Error(`Rendi upload failed with status ${clean(file.status)}`)
+      }
       return mergePipelineOutput(input, {
         rendiUpload: {
           ...upload,
@@ -1576,6 +1578,15 @@ export function createProductionPipelineHandlers(
       const succeeded = ["SUCCESS", "SUCCEEDED", "COMPLETED"].includes(
         clean(command.status)
       )
+      if (
+        ["FAILED", "ERROR", "CANCELED", "CANCELLED"].includes(
+          clean(command.status)
+        )
+      ) {
+        throw new Error(
+          `Rendi render failed with status ${clean(command.status)}`
+        )
+      }
       return mergePipelineOutput(input, {
         rendiCommandStatus: command,
         rendiOutputUrls: succeeded
@@ -1645,16 +1656,18 @@ export function createProductionPipelineHandlers(
   registerRendiProtocol("ugc-video-generation")
   registerRendiProtocol("react-reveal-generation")
   registerRendiProtocol("greenscreen-meme-generation")
+  registerRendiProtocol("template-video-generation")
 
   add("slideshow-generation.load-automation-record", async (input, context) => {
     const state = await context.runStage(
       "slideshow-generation.get-automation-document",
       input
     )
+    const stored = isRecord(state.output.automationDocument)
+      ? asRecord(state.output.automationDocument).record
+      : null
     return mergePipelineOutput(state.output, {
-      automationRecord: isRecord(state.output.automationDocument)
-        ? asRecord(state.output.automationDocument).record
-        : null,
+      automationRecord: normalizedAutomationRecord(stored),
     })
   })
   const addPagedCollectionComposite = (
@@ -1978,6 +1991,17 @@ export function createProductionPipelineHandlers(
 
   add("slideshow-generation.select-expand-hook", async (input) => {
     const schema = requiredSchema(input)
+    const requestedHook = clean(input.hook)
+    if (requestedHook) {
+      return mergePipelineOutput(input, {
+        hook: requestedHook,
+        hookId: "manual",
+        hookTemplate: requestedHook,
+        hookSubstitutions: {},
+        hookToneOverride: null,
+        bodySlideCountOverride: null,
+      })
+    }
     const selection = selectSlideshowHook({
       hookItems: automationHookItems(schema)
         .filter((item) => item.enabled && !hookUsesDynamicSlideCount(item))
@@ -3102,6 +3126,9 @@ export function createProductionPipelineHandlers(
       automationId: clean(asRecord(input.automation).id) || "standalone",
       automationTitle: clean(asRecord(input.automation).name) || "Slideshow",
       scheduledFor: clean(input.scheduledFor) || now,
+      generationSource:
+        input.generationSource === "scheduled" ? "scheduled" : "manual",
+      requestId: contextId(input),
       status: "succeeded",
       plan,
       createdAt: now,
@@ -3391,75 +3418,6 @@ export function createProductionPipelineHandlers(
     }
   )
 
-  add("ugc-video-generation.enqueue-checkpoint-job", async (input, context) => {
-    if (!services.ugcGenerationEnabled()) {
-      throw new Error("AI UGC generation is disabled")
-    }
-    const templateId = clean(input.templateId) || clean(input.automationId)
-    const generationId =
-      clean(input.generationId) || clean(input.requestId) || context.requestId
-    if (!templateId && !generationId) {
-      throw new Error("templateId or generationId is required")
-    }
-    const scheduledFor =
-      clean(input.scheduledFor) || services.now().toISOString()
-    const stopAfter = requiredString(input.stopAfter, "stopAfter")
-    const queued = await context.externalCall("Appwrite job enqueue", () =>
-      services.enqueueJob({
-        type: "run-ugc-template",
-        payload: {
-          ...(templateId ? { templateId, automationId: templateId } : {}),
-          generationId,
-          scheduledFor,
-          requestId: context.requestId,
-          source: "mcp_pipeline_stage",
-          draftOnly: true,
-          stopAfter,
-          ...(input.componentExecution === true
-            ? { componentExecution: true, onlyStage: stopAfter }
-            : {}),
-          ...(isRecord(input.components)
-            ? { components: input.components }
-            : {}),
-          ...(isRecord(input.checkpoints)
-            ? { checkpoints: input.checkpoints }
-            : {}),
-        },
-        dedupeKey: `ugc-stage:${templateId || generationId}:${scheduledFor}:${stopAfter}:${context.requestId}`,
-        maxAttempts: 3,
-      })
-    )
-    if (!queued) throw new Error("The generation queue is unavailable")
-    return mergePipelineOutput(input, {
-      ...(templateId ? { templateId, automationId: templateId } : {}),
-      generationId,
-      scheduledFor,
-      runId: ugcRunId(templateId || `standalone-${generationId}`, scheduledFor),
-      expectedOutputId: ugcExportId(
-        templateId || `standalone-${generationId}`,
-        scheduledFor
-      ),
-      estimate: estimateUgcCost({}),
-      operation: {
-        id: queued.id,
-        kind: `ugc.stage.${stopAfter}`,
-        status: "running",
-        stage: queued.status === "duplicate" ? "queued_existing" : "queued",
-        createdAt: scheduledFor,
-        updatedAt: scheduledFor,
-        nextPollAfterMs: 5000,
-        resourceUri: `lumenclip://operations/${encodeURIComponent(queued.id)}`,
-      },
-    })
-  })
-
-  add("ugc-video-generation.get-checkpoint-job", async (input, context) => {
-    const job = await context.externalCall("Appwrite job read", () =>
-      services.getJob(requiredString(input.jobId, "jobId"))
-    )
-    return mergePipelineOutput(input, { job })
-  })
-
   add("ugc-video-generation.fal-create-task", async (input, context) => {
     const apiKey = requiredString(process.env.FAL_KEY, "FAL_KEY")
     const requestId = await context.externalCall("fal queue task submit", () =>
@@ -3588,8 +3546,9 @@ export function createProductionPipelineHandlers(
         { automationId: templateId }
       )
       const document = asRecord(loaded.output.savedAutomationDocument)
-      const template = asRecord(document.record)
-      const schema = asRecord(template.schema)
+      const template = normalizedAutomationRecord(document.record)
+      if (!template) throw new Error("UGC template was not found")
+      const schema = template.schema
       if (clean(schema.automationKind) !== "ugc") {
         throw new Error("Selected template is not a UGC video template")
       }
@@ -3834,7 +3793,7 @@ export function createProductionPipelineHandlers(
 
   add("ugc-video-generation.analyze-product", async (input, context) => {
     if (input.componentExecution === true || clean(input.automationId))
-      return queueUgcStage(input, context, "analysis")
+      return requireNativeUgcComponentExecution(input, context, "analysis")
     if (isRecord(input.analysis)) {
       return mergePipelineOutput(input, {
         checkpoint: { stage: "analysis", status: "complete" },
@@ -3856,7 +3815,7 @@ export function createProductionPipelineHandlers(
 
   add("ugc-video-generation.generate-script-plan", async (input, context) => {
     if (input.componentExecution === true || clean(input.automationId))
-      return queueUgcStage(input, context, "script")
+      return requireNativeUgcComponentExecution(input, context, "script")
     return (
       await context.runStage(
         "ugc-video-generation.generate-script-attempt",
@@ -3989,7 +3948,7 @@ export function createProductionPipelineHandlers(
 
   add("ugc-video-generation.synthesize-voice", async (input, context) => {
     if (input.componentExecution === true || clean(input.automationId))
-      return queueUgcStage(input, context, "voice")
+      return requireNativeUgcComponentExecution(input, context, "voice")
     return (
       await context.runStage(
         "ugc-video-generation.synthesize-voice-assets",
@@ -4152,7 +4111,7 @@ export function createProductionPipelineHandlers(
 
   add("ugc-video-generation.composite-output", async (input, context) => {
     if (input.componentExecution === true)
-      return queueUgcStage(input, context, "composite")
+      return requireNativeUgcComponentExecution(input, context, "composite")
     if (
       Array.isArray(input.rendiLocalInputs) ||
       clean(input.actorLocalFilePath)
@@ -4164,7 +4123,7 @@ export function createProductionPipelineHandlers(
         )
       ).output
     }
-    return queueUgcStage(input, context, "composite")
+    return requireNativeUgcComponentExecution(input, context, "composite")
   })
 
   for (const [id, stage] of [
@@ -4173,12 +4132,14 @@ export function createProductionPipelineHandlers(
     ["ugc-video-generation.lip-sync-performance", "lipsync"],
     ["ugc-video-generation.generate-broll", "broll"],
   ] as const) {
-    add(id, async (input, context) => queueUgcStage(input, context, stage))
+    add(id, async (input, context) =>
+      requireNativeUgcComponentExecution(input, context, stage)
+    )
   }
 
   add("ugc-video-generation.store-final-output", async (input, context) => {
     if (input.componentExecution === true)
-      return queueUgcStage(input, context, "store")
+      return requireNativeUgcComponentExecution(input, context, "store")
     if (isRecord(input.finalOutput)) {
       return (
         await context.runStage(
@@ -4187,7 +4148,7 @@ export function createProductionPipelineHandlers(
         )
       ).output
     }
-    return queueUgcStage(input, context, "store")
+    return requireNativeUgcComponentExecution(input, context, "store")
   })
 
   const registerFixedVideoFormat = (input: {
@@ -4207,8 +4168,11 @@ export function createProductionPipelineHandlers(
           { automationId: templateId }
         )
         const document = asRecord(loaded.output.savedAutomationDocument)
-        const schema = asRecord(asRecord(document.record).schema)
-        const videoFormat = asRecord(schema.video_format)
+        const template = normalizedAutomationRecord(document.record)
+        if (!template) throw new Error("Video template was not found")
+        const schema = template.schema
+        const format = schema.video_format as AutomationVideoFormat
+        const videoFormat = asRecord(format)
         if (
           clean(schema.automationKind) !== "video" ||
           clean(videoFormat.template) !== input.format
@@ -4217,7 +4181,66 @@ export function createProductionPipelineHandlers(
             `Selected template is not a ${input.format.replaceAll("_", " ")} template`
           )
         }
-        templateDefaults = videoFormat
+        const collectionState = await context.runStage(
+          "slideshow-generation.list-image-collections",
+          {}
+        )
+        const [collections, mediaAssets] = await Promise.all([
+          Promise.resolve(
+            requiredArray<StoredImageCollection>(
+              collectionState.output.collections,
+              "collections"
+            )
+          ),
+          context.externalCall("Media library read", listMediaLibraryAssets),
+        ])
+        const resolvedSegments: Record<string, unknown>[] = requiredArray<
+          Record<string, unknown>
+        >(videoFormat.segments, "video_format.segments", true).map(
+          (segment) => {
+            const mediaSource = clean(segment.mediaSource) || "collection"
+            const collection = collections.find((candidate) =>
+              [
+                storedCollectionId(candidate),
+                legacyStoredCollectionId(candidate),
+                candidate.name,
+              ].includes(clean(segment.collectionId))
+            )
+            const url =
+              mediaSource === "demo_asset"
+                ? mediaAssets.find(
+                    (asset) => asset.id === clean(segment.demoAssetId)
+                  )?.url
+                : collection?.images.at(
+                    Math.floor(Math.random() * collection.images.length)
+                  )?.image_link
+            return { ...segment, ...(url ? { url } : {}) }
+          }
+        )
+        const generatedCopy = await context.runStage(
+          "template-video-generation.generate-copy",
+          { template }
+        )
+        const copy = asRecord(generatedCopy.output.copy)
+        const hooks = automationHookItems(schema).filter((item) => item.enabled)
+        const fallbackHook =
+          clean(copy.hook) || clean(hooks[0]?.text) || clean(template.name)
+        templateDefaults = {
+          ...videoFormat,
+          segments: resolvedSegments,
+          hookCaption: fallbackHook,
+          payoffCaption:
+            generatedVideoTextForSegment(format, copy, 1) ||
+            clean(resolvedSegments[1]?.guidance) ||
+            fallbackHook,
+          caption: fallbackHook,
+          title: clean(copy.title) || fallbackHook || template.name,
+          description: clean(copy.caption) || fallbackHook,
+          hashtags: stringArray(copy.hashtags),
+          audio: {
+            url: clean(schema.tiktok_post_settings?.slideshow_sound_url),
+          },
+        }
       }
       return {
         generation: {
@@ -4435,126 +4458,9 @@ export function createProductionPipelineHandlers(
       mergePipelineOutput(state, buildFixedVideoRenderPlan(input.format, state))
     )
 
-    add(id("render-store-output"), async (state, context) => {
-      const localInputs = requiredArray<Record<string, unknown>>(
-        state.rendiLocalInputs,
-        "rendiLocalInputs"
-      )
-      const uploads = Array.isArray(state.rendiUploads)
-        ? ([...state.rendiUploads] as Record<string, unknown>[])
-        : localInputs.map(() => ({}))
-      let current = state
-      for (const [index, localInput] of localInputs.entries()) {
-        const priorUpload = requiredRecord(
-          uploads[index] ?? {},
-          `rendiUploads.${index}`
-        )
-        if (clean(priorUpload.storageUrl)) continue
-        const execution = await context.runStage(id("rendi-upload-file"), {
-          ...current,
-          localFilePath: localInput.localFilePath,
-          rendiFileName: localInput.fileName,
-          rendiUpload: priorUpload,
-        })
-        uploads[index] = requiredRecord(
-          execution.output.rendiUpload,
-          "rendiUpload"
-        )
-        current = mergePipelineOutput(current, {
-          rendiUploads: uploads,
-          operation: execution.output.operation,
-        })
-        if (execution.status === "running") return current
-        await context.runStage(id("rendi-discard-temp"), {
-          uploadSessionPath: requiredRecord(
-            uploads[index],
-            `rendiUploads.${index}`
-          ).uploadSessionPath,
-        })
-      }
-
-      current = mergePipelineOutput(current, {
-        rendiCommandRequest: {
-          ...requiredRecord(current.rendiCommandRequest, "rendiCommandRequest"),
-          inputFiles: Object.fromEntries(
-            localInputs.map((localInput, index) => [
-              requiredString(
-                localInput.alias,
-                `rendiLocalInputs.${index}.alias`
-              ),
-              requiredString(
-                requiredRecord(uploads[index], `rendiUploads.${index}`)
-                  .storageUrl,
-                `rendiUploads.${index}.storageUrl`
-              ),
-            ])
-          ),
-        },
-      })
-      if (!clean(current.rendiCommandId)) {
-        return (await context.runStage(id("rendi-submit-command"), current))
-          .output
-      }
-      if (!Object.keys(asRecord(current.rendiOutputUrls)).length) {
-        const execution = await context.runStage(
-          id("rendi-get-command"),
-          current
-        )
-        current = execution.output
-        if (execution.status === "running") return current
-      }
-
-      const persisted = { ...asRecord(current.rendiPersistedOutputs) }
-      for (const [index, outputSpec] of requiredArray<Record<string, unknown>>(
-        current.rendiOutputSpecs,
-        "rendiOutputSpecs"
-      ).entries()) {
-        const alias = requiredString(
-          outputSpec.alias,
-          `rendiOutputSpecs.${index}.alias`
-        )
-        if (clean(persisted[alias])) continue
-        const downloaded = await context.runStage(id("rendi-download-output"), {
-          ...current,
-          remoteOutputUrl: requiredString(
-            asRecord(current.rendiOutputUrls)[alias],
-            `rendiOutputUrls.${alias}`
-          ),
-          outputFileName: requiredString(
-            outputSpec.fileName,
-            `rendiOutputSpecs.${index}.fileName`
-          ),
-        })
-        const saved = await context.runStage(id("rendi-persist-output"), {
-          ...downloaded.output,
-          outputId: requiredString(
-            asRecord(current.generation).outputId,
-            "generation.outputId"
-          ),
-          outputKind: requiredString(
-            outputSpec.outputKind,
-            `rendiOutputSpecs.${index}.outputKind`
-          ),
-        })
-        persisted[alias] = saved.output.persistedRendiOutputUrl
-        current = mergePipelineOutput(saved.output, {
-          rendiPersistedOutputs: persisted,
-        })
-        current = mergePipelineOutput(
-          current,
-          (await context.runStage(id("rendi-discard-temp"), current)).output
-        )
-      }
-      return mergePipelineOutput(current, {
-        videoUrl: persisted["output.mp4"],
-        thumbnailUrl: persisted["thumbnail.jpg"],
-        operation: rendiOperation(
-          requiredString(current.rendiCommandId, "rendiCommandId"),
-          `${input.workflowId}.rendi.command`,
-          "succeeded"
-        ),
-      })
-    })
+    add(id("render-store-output"), async (state, context) =>
+      renderAndStoreRendiVideo(state, context, input.workflowId)
+    )
 
     add(id("finalize-output"), async (state, context) => {
       const generation = requiredRecord(state.generation, "generation")
@@ -4642,6 +4548,334 @@ export function createProductionPipelineHandlers(
     format: "greenscreen_meme",
     primaryRole: "meme",
     secondaryRole: "background",
+  })
+
+  add("template-video-generation.load-template", async (state, context) => {
+    const templateId = requiredString(state.templateId, "templateId")
+    const loaded = await context.runStage(
+      "ugc-video-generation.get-saved-automation-document",
+      { automationId: templateId }
+    )
+    const template = normalizedAutomationRecord(
+      asRecord(loaded.output.savedAutomationDocument).record
+    )
+    if (!template) throw new Error("Video template was not found")
+    const format = template.schema?.video_format
+    if (
+      template.schema?.automationKind !== "video" ||
+      !format ||
+      ["ugc_ad", "react_reveal", "greenscreen_meme"].includes(format.template)
+    ) {
+      throw new Error("Selected template is not a generic video template")
+    }
+    return {
+      generation: {
+        templateId,
+        outputId: clean(state.outputId) || context.requestId,
+        createdAt: services.now().toISOString(),
+      },
+      template,
+    }
+  })
+
+  add("template-video-generation.generate-copy", async (state, context) => {
+    const template = requiredRecord(
+      state.template,
+      "template"
+    ) as unknown as AutomationRecord
+    const format = template.schema.video_format as AutomationVideoFormat
+    const copy = await context.externalCall("Video copy generation", () =>
+      generateVideoCopy({
+        record: template,
+        template: format.template,
+        items: videoCopyItems(format),
+        segmentRoles: format.segments.map((segment) => ({
+          id: segment.id,
+          label: segment.label,
+          guidance: segment.guidance,
+        })),
+      })
+    )
+    return { generation: state.generation, copy }
+  })
+
+  add("template-video-generation.resolve-media", async (state, context) => {
+    const template = requiredRecord(
+      state.template,
+      "template"
+    ) as unknown as AutomationRecord
+    const format = template.schema.video_format as AutomationVideoFormat
+    const collectionState = await context.runStage(
+      "slideshow-generation.list-image-collections",
+      {}
+    )
+    const collections = requiredArray<StoredImageCollection>(
+      collectionState.output.collections,
+      "collections"
+    )
+    const mediaAssets = await context.externalCall(
+      "Media library read",
+      listMediaLibraryAssets
+    )
+    const resolvedMedia: Array<Record<string, unknown>> = []
+    for (const segment of format.segments) {
+      let media: Array<{ url: string; kind: "video" | "image" }> = []
+      if (segment.mediaSource === "demo_asset") {
+        const asset = mediaAssets.find(
+          (candidate) => candidate.id === segment.demoAssetId
+        )
+        if (asset?.url) media = [{ url: asset.url, kind: "video" }]
+      } else if (segment.mediaSource === "slideshow_automation") {
+        const slideshowTemplateId = clean(segment.slideshowAutomationId)
+        if (!slideshowTemplateId) {
+          throw new Error(`Choose a slideshow template for "${segment.label}"`)
+        }
+        const slideshow = await runWindmillWorkflow({
+          workflowId: "slideshow-generation",
+          ownerId: context.ownerId,
+          requestId: `${context.requestId}-${segment.id}`,
+          workflowInput: {
+            automationId: slideshowTemplateId,
+            generationSource: "manual",
+          },
+        })
+        const run = asRecord(slideshow.result.run)
+        media = [
+          ...requiredArray<Record<string, unknown>>(
+            run.renderedSlides,
+            "renderedSlides",
+            true
+          ).flatMap((slide) => {
+            const url = clean(slide.imageUrl)
+            return url ? [{ url, kind: "image" as const }] : []
+          }),
+          ...stringArray(run.outputImages).map((url) => ({
+            url,
+            kind: "image" as const,
+          })),
+        ].filter(
+          (item, index, items) =>
+            items.findIndex((candidate) => candidate.url === item.url) === index
+        )
+      } else {
+        const collection = collections.find((candidate) =>
+          [
+            storedCollectionId(candidate),
+            legacyStoredCollectionId(candidate),
+            candidate.name,
+          ].includes(clean(segment.collectionId))
+        )
+        if (
+          collection &&
+          (segment.mediaKind === "video"
+            ? collection.mediaType === "video"
+            : collection.mediaType !== "video")
+        ) {
+          media = collection.images.map((item) => ({
+            url: item.image_link,
+            kind: segment.mediaKind,
+          }))
+        }
+      }
+      if (media.length === 0) {
+        throw new Error(
+          `Choose a ${segment.mediaKind} source for "${segment.label}"`
+        )
+      }
+      const count = videoSegmentPlaysFull(format, segment)
+        ? 1
+        : Math.max(1, segment.clipCount)
+      for (let index = 0; index < count; index += 1) {
+        const selected = media[index % media.length]
+        resolvedMedia.push({
+          key: `${segment.id}-${index}`,
+          segmentId: segment.id,
+          clipIndex: index,
+          url: selected.url,
+          kind: selected.kind,
+          durationMs: segment.clipDurationMs,
+          playFullVideo: videoSegmentPlaysFull(format, segment),
+          transition: segment.transition,
+          textItems: segment.textItems,
+        })
+      }
+    }
+    const soundId = clean(
+      template.schema.tiktok_post_settings.slideshow_sound_id
+    )
+    const sound = mediaAssets.find((asset) => asset.id === soundId)
+    return {
+      generation: state.generation,
+      resolvedMedia,
+      audioUrl:
+        sound?.url ||
+        clean(template.schema.tiktok_post_settings.slideshow_sound_url) ||
+        null,
+    }
+  })
+
+  add("template-video-generation.assemble-components", async (state) => {
+    const template = requiredRecord(
+      state.template,
+      "template"
+    ) as unknown as AutomationRecord
+    const format = template.schema.video_format as AutomationVideoFormat
+    const copy = requiredRecord(state.copy, "copy")
+    const generatedTexts = asRecord(copy.texts)
+    const hookItemId =
+      format.hookPlacement === "global"
+        ? format.globalTextItems[0]?.id
+        : format.segments[0]?.textItems[0]?.id
+    const clips = requiredArray<Record<string, unknown>>(
+      state.resolvedMedia,
+      "resolvedMedia"
+    ).map((clip) => ({
+      ...clip,
+      texts: resolveVideoTextItems(
+        requiredArray<TextItem>(clip.textItems, "textItems", true),
+        clean(hookItemId),
+        clean(copy.hook),
+        generatedTexts,
+        numberValue(clip.clipIndex)
+      ),
+    }))
+    return {
+      generation: state.generation,
+      components: {
+        template: format.template,
+        clips,
+        globalTexts: resolveVideoTextItems(
+          format.globalTextItems,
+          clean(hookItemId),
+          clean(copy.hook),
+          generatedTexts,
+          0
+        ),
+        audioUrl: clean(state.audioUrl) || null,
+        hook: clean(copy.hook),
+        title: clean(copy.title),
+        description: clean(copy.caption),
+        hashtags: stringArray(copy.hashtags),
+      },
+    }
+  })
+
+  add("template-video-generation.stage-one-media", async (state, context) => {
+    const key = requiredString(state.key, "key")
+    const kind = clean(state.kind) === "image" ? "image" : "video"
+    const downloaded = await context.externalCall(
+      "Download template media",
+      () =>
+        downloadRemoteFileToTemp({
+          url: absoluteAssetUrl(requiredString(state.url, "url")),
+          taskId: `${context.requestId}-${key}`,
+          fallbackName: key,
+          failureMessage: `Failed to download ${key}`,
+          extensionForContentType: (contentType) =>
+            fixedVideoMediaExtension(kind, contentType),
+        })
+    )
+    return { key, downloaded }
+  })
+
+  add("template-video-generation.stage-media", async (state, context) => {
+    const components = requiredRecord(state.components, "components")
+    const clips = requiredArray<Record<string, unknown>>(
+      components.clips,
+      "components.clips"
+    )
+    const entries = await Promise.all(
+      clips.map((clip) =>
+        context.runStage("template-video-generation.stage-one-media", clip)
+      )
+    )
+    const stagedMedia = Object.fromEntries(
+      entries.map((entry) => [
+        requiredString(entry.output.key, "staged key"),
+        requiredRecord(entry.output.downloaded, "downloaded media"),
+      ])
+    )
+    const audioUrl = clean(components.audioUrl)
+    if (audioUrl) {
+      const audio = await context.runStage(
+        "template-video-generation.stage-one-media",
+        { key: "audio", kind: "audio", url: audioUrl }
+      )
+      stagedMedia.audio = requiredRecord(
+        audio.output.downloaded,
+        "downloaded audio"
+      )
+    }
+    return mergePipelineOutput(state, { stagedMedia })
+  })
+
+  add("template-video-generation.build-render-command", async (state) =>
+    mergePipelineOutput(state, buildTemplateVideoRenderPlan(state))
+  )
+
+  add("template-video-generation.render-store-output", async (state, context) =>
+    renderAndStoreRendiVideo(state, context, "template-video-generation")
+  )
+
+  add("template-video-generation.finalize-output", async (state, context) => {
+    const generation = requiredRecord(state.generation, "generation")
+    const components = requiredRecord(state.components, "components")
+    const outputId = requiredString(generation.outputId, "generation.outputId")
+    const now = services.now().toISOString()
+    const finalOutput = {
+      id: outputId,
+      type: "template_video" as const,
+      status: "ready" as const,
+      createdAt: clean(generation.createdAt) || now,
+      updatedAt: now,
+      title: clean(components.title) || clean(components.hook) || "Video",
+      description: clean(components.description) || clean(components.hook),
+      hashtags: stringArray(components.hashtags),
+      sourceConfig: {
+        templateId: clean(generation.templateId),
+        template: clean(components.template),
+        hook: clean(components.hook),
+        requestId: context.requestId,
+      },
+      sourceAutomationId: clean(generation.templateId),
+      previewUrl: requiredString(state.thumbnailUrl, "thumbnailUrl"),
+      videoUrl: requiredString(state.videoUrl, "videoUrl"),
+    }
+    let current = (
+      await context.runStage(
+        "ugc-video-generation.prepare-final-output-document",
+        { ...state, finalOutput }
+      )
+    ).output
+    current = (
+      await context.runStage(
+        "ugc-video-generation.get-final-output-document",
+        current
+      )
+    ).output
+    current = (
+      await context.runStage(
+        current.finalOutputDocument
+          ? "ugc-video-generation.update-final-output-document"
+          : "ugc-video-generation.create-final-output-document",
+        current
+      )
+    ).output
+    current = (
+      await context.runStage(
+        "ugc-video-generation.persist-final-output-media",
+        current
+      )
+    ).output
+    return mergePipelineOutput(current, { finalOutput })
+  })
+
+  add("template-video-generation.discard-staged-media", async (state) => {
+    for (const item of Object.values(asRecord(state.stagedMedia))) {
+      const tempPath = clean(asRecord(item).tempPath)
+      if (tempPath) await discardDownloadedTempFile(tempPath)
+    }
+    return mergePipelineOutput(state, { stagedMedia: {} })
   })
 
   add("linkedin-generation.normalize-audience-topic", async (input) => ({
@@ -5381,23 +5615,15 @@ export function createProductionPipelineHandlers(
       input.automation,
       "automation"
     ) as unknown as XAutomationRecord
-    const queued = await context.externalCall(
-      "Appwrite reminder-job enqueue",
+    const delivery = await context.externalCall(
+      "Telegram generated reminder",
       () =>
-        services.enqueueJob({
-          type: "send-notification",
-          payload: {
-            event: "generated",
-            sourceType: run.platform,
-            sourceId: run.id,
-            text: `Post generated\n${run.hook || automation.name}`,
-          },
-          dedupeKey: `reminder:generated:${run.platform}:${run.id}`,
-          maxAttempts: 5,
-        })
+        services.sendGeneratedReminder(
+          `Post generated\n${run.hook || automation.name}`
+        )
     )
     return mergePipelineOutput(input, {
-      reminderEnqueued: Boolean(queued),
+      reminderEnqueued: delivery.sent,
     })
   })
 
@@ -5712,21 +5938,265 @@ export function createProductionPipelineHandlers(
   return handlers
 }
 
-async function queueUgcStage(
+async function renderAndStoreRendiVideo(
   input: Record<string, unknown>,
   context: PipelineStageContext,
-  stopAfter: string
+  workflowId:
+    | "react-reveal-generation"
+    | "greenscreen-meme-generation"
+    | "template-video-generation"
 ) {
-  return (
-    await context.runStage("ugc-video-generation.enqueue-checkpoint-job", {
-      ...input,
-      stopAfter,
+  const stageId = (name: string) => `${workflowId}.${name}`
+  const localInputs = requiredArray<Record<string, unknown>>(
+    input.rendiLocalInputs,
+    "rendiLocalInputs"
+  )
+  const uploads = Array.isArray(input.rendiUploads)
+    ? ([...input.rendiUploads] as Record<string, unknown>[])
+    : localInputs.map(() => ({}))
+  let current = input
+  const deadline = Date.now() + 15 * 60_000
+
+  for (const [index, localInput] of localInputs.entries()) {
+    while (!clean(asRecord(uploads[index]).storageUrl)) {
+      if (Date.now() >= deadline) throw new Error("Rendi upload timed out")
+      const execution = await context.runStage(stageId("rendi-upload-file"), {
+        ...current,
+        localFilePath: localInput.localFilePath,
+        rendiFileName: localInput.fileName,
+        rendiUpload: uploads[index] ?? {},
+      })
+      uploads[index] = requiredRecord(
+        execution.output.rendiUpload,
+        "rendiUpload"
+      )
+      current = mergePipelineOutput(current, {
+        rendiUploads: uploads,
+        operation: execution.output.operation,
+      })
+      if (!clean(asRecord(uploads[index]).storageUrl)) {
+        await pipelineDelay(1500)
+      }
+    }
+    await context.runStage(stageId("rendi-discard-temp"), {
+      uploadSessionPath: asRecord(uploads[index]).uploadSessionPath,
     })
-  ).output
+  }
+
+  current = mergePipelineOutput(current, {
+    rendiCommandRequest: {
+      ...requiredRecord(current.rendiCommandRequest, "rendiCommandRequest"),
+      inputFiles: Object.fromEntries(
+        localInputs.map((localInput, index) => [
+          requiredString(localInput.alias, `rendiLocalInputs.${index}.alias`),
+          requiredString(
+            asRecord(uploads[index]).storageUrl,
+            `rendiUploads.${index}.storageUrl`
+          ),
+        ])
+      ),
+    },
+  })
+  if (!clean(current.rendiCommandId)) {
+    current = (await context.runStage(stageId("rendi-submit-command"), current))
+      .output
+  }
+  while (!Object.keys(asRecord(current.rendiOutputUrls)).length) {
+    if (Date.now() >= deadline) throw new Error("Rendi render timed out")
+    await pipelineDelay(2000)
+    current = (await context.runStage(stageId("rendi-get-command"), current))
+      .output
+  }
+
+  const persisted = { ...asRecord(current.rendiPersistedOutputs) }
+  for (const [index, outputSpec] of requiredArray<Record<string, unknown>>(
+    current.rendiOutputSpecs,
+    "rendiOutputSpecs"
+  ).entries()) {
+    const alias = requiredString(
+      outputSpec.alias,
+      `rendiOutputSpecs.${index}.alias`
+    )
+    if (clean(persisted[alias])) continue
+    const downloaded = await context.runStage(
+      stageId("rendi-download-output"),
+      {
+        ...current,
+        remoteOutputUrl: requiredString(
+          asRecord(current.rendiOutputUrls)[alias],
+          `rendiOutputUrls.${alias}`
+        ),
+        outputFileName: requiredString(
+          outputSpec.fileName,
+          `rendiOutputSpecs.${index}.fileName`
+        ),
+      }
+    )
+    const saved = await context.runStage(stageId("rendi-persist-output"), {
+      ...downloaded.output,
+      outputId: requiredString(
+        asRecord(current.generation).outputId,
+        "generation.outputId"
+      ),
+      outputKind: requiredString(
+        outputSpec.outputKind,
+        `rendiOutputSpecs.${index}.outputKind`
+      ),
+    })
+    persisted[alias] = saved.output.persistedRendiOutputUrl
+    current = mergePipelineOutput(saved.output, {
+      rendiPersistedOutputs: persisted,
+    })
+    current = mergePipelineOutput(
+      current,
+      (await context.runStage(stageId("rendi-discard-temp"), current)).output
+    )
+  }
+  return mergePipelineOutput(current, {
+    videoUrl: persisted["output.mp4"],
+    thumbnailUrl: persisted["thumbnail.jpg"],
+    operation: rendiOperation(
+      requiredString(current.rendiCommandId, "rendiCommandId"),
+      `${workflowId}.rendi.command`,
+      "succeeded"
+    ),
+  })
+}
+
+function videoCopyItems(format: AutomationVideoFormat) {
+  return [
+    ...format.globalTextItems.map((item) => ({
+      item,
+      segmentLabel: "Persistent text",
+      guidance: "",
+      count: 1,
+    })),
+    ...format.segments.flatMap((segment) =>
+      segment.textItems.map((item) => ({
+        item,
+        segmentLabel: segment.label,
+        guidance: segment.guidance,
+        count:
+          segment.mediaSource !== "demo_asset" &&
+          !videoSegmentPlaysFull(format, segment)
+            ? segment.clipCount
+            : 1,
+      }))
+    ),
+  ]
+    .filter(
+      ({ item }) => item.textMode !== "static" && Boolean(item.contentDirection)
+    )
+    .map(({ item, segmentLabel, guidance, count }) => ({
+      id: item.id,
+      segmentLabel,
+      guidance,
+      contentDirection: item.contentDirection,
+      wordLengthMin: item.wordLengthMin,
+      wordLengthMax: item.wordLengthMax,
+      count,
+    }))
+}
+
+function resolveVideoTextItems(
+  items: TextItem[],
+  hookItemId: string,
+  hook: string,
+  generated: Record<string, unknown>,
+  clipIndex: number
+) {
+  return items.map((item) => {
+    const value = generated[item.id]
+    const generatedText = Array.isArray(value)
+      ? clean(value[clipIndex % value.length] ?? value[0])
+      : clean(value)
+    return {
+      ...item,
+      text:
+        item.textMode === "static" && item.staticText
+          ? item.staticText
+          : generatedText ||
+            (item.id === hookItemId ? hook : item.contentDirection) ||
+            "",
+    }
+  })
+}
+
+function generatedVideoTextForSegment(
+  format: AutomationVideoFormat,
+  copy: Record<string, unknown>,
+  segmentIndex: number
+) {
+  const generated = asRecord(copy.texts)
+  for (const item of format.segments[segmentIndex]?.textItems ?? []) {
+    const value = generated[item.id]
+    const text = Array.isArray(value) ? clean(value[0]) : clean(value)
+    if (text) return text
+  }
+  return ""
+}
+
+function pipelineDelay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function requireNativeUgcComponentExecution(
+  _input: Record<string, unknown>,
+  _context: PipelineStageContext,
+  _stopAfter: string
+) {
+  throw new Error(
+    "UGC component execution must run through the native Windmill runtime"
+  )
 }
 
 function requiredSchema(input: Record<string, unknown>) {
   return requiredRecord(input.schema, "schema") as unknown as AutomationSchema
+}
+
+function normalizedAutomationRecord(value: unknown) {
+  return isRecord(value)
+    ? normalizeAutomationRecord(value as unknown as AutomationRecord)
+    : null
+}
+
+function buildXAutomationUsageUpdate(input: {
+  automation: XAutomationRecord
+  run: XAutomationRun
+}) {
+  const usedAt = input.run.createdAt
+  return {
+    ...input.automation,
+    usage: {
+      recentArchetypes: [
+        ...input.automation.usage.recentArchetypes,
+        ...(input.run.plans ?? []).map((plan) => ({
+          id: plan.archetype,
+          at: usedAt,
+        })),
+      ].slice(-100),
+      recentHooks: [
+        ...input.automation.usage.recentHooks,
+        ...(input.run.plans ?? []).map((plan) => plan.hookStyle),
+      ].slice(-30),
+      recentBodies: [
+        ...input.automation.usage.recentBodies,
+        ...(input.run.platform === "threads" && input.run.posts[0]
+          ? [
+              {
+                body:
+                  input.run.posts[0].text
+                    .split(/\n\s*\n/)
+                    .slice(1)
+                    .join("\n\n") || input.run.posts[0].text,
+                hook: input.run.posts[0].text.split(/\n/)[0] || input.run.hook,
+                at: usedAt,
+              },
+            ]
+          : []),
+      ].slice(-100),
+    },
+  }
 }
 
 function requiredRecord(value: unknown, name: string) {
@@ -5815,7 +6285,8 @@ function rendiPersistenceTarget(
     | "slideshow-generation"
     | "ugc-video-generation"
     | "react-reveal-generation"
-    | "greenscreen-meme-generation",
+    | "greenscreen-meme-generation"
+    | "template-video-generation",
   ownerId: string,
   input: Record<string, unknown>
 ) {
@@ -5848,7 +6319,8 @@ function rendiPersistenceTarget(
   }
   if (
     workflowId === "react-reveal-generation" ||
-    workflowId === "greenscreen-meme-generation"
+    workflowId === "greenscreen-meme-generation" ||
+    workflowId === "template-video-generation"
   ) {
     const outputId = safePathSegment(requiredString(input.outputId, "outputId"))
     const fileName =

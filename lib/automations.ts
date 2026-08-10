@@ -338,7 +338,7 @@ async function upsertAutomationRecord(
   })
 }
 
-function normalizeAutomationRecord(
+export function normalizeAutomationRecord(
   record: AutomationRecord
 ): AutomationRecord | null {
   if (!record?.id || !record.name) {

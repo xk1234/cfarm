@@ -1,15 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("./slideshow-automation.js", () => ({
-  runSlideshowAutomation: vi.fn(),
-  reminderChannel: (settings, event) =>
-    settings?.events?.[event] === true && settings?.channel === "telegram"
-      ? "telegram"
-      : settings?.events?.[event]?.channel === "telegram"
-        ? "telegram"
-        : "none",
-}))
-
 import { findCandidates, sendConfiguredReminder } from "./main.js"
 
 afterEach(() => {
@@ -139,7 +129,7 @@ describe("configured reminders", () => {
           {
             data: JSON.stringify({
               channel: "telegram",
-              telegramBotToken: "saved-token",
+              telegramBotToken: "123456:saved-token-abcdefghijklmnop",
               telegramChatId: "123456",
               events: { generated: true },
             }),
@@ -159,7 +149,9 @@ describe("configured reminders", () => {
       { $id: "job-generated-1", owner_id: "owner-1" }
     )
 
-    expect(fetcher.mock.calls[0][0]).toContain("/botsaved-token/sendMessage")
+    expect(fetcher.mock.calls[0][0]).toContain(
+      "/bot123456:saved-token-abcdefghijklmnop/sendMessage"
+    )
     const request = JSON.parse(fetcher.mock.calls[0][1].body)
     expect(request.reply_markup.inline_keyboard[0][0]).toMatchObject({
       text: "Preview generation",

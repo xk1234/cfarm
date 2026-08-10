@@ -1,0 +1,46 @@
+summary: "lumenclip - execute one workflow stage"
+description: "Execute one registered LumenClip stage natively inside Windmill for debugging and component tests."
+value:
+  modules:
+    - id: execute_stage
+      summary: "Execute native workflow stage"
+      timeout:
+        type: static
+        value: 300
+      value:
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
+        input_transforms:
+          runtime_env_json:
+            type: static
+            value: $var:f/lumenclip/runtime_env_json
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
+          stage_id:
+            type: javascript
+            expr: flow_input.stage_id
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_input:
+            type: javascript
+            expr: "flow_input.stage_input"
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    stage_id:
+      type: string
+      title: Stage ID
+    stage_input:
+      type: object
+      title: Stage input
+    owner_id:
+      type: string
+    request_id:
+      type: string
+  required: [stage_id, stage_input]

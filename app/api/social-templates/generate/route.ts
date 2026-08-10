@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 
 import { ApiError, withHandler } from "@/lib/api"
+import { getCurrentUser } from "@/lib/auth"
+import { runSocialTemplateWorkflow } from "@/lib/generation-workflows"
 import { clean, isRecord } from "@/lib/guards"
 import {
   deleteXAutomationRuns,
@@ -9,7 +11,6 @@ import {
   upsertXAutomation,
 } from "@/lib/x-automation-store"
 import type { XTrendCandidate } from "@/lib/x-automation"
-import { generateStoredXAutomationRun } from "@/lib/x-automation-runner"
 
 export const dynamic = "force-dynamic"
 
@@ -48,12 +49,16 @@ export const POST = withHandler(async (request: Request) => {
   if (!automationId) throw new ApiError(400, "A template id is required")
   const automation = await getXAutomation(automationId)
   if (!automation) throw new ApiError(404, "Social template not found")
-  const run = await generateStoredXAutomationRun({
-    automation,
+  const user = await getCurrentUser()
+  if (!user) throw new ApiError(401, "Authentication is required")
+  const { run, workflow } = await runSocialTemplateWorkflow({
+    templateId: automation.id,
+    ownerId: user.$id,
     topic: clean(payload?.topic),
     sourceCandidate: isRecord(payload?.sourceCandidate)
       ? (payload.sourceCandidate as XTrendCandidate)
       : undefined,
+    requestId: clean(payload?.requestId),
   })
-  return NextResponse.json({ run }, { status: 201 })
+  return NextResponse.json({ run, workflow }, { status: 201 })
 })

@@ -22,16 +22,12 @@ const workerEngineUrl = new URL(
   "../appwrite/functions/job-worker/src/slideshow-generation-engine.js",
   import.meta.url
 ).href
-const workerSlideshowSrcPath = fileURLToPath(
+const windmillHandlerSrcPath = fileURLToPath(
   new URL(
-    "../appwrite/functions/job-worker/src/slideshow-automation.js",
+    "../windmill/runtime/production-pipeline-handlers.ts",
     import.meta.url
   )
 )
-const testingRouteSrcPath = fileURLToPath(
-  new URL("../app/api/temp/testing-center/generate/route.ts", import.meta.url)
-)
-
 const automation: TempSlideTestingAutomation = {
   id: "unified-prompt-automation",
   name: "Unified Prompt Automation",
@@ -180,7 +176,7 @@ describe("scheduled slideshow prompt unification", () => {
     expect(workerMod.toneRequestsLowercase("All text in lowercase.")).toBe(true)
 
     const workerSrc = await import("node:fs").then((fs) =>
-      fs.readFileSync(workerSlideshowSrcPath, "utf8")
+      fs.readFileSync(windmillHandlerSrcPath, "utf8")
     )
     // The old worker-only regex (which missed "All text in lowercase.") is gone.
     expect(workerSrc).not.toMatch(/\/all\\s\+lowercase\/i\.test/)
@@ -312,18 +308,14 @@ describe("scheduled slideshow prompt unification", () => {
     expect(workerFetch).toHaveBeenCalledTimes(2)
   })
 
-  it("keeps the worker and testing facility as engine callers, not generation forks", async () => {
+  it("keeps the Windmill handler as an engine caller, not a generation fork", async () => {
     const fs = await import("node:fs")
-    const workerSrc = fs.readFileSync(workerSlideshowSrcPath, "utf8")
-    const testingRouteSrc = fs.readFileSync(testingRouteSrcPath, "utf8")
+    const workerSrc = fs.readFileSync(windmillHandlerSrcPath, "utf8")
 
-    expect(workerSrc).toContain('from "./slideshow-generation-engine.js"')
+    expect(workerSrc).toContain('from "@/lib/slideshow-generation-engine"')
+    expect(workerSrc).not.toContain("runDueAutomations")
     expect(workerSrc).not.toMatch(
       /function (?:generateText|validateScheduledSlideshowText|selectHook|selectImages)\b/
-    )
-    expect(testingRouteSrc).toContain("previewAutomationRunPlan")
-    expect(testingRouteSrc).not.toMatch(
-      /function (?:generateText|validateSlideshowText|selectHook|selectImages)\b/
     )
   })
 })

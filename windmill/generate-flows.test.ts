@@ -10,6 +10,7 @@ const flowFolders = {
   "ugc-video-generation": "ugc_video_generation__flow",
   "react-reveal-generation": "react_reveal_generation__flow",
   "greenscreen-meme-generation": "greenscreen_meme_generation__flow",
+  "template-video-generation": "template_video_generation__flow",
   "linkedin-generation": "linkedin_generation__flow",
   "x-threads-generation": "x_threads_generation__flow",
 } as const
@@ -34,16 +35,36 @@ describe("generated Lumenclip Windmill flows", () => {
     it(`${workflowId} contains only real stage calls`, async () => {
       const source = await sourceFor(workflowId)
 
-      expect(source).toContain("type: rawscript")
+      expect(source).toContain("type: script")
+      expect(source).toContain("path: f/lumenclip/workflow_stage_runtime")
+      expect(source).toContain("$var:f/lumenclip/runtime_env_json")
+      expect(source).not.toContain("type: rawscript")
       expect(source).not.toContain("path: f/lumenclip/run_pipeline_stage")
+      expect(source).not.toContain("/api/internal/windmill/")
+      expect(source).not.toContain("internal_base_url")
+      expect(source).not.toContain("shared_secret")
       expect(source).not.toContain("return { output: { artifact } }")
       expect(source).not.toContain("artifactNode")
       expect(source).not.toMatch(/results\.[^\n]+\?\?\s*results\./)
       expect(source).not.toContain("flow_input.input ??")
-      expect(source).toContain("providerRequests?")
-      expect(source).toContain("Provider requests:")
     })
   }
+
+  it("surfaces provider request traces from the native Windmill runtime", async () => {
+    const runtime = await readFile(
+      path.join(
+        import.meta.dirname,
+        "f",
+        "lumenclip",
+        "workflow_stage_runtime.ts"
+      ),
+      "utf8"
+    )
+
+    expect(runtime).toContain("captureProviderRequests")
+    expect(runtime).toContain("providerRequests")
+    expect(runtime).toContain("requestError.providerRequests")
+  })
 
   it("derives slideshow joins from actual text, candidate, render, and QA consumption", async () => {
     const source = await sourceFor("slideshow-generation")
@@ -85,9 +106,34 @@ describe("generated Lumenclip Windmill flows", () => {
     expect(source).toContain(
       "voice: results.prepare_actor_voice[1].output.artifact"
     )
-    expect(source).toContain(
-      "generationId: `${baseGenerationId}-${checkpoint_name}`"
+    expect(source).toContain('value: "analysis"')
+    expect(source).toContain('value: "store"')
+  })
+
+  it("runs exact-stage debugging through the same native Windmill runtime", async () => {
+    const source = await readFile(
+      path.join(
+        import.meta.dirname,
+        "f/lumenclip/workflow_stage_execution__flow/flow.yaml"
+      ),
+      "utf8"
     )
+    expect(source).toContain("path: f/lumenclip/workflow_stage_runtime")
+    expect(source).toContain("expr: flow_input.stage_id")
+    expect(source).not.toContain("type: rawscript")
+    expect(source).not.toContain("/api/internal/windmill/")
+  })
+
+  it("bundles the production handlers into Windmill without Clerk or app callbacks", async () => {
+    const source = await readFile(
+      path.join(import.meta.dirname, "f/lumenclip/workflow_stage_runtime.ts"),
+      "utf8"
+    )
+    expect(source).toContain('runtime: "windmill"')
+    expect(source).not.toContain("/api/internal/windmill/")
+    expect(source).not.toContain("@clerk/nextjs")
+    expect(source).not.toContain('from "react"')
+    expect(source).not.toContain('type: "run-ugc-component"')
   })
 
   for (const workflowId of [
@@ -108,6 +154,22 @@ describe("generated Lumenclip Windmill flows", () => {
       )
     })
   }
+
+  it("joins generic video copy and media only at renderer assembly", async () => {
+    const source = await sourceFor("template-video-generation")
+
+    expect(source).toContain("id: prepare_copy_and_media")
+    expect(source).toContain("parallel: true")
+    expect(source).toContain("id: generate_copy")
+    expect(source).toContain("id: resolve_media")
+    expect(source).toContain("id: assemble_components")
+    expect(source).toContain(
+      "copy: results.prepare_copy_and_media[0].output.copy"
+    )
+    expect(source).toContain(
+      "resolvedMedia: results.prepare_copy_and_media[1].output.resolvedMedia"
+    )
+  })
 
   it("uses real normalizers for LinkedIn and real template loading for X/Threads", async () => {
     const linkedIn = await sourceFor("linkedin-generation")

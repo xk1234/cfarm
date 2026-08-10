@@ -1,0 +1,39 @@
+summary: LumenClip native workflow stage runtime
+description: Executes LumenClip workflow stages inside Windmill without calling
+  the web application.
+lock: '!inline f/lumenclip/workflow_stage_runtime.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    checkpoint_name:
+      type: string
+      default: ''
+      originalType: string
+    default_owner_id:
+      type: string
+      default: null
+    owner_id:
+      type: string
+      default: ''
+      originalType: string
+    request_id:
+      type: string
+      default: ''
+      originalType: string
+    runtime_env_json:
+      type: string
+      description: Secret JSON environment used by provider and persistence clients.
+      default: null
+    stage_id:
+      type: string
+      default: null
+    stage_input:
+      type: object
+      default: null
+  required:
+    - runtime_env_json
+    - default_owner_id
+    - stage_id
+    - stage_input

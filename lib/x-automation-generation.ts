@@ -1,6 +1,4 @@
 import { clean, isRecord } from "@/lib/guards"
-import type { BrandProfile } from "@/lib/brand-profile"
-import { runGenerationChain } from "@/lib/generation-chain"
 import { llmSlopPromptLine, llmSlopViolations } from "@/lib/llm-slop"
 import {
   getOpenRouterApiKey,
@@ -28,18 +26,6 @@ import {
   type PostArchetype,
   type XPlatform,
 } from "@/lib/x-post-presets"
-
-type GenerateInput = {
-  automation: XAutomationRecord
-  topic: string
-  sourceCandidate?: XTrendCandidate
-  apiKey?: string
-  fetchImpl?: typeof fetch
-  now?: Date
-  random?: () => number
-  brandProfile?: BrandProfile | null
-  enableGenerationChain?: boolean
-}
 
 const TOPIC_USE_RATE = 0.7
 
@@ -438,43 +424,6 @@ export function validateGeneratedPost(input: {
   return [...new Set(errors)]
 }
 
-export async function generateXAutomationRun(
-  input: GenerateInput
-): Promise<XAutomationRun> {
-  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  if (!input.automation.brief)
-    throw new Error("Generate the niche strategy before creating a draft")
-  const topic =
-    clean(input.topic) ||
-    input.sourceCandidate?.text ||
-    input.automation.brief.pillars[0]?.label
-  const plan = selectPostPlan(input.automation, {
-    platform: input.automation.platform,
-    topic,
-    now: input.now,
-    random: input.random,
-  })
-  const first = await generatePost({
-    plan,
-    record: input.automation,
-    apiKey,
-    fetchImpl: input.fetchImpl,
-    brandProfile: input.brandProfile,
-    enableGenerationChain:
-      input.enableGenerationChain ??
-      process.env.ENABLE_GENERATION_CHAIN === "true",
-  })
-  return buildXAutomationRun({
-    automation: input.automation,
-    topic,
-    sourceCandidate: input.sourceCandidate,
-    plan,
-    draft: first,
-    now: input.now,
-  })
-}
-
 export function buildXAutomationRun(input: {
   automation: XAutomationRecord
   topic: string
@@ -560,93 +509,6 @@ export function buildXAutomationRun(input: {
   }
 }
 
-async function generatePost(input: {
-  plan: PostPlan
-  record: XAutomationRecord
-  apiKey: string
-  fetchImpl?: typeof fetch
-  brandProfile?: BrandProfile | null
-  enableGenerationChain: boolean
-}) {
-  const request = buildXGenerationRequest({
-    plan: input.plan,
-    record: input.record,
-  })
-  if (input.enableGenerationChain && input.brandProfile) {
-    const chained = await runGenerationChain({
-      generate: {
-        model: input.record.generation.model,
-        system: request.system,
-      },
-      humanize: {
-        model: generationModelRegistry.openRouter.contentHumanize.model,
-      },
-      review: { model: generationModelRegistry.openRouter.contentReview.model },
-      input: {
-        apiKey: input.apiKey,
-        fetchImpl: input.fetchImpl,
-        brandProfile: input.brandProfile,
-        prompt: `${request.user}\n\nReturn only the complete publishable post text in content. For a thread, separate posts with a line containing ---.`,
-      },
-    })
-    const posts =
-      input.plan.archetype.kind === "thread"
-        ? chained.content
-            .split(/\n\s*---\s*\n/)
-            .map(clean)
-            .filter(Boolean)
-        : [chained.content]
-    return {
-      plan: input.plan,
-      output: { hook: posts[0] ?? "", posts: chained.content },
-      posts,
-      needsReview: chained.issues.length > 0,
-      errors: chained.issues,
-    }
-  }
-  let output: Record<string, unknown> = {}
-  let posts: string[] = []
-  let errors: string[] = []
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const draft = await generateXPostDraft({
-        request,
-        plan: input.plan,
-        apiKey: input.apiKey,
-        fetchImpl: input.fetchImpl,
-        repairErrors: errors,
-        normalize: attempt === 1,
-      })
-      output = draft.output
-      posts = draft.posts
-    } catch (error) {
-      if (
-        attempt === 0 &&
-        error instanceof Error &&
-        /invalid json/i.test(error.message)
-      ) {
-        errors = ["Return compact, complete JSON matching the schema exactly"]
-        continue
-      }
-      throw error
-    }
-    errors = validateGeneratedPost({
-      plan: input.plan,
-      record: input.record,
-      output,
-      posts,
-    })
-    if (errors.length === 0) break
-  }
-  return {
-    plan: input.plan,
-    output,
-    posts,
-    needsReview: errors.length > 0,
-    errors,
-  }
-}
-
 export function buildXGenerationRequest(input: {
   plan: PostPlan
   record: XAutomationRecord
@@ -695,27 +557,6 @@ export function buildXGenerationRequest(input: {
     system,
     user,
     schema,
-  }
-}
-
-export async function generateXPostDraft(input: {
-  request: ReturnType<typeof buildXGenerationRequest>
-  plan: PostPlan
-  apiKey?: string
-  fetchImpl?: typeof fetch
-  repairErrors?: string[]
-  normalize?: boolean
-}) {
-  const generated = await generateXStructuredAttempt(input)
-  let output = generated.output
-  if (input.normalize) {
-    output = normalizeStructuredOutput(input.plan.archetype, output)
-  }
-  return {
-    output,
-    posts: composeXStructuredPost(input.plan.archetype, output),
-    provider: generated.provider,
-    model: generated.model,
   }
 }
 
