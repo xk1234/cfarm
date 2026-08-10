@@ -694,24 +694,24 @@ function fixedVideoSchema(format: "react_reveal" | "greenscreen_meme") {
   const media =
     format === "react_reveal"
       ? `    anticipation_collection_id:
-      type: string
+      type: object
       format: dynselect-anticipation_collection_id
       title: Anticipation video collection
       description: Pick a collection; each run selects one full clip from it.
     reveal_collection_id:
-      type: string
+      type: object
       format: dynselect-reveal_collection_id
       title: Reveal video collection
       description: Pick a collection; each run selects one full clip from it.
     hook_caption: { type: string, title: Hook caption }
     payoff_caption: { type: string, title: Payoff caption }`
       : `    meme_collection_id:
-      type: string
+      type: object
       format: dynselect-meme_collection_id
       title: Greenscreen video collection
       description: Pick a collection; each run selects one full greenscreen clip from it.
     background_collection_id:
-      type: string
+      type: object
       format: dynselect-background_collection_id
       title: Background photo collection
       description: Pick a collection; each run selects one background photo from it.
@@ -1161,7 +1161,7 @@ function ugcComponentSchema() {
           title: Motion prompt
           format: textarea
     actor_asset_collection_id:
-      type: string
+      type: object
       format: dynselect-actor_asset_collection_id
       title: Actor portrait collection
       description: Used when Actor source is asset; each run selects one portrait from this photo collection.
@@ -1226,7 +1226,7 @@ function mediaCollectionDynamicSelectCode(
   const entrypoints = Object.entries(fields)
     .map(
       ([field, kind]) =>
-        `export async function ${field}(text = "") {\n  return mediaCollections(${JSON.stringify(kind)}, text)\n}`
+        `export async function ${field}(filterText = "") {\n  return mediaCollections(${JSON.stringify(kind)}, filterText)\n}`
     )
     .join("\n\n")
   return `import * as wmill from "windmill-client"
