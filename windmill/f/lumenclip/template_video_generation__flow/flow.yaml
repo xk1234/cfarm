@@ -258,7 +258,6 @@ value:
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
-  x-lumenclip-hide-input-node: true
   properties:
     template_id:
       type: object

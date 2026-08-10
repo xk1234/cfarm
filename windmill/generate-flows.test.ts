@@ -48,21 +48,11 @@ describe("generated Lumenclip Windmill flows", () => {
       expect(source).not.toContain("artifactNode")
       expect(source).not.toMatch(/results\.[^\n]+\?\?\s*results\./)
       expect(source).not.toContain("flow_input.input ??")
-      expect(source).toContain("x-lumenclip-hide-input-node: true")
+      expect(source).not.toContain("x-lumenclip-hide-input-node")
     })
   }
 
-  it("hides only opted-in synthetic Input nodes in the shared Windmill graph", async () => {
-    const patch = await readFile(
-      path.join(
-        import.meta.dirname,
-        "..",
-        "infra",
-        "windmill-custom-ui",
-        "lumenclip-input-roots.patch"
-      ),
-      "utf8"
-    )
+  it("uses the official Windmill image without frontend source patches", async () => {
     const dockerfile = await readFile(
       path.join(
         import.meta.dirname,
@@ -73,29 +63,11 @@ describe("generated Lumenclip Windmill flows", () => {
       ),
       "utf8"
     )
-    const nestedDynamicInputsPatch = await readFile(
-      path.join(
-        import.meta.dirname,
-        "..",
-        "infra",
-        "windmill-custom-ui",
-        "nested-dynamic-inputs.patch"
-      ),
-      "utf8"
-    )
 
-    expect(patch).toContain("x-lumenclip-hide-input-node")
-    expect(patch).toContain("if (!extra.hideInputNode) nodes.push(inputNode)")
-    expect(patch).toContain("preprocessorModule ?? triggerNode ?? inputNode")
-    expect(dockerfile).toContain("ARG WINDMILL_REF=")
-    expect(dockerfile).toContain(
-      "git apply --check /tmp/lumenclip-input-roots.patch"
-    )
-    expect(dockerfile).toContain(
-      "git apply --check /tmp/nested-dynamic-inputs.patch"
-    )
-    expect(nestedDynamicInputsPatch).toContain("{helperScript}")
-    expect(nestedDynamicInputsPatch).toContain("{workspace}")
+    expect(dockerfile).toMatch(/^FROM ghcr\.io\/windmill-labs\/windmill:/)
+    expect(dockerfile).not.toContain("git clone")
+    expect(dockerfile).not.toContain("git apply")
+    expect(dockerfile).not.toContain("COPY --from=frontend")
   })
 
   it("surfaces provider request traces from the native Windmill runtime", async () => {
