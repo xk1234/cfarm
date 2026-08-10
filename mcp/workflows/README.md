@@ -45,10 +45,10 @@ workflow stage. Failed nodes include the same request trace in their error.
 
 ## Tools
 
-| Tool                           | Purpose                                                                                               |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `lumenclip_pipeline_catalog`   | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance. |
-| `lumenclip_pipeline_run`       | Queue a named Windmill DAG and return its Windmill job ID.                                            |
+| Tool                         | Purpose                                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `lumenclip_pipeline_catalog` | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance. |
+| `lumenclip_pipeline_run`     | Queue a named Windmill DAG and return its Windmill job ID.                                            |
 
 ## Test one stage with Windmill MCP
 
@@ -215,12 +215,9 @@ calls OpenRouter directly.
 The full-workflow order remains aligned with the four production specs:
 
 - Slideshow: `validate-input` → `apply-fixed-slide-count` →
-  `select-expand-hook` → `research-hook` → `build-text-prompt` →
-  `generate-slide-text` → `retry-text-similarity` →
-  `derive-visual-concepts` → `build-image-shortlists` →
-  `select-slide-images` → `assemble-plan` → `translate-plan` →
-  `render-store-pngs` → `render-store-mp4` → `validate-output` →
-  `finalize-output`.
+  `select-expand-hook` → `build-text-prompt` → `generate-slide-text` →
+  `build-image-shortlists` → `select-slide-images` → `assemble-plan` →
+  `render-store-pngs` → `validate-output` → `finalize-output`.
 - UGC: `analyze-product` → `generate-script-plan` →
   `resolve-generate-actor` → `synthesize-voice` → `animate-actor` →
   `lip-sync-performance` → `generate-broll` → `composite-output` →
@@ -237,14 +234,13 @@ Publishing is deliberately absent from all four lists.
 
 ## Atomic stage groups
 
-- Slideshow: owner-scoped document and page reads, one hook-research attempt,
-  one slide-text attempt, one slide-image selection, one source/overlay/icon
+- Slideshow: owner-scoped template, collection, and model-setting reads, one
+  slide-text attempt, one slide-image selection, one source/overlay/icon
   download, one output-object create/delete, one result create/update, one
   media-row create/delete, and one post-identity/post-intent create/update.
-  PNG rendering, result construction, and video-finalization updates are local
-  deterministic stages. Pagination, replacement, result/media persistence,
-  video preparation, and post-intent persistence are composites over singular
-  registered stages.
+  PNG rendering and result construction are local deterministic stages.
+  Pagination, replacement, result/media persistence, and post-intent
+  persistence are composites over singular registered stages.
 - UGC: one DNS lookup, one product-page HTTP response, one OpenRouter product
   analysis, one OpenRouter script attempt, one checkpoint enqueue/read, and
   fal task create/status/result. ElevenLabs synthesis is separate from its two
@@ -304,9 +300,9 @@ succeeded output to download and persistence.
 
 The generated flows contain no generic identity/pass-through modules. The
 dependency audit in `windmill/workflow-dependencies.ts` records each consumer's
-handler, producers, reads, and writes. Slideshow prior-run history first joins
-at output QA; UGC component jobs use checkpoint-specific run IDs; fixed-video
-metadata first joins after rendering.
+handler, producers, reads, and writes. Slideshow generation has no usage or
+prior-run dependency; UGC component jobs use checkpoint-specific run IDs;
+fixed-video metadata first joins after rendering.
 
 ## Safety
 
@@ -321,8 +317,8 @@ metadata first joins after rendering.
 
 ## Boundary audit
 
-All slideshow Rendi, UGC ElevenLabs, UGC fal, and UGC Rendi provider calls now
-have independently callable atomic stages. Rendi multipart initialization,
+UGC ElevenLabs, UGC fal, and video-workflow Rendi provider calls have
+independently callable atomic stages. Rendi multipart initialization,
 each signed part PUT, completion, one file-status read, command submission, one
 command-status read, each output download, and each persistence action are
 separate. MCP composites resume through the registered handlers.
@@ -333,15 +329,11 @@ The storage boundary is decomposed as well:
   per-slide local render, per-file create/delete, result create/update,
   per-media create/delete, and post-identity/post-row stages. It no longer
   calls `createSlideshowResultRecord`.
-- slideshow video preparation reads the result through registered page/media
-  stages and stages each rendered PNG with `read-one-video-slide`.
-  Finalization builds the update locally, invokes `update-result-document`,
-  then synchronizes media through registered singular stages.
 - saved UGC state exposes one-request template/run/usage/output reads,
   separate creates and updates, one-object inspect/read/create/delete stages,
   one output-media page/create/delete, and one notification-job create.
-- image/word/usage/run/result pagination is driven by composites that repeatedly
-  invoke fixed-domain page stages. X/Threads create-vs-update and media
+- image and word pagination is driven by composites that repeatedly invoke
+  fixed-domain page stages. X/Threads create-vs-update and media
   replacement similarly dispatch registered document and media stages.
 
 No stage accepts a physical Appwrite table/collection ID, bucket, owner, or

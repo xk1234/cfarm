@@ -202,18 +202,6 @@ export function buildSlideshowWorkflowTrace(input: {
       }),
     ],
     [
-      "slideshow-generation.research-hook",
-      optionalStage(Boolean(plan.debug?.webSearchSources?.length), {
-        input: {
-          enabled: schema?.web_search_enabled === true,
-          hook: plan.hook,
-        },
-        output: {
-          sources: plan.debug?.webSearchSources ?? [],
-        },
-      }),
-    ],
-    [
       "slideshow-generation.build-text-prompt",
       observed({
         input: {
@@ -240,35 +228,6 @@ export function buildSlideshowWorkflowTrace(input: {
       }),
     ],
     [
-      "slideshow-generation.retry-text-similarity",
-      optionalStage(plan.debug?.textSimilarityRetry === true, {
-        input: {
-          retryRequired: plan.debug?.textSimilarityRetry === true,
-          reusePolicy: schema?.reuse_policy,
-        },
-        output: {
-          retryRan: plan.debug?.textSimilarityRetry === true,
-          transformations: plan.debug?.textTransformations ?? [],
-        },
-      }),
-    ],
-    [
-      "slideshow-generation.derive-visual-concepts",
-      reconstructed({
-        input: {
-          aiImageSelection: aiImageSelectionEnabled(automation),
-          generatedText,
-        },
-        output: {
-          concepts: plan.slides.map((slide, index) => ({
-            slide: index + 1,
-            imageCaption: slide.imageCaption,
-          })),
-          note: "The final persisted visual concepts are shown; the provider's transient reasoning is not stored.",
-        },
-      }),
-    ],
-    [
       "slideshow-generation.build-image-shortlists",
       reconstructed({
         input: {
@@ -288,7 +247,7 @@ export function buildSlideshowWorkflowTrace(input: {
           aiImageSelection: aiImageSelectionEnabled(automation),
           imageCollectionIds: plan.imageCollectionIds,
         },
-        output: { selectedImages, reuseWarnings: plan.reuseWarnings ?? [] },
+        output: { selectedImages },
       }),
     ],
     [
@@ -299,21 +258,6 @@ export function buildSlideshowWorkflowTrace(input: {
           title: plan.title,
           contentStrategy: plan.contentStrategy,
           slides: plan.slides,
-        },
-      }),
-    ],
-    [
-      "slideshow-generation.translate-plan",
-      optionalStage(Boolean(plan.translationProvider), {
-        input: {
-          language: plan.language,
-          provider: plan.translationProvider,
-          slides: generatedText.slides,
-        },
-        output: {
-          translated: Boolean(plan.translationProvider),
-          language: plan.language,
-          slides: generatedText.slides,
         },
       }),
     ],
@@ -334,19 +278,6 @@ export function buildSlideshowWorkflowTrace(input: {
             renderedImageUrl:
               renderedImageUrls[index] ?? run.renderedSlides?.[index]?.imageUrl,
           })),
-        },
-      }),
-    ],
-    [
-      "slideshow-generation.render-store-mp4",
-      optionalStage(Boolean(run.videoUrl || slideshow?.video_url), {
-        input: {
-          publishType: plan.publishType,
-          renderedImages: renderedImageUrls,
-        },
-        output: {
-          videoUrl: run.videoUrl || slideshow?.video_url || null,
-          thumbnailUrl: run.thumbnailUrl || slideshow?.thumbnail_url || null,
         },
       }),
     ],
@@ -443,20 +374,6 @@ function reconstructed(input: {
   return {
     status: "succeeded" as const,
     dataSource: "reconstructed" as const,
-    ...input,
-  }
-}
-
-function optionalStage(
-  ran: boolean,
-  input: {
-    input: Record<string, unknown>
-    output: Record<string, unknown>
-  }
-) {
-  return {
-    status: ran ? ("succeeded" as const) : ("skipped" as const),
-    dataSource: "persisted" as const,
     ...input,
   }
 }

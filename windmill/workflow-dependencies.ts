@@ -29,11 +29,11 @@ export const WINDMILL_WORKFLOW_DEPENDENCIES: Record<
       ["schema", "textAutomation", "slideSpecs"]
     ),
     dependency(
-      "prepare_generation_context",
-      "slideshow-generation.prepare-generation-context",
-      ["validate_input", "load_usage", "load_model_settings"],
-      ["automation", "usageHistory", "generationSettings"],
-      ["reuseMemory", "textModel"]
+      "load_model_settings",
+      "slideshow-generation.load-model-settings",
+      ["validate_input"],
+      ["generationSettings"],
+      ["textModel"]
     ),
     dependency(
       "prepare_image_candidate_pools",
@@ -45,43 +45,29 @@ export const WINDMILL_WORKFLOW_DEPENDENCIES: Record<
     dependency(
       "select_expand_hook",
       "slideshow-generation.select-expand-hook",
-      ["prepare_generation_context", "apply_fixed_slide_count"],
-      ["schema", "wordCollections", "reuseMemory", "slideCount"],
+      ["load_model_settings", "apply_fixed_slide_count"],
+      ["schema", "wordCollections", "slideCount"],
       ["hook"]
-    ),
-    dependency(
-      "retry_text_similarity",
-      "slideshow-generation.retry-text-similarity",
-      ["generate_slide_text", "prepare_generation_context"],
-      ["generatedText", "reuseMemory", "textModel"],
-      ["acceptedText"]
-    ),
-    dependency(
-      "derive_visual_concepts",
-      "slideshow-generation.derive-visual-concepts",
-      ["retry_text_similarity", "prepare_image_candidate_pools"],
-      ["acceptedText", "candidatesBySlide"],
-      ["visualConceptsBySlide"]
     ),
     dependency(
       "build_image_shortlists",
       "slideshow-generation.build-image-shortlists",
-      ["derive_visual_concepts", "prepare_image_candidate_pools"],
-      ["acceptedText", "visualConceptsBySlide", "candidatesBySlide"],
+      ["generate_slide_text", "prepare_image_candidate_pools"],
+      ["generatedText", "candidatesBySlide"],
       ["shortlists"]
     ),
     dependency(
       "assemble_plan",
       "slideshow-generation.assemble-plan",
-      ["retry_text_similarity", "select_slide_images"],
-      ["acceptedText", "selectedImages", "slideSpecs"],
+      ["generate_slide_text", "select_slide_images"],
+      ["generatedText", "selectedImages", "slideSpecs"],
       ["plan"]
     ),
     dependency(
       "validate_output",
       "slideshow-generation.validate-output",
-      ["render_store_mp4", "load_prior_runs"],
-      ["plan", "renderedOutput", "priorRuns"],
+      ["render_store_pngs"],
+      ["plan", "renderedOutput"],
       ["qa", "runRecord"]
     ),
   ],

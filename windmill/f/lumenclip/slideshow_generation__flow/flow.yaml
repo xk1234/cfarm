@@ -131,72 +131,8 @@ value:
         branches:
           - summary: "Text generation"
             modules:
-              - id: load_generation_context
-                summary: "Load memory and model inputs consumed by text generation"
-                value:
-                  type: branchall
-                  parallel: true
-                  branches:
-                    - summary: "Published reuse memory"
-                      modules:
-                      - id: load_usage
-                        summary: "Load usage history"
-                        timeout:
-                          type: static
-                          value: 300
-                        value:
-                          type: script
-                          path: f/lumenclip/workflow_stage_runtime
-                          input_transforms:
-                            runtime_env_json:
-                              type: static
-                              value: $var:f/lumenclip/runtime_env_json
-                            default_owner_id:
-                              type: static
-                              value: $var:f/lumenclip/default_owner_id
-                            stage_id:
-                              type: static
-                              value: "slideshow-generation.list-usage-history"
-                            owner_id:
-                              type: javascript
-                              expr: flow_input.owner_id
-                            request_id:
-                              type: javascript
-                              expr: flow_input.request_id
-                            stage_input:
-                              type: javascript
-                              expr: "({})"
-                    - summary: "Generation model settings"
-                      modules:
-                      - id: load_model_settings
-                        summary: "Load model settings"
-                        timeout:
-                          type: static
-                          value: 300
-                        value:
-                          type: script
-                          path: f/lumenclip/workflow_stage_runtime
-                          input_transforms:
-                            runtime_env_json:
-                              type: static
-                              value: $var:f/lumenclip/runtime_env_json
-                            default_owner_id:
-                              type: static
-                              value: $var:f/lumenclip/default_owner_id
-                            stage_id:
-                              type: static
-                              value: "slideshow-generation.load-model-settings"
-                            owner_id:
-                              type: javascript
-                              expr: flow_input.owner_id
-                            request_id:
-                              type: javascript
-                              expr: flow_input.request_id
-                            stage_input:
-                              type: javascript
-                              expr: "({})"
-              - id: prepare_generation_context
-                summary: "Normalize reuse memory and generation model"
+              - id: load_model_settings
+                summary: "Load text generation model"
                 timeout:
                   type: static
                   value: 300
@@ -212,7 +148,7 @@ value:
                       value: $var:f/lumenclip/default_owner_id
                     stage_id:
                       type: static
-                      value: "slideshow-generation.prepare-generation-context"
+                      value: "slideshow-generation.load-model-settings"
                     owner_id:
                       type: javascript
                       expr: flow_input.owner_id
@@ -221,7 +157,7 @@ value:
                       expr: flow_input.request_id
                     stage_input:
                       type: javascript
-                      expr: "({ ...results.validate_input.output, usageHistory: results.load_generation_context[0].output.usageHistory, generationSettings: results.load_generation_context[1].output.generationSettings })"
+                      expr: "results.validate_input.output"
               - id: apply_fixed_slide_count
                 summary: "Apply fixed slide count"
                 timeout:
@@ -248,7 +184,7 @@ value:
                       expr: flow_input.request_id
                     stage_input:
                       type: javascript
-                      expr: "results.prepare_generation_context.output"
+                      expr: "({ ...results.load_model_settings.output, textModel: results.load_model_settings.output.generationSettings.slideshowTextModel })"
               - id: select_expand_hook
                 summary: "Select and expand hook"
                 timeout:
@@ -276,33 +212,6 @@ value:
                     stage_input:
                       type: javascript
                       expr: "results.apply_fixed_slide_count.output"
-              - id: research_hook
-                summary: "Research selected hook"
-                timeout:
-                  type: static
-                  value: 300
-                value:
-                  type: script
-                  path: f/lumenclip/workflow_stage_runtime
-                  input_transforms:
-                    runtime_env_json:
-                      type: static
-                      value: $var:f/lumenclip/runtime_env_json
-                    default_owner_id:
-                      type: static
-                      value: $var:f/lumenclip/default_owner_id
-                    stage_id:
-                      type: static
-                      value: "slideshow-generation.research-hook"
-                    owner_id:
-                      type: javascript
-                      expr: flow_input.owner_id
-                    request_id:
-                      type: javascript
-                      expr: flow_input.request_id
-                    stage_input:
-                      type: javascript
-                      expr: "results.select_expand_hook.output"
               - id: build_text_prompt
                 summary: "Build structured text prompt"
                 timeout:
@@ -329,7 +238,7 @@ value:
                       expr: flow_input.request_id
                     stage_input:
                       type: javascript
-                      expr: "results.research_hook.output"
+                      expr: "results.select_expand_hook.output"
               - id: generate_slide_text
                 summary: "Generate slide text"
                 timeout:
@@ -357,33 +266,6 @@ value:
                     stage_input:
                       type: javascript
                       expr: "results.build_text_prompt.output"
-              - id: retry_text_similarity
-                summary: "Check and repair text similarity"
-                timeout:
-                  type: static
-                  value: 300
-                value:
-                  type: script
-                  path: f/lumenclip/workflow_stage_runtime
-                  input_transforms:
-                    runtime_env_json:
-                      type: static
-                      value: $var:f/lumenclip/runtime_env_json
-                    default_owner_id:
-                      type: static
-                      value: $var:f/lumenclip/default_owner_id
-                    stage_id:
-                      type: static
-                      value: "slideshow-generation.retry-text-similarity"
-                    owner_id:
-                      type: javascript
-                      expr: flow_input.owner_id
-                    request_id:
-                      type: javascript
-                      expr: flow_input.request_id
-                    stage_input:
-                      type: javascript
-                      expr: "results.generate_slide_text.output"
           - summary: "Static image candidate preparation"
             modules:
               - id: prepare_image_candidate_pools
@@ -413,33 +295,6 @@ value:
                     stage_input:
                       type: javascript
                       expr: "({ textAutomation: results.validate_input.output.textAutomation, collections: results.validate_input.output.collections })"
-    - id: derive_visual_concepts
-      summary: "Derive concepts from accepted text and eligible candidate pools"
-      timeout:
-        type: static
-        value: 300
-      value:
-        type: script
-        path: f/lumenclip/workflow_stage_runtime
-        input_transforms:
-          runtime_env_json:
-            type: static
-            value: $var:f/lumenclip/runtime_env_json
-          default_owner_id:
-            type: static
-            value: $var:f/lumenclip/default_owner_id
-          stage_id:
-            type: static
-            value: "slideshow-generation.derive-visual-concepts"
-          owner_id:
-            type: javascript
-            expr: flow_input.owner_id
-          request_id:
-            type: javascript
-            expr: flow_input.request_id
-          stage_input:
-            type: javascript
-            expr: "({ ...results.produce_text_and_candidates[0].output, candidatesBySlide: results.produce_text_and_candidates[1].output.candidatesBySlide })"
     - id: build_image_shortlists
       summary: "Visual path — build image shortlists"
       timeout:
@@ -466,7 +321,7 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.derive_visual_concepts.output"
+            expr: "({ ...results.produce_text_and_candidates[0].output, candidatesBySlide: results.produce_text_and_candidates[1].output.candidatesBySlide })"
     - id: select_slide_images
       summary: "Visual path — select slide images"
       timeout:
@@ -521,8 +376,8 @@ value:
           stage_input:
             type: javascript
             expr: "results.select_slide_images.output"
-    - id: translate_plan
-      summary: "Translate displayed text"
+    - id: render_store_pngs
+      summary: "Render and persist slide PNGs"
       timeout:
         type: static
         value: 300
@@ -538,7 +393,7 @@ value:
             value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
-            value: "slideshow-generation.translate-plan"
+            value: "slideshow-generation.render-store-pngs"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
@@ -548,97 +403,6 @@ value:
           stage_input:
             type: javascript
             expr: "results.assemble_plan.output"
-    - id: render_and_qa_context
-      summary: "Render output while prior-run QA context loads"
-      value:
-        type: branchall
-        parallel: true
-        branches:
-          - summary: "Rendered slideshow artifacts"
-            modules:
-              - id: render_store_pngs
-                summary: "Render and persist slide PNGs"
-                timeout:
-                  type: static
-                  value: 300
-                value:
-                  type: script
-                  path: f/lumenclip/workflow_stage_runtime
-                  input_transforms:
-                    runtime_env_json:
-                      type: static
-                      value: $var:f/lumenclip/runtime_env_json
-                    default_owner_id:
-                      type: static
-                      value: $var:f/lumenclip/default_owner_id
-                    stage_id:
-                      type: static
-                      value: "slideshow-generation.render-store-pngs"
-                    owner_id:
-                      type: javascript
-                      expr: flow_input.owner_id
-                    request_id:
-                      type: javascript
-                      expr: flow_input.request_id
-                    stage_input:
-                      type: javascript
-                      expr: "results.translate_plan.output"
-              - id: render_store_mp4
-                summary: "Render optional slideshow MP4"
-                timeout:
-                  type: static
-                  value: 300
-                value:
-                  type: script
-                  path: f/lumenclip/workflow_stage_runtime
-                  input_transforms:
-                    runtime_env_json:
-                      type: static
-                      value: $var:f/lumenclip/runtime_env_json
-                    default_owner_id:
-                      type: static
-                      value: $var:f/lumenclip/default_owner_id
-                    stage_id:
-                      type: static
-                      value: "slideshow-generation.render-store-mp4"
-                    owner_id:
-                      type: javascript
-                      expr: flow_input.owner_id
-                    request_id:
-                      type: javascript
-                      expr: flow_input.request_id
-                    stage_input:
-                      type: javascript
-                      expr: "results.render_store_pngs.output"
-          - summary: "Prior-run QA context"
-            modules:
-              - id: load_prior_runs
-                summary: "Load prior runs for output QA"
-                timeout:
-                  type: static
-                  value: 300
-                value:
-                  type: script
-                  path: f/lumenclip/workflow_stage_runtime
-                  input_transforms:
-                    runtime_env_json:
-                      type: static
-                      value: $var:f/lumenclip/runtime_env_json
-                    default_owner_id:
-                      type: static
-                      value: $var:f/lumenclip/default_owner_id
-                    stage_id:
-                      type: static
-                      value: "slideshow-generation.list-prior-runs"
-                    owner_id:
-                      type: javascript
-                      expr: flow_input.owner_id
-                    request_id:
-                      type: javascript
-                      expr: flow_input.request_id
-                    stage_input:
-                      type: javascript
-                      expr: "({ automationId: flow_input.automation_id })"
     - id: validate_output
       summary: "Validate generated output"
       timeout:
@@ -665,9 +429,9 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "({ ...results.render_and_qa_context[0].output, priorRuns: results.render_and_qa_context[1].output.priorRuns })"
+            expr: "results.render_store_pngs.output"
     - id: finalize_output
-      summary: "Persist run, output, media and reuse memory"
+      summary: "Persist run, output, and media"
       timeout:
         type: static
         value: 300

@@ -1574,7 +1574,16 @@ describe("LumenClip MCP server", () => {
     expect(traceContent.workflowUrl).toMatch(
       /^https:\/\/studio\.example\.com\/share\/workflows\//
     )
-    expect(traceContent.stages).toHaveLength(16)
+    expect(traceContent.stages).toHaveLength(11)
+    expect(traceContent.stages.map((stage) => stage.id)).not.toEqual(
+      expect.arrayContaining([
+        "slideshow-generation.research-hook",
+        "slideshow-generation.retry-text-similarity",
+        "slideshow-generation.derive-visual-concepts",
+        "slideshow-generation.translate-plan",
+        "slideshow-generation.render-store-mp4",
+      ])
+    )
     expect(
       traceContent.stages.find(
         (candidate) => candidate.id === "slideshow-generation.build-text-prompt"
@@ -1739,9 +1748,7 @@ describe("LumenClip MCP server", () => {
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
     const current = automationRecord()
     const run = relativeRun(current.id)
-    const runWorkflow = vi.fn(async () =>
-      completedWorkflow(run, "request-1")
-    )
+    const runWorkflow = vi.fn(async () => completedWorkflow(run, "request-1"))
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
       listAutomationRuns: vi.fn(async () => [run]),
@@ -2262,7 +2269,6 @@ describe("LumenClip MCP server", () => {
       assumptions: { lipSyncTier: "premium" },
     })
   })
-
 
   it("creates an empty image collection so MCP can bootstrap generation", async () => {
     const save = vi.fn(async (collection: StoredImageCollection) => collection)
@@ -3050,8 +3056,7 @@ function completedWorkflow(
   run: AutomationRunRecord,
   requestId = run.requestId || "request-1",
   workflowId:
-    | "slideshow-generation"
-    | "ugc-video-generation" = "slideshow-generation"
+    "slideshow-generation" | "ugc-video-generation" = "slideshow-generation"
 ) {
   return {
     workflowId,

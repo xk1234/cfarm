@@ -70,15 +70,6 @@ const generatedModules = [
     },
   },
   {
-    source: "lib/ugc-video-generation.ts",
-    target: "appwrite/functions/job-worker/src/ugc-video-generation.js",
-    imports: {
-      "@/lib/openrouter": "./openrouter.js",
-      "@/lib/realfarm-generation-model-registry":
-        "./realfarm-generation-model-registry.js",
-    },
-  },
-  {
     source: "lib/automation-slots.ts",
     target: "appwrite/functions/template-scheduler/src/automation-slots.js",
   },

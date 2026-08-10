@@ -66,7 +66,7 @@ describe("generated Lumenclip Windmill flows", () => {
     expect(runtime).toContain("requestError.providerRequests")
   })
 
-  it("derives slideshow joins from actual text, candidate, render, and QA consumption", async () => {
+  it("keeps slideshow generation independent from legacy history and post-processing", async () => {
     const source = await sourceFor("slideshow-generation")
 
     expect(source).toContain("id: load_validation_inputs")
@@ -78,16 +78,40 @@ describe("generated Lumenclip Windmill flows", () => {
     expect(source).not.toContain("id: text_artifact")
     expect(source).not.toContain("id: prepare_slide_artifacts")
 
-    const qaBranch = source.indexOf("id: render_and_qa_context")
-    const priorRuns = source.indexOf("id: load_prior_runs")
+    const render = source.indexOf("id: render_store_pngs")
     const outputValidation = source.indexOf("id: validate_output")
-    expect(qaBranch).toBeGreaterThan(0)
-    expect(priorRuns).toBeGreaterThan(qaBranch)
-    expect(outputValidation).toBeGreaterThan(priorRuns)
-    expect(source.slice(0, qaBranch)).not.toContain("load_prior_runs")
-    expect(source).toContain(
-      "priorRuns: results.render_and_qa_context[1].output.priorRuns"
+    expect(render).toBeGreaterThan(0)
+    expect(outputValidation).toBeGreaterThan(render)
+    for (const legacy of [
+      "load_usage",
+      "load_prior_runs",
+      "research_hook",
+      "retry_text_similarity",
+      "derive_visual_concepts",
+      "translate_plan",
+      "render_store_mp4",
+      "reuseMemory",
+      "priorRuns",
+    ]) {
+      expect(source).not.toContain(legacy)
+    }
+  })
+
+  it("bundles typed media artifacts for intermediate image and video values", async () => {
+    const runtime = await readFile(
+      path.join(
+        import.meta.dirname,
+        "f",
+        "lumenclip",
+        "workflow_stage_runtime.ts"
+      ),
+      "utf8"
     )
+    expect(runtime).toContain("workflowMediaArtifacts")
+    expect(runtime).toContain("mediaArtifacts")
+    expect(runtime).toContain('kind: "image"')
+    expect(runtime).toContain('kind: "video"')
+    expect(runtime).toContain("download")
   })
 
   it("derives UGC edges from resolved components and isolated checkpoint artifacts", async () => {
