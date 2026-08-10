@@ -1,0 +1,265 @@
+summary: "lumenclip - template video generation"
+description: "Generate every non-UGC video template through independent copy and media paths that join at render assembly."
+value:
+  modules:
+    - id: load_template
+      summary: "Load and validate video template"
+      timeout:
+        type: static
+        value: 300
+      value:
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
+        input_transforms:
+          runtime_env_json:
+            type: static
+            value: $var:f/lumenclip/runtime_env_json
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
+          stage_id:
+            type: static
+            value: "template-video-generation.load-template"
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_input:
+            type: javascript
+            expr: "({ templateId: flow_input.template_id })"
+    - id: prepare_copy_and_media
+      summary: "Prepare independent copy and media artifacts"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Copy generation"
+            modules:
+              - id: generate_copy
+                summary: "Generate hook, captions, and post metadata"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: script
+                  path: f/lumenclip/workflow_stage_runtime
+                  input_transforms:
+                    runtime_env_json:
+                      type: static
+                      value: $var:f/lumenclip/runtime_env_json
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "template-video-generation.generate-copy"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "results.load_template.output"
+          - summary: "Media resolution"
+            modules:
+              - id: resolve_media
+                summary: "Resolve configured media for every segment"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: script
+                  path: f/lumenclip/workflow_stage_runtime
+                  input_transforms:
+                    runtime_env_json:
+                      type: static
+                      value: $var:f/lumenclip/runtime_env_json
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "template-video-generation.resolve-media"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "results.load_template.output"
+    - id: assemble_components
+      summary: "Join copy and media at renderer input"
+      timeout:
+        type: static
+        value: 300
+      value:
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
+        input_transforms:
+          runtime_env_json:
+            type: static
+            value: $var:f/lumenclip/runtime_env_json
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
+          stage_id:
+            type: static
+            value: "template-video-generation.assemble-components"
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_input:
+            type: javascript
+            expr: "({ generation: results.load_template.output.generation, template: results.load_template.output.template, copy: results.prepare_copy_and_media[0].output.copy, resolvedMedia: results.prepare_copy_and_media[1].output.resolvedMedia })"
+    - id: stage_media
+      summary: "Stage selected render media"
+      timeout:
+        type: static
+        value: 300
+      value:
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
+        input_transforms:
+          runtime_env_json:
+            type: static
+            value: $var:f/lumenclip/runtime_env_json
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
+          stage_id:
+            type: static
+            value: "template-video-generation.stage-media"
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_input:
+            type: javascript
+            expr: "results.assemble_components.output"
+    - id: build_render_command
+      summary: "Build template FFmpeg command"
+      timeout:
+        type: static
+        value: 300
+      value:
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
+        input_transforms:
+          runtime_env_json:
+            type: static
+            value: $var:f/lumenclip/runtime_env_json
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
+          stage_id:
+            type: static
+            value: "template-video-generation.build-render-command"
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_input:
+            type: javascript
+            expr: "results.stage_media.output"
+    - id: render_store_output
+      summary: "Render and store video artifacts"
+      timeout:
+        type: static
+        value: 300
+      value:
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
+        input_transforms:
+          runtime_env_json:
+            type: static
+            value: $var:f/lumenclip/runtime_env_json
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
+          stage_id:
+            type: static
+            value: "template-video-generation.render-store-output"
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_input:
+            type: javascript
+            expr: "results.build_render_command.output"
+    - id: finalize_output
+      summary: "Persist unpublished video output"
+      timeout:
+        type: static
+        value: 300
+      value:
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
+        input_transforms:
+          runtime_env_json:
+            type: static
+            value: $var:f/lumenclip/runtime_env_json
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
+          stage_id:
+            type: static
+            value: "template-video-generation.finalize-output"
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_input:
+            type: javascript
+            expr: "results.render_store_output.output"
+    - id: discard_staged_media
+      summary: "Discard temporary source media"
+      timeout:
+        type: static
+        value: 300
+      value:
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
+        input_transforms:
+          runtime_env_json:
+            type: static
+            value: $var:f/lumenclip/runtime_env_json
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
+          stage_id:
+            type: static
+            value: "template-video-generation.discard-staged-media"
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_input:
+            type: javascript
+            expr: "results.finalize_output.output"
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    template_id:
+      type: string
+      title: Video template
+  required: [template_id]

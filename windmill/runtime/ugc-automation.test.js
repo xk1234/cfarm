@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { runUgcAutomationJob } from "./ugc-automation.js"
-import { validatePublicationRecord } from "./publishing-core.js"
+import { validatePublicationRecord } from "../../lib/publishing-core"
 
 const originalFlag = process.env.ENABLE_UGC_AUTOMATION
 afterEach(() => {

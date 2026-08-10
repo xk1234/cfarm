@@ -278,7 +278,7 @@ export type ScheduledSlideshowPromptBundle = {
 /**
  * Single source of truth for the system + user prompt and the structured-output
  * schema used by BOTH the Next app (lib/slideshow-text-generation-payload.ts) and
- * the Appwrite job-worker (appwrite/functions/job-worker/src/slideshow-automation.js,
+ * the Windmill pipeline handler (windmill/runtime/production-pipeline-handlers.ts,
  * kept in sync via scripts/sync-function-shared.mjs). Feeding identical primitives
  * here yields byte-identical prompts on both paths.
  *

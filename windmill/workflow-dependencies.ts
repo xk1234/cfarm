@@ -186,6 +186,57 @@ export const WINDMILL_WORKFLOW_DEPENDENCIES: Record<
     "meme",
     "background"
   ),
+  "template-video-generation": [
+    dependency(
+      "generate_copy",
+      "template-video-generation.generate-copy",
+      ["load_template"],
+      ["template.schema", "template.hooks"],
+      ["copy"]
+    ),
+    dependency(
+      "resolve_media",
+      "template-video-generation.resolve-media",
+      ["load_template"],
+      ["template.videoFormat", "template.mediaBindings"],
+      ["resolvedMedia"]
+    ),
+    dependency(
+      "assemble_components",
+      "template-video-generation.assemble-components",
+      ["generate_copy", "resolve_media"],
+      ["copy", "resolvedMedia"],
+      ["components"]
+    ),
+    dependency(
+      "stage_media",
+      "template-video-generation.stage-media",
+      ["assemble_components"],
+      ["components.clips", "components.audioUrl"],
+      ["stagedMedia"]
+    ),
+    dependency(
+      "build_render_command",
+      "template-video-generation.build-render-command",
+      ["stage_media"],
+      ["components", "stagedMedia"],
+      ["rendiCommandRequest"]
+    ),
+    dependency(
+      "render_store_output",
+      "template-video-generation.render-store-output",
+      ["build_render_command"],
+      ["rendiCommandRequest", "rendiLocalInputs"],
+      ["videoUrl", "thumbnailUrl"]
+    ),
+    dependency(
+      "finalize_output",
+      "template-video-generation.finalize-output",
+      ["render_store_output"],
+      ["videoUrl", "thumbnailUrl", "components"],
+      ["finalOutput"]
+    ),
+  ],
   "linkedin-generation": [
     dependency(
       "validate_input",

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { createProductionPipelineHandlers } from "@/lib/mcp/production-pipeline-handlers"
+import { createProductionPipelineHandlers } from "./production-pipeline-handlers"
 import {
   createPipelineStageRegistry,
   executePipelineStage,
@@ -20,16 +20,12 @@ function services() {
     listWordCollections: vi.fn(async () => []),
     listAutomationRuns: vi.fn(async () => []),
     getXAutomation: vi.fn(async () => null),
-    generateStoredXAutomationRun: vi.fn(),
-    persistGeneratedXAutomationRun: vi.fn(),
     upsertXAutomationRun: vi.fn(),
     upsertXAutomation: vi.fn(async (automation) => automation),
     getReminderSettings: vi.fn(async () => ({
       events: { generated: { channel: "telegram" } },
     })),
-    enqueueJob: vi.fn(async () => ({ id: "job-1", status: "queued" })),
-    getJob: vi.fn(async () => null),
-    ugcGenerationEnabled: () => true,
+    sendGeneratedReminder: vi.fn(async () => ({ sent: true })),
   }
 }
 
@@ -232,34 +228,20 @@ describe("production pipeline stage handlers", () => {
     })
   })
 
-  it("queues the exact requested UGC checkpoint stage without media input", async () => {
+  it("rejects the removed in-process UGC checkpoint queue", async () => {
     const runtime = services()
     const handlers = createProductionPipelineHandlers(runtime as never)
     const handler = handlers.get("ugc-video-generation.synthesize-voice")!
-    const output = await handler(
-      {
-        automationId: "ugc-automation-1",
-        scheduledFor: "2026-08-01T09:00:00.000Z",
-      },
-      context("ugc-video-generation.synthesize-voice", handlers)
-    )
-
-    expect(runtime.enqueueJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "run-ugc-template",
-        payload: expect.objectContaining({
+    await expect(
+      handler(
+        {
           automationId: "ugc-automation-1",
-          stopAfter: "voice",
-          draftOnly: true,
-        }),
-      })
-    )
-    expect(output).toMatchObject({
-      automationId: "ugc-automation-1",
-      scheduledFor: "2026-08-01T09:00:00.000Z",
-      operation: { id: "job-1", status: "running", kind: "ugc.stage.voice" },
-    })
-    expect(JSON.stringify(output)).not.toContain("base64")
+          scheduledFor: "2026-08-01T09:00:00.000Z",
+        },
+        context("ugc-video-generation.synthesize-voice", handlers)
+      )
+    ).rejects.toThrow("native Windmill runtime")
+    expect(runtime.sendGeneratedReminder).not.toHaveBeenCalled()
   })
 
   it("resolves explicit UGC components without requiring a template", async () => {
@@ -549,36 +531,25 @@ describe("production pipeline stage handlers", () => {
     expect(JSON.stringify(output)).not.toContain("generatedText")
   })
 
-  it("queues one exact UGC component with only its named dependencies", async () => {
+  it("does not allow an exact UGC component to escape into Appwrite", async () => {
     const runtime = services()
     const handlers = createProductionPipelineHandlers(runtime as never)
     const handler = handlers.get("ugc-video-generation.synthesize-voice")!
     const scriptCheckpoint = { plan: { hook: "Hook", segments: [] } }
 
-    await handler(
-      {
-        componentExecution: true,
-        generationId: "debug-run-1",
-        scheduledFor: "2026-08-01T09:00:00.000Z",
-        components: { voice: { voiceId: "voice-1" } },
-        checkpoints: { script: scriptCheckpoint },
-      },
-      context("ugc-video-generation.synthesize-voice", handlers)
-    )
-
-    expect(runtime.enqueueJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "run-ugc-template",
-        payload: expect.objectContaining({
+    await expect(
+      handler(
+        {
           componentExecution: true,
           generationId: "debug-run-1",
-          onlyStage: "voice",
-          stopAfter: "voice",
+          scheduledFor: "2026-08-01T09:00:00.000Z",
           components: { voice: { voiceId: "voice-1" } },
           checkpoints: { script: scriptCheckpoint },
-        }),
-      })
-    )
+        },
+        context("ugc-video-generation.synthesize-voice", handlers)
+      )
+    ).rejects.toThrow("native Windmill runtime")
+    expect(runtime.sendGeneratedReminder).not.toHaveBeenCalled()
   })
 
   it("keeps a pinned slideshow image inside a bounded shortlist", async () => {

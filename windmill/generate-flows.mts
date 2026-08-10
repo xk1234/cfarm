@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import type { PipelineWorkflowId } from "../lib/pipeline-stages"
+import { buildNativeWindmillRuntime } from "./build-native-runtime.mts"
 
 const workflows: Array<{
   id: PipelineWorkflowId
@@ -38,6 +39,13 @@ const workflows: Array<{
       "Chroma-key a full meme clip over a background with a hook caption through named media, render, and draft-output components.",
   },
   {
+    id: "template-video-generation",
+    folder: "template_video_generation__flow",
+    summary: "lumenclip - template video generation",
+    description:
+      "Generate every non-UGC video template through independent copy and media paths that join at render assembly.",
+  },
+  {
     id: "linkedin-generation",
     folder: "linkedin_generation__flow",
     summary: "lumenclip - LinkedIn generation",
@@ -53,7 +61,7 @@ const workflows: Array<{
   },
 ]
 
-const pipelineStageModule = pipelineStageModuleSource()
+await buildNativeWindmillRuntime()
 
 for (const workflow of workflows) {
   const outputPath = path.join(
@@ -64,7 +72,47 @@ for (const workflow of workflows) {
     "flow.yaml"
   )
   await mkdir(path.dirname(outputPath), { recursive: true })
-  await writeFile(outputPath, workflowFlowYaml(workflow))
+  await writeFile(outputPath, `${workflowFlowYaml(workflow).trimEnd()}\n`)
+}
+
+const stageExecutionPath = path.join(
+  import.meta.dirname,
+  "f",
+  "lumenclip",
+  "workflow_stage_execution__flow",
+  "flow.yaml"
+)
+await mkdir(path.dirname(stageExecutionPath), { recursive: true })
+await writeFile(stageExecutionPath, `${stageExecutionFlowYaml().trimEnd()}\n`)
+
+function stageExecutionFlowYaml() {
+  return `summary: "lumenclip - execute one workflow stage"
+description: "Execute one registered LumenClip stage natively inside Windmill for debugging and component tests."
+value:
+  modules:
+${ugcStageModule({
+  id: "execute_stage",
+  summary: "Execute native workflow stage",
+  stageId: "",
+  stageIdExpr: "flow_input.stage_id",
+  inputExpr: "flow_input.stage_input",
+})}
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    stage_id:
+      type: string
+      title: Stage ID
+    stage_input:
+      type: object
+      title: Stage input
+    owner_id:
+      type: string
+    request_id:
+      type: string
+  required: [stage_id, stage_input]
+`
 }
 
 function workflowFlowYaml(workflow: (typeof workflows)[number]) {
@@ -85,74 +133,13 @@ function workflowFlowYaml(workflow: (typeof workflows)[number]) {
         workflow.description,
         "greenscreen_meme"
       )
+    case "template-video-generation":
+      return templateVideoDagFlowYaml(workflow.summary, workflow.description)
     case "linkedin-generation":
       return linkedinDagFlowYaml(workflow.summary, workflow.description)
     case "x-threads-generation":
       return xThreadsDagFlowYaml(workflow.summary, workflow.description)
   }
-}
-
-function pipelineStageModuleSource() {
-  return `type PipelineStageExecution = {
-  stage: { id: string; workflowId: string }
-  requestId: string
-  status: "succeeded" | "running"
-  externalCalls: number
-  output: Record<string, unknown>
-  operation?: Record<string, unknown>
-  providerRequests?: Array<Record<string, unknown>>
-}
-
-export async function main(
-  base_url: string,
-  shared_secret: string,
-  default_owner_id: string,
-  stage_id: string,
-  stage_input: Record<string, unknown>,
-  owner_id?: string,
-  request_id?: string
-): Promise<PipelineStageExecution> {
-  const resolvedOwnerId = owner_id?.trim() || required("default_owner_id", default_owner_id)
-  const resolvedRequestId =
-    request_id?.trim() ||
-    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||
-    process.env.WM_FLOW_JOB_ID?.trim() ||
-    process.env.WM_JOB_ID?.trim() ||
-    \`windmill-\${crypto.randomUUID()}\`
-  const response = await fetch(
-    \`\${required("base_url", base_url).replace(/\\\/$/, "")}/api/internal/windmill/stages/\${encodeURIComponent(stage_id)}\`,
-    {
-      method: "POST",
-      headers: {
-        authorization: \`Bearer \${required("shared_secret", shared_secret)}\`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        ownerId: resolvedOwnerId,
-        requestId: resolvedRequestId,
-        input: stage_input,
-      }),
-    }
-  )
-  const payload = (await response.json().catch(() => null)) as {
-    execution?: PipelineStageExecution
-    error?: string
-    providerRequests?: Array<Record<string, unknown>>
-  } | null
-  if (!response.ok || !payload?.execution) {
-    const providerRequests = payload?.providerRequests?.length
-      ? \`\nProvider requests:\n\${JSON.stringify(payload.providerRequests, null, 2)}\`
-      : ""
-    throw new Error((payload?.error || \`Lumenclip stage request failed with \${response.status}\`) + providerRequests)
-  }
-  return payload.execution
-}
-
-function required(name: string, input: unknown) {
-  const value = typeof input === "string" ? input.trim() : ""
-  if (!value) throw new Error(\`Lumenclip \${name} is not configured\`)
-  return value
-}`
 }
 
 function linkedinInputSchema() {
@@ -209,55 +196,13 @@ function linkedinInputSchema() {
     - niche`
 }
 
-function dynamicTemplateSelectCode(
-  kind: "slideshow" | "ugc" | "video" | "x_threads"
-) {
-  return `import * as wmill from "windmill-client"
-
-export async function automation_id(filterText = "") {
-  const [baseUrlValue, secretValue, ownerIdValue] = await Promise.all([
-    wmill.getVariable("f/lumenclip/internal_base_url"),
-    wmill.getVariable("f/lumenclip/shared_secret"),
-    wmill.getVariable("f/lumenclip/default_owner_id"),
-  ])
-  const baseUrl = required("internal_base_url", baseUrlValue).replace(/\\/$/, "")
-  const secret = required("shared_secret", secretValue)
-  const ownerId = required("default_owner_id", ownerIdValue)
-  const response = await fetch(\`${"${baseUrl}"}/api/internal/windmill/templates\`, {
-    method: "POST",
-    headers: {
-      authorization: \`Bearer ${"${secret}"}\`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ ownerId, kind: ${JSON.stringify(kind)} }),
-  })
-  const payload = await response.json()
-  if (!response.ok || !Array.isArray(payload.options)) {
-    throw new Error(payload.error || \`Template lookup failed with ${"${response.status}"}\`)
-  }
-  const query = filterText.trim().toLowerCase()
-  return query
-    ? payload.options.filter((option) => option.label.toLowerCase().includes(query))
-    : payload.options
-}
-
-function required(name: string, value: unknown) {
-  const text = typeof value === "string" ? value.trim() : ""
-  if (!text) throw new Error(\`Lumenclip variable ${"${name}"} is not configured\`)
-  return text
-}`
-}
-
 function stageNode(input: {
   id: string
   summary: string
   stageId: string
   inputExpr: string
 }) {
-  return ugcRawStageModule({
-    ...input,
-    source: pipelineStageModule,
-  })
+  return ugcStageModule(input)
 }
 
 function slideshowDagFlowYaml(summary: string, description: string) {
@@ -282,7 +227,7 @@ ${indent(stageNode({ id: "load_word_collections", summary: "Load word collection
     summary: "Validate template, collections, and word variables",
     stageId: "slideshow-generation.validate-input",
     inputExpr:
-      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections })",
+      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections, hook: flow_input.hook, scheduledFor: flow_input.scheduled_for, generationSource: flow_input.generation_source })",
   })
   const loadGenerationContext = `              - id: load_generation_context
                 summary: "Load memory and model inputs consumed by text generation"
@@ -454,12 +399,21 @@ schema:
   type: object
   properties:
     automation_id:
-      type: object
-      format: dynselect-automation_id
+      type: string
       title: Template
+    hook:
+      type: string
+      title: Exact hook (optional)
+    scheduled_for:
+      type: string
+      format: date-time
+      title: Generation time (optional)
+    generation_source:
+      type: string
+      enum: [manual, scheduled]
+      default: manual
+      title: Generation source
   required: [automation_id]
-  x-windmill-dyn-select-lang: bun
-  x-windmill-dyn-select-code: ${yamlString(dynamicTemplateSelectCode("slideshow"))}
 `
 }
 
@@ -682,8 +636,7 @@ schema:
   type: object
   properties:
     automation_id:
-      type: object
-      format: dynselect-automation_id
+      type: string
       title: Template
     topic:
       type: string
@@ -693,8 +646,6 @@ schema:
       title: Source candidate (optional)
       description: Structured source or trend context for this run.
   required: [automation_id]
-  x-windmill-dyn-select-lang: bun
-  x-windmill-dyn-select-code: ${yamlString(dynamicTemplateSelectCode("x_threads"))}
 `
 }
 
@@ -879,8 +830,7 @@ function fixedVideoSchema(format: "react_reveal" | "greenscreen_meme") {
   type: object
   properties:
     template_id:
-      type: object
-      format: dynselect-template_id
+      type: string
       title: Template (optional)
 ${media}
     audio:
@@ -897,16 +847,104 @@ ${media}
         hashtags:
           type: array
           items: { type: string }
-  x-windmill-dyn-select-lang: bun
-  x-windmill-dyn-select-code: ${yamlString(dynamicTemplateSelectCode("video").replaceAll("automation_id", "template_id"))}`
+`
+}
+
+function templateVideoDagFlowYaml(summary: string, description: string) {
+  const load = stageNode({
+    id: "load_template",
+    summary: "Load and validate video template",
+    stageId: "template-video-generation.load-template",
+    inputExpr: "({ templateId: flow_input.template_id })",
+  })
+  const copy = stageNode({
+    id: "generate_copy",
+    summary: "Generate hook, captions, and post metadata",
+    stageId: "template-video-generation.generate-copy",
+    inputExpr: "results.load_template.output",
+  })
+  const media = stageNode({
+    id: "resolve_media",
+    summary: "Resolve configured media for every segment",
+    stageId: "template-video-generation.resolve-media",
+    inputExpr: "results.load_template.output",
+  })
+  const assemble = stageNode({
+    id: "assemble_components",
+    summary: "Join copy and media at renderer input",
+    stageId: "template-video-generation.assemble-components",
+    inputExpr:
+      "({ generation: results.load_template.output.generation, template: results.load_template.output.template, copy: results.prepare_copy_and_media[0].output.copy, resolvedMedia: results.prepare_copy_and_media[1].output.resolvedMedia })",
+  })
+  const stageMedia = stageNode({
+    id: "stage_media",
+    summary: "Stage selected render media",
+    stageId: "template-video-generation.stage-media",
+    inputExpr: "results.assemble_components.output",
+  })
+  const build = stageNode({
+    id: "build_render_command",
+    summary: "Build template FFmpeg command",
+    stageId: "template-video-generation.build-render-command",
+    inputExpr: "results.stage_media.output",
+  })
+  const render = stageNode({
+    id: "render_store_output",
+    summary: "Render and store video artifacts",
+    stageId: "template-video-generation.render-store-output",
+    inputExpr: "results.build_render_command.output",
+  })
+  const finalize = stageNode({
+    id: "finalize_output",
+    summary: "Persist unpublished video output",
+    stageId: "template-video-generation.finalize-output",
+    inputExpr: "results.render_store_output.output",
+  })
+  const discard = stageNode({
+    id: "discard_staged_media",
+    summary: "Discard temporary source media",
+    stageId: "template-video-generation.discard-staged-media",
+    inputExpr: "results.finalize_output.output",
+  })
+  return `summary: ${yamlString(summary)}
+description: ${yamlString(description)}
+value:
+  modules:
+${load}
+    - id: prepare_copy_and_media
+      summary: "Prepare independent copy and media artifacts"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Copy generation"
+            modules:
+${indent(copy, 14)}
+          - summary: "Media resolution"
+            modules:
+${indent(media, 14)}
+${assemble}
+${stageMedia}
+${build}
+${render}
+${finalize}
+${discard}
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    template_id:
+      type: string
+      title: Video template
+  required: [template_id]
+`
 }
 
 function ugcComponentFlowYaml(summary: string, description: string) {
-  const loadTemplate = ugcRawStageModule({
+  const loadTemplate = ugcStageModule({
     id: "load_template_defaults",
     summary: "Load and validate optional UGC template defaults",
     stageId: "ugc-video-generation.load-template-defaults",
-    source: pipelineStageModule,
     inputExpr:
       "({ templateId: flow_input.template_id, generationId: flow_input.generation_id, scheduledFor: flow_input.scheduled_for })",
   })
@@ -925,9 +963,8 @@ function ugcComponentFlowYaml(summary: string, description: string) {
     inputExpr: string
     indent?: number
   }) =>
-    ugcRawStageModule({
+    ugcStageModule({
       ...input,
-      source: ugcComponentModuleSource(),
       component: true,
     })
 
@@ -1109,11 +1146,11 @@ function ugcComponentInputExpr(
   return `({ componentExecution: true, generation: ${generation}, ...${generation}, components: ${components}, checkpoints: ${checkpoints} })`
 }
 
-function ugcRawStageModule(input: {
+function ugcStageModule(input: {
   id: string
   summary: string
   stageId: string
-  source: string
+  stageIdExpr?: string
   inputExpr: string
   component?: boolean
   checkpoint?: string
@@ -1124,30 +1161,23 @@ function ugcRawStageModule(input: {
         type: static
         value: ${input.component ? 1800 : 300}
       value:
-        type: rawscript
-        language: bun
-        content: ${yamlString(input.source)}
+        type: script
+        path: f/lumenclip/workflow_stage_runtime
         input_transforms:
-          base_url:
+          runtime_env_json:
             type: static
-            value: $var:f/lumenclip/internal_base_url
-          shared_secret:
-            type: static
-            value: $var:f/lumenclip/shared_secret
+            value: $var:f/lumenclip/runtime_env_json
           default_owner_id:
             type: static
             value: $var:f/lumenclip/default_owner_id
           stage_id:
-            type: static
-            value: ${yamlString(input.stageId)}
+            type: ${input.stageIdExpr ? "javascript" : "static"}
+            ${input.stageIdExpr ? `expr: ${input.stageIdExpr}` : `value: ${yamlString(input.stageId)}`}
 ${
   input.component
     ? `          checkpoint_name:
             type: static
             value: ${yamlString(input.checkpoint ?? "")}
-          max_wait_seconds:
-            type: static
-            value: 1500
 `
     : ""
 }          owner_id:
@@ -1159,135 +1189,6 @@ ${
           stage_input:
             type: javascript
             expr: ${yamlString(input.inputExpr)}`
-}
-
-function ugcComponentModuleSource() {
-  return `type PipelineStageExecution = {
-  stage: { id: string; workflowId: string }
-  requestId: string
-  status: "succeeded" | "running"
-  externalCalls: number
-  output: Record<string, unknown>
-  operation?: { id?: string; status?: string }
-  providerRequests?: Array<Record<string, unknown>>
-}
-
-export async function main(
-  base_url: string,
-  shared_secret: string,
-  default_owner_id: string,
-  stage_id: string,
-  checkpoint_name: string,
-  stage_input: Record<string, unknown>,
-  max_wait_seconds = 1500,
-  owner_id?: string,
-  request_id?: string
-): Promise<PipelineStageExecution> {
-  const ownerId = owner_id?.trim() || required("default_owner_id", default_owner_id)
-  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || \`windmill-\${crypto.randomUUID()}\`
-  const generation = record(stage_input.generation)
-  const baseGenerationId = text(generation.generationId) || requestId
-  const isolatedInput = {
-    ...stage_input,
-    generationId: \`\${baseGenerationId}-\${checkpoint_name}\`,
-    scheduledFor: generation.scheduledFor,
-  }
-  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)
-  if (queued.status === "succeeded") {
-    return {
-      ...queued,
-      output: {
-        ...queued.output,
-        generation,
-        components: record(stage_input.components),
-      },
-    }
-  }
-  const jobId = text(queued.operation?.id)
-  if (!jobId) throw new Error(\`\${checkpoint_name} did not return a queue job\`)
-  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000
-  while (Date.now() < deadline) {
-    await Bun.sleep(2000)
-    const polled = await callStage(
-      base_url,
-      shared_secret,
-      ownerId,
-      requestId,
-      "ugc-video-generation.get-checkpoint-job",
-      { jobId }
-    )
-    const job = record(polled.output.job)
-    const status = text(job.status)
-    if (["failed", "dead", "canceled"].includes(status)) {
-      throw new Error(text(job.error) || \`\${checkpoint_name} component failed\`)
-    }
-    if (status !== "completed") continue
-    const result = record(job.result)
-    if (result.skipped === true) {
-      throw new Error(\`\${checkpoint_name} component was skipped: \${text(result.reason) || "unknown reason"}\`)
-    }
-    const artifact = record(record(result.checkpoints)[checkpoint_name])
-    if (!Object.keys(artifact).length) {
-      throw new Error(\`\${checkpoint_name} completed without a checkpoint artifact\`)
-    }
-    return {
-      stage: queued.stage,
-      requestId,
-      status: "succeeded",
-      externalCalls: queued.externalCalls + polled.externalCalls,
-      ...(Array.isArray(artifact.providerRequests) ? { providerRequests: artifact.providerRequests } : {}),
-      output: {
-        component: checkpoint_name,
-        artifact,
-        generation,
-        components: record(stage_input.components),
-        operation: { id: jobId, status: "succeeded" },
-      },
-    }
-  }
-  throw new Error(\`\${checkpoint_name} component timed out after \${max_wait_seconds}s\`)
-}
-
-async function callStage(
-  baseUrl: string,
-  secret: string,
-  ownerId: string,
-  requestId: string,
-  stageId: string,
-  input: Record<string, unknown>
-) {
-  const response = await fetch(
-    \`\${required("base_url", baseUrl).replace(/\\\/$/, "")}/api/internal/windmill/stages/\${encodeURIComponent(stageId)}\`,
-    {
-      method: "POST",
-      headers: {
-        authorization: \`Bearer \${required("shared_secret", secret)}\`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ ownerId, requestId, input }),
-    }
-  )
-  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string; providerRequests?: Array<Record<string, unknown>> } | null
-  if (!response.ok || !payload?.execution) {
-    const providerRequests = payload?.providerRequests?.length
-      ? \`\nProvider requests:\n\${JSON.stringify(payload.providerRequests, null, 2)}\`
-      : ""
-    throw new Error((payload?.error || \`Lumenclip stage request failed with \${response.status}\`) + providerRequests)
-  }
-  return payload.execution
-}
-
-function record(value: unknown): Record<string, any> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {}
-}
-function text(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
-function required(name: string, value: unknown) {
-  const result = text(value)
-  if (!result) throw new Error(\`Lumenclip \${name} is not configured\`)
-  return result
-}`
 }
 
 function ugcComponentSchema() {
@@ -1303,8 +1204,7 @@ function ugcComponentSchema() {
     - render
   properties:
     template_id:
-      type: object
-      format: dynselect-template_id
+      type: string
       title: Template (optional)
       description: Load defaults from a UGC template; every component below can override it.
     product:
@@ -1407,8 +1307,7 @@ function ugcComponentSchema() {
         hookOverlay:
           type: object
           title: Hook overlay
-  x-windmill-dyn-select-lang: bun
-  x-windmill-dyn-select-code: ${yamlString(dynamicTemplateSelectCode("ugc").replaceAll("automation_id", "template_id"))}`
+`
 }
 
 function indent(value: string, spaces: number) {

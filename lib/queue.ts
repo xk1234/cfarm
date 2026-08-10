@@ -40,12 +40,6 @@ export type Job = {
   ownerId: string
 }
 
-export type RetryGenerationJobResult = {
-  job: Job
-  retried: boolean
-  reason?: "not_generation" | "not_failed"
-}
-
 export function deterministicJobId(ownerId: string, dedupeKey: string): string {
   return jobId(`${ownerId}:${dedupeKey}`)
 }
@@ -154,124 +148,6 @@ export async function getJob(id: string): Promise<Job | null> {
     return job.ownerId === ownerId ? job : null
   } catch {
     return null
-  }
-}
-
-/**
- * Permanently remove queued and historical generation jobs for one standard
- * automation. This is used by the automation deletion cascade so stale failed
- * jobs do not keep appearing after their automation is gone.
- */
-export async function deleteAutomationJobs(
-  automationId: string
-): Promise<Job[]> {
-  const aw = getAppwrite()
-  if (!aw) return []
-  const ownerId = await queueOwnerId()
-  if (!ownerId || !automationId.trim()) return []
-
-  const candidates = (
-    await Promise.all(
-      ["run-template", "run-ugc-template"].map(async (type) => {
-        const jobs: Job[] = []
-        let offset = 0
-        const pageSize = 100
-
-        while (true) {
-          const res = await aw.tables.listRows(
-            APPWRITE_DATABASE_ID,
-            JOBS_TABLE,
-            [
-              Query.equal("owner_id", [ownerId]),
-              Query.equal("type", [type]),
-              Query.orderAsc("$createdAt"),
-              Query.limit(pageSize),
-              Query.offset(offset),
-            ]
-          )
-          const page = (res.rows as Array<Record<string, unknown>>).map(mapJob)
-          jobs.push(...page)
-          if (page.length < pageSize) break
-          offset += page.length
-        }
-
-        return jobs
-      })
-    )
-  )
-    .flat()
-    .filter((job) => {
-      const payload =
-        job.payload && typeof job.payload === "object"
-          ? (job.payload as Record<string, unknown>)
-          : {}
-      return String(payload.automationId ?? "") === automationId
-    })
-
-  await Promise.all(
-    candidates.map((job) =>
-      aw.tables.deleteRow(APPWRITE_DATABASE_ID, JOBS_TABLE, job.id)
-    )
-  )
-  return candidates
-}
-
-/** Reset a failed generation job so the worker can claim it again immediately. */
-export async function retryGenerationJob(
-  id: string
-): Promise<RetryGenerationJobResult | null> {
-  const aw = getAppwrite()
-  if (!aw) return null
-  const ownerId = await queueOwnerId()
-  if (!ownerId) return null
-
-  let row: Record<string, unknown>
-  try {
-    row = (await aw.tables.getRow(
-      APPWRITE_DATABASE_ID,
-      JOBS_TABLE,
-      id
-    )) as Record<string, unknown>
-  } catch (error) {
-    if ((error as { code?: number }).code === 404) return null
-    throw error
-  }
-
-  const job = mapJob(row)
-  if (job.ownerId !== ownerId) return null
-  if (
-    job.type !== "run-template" &&
-    job.type !== "run-social-template" &&
-    job.type !== "run-ugc-template"
-  ) {
-    return { job, retried: false, reason: "not_generation" }
-  }
-  if (job.status !== "failed" && job.status !== "dead") {
-    return { job, retried: false, reason: "not_failed" }
-  }
-
-  const now = new Date().toISOString()
-  await aw.tables.updateRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id, {
-    status: "queued",
-    attempts: 0,
-    available_at: now,
-    leased_by: null,
-    leased_until: null,
-    result: null,
-    error: null,
-    updated_at: now,
-  })
-  return {
-    retried: true,
-    job: {
-      ...job,
-      status: "queued",
-      attempts: 0,
-      availableAt: now,
-      result: null,
-      error: null,
-      updatedAt: now,
-    },
   }
 }
 

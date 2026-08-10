@@ -21,10 +21,6 @@ import { openRouterJson } from "@/lib/openrouter"
 import { automationGenerationBlockers } from "@/lib/automation-readiness"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
-  fixedSlideshowCount,
-  hookUsesDynamicSlideCount,
-} from "@/lib/fixed-slideshow-count"
-import {
   clearAutomationRunProgress,
   setAutomationRunProgress,
 } from "@/lib/automation-run-progress"
@@ -301,24 +297,6 @@ export type AutomationRunSocialStatus = {
   error?: string
 }
 
-export type AutomationRunResult = {
-  created: AutomationRunRecord[]
-  results: ResultRecord[]
-  skipped: {
-    automationId: string
-    reason:
-      | "not_live"
-      | "not_due"
-      | "already_ran"
-      | "blocked"
-      | "no_images"
-      | "insufficient_unique_images"
-      | "hooks_exhausted"
-    scheduledFor?: string
-    blockers?: Array<{ code: string; message: string }>
-  }[]
-}
-
 class InsufficientUniqueImagesError extends Error {
   readonly reason = "insufficient_unique_images" as const
 
@@ -469,192 +447,6 @@ export async function deleteAutomationRuns(input: {
   return deleted
 }
 
-export async function runDueAutomations(
-  input: {
-    automationRootDir?: string
-    runRootDir?: string
-    resultRootDir?: string
-    postfastRootDir?: string
-    slideshowRootDir?: string
-    imageCollectionDbPath?: string
-    wordCollectionRootDir?: string
-    usageLedgerRootDir?: string
-    automationId?: string
-    force?: boolean
-    forcedScheduledFor?: Date
-    now?: Date
-    lookbackMinutes?: number
-    random?: () => number
-    requestId?: string
-    hook?: string
-    fetchImpl?: typeof fetch
-  } = {}
-): Promise<AutomationRunResult> {
-  const now = input.now ?? new Date()
-  const lookbackMinutes = input.lookbackMinutes ?? 24 * 60
-  const runRootDir = input.runRootDir ?? defaultRunRootDir
-  const slideshowRootDir =
-    input.slideshowRootDir ??
-    (input.postfastRootDir
-      ? path.join(input.postfastRootDir, "slideshows")
-      : undefined)
-  const resultRootDir =
-    input.resultRootDir ??
-    (input.postfastRootDir
-      ? path.join(input.postfastRootDir, "results")
-      : undefined)
-  const usageLedgerRootDir =
-    input.usageLedgerRootDir ??
-    (input.runRootDir
-      ? path.join(input.runRootDir, "usage-ledger")
-      : input.postfastRootDir
-        ? path.join(input.postfastRootDir, "usage-ledger")
-        : undefined)
-  const automationRootDir = input.automationRootDir ?? defaultAutomationRootDir
-  const records = input.automationId
-    ? [await getAutomationRecord(input.automationId, automationRootDir)].filter(
-        (record): record is AutomationRecord => Boolean(record)
-      )
-    : await listAutomationRecords({ rootDir: automationRootDir })
-  const result: AutomationRunResult = { created: [], results: [], skipped: [] }
-
-  for (const record of records) {
-    if (input.automationId && record.id !== input.automationId) {
-      continue
-    }
-
-    if (!input.force && record.status !== "live") {
-      result.skipped.push({ automationId: record.id, reason: "not_live" })
-      continue
-    }
-
-    const dueSlots = input.force
-      ? [(input.forcedScheduledFor ?? now).toISOString()]
-      : dueAutomationSlots(
-          record.schema.schedule,
-          now,
-          lookbackMinutes,
-          0,
-          input.random ? () => input.random!() : undefined
-        )
-    if (dueSlots.length === 0) {
-      result.skipped.push({ automationId: record.id, reason: "not_due" })
-      continue
-    }
-
-    const imageCollections = await readImageCollections(
-      input.imageCollectionDbPath
-    )
-    const wordCollections = await listWordCollections({
-      rootDir: input.wordCollectionRootDir,
-    })
-    const blockers = automationGenerationBlockers({
-      schema: record.schema,
-      collections: imageCollections.map((collection) => ({
-        id: collection.id,
-        name: collection.name,
-        aliases: collection.aliases,
-        assetCount: collection.images.length,
-        mediaType: "image",
-      })),
-      wordCollections,
-    }).filter((blocker) =>
-      clean(input.hook)
-        ? !["missing_hook", "invalid_hook_variable"].includes(blocker.code)
-        : true
-    )
-    if (blockers.length > 0) {
-      if (record.status === "live") {
-        await patchAutomationRecord({
-          rootDir: automationRootDir,
-          id: record.id,
-          status: "paused",
-          schema: {
-            ...record.schema,
-            schedule: {
-              ...record.schema.schedule,
-              paused: true,
-            },
-          },
-        })
-      }
-      const onlyCollectionErrors = blockers.every((blocker) =>
-        [
-          "missing_collection_selection",
-          "missing_collection",
-          "empty_collection",
-        ].includes(blocker.code)
-      )
-      for (const scheduledFor of dueSlots) {
-        result.skipped.push({
-          automationId: record.id,
-          reason: onlyCollectionErrors ? "no_images" : "blocked",
-          scheduledFor,
-          blockers,
-        })
-      }
-      continue
-    }
-
-    for (const scheduledFor of dueSlots) {
-      const claim = await claimAutomationRunSlot({
-        runRootDir,
-        record,
-        scheduledFor,
-        now,
-        force: Boolean(input.force),
-        generationSource: input.force ? "manual" : "scheduled",
-        requestId: clean(input.requestId) || undefined,
-      })
-      if (!claim.run) {
-        result.skipped.push({
-          automationId: record.id,
-          reason: "already_ran",
-          scheduledFor,
-        })
-        continue
-      }
-
-      const createdRun = await createAutomationRun({
-        claimedRun: claim.run,
-        record,
-        postfastRootDir: input.postfastRootDir,
-        slideshowRootDir,
-        resultRootDir,
-        imageCollectionDbPath: input.imageCollectionDbPath,
-        wordCollectionRootDir: input.wordCollectionRootDir,
-        usageLedgerRootDir,
-        now,
-        random: input.random,
-        hook: input.hook,
-        fetchImpl: input.fetchImpl,
-      }).catch(async (error) => {
-        clearAutomationRunProgress(claim.run!.id)
-        await updateAutomationRun(
-          runRootDir,
-          failedClaimedAutomationRun(claim.run!, error)
-        )
-        throw error
-      })
-      const run = createdRun.run
-      if (run.status === "failed") {
-        result.skipped.push({
-          automationId: record.id,
-          reason: createdRun.failureReason ?? "no_images",
-          scheduledFor,
-        })
-      }
-      await updateAutomationRun(runRootDir, run)
-      result.created.push(run)
-      if (createdRun.result) {
-        result.results.push(createdRun.result)
-      }
-    }
-  }
-
-  return result
-}
-
 export async function previewAutomationRunPlan(
   schema: AutomationSchema,
   input: {
@@ -784,241 +576,6 @@ export async function previewAutomationHookVariants(
     })
   }
   return variants
-}
-
-async function createAutomationRun(input: {
-  claimedRun: AutomationRunRecord
-  record: AutomationRecord
-  postfastRootDir?: string
-  slideshowRootDir?: string
-  resultRootDir?: string
-  imageCollectionDbPath?: string
-  wordCollectionRootDir?: string
-  usageLedgerRootDir?: string
-  usedHookKeys?: Set<string>
-  usedHookCombinationKeys?: Set<string>
-  now: Date
-  random?: () => number
-  hook?: string
-  fetchImpl?: typeof fetch
-}) {
-  const now = new Date().toISOString()
-  const runId = input.claimedRun.id
-  let plan: AutomationRunPlan
-  try {
-    plan = await createAutomationRunPlan(input.record.schema, {
-      automationId: input.record.id,
-      automationTitle: input.record.name,
-      imageCollectionDbPath: input.imageCollectionDbPath,
-      wordCollectionRootDir: input.wordCollectionRootDir,
-      usageLedgerRootDir: input.usageLedgerRootDir,
-      usedHookKeys: input.usedHookKeys,
-      usedHookCombinationKeys: input.usedHookCombinationKeys,
-      now: input.now,
-      random: input.random,
-      hook: input.hook,
-      fetchImpl: input.fetchImpl,
-      onProgress: (stage, detail) =>
-        setAutomationRunProgress(runId, stage, detail),
-    })
-  } catch (error) {
-    clearAutomationRunProgress(runId)
-    if (
-      error instanceof HookCombinationsExhaustedError ||
-      error instanceof InsufficientUniqueImagesError
-    ) {
-      return {
-        run: failedClaimedAutomationRun(input.claimedRun, error),
-        failureReason: error.reason,
-      }
-    }
-    throw error
-  }
-  const status: AutomationRunStatus =
-    plan.slides.length > 0 ? "succeeded" : "failed"
-  const run: AutomationRunRecord = {
-    ...input.claimedRun,
-    automationTitle: input.record.name,
-    status,
-    plan,
-    updatedAt: now,
-    error:
-      status === "failed"
-        ? "No images available for automation collections"
-        : undefined,
-  }
-  if (status === "failed") {
-    clearAutomationRunProgress(runId)
-    return { run }
-  }
-
-  const postIntent = automationPostIntentOptions(input.record.schema)
-  // Templates only create drafts. Moving a completed output to a social
-  // platform is an explicit post-processing action in the output viewer.
-  const activeIntegrations: AutomationSchema["social_integrations"] = []
-  const postingMode = postIntent.publishMode as ReturnType<
-    typeof automationPostingMode
-  >
-  setAutomationRunProgress(runId, "Rendering slides", plan.hook)
-  const { slideshow, result } = await createSlideshowResultRecord({
-    rootDir: input.slideshowRootDir,
-    resultRootDir: input.resultRootDir,
-    runId: run.id,
-    automationId: input.record.id,
-    title: requiredGeneratedValue("title", plan.title),
-    caption: plan.caption,
-    hashtags: plan.hashtags,
-    prompt: automationSlideshowPrompt(plan.hook),
-    image_collection: plan.imageCollectionIds[0] ?? "",
-    slideshow_type: "automation",
-    status: "exported",
-    settings: automationSlideshowSettings(input.record.schema),
-    images: automationRunSlidesToSlideshowSlides(input.record.schema, plan),
-    publishMode: postingMode,
-    postIntentDestinations: postIntent.destinations,
-  })
-
-  const runWithSlideshowId = {
-    ...run,
-    slideshowId: slideshow.id,
-    videoUrl: slideshow.video_url,
-    thumbnailUrl: slideshow.thumbnail_url,
-    outputImages: slideshow.output_images,
-    outputDir: slideshow.output_dir,
-  }
-  await enqueueReminder({
-    event: "generated",
-    sourceType: "slideshow",
-    sourceId: slideshow.id,
-    text: `Slideshow generated\n${plan.title}\n${plan.hook}`,
-  }).catch(() => undefined)
-
-  // Upload the rendered slides before any posting workflow is recorded. Auto,
-  // review, and manual modes all use the same PostFast media keys, so approving
-  // later can never degrade into a caption-only post.
-  const outputQa = validateAutomationRunOutput({
-    run: runWithSlideshowId,
-    schema: input.record.schema,
-  })
-  if (
-    activeIntegrations.length > 0 &&
-    input.claimedRun.generationSource !== "manual" &&
-    !outputQa.valid
-  ) {
-    await enqueueReminder({
-      event: "ready_to_post",
-      sourceType: "slideshow",
-      sourceId: slideshow.id,
-      scheduledFor: run.scheduledFor,
-      availableAt: reminderAvailability(run.scheduledFor),
-      dedupeSuffix: `${run.scheduledFor}:qa`,
-      requiresPostConfirmation: true,
-      text: `Slideshow blocked by QA\n${plan.title}\n${outputQa.findings
-        .filter((finding) => finding.severity === "error")
-        .map((finding) => finding.message)
-        .join("\n")}`,
-    }).catch(() => undefined)
-  }
-  if (
-    activeIntegrations.length > 0 &&
-    input.claimedRun.generationSource !== "manual" &&
-    outputQa.valid
-  ) {
-    let media
-    try {
-      media = await uploadPostFastMediaSources({
-        urls: slideshow.output_images,
-      })
-    } catch (error) {
-      await recordFailedAutomationRun({
-        runId: run.id,
-        outputId: slideshow.id,
-        automationId: input.record.id,
-        scheduledFor: run.scheduledFor,
-        integrations: activeIntegrations,
-        content: automationPublishContent(plan),
-        postfastRootDir: input.postfastRootDir,
-        error: error instanceof Error ? error.message : "Media upload failed",
-      })
-      throw error
-    }
-    if (media && postingMode === "auto") {
-      await publishAutomationRun({
-        runId: run.id,
-        outputId: slideshow.id,
-        automationId: input.record.id,
-        scheduledFor: run.scheduledFor,
-        integrations: activeIntegrations,
-        content: automationPublishContent(plan),
-        media,
-        postfastRootDir: input.postfastRootDir,
-      })
-    } else if (media && postingMode === "review") {
-      await recordReadyForReviewAutomationRun({
-        runId: run.id,
-        outputId: slideshow.id,
-        automationId: input.record.id,
-        scheduledFor: run.scheduledFor,
-        integrations: activeIntegrations,
-        content: automationPublishContent(plan),
-        media,
-        postfastRootDir: input.postfastRootDir,
-      })
-      await enqueueReminder({
-        event: "ready_to_post",
-        sourceType: "slideshow",
-        sourceId: slideshow.id,
-        scheduledFor: run.scheduledFor,
-        availableAt: reminderAvailability(run.scheduledFor),
-        dedupeSuffix: run.scheduledFor,
-        requiresPostConfirmation: true,
-        text: `Slideshow ready for review\n${plan.title}\n${automationPublishContent(plan)}`,
-      }).catch(() => undefined)
-    } else if (media) {
-      await recordAwaitingManualAutomationRun({
-        runId: run.id,
-        outputId: slideshow.id,
-        automationId: input.record.id,
-        scheduledFor: run.scheduledFor,
-        integrations: activeIntegrations,
-        content: automationPublishContent(plan),
-        media,
-        postfastRootDir: input.postfastRootDir,
-      })
-      await enqueueReminder({
-        event: "ready_to_post",
-        sourceType: "slideshow",
-        sourceId: slideshow.id,
-        scheduledFor: run.scheduledFor,
-        availableAt: reminderAvailability(run.scheduledFor),
-        dedupeSuffix: run.scheduledFor,
-        requiresPostConfirmation: true,
-        text: `Slideshow ready to post\n${plan.title}\n${automationPublishContent(plan)}`,
-      }).catch(() => undefined)
-    }
-  }
-
-  const runWithStatuses = {
-    ...runWithSlideshowId,
-    socialStatuses: await socialStatusesForRun({
-      run: runWithSlideshowId,
-      schema: input.record.schema,
-      postfastRootDir: input.postfastRootDir,
-    }),
-  }
-  await recordRunUsage({
-    runId: run.id,
-    automationId: input.record.id,
-    plan,
-    rootDir: input.usageLedgerRootDir,
-    usedAt: input.now.toISOString(),
-  })
-  clearAutomationRunProgress(runId)
-
-  return {
-    run: runWithRenderedSlides(runWithStatuses, slideshow),
-    result,
-  }
 }
 
 export function automationPostIntentOptions(schema: AutomationSchema) {
@@ -1247,18 +804,18 @@ async function createAutomationRunPlan(
   const publishedUsageRecords = options.automationId
     ? usageRecordsForPublishedRuns(usageRecords, options.automationId)
     : []
-  const slideCountMode = "static"
-  const fixedCount = fixedSlideshowCount(schema)
-  progress("Selecting hook")
-  const hookItems = automationHookItems(schema).filter(
-    (item) => item.enabled && !hookUsesDynamicSlideCount(item)
+  const slideCountMode = "agent"
+  const slideCountMin = Math.max(
+    1,
+    Math.round(Number(schema.prompt_formatting.slide_count_min) || 3)
   )
+  const slideCountMax = Math.max(
+    slideCountMin,
+    Math.round(Number(schema.prompt_formatting.slide_count_max) || 12)
+  )
+  progress("Selecting hook")
+  const hookItems = automationHookItems(schema).filter((item) => item.enabled)
   const requestedHook = clean(options.hook)
-  if (/\[\[\s*SLIDE_COUNT\s*\]\]/i.test(requestedHook)) {
-    throw new Error(
-      "[[SLIDE_COUNT]] hooks are no longer supported; use a fixed literal count or a count-free hook."
-    )
-  }
   const hookCandidates = [
     ...(requestedHook ? [requestedHook] : []),
     ...hookItems.map((item) => item.text),
@@ -1292,7 +849,7 @@ async function createAutomationRunPlan(
           },
           index: -1,
         }
-  const selectedHook = clean(hookSelection.expansion.text)
+  let selectedHook = clean(hookSelection.expansion.text)
   const slidePlan = await planAutomationSlideSequence({
     schema,
     topic: selectedHook,
@@ -1300,6 +857,16 @@ async function createAutomationRunPlan(
     model: textModel,
     fetchImpl: options.fetchImpl,
   })
+  const previousSlideCount = clean(
+    hookSelection.expansion.substitutions.SLIDE_COUNT
+  )
+  if (previousSlideCount && previousSlideCount !== String(slidePlan.length)) {
+    selectedHook = selectedHook.replace(
+      previousSlideCount,
+      String(slidePlan.length)
+    )
+    hookSelection.expansion.substitutions.SLIDE_COUNT = String(slidePlan.length)
+  }
   const hook = normalizeLlmPunctuation(selectedHook)
   progress("Writing slide text", hook)
   const contentRoute = selectAutomationContentRoute(schema, hook)
@@ -1465,8 +1032,8 @@ async function createAutomationRunPlan(
     slideCount: {
       mode: slideCountMode,
       count: slideCount,
-      min: fixedCount,
-      max: fixedCount,
+      min: slideCountMin,
+      max: slideCountMax,
     },
     publishType: automationPublishType(schema),
     autoMusic: schema.tiktok_post_settings.auto_music,
@@ -1829,7 +1396,14 @@ export async function planAutomationSlideSequence(input: {
   if (designs.length === 0) {
     throw new Error("The template has no slide designs")
   }
-  const count = fixedSlideshowCount(input.schema)
+  const min = Math.max(
+    1,
+    Math.round(Number(input.schema.prompt_formatting.slide_count_min) || 3)
+  )
+  const max = Math.max(
+    min,
+    Math.round(Number(input.schema.prompt_formatting.slide_count_max) || 12)
+  )
   const result = await openRouterJson({
     apiKey,
     model: input.model,
@@ -1837,11 +1411,12 @@ export async function planAutomationSlideSequence(input: {
     maxTokens: 2_048,
     temperature: 0.35,
     plugins: [{ id: "response-healing" }],
-    system: `You are the text-generation director for a slideshow with exactly ${count} slides. Assign one available slide design to every slide. You must not change the slide count. Return only the requested JSON. Do not write the final slide copy yet.`,
+    system:
+      "You are the text-generation director for a slideshow. Decide how many slides the idea needs, then assign one available slide design to every slide. Return only the requested JSON. Do not write the final slide copy yet.",
     user: [
       `Template: ${input.automationTitle}`,
       `Topic or optional hook: ${input.topic}`,
-      `Plan exactly ${count} slides. Use only the listed design IDs. Designs may be reused when the story needs more slides than there are designs.`,
+      `Choose between ${min} and ${max} slides. Use only the listed design IDs. Designs may be reused when the story needs more slides than there are designs.`,
       clean(input.schema.prompt_formatting.slide_planning_prompt),
       "Available slide designs:",
       ...designs.map((design) => {
@@ -1864,8 +1439,8 @@ export async function planAutomationSlideSequence(input: {
         properties: {
           slides: {
             type: "array",
-            minItems: count,
-            maxItems: count,
+            minItems: min,
+            maxItems: max,
             items: {
               type: "object",
               additionalProperties: false,
@@ -1890,9 +1465,9 @@ export async function planAutomationSlideSequence(input: {
         return validIds.has(designId) && purpose ? [{ designId, purpose }] : []
       })
     : []
-  if (slides.length !== count) {
+  if (slides.length < min || slides.length > max) {
     throw new Error(
-      `The text generator planned ${slides.length} slides; expected exactly ${count}.`
+      `The text generator planned ${slides.length} slides; expected ${min}-${max}.`
     )
   }
   return slides
@@ -2614,90 +2189,6 @@ async function writeAutomationRuns(
   })
 }
 
-async function claimAutomationRunSlot(input: {
-  runRootDir: string
-  record: AutomationRecord
-  scheduledFor: string
-  now: Date
-  force: boolean
-  generationSource: "manual" | "scheduled"
-  requestId?: string
-}) {
-  return withJsonArrayStore<
-    RawAutomationRunRecord,
-    { run?: AutomationRunRecord }
-  >({
-    rootDir: input.runRootDir,
-    fileName: runsFileName,
-    key: "runs",
-    normalize: normalizeRun,
-    update(runs) {
-      if (
-        !input.force &&
-        runs.some((run) =>
-          isClaimForAutomationSlot({
-            run,
-            automationId: input.record.id,
-            scheduledFor: input.scheduledFor,
-            now: input.now,
-          })
-        )
-      ) {
-        return {
-          records: runs,
-          result: {},
-        }
-      }
-
-      const run = runningAutomationRun({
-        record: input.record,
-        scheduledFor: input.scheduledFor,
-        generationSource: input.generationSource,
-        requestId: input.requestId,
-        now: input.now,
-      })
-      // Self-heal: a process restart mid-run leaves records stuck in
-      // "running" forever. Anything past the claim guard is dead — mark it
-      // failed so the UI reflects reality.
-      const healed = runs.map((existingRun) => {
-        if (existingRun.status !== "running") {
-          return existingRun
-        }
-        const updatedAt = new Date(clean(existingRun.updatedAt)).getTime()
-        const guardMs = runningClaimGuardMinutes * 60 * 1000
-        if (
-          Number.isFinite(updatedAt) &&
-          input.now.getTime() - updatedAt >= guardMs
-        ) {
-          return {
-            ...existingRun,
-            status: "failed" as const,
-            error:
-              clean(existingRun.error) ||
-              "Run was interrupted before it completed.",
-            updatedAt: input.now.toISOString(),
-          }
-        }
-        return existingRun
-      })
-      const records = input.force
-        ? healed
-        : healed.filter(
-            (existingRun) =>
-              !isSameAutomationSlot({
-                run: existingRun,
-                automationId: input.record.id,
-                scheduledFor: input.scheduledFor,
-              }) || existingRun.status !== "running"
-          )
-      return {
-        records: [run, ...records],
-        result: { run },
-      }
-    },
-  })
-}
-
 export async function removeAutomationRunSlide(input: {
   runRootDir?: string
   usageLedgerRootDir?: string
@@ -2972,7 +2463,7 @@ async function updateAutomationRun(
 /**
  * Restore a complete historical run recovered from durable external evidence.
  * Callers must already be scoped to the correct owner and must supply a fully
- * normalized record. Normal generation continues to use runDueAutomations.
+ * normalized record. Normal generation is owned by the Windmill slideshow DAG.
  */
 export async function upsertRecoveredAutomationRun(
   run: AutomationRunRecord,
@@ -3012,98 +2503,6 @@ function automationRunForSlideshow(
   input: { slideshowId: string; runId?: string }
 ) {
   return getAutomationRunForSlideshow({ ...input, runRootDir })
-}
-
-function isClaimForAutomationSlot(input: {
-  run: RawAutomationRunRecord
-  automationId: string
-  scheduledFor: string
-  now: Date
-}) {
-  if (!isSameAutomationSlot(input)) {
-    return false
-  }
-  if (input.run.status !== "running") {
-    return true
-  }
-
-  const updatedAt = new Date(clean(input.run.updatedAt)).getTime()
-  const guardMs = runningClaimGuardMinutes * 60 * 1000
-  return Number.isFinite(updatedAt) && input.now.getTime() - updatedAt < guardMs
-}
-
-function isSameAutomationSlot(input: {
-  run: RawAutomationRunRecord
-  automationId: string
-  scheduledFor: string
-}) {
-  return (
-    input.run.automationId === input.automationId &&
-    input.run.scheduledFor === input.scheduledFor
-  )
-}
-
-function runningAutomationRun(input: {
-  record: AutomationRecord
-  scheduledFor: string
-  generationSource: "manual" | "scheduled"
-  requestId?: string
-  now: Date
-}): AutomationRunRecord {
-  const now = input.now.toISOString()
-  return {
-    id: `automation-run-${randomUUID()}`,
-    automationId: input.record.id,
-    automationTitle: input.record.name,
-    scheduledFor: input.scheduledFor,
-    generationSource: input.generationSource,
-    requestId: input.requestId,
-    status: "running",
-    plan: pendingAutomationRunPlan(input.record),
-    createdAt: now,
-    updatedAt: now,
-  }
-}
-
-function failedClaimedAutomationRun(
-  run: AutomationRunRecord,
-  error: unknown
-): AutomationRunRecord {
-  const message = error instanceof Error ? error.message : String(error)
-  return {
-    ...run,
-    status: "failed",
-    updatedAt: new Date().toISOString(),
-    error: message,
-  }
-}
-
-function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
-  const collectionIds = automationCollectionIds(record.schema)
-  const slideCount = automationTotalSlideCount(record.schema)
-  // Placeholder while the run generates. Never seed hook/caption from the raw
-  // narrative here — those lines can contain unexpanded [[slot]] templates and
-  // this record is what surfaces if the run dies before generation completes.
-  const title = record.name
-  return {
-    title,
-    caption: "",
-    hashtags: "",
-    hook: "Generating…",
-    imageCollectionIds: collectionIds,
-    slides: [],
-    slideCount: {
-      mode: "static",
-      count: slideCount,
-      min: slideCount,
-      max: slideCount,
-    },
-    publishType: automationPublishType(record.schema),
-    autoMusic: record.schema.tiktok_post_settings.auto_music,
-    autoPost: record.schema.tiktok_post_settings.auto_post,
-    hookCandidates: automationHooks(record.schema),
-    language: record.schema.language || defaultAutomationLanguage,
-  }
 }
 
 function normalizeRun(run: RawAutomationRunRecord): AutomationRunRecord | null {

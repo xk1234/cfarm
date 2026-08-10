@@ -54,7 +54,9 @@ export async function listGeneratedVideoExports(
       (record) =>
         (!filters.type || record.type === filters.type) &&
         (!filters.automationId ||
-          record.sourceConfig.automationId === filters.automationId)
+          record.sourceAutomationId === filters.automationId ||
+          record.sourceConfig.automationId === filters.automationId ||
+          record.sourceConfig.templateId === filters.automationId)
     )
     .slice(0, filters.limit ? Math.max(1, filters.limit) : undefined)
 }

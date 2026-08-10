@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 
 import { ApiError, withHandler } from "@/lib/api"
-import { runDueAutomations } from "@/lib/automation-runner"
+import { getCurrentUser } from "@/lib/auth"
+import { getAutomationRecord } from "@/lib/automations"
+import { runSlideshowTemplateWorkflow } from "@/lib/generation-workflows"
 
 export const dynamic = "force-dynamic"
 
@@ -18,13 +20,25 @@ async function runAutomations(request: Request) {
       "Interactive generation requires templateId and force=true"
     )
   }
+  const user = await getCurrentUser()
+  if (!user) throw new ApiError(401, "Authentication is required")
+  const template = await getAutomationRecord(templateId)
+  if (!template) throw new ApiError(404, "Template not found")
+  if (template.schema.automationKind !== "slideshow") {
+    throw new ApiError(
+      409,
+      "This endpoint accepts slideshow templates; video and post templates use their Windmill generation endpoints"
+    )
+  }
   let result
   try {
-    result = await runDueAutomations({
-      automationId: templateId,
-      force: true,
-      now: dateValue(body?.now),
+    result = await runSlideshowTemplateWorkflow({
+      templateId,
+      ownerId: user.$id,
       requestId: stringValue(body?.requestId),
+      hook: stringValue(body?.hook),
+      scheduledFor: dateValue(body?.now)?.toISOString(),
+      generationSource: "manual",
     })
   } catch (error) {
     if (

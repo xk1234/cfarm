@@ -5,27 +5,27 @@ import {
   UgcConfigurationError,
   runUgcAutomation,
   ugcRunId,
-} from "./ugc-automation-runner.js"
+} from "../../lib/ugc-automation-runner"
 import {
   analyzeUgcProduct,
   generateUgcScript,
   validateUgcScriptPlan,
-} from "./ugc-video-generation.js"
+} from "../../lib/ugc-video-generation"
 import {
   generateFalImage,
   generateFalVideo,
   lipSyncFalVideo,
-} from "./fal-client.js"
-import { synthesizeElevenLabsSpeech } from "./elevenlabs-tts.js"
+} from "../../lib/fal-client"
+import { synthesizeElevenLabsSpeech } from "../../lib/elevenlabs-tts"
 import {
   buildUgcFfmpegCommand,
   compositeUgcVideo,
-} from "./ugc-rendi-compositor.js"
-import { generationModelRegistry } from "./realfarm-generation-model-registry.js"
+} from "../../lib/ugc-rendi-compositor"
+import { generationModelRegistry } from "../../lib/realfarm-generation-model-registry"
 import {
   buildPublicationRecord,
   publicationRecordSummary,
-} from "./publishing-core.js"
+} from "../../lib/publishing-core"
 
 const UGC_BUCKET = "ugc_videos"
 const OUTPUTS = "outputs"
@@ -123,7 +123,7 @@ export async function runUgcAutomationJob({
   const scheduledFor = String(payload?.scheduledFor || "").trim()
   const ownerId = String(job?.owner_id || "").trim()
   if (!automationId || !scheduledFor || !ownerId)
-    throw new UgcConfigurationError("run-ugc-template: invalid job identity")
+    throw new UgcConfigurationError("windmill-native-ugc: invalid job identity")
   const runId = ugcRunId(automationId, scheduledFor)
   const draftOnly = payload?.draftOnly === true
   const stageNames = [
@@ -158,7 +158,7 @@ export async function runUgcAutomationJob({
     row = response.rows?.[0]
     automation = safeJson(row?.data)
     if (!row || !automation)
-      throw new UgcConfigurationError("run-ugc-template: template not found")
+      throw new UgcConfigurationError("windmill-native-ugc: template not found")
   } else {
     automation = {
       id: automationId,
@@ -210,7 +210,7 @@ export async function runUgcAutomationJob({
       `AI UGC configuration error\nAutomation: ${automationId}\nRun: ${runId}\nMissing: ${missing.join(", ")}`
     ).catch(() => undefined)
     throw new UgcConfigurationError(
-      `run-ugc-template: missing ${missing.join(", ")}`,
+      `windmill-native-ugc: missing ${missing.join(", ")}`,
       { telegramNotified: true }
     )
   }

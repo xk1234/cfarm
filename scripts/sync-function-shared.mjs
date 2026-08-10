@@ -17,34 +17,6 @@ const generatedModules = [
     target: "appwrite/functions/job-worker/src/provider-request-trace.js",
   },
   {
-    source: "lib/fal-client.ts",
-    target: "appwrite/functions/job-worker/src/fal-client.js",
-    imports: {
-      "@/lib/provider-request-trace": "./provider-request-trace.js",
-    },
-  },
-  {
-    source: "lib/elevenlabs-tts.ts",
-    target: "appwrite/functions/job-worker/src/elevenlabs-tts.js",
-    imports: {
-      "@/lib/provider-request-trace": "./provider-request-trace.js",
-    },
-  },
-  {
-    source: "lib/ugc-rendi-compositor.ts",
-    target: "appwrite/functions/job-worker/src/ugc-rendi-compositor.js",
-    imports: {
-      "@/lib/rendi-client": "./rendi-client.js",
-    },
-  },
-  {
-    source: "lib/ugc-automation-runner.ts",
-    target: "appwrite/functions/job-worker/src/ugc-automation-runner.js",
-    imports: {
-      "@/lib/provider-request-trace": "./provider-request-trace.js",
-    },
-  },
-  {
     source: "lib/http.ts",
     target: "appwrite/functions/job-worker/src/http.js",
   },
