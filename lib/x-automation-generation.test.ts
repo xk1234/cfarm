@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { defaultXAutomation, normalizeXAutomation } from "@/lib/x-automation"
 import {
+  buildXGenerationRequest,
   buildPostStructuredOutputSchema,
   derivePillarsFromNicheWithDiagnostics,
   normalizeStructuredOutput,
@@ -32,6 +33,36 @@ function configuredAutomation() {
 }
 
 describe("preset-driven X generation", () => {
+  it("places a supplied reaction source in the generation prompt", () => {
+    const automation = configuredAutomation()
+    const plan = selectPostPlan(automation, {
+      platform: "x",
+      topic: "why creators abandon useful systems",
+      now: new Date("2026-08-10T00:00:00.000Z"),
+    })
+    const request = buildXGenerationRequest({
+      plan,
+      record: automation,
+      sourceCandidate: {
+        id: "manual-source",
+        source: "tiktok",
+        url: "https://www.tiktok.com/@creator/video/1",
+        author: "@creator",
+        text: "The creator says complex systems are always more effective.",
+        mediaUrls: [],
+        metrics: { views: 0, likes: 0, replies: 0, reposts: 0 },
+        engagementRate: 0,
+        relevanceScore: 0,
+        reason: "manual",
+      },
+    })
+
+    expect(request.user).toContain("REACTION SOURCE:")
+    expect(request.user).toContain("Reaction source platform: tiktok")
+    expect(request.user).toContain("complex systems are always more effective")
+    expect(request.user).toContain("React to the supplied source directly")
+  })
+
   it("retries the primary strategy model and falls back with diagnostics", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

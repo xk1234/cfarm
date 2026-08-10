@@ -233,11 +233,74 @@ describe("generated Lumenclip Windmill flows", () => {
     )
   })
 
-  it("emits syntactically valid dynamic collection helper scripts", async () => {
+  it("uses saved-template selectors in every template-backed generation form", async () => {
     for (const workflowId of [
       "ugc-video-generation",
       "react-reveal-generation",
       "greenscreen-meme-generation",
+      "template-video-generation",
+    ] as const) {
+      const source = await sourceFor(workflowId)
+      expect(source).toContain("format: dynselect-template_id")
+      expect(source).toContain("export async function template_id(filterText")
+    }
+
+    const slideshow = await sourceFor("slideshow-generation")
+    expect(slideshow).toContain("format: dynselect-automation_id")
+    expect(slideshow).toContain(
+      "export async function automation_id(filterText"
+    )
+    expect(slideshow).toContain("format: dynselect-hook")
+
+    const social = await sourceFor("x-threads-generation")
+    expect(social).toContain("format: dynselect-automation_id")
+    const dynamicCodeLine = social
+      .split("\n")
+      .find((line) =>
+        line.trimStart().startsWith("x-windmill-dyn-select-code:")
+      )
+    expect(dynamicCodeLine).toBeDefined()
+    expect(
+      JSON.parse(dynamicCodeLine!.slice(dynamicCodeLine!.indexOf(":") + 1))
+    ).toContain('"table":"social_templates"')
+  })
+
+  it("keeps orchestration and debug artifacts out of visible generation inputs", async () => {
+    const slideshow = await sourceFor("slideshow-generation")
+    const slideshowSchema = slideshow.slice(
+      slideshow.lastIndexOf("\nschema:\n")
+    )
+    expect(slideshowSchema).not.toContain("scheduled_for:")
+    expect(slideshowSchema).not.toContain("generation_source:")
+    expect(slideshowSchema).toContain("title: Hook override (optional)")
+
+    const linkedIn = await sourceFor("linkedin-generation")
+    const linkedInSchema = linkedIn.slice(linkedIn.lastIndexOf("\nschema:\n"))
+    expect(linkedInSchema).not.toContain("brief_model:")
+    expect(linkedInSchema).not.toContain("title: Post model override")
+    expect(linkedInSchema).not.toContain("title: Supplied niche brief")
+
+    const ugc = await sourceFor("ugc-video-generation")
+    const ugcSchema = ugc.slice(ugc.lastIndexOf("\nschema:\n"))
+    expect(ugcSchema).not.toContain("title: Supplied analysis")
+    expect(ugcSchema).not.toContain("title: Supplied script plan")
+    expect(ugcSchema).toContain("title: Show captions")
+    expect(ugcSchema).toContain("title: Show hook overlay")
+
+    const social = await sourceFor("x-threads-generation")
+    const socialSchema = social.slice(social.lastIndexOf("\nschema:\n"))
+    expect(socialSchema).toContain("title: Reaction source (optional)")
+    expect(socialSchema).toContain("title: Source text or transcript")
+  })
+
+  it("emits syntactically valid dynamic collection helper scripts", async () => {
+    for (const workflowId of [
+      "slideshow-generation",
+      "ugc-video-generation",
+      "react-reveal-generation",
+      "greenscreen-meme-generation",
+      "template-video-generation",
+      "x-threads-generation",
     ] as const) {
       const source = await sourceFor(workflowId)
       const line = source
@@ -247,8 +310,17 @@ describe("generated Lumenclip Windmill flows", () => {
         )
       expect(line).toBeDefined()
       const code = JSON.parse(line!.slice(line!.indexOf(":") + 1).trim())
-      expect(code).toContain("new TablesDB(client).listRows")
-      expect(code).toContain('Query.equal("source_key", ["image_collection"])')
+      expect(code).toContain("new TablesDB(client)")
+      expect(code).toContain("templateOptions")
+      if (
+        workflowId === "ugc-video-generation" ||
+        workflowId === "react-reveal-generation" ||
+        workflowId === "greenscreen-meme-generation"
+      ) {
+        expect(code).toContain(
+          'Query.equal("source_key", ["image_collection"])'
+        )
+      }
       expect(code).not.toContain("wmill.runScript")
       const diagnostics =
         ts.transpileModule(code, {

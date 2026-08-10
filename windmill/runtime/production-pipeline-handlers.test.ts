@@ -537,8 +537,14 @@ describe("production pipeline stage handlers", () => {
       "x-threads-generation.normalize-run-input"
     )!(
       {
+        requestId: "request-1",
         topic: "  Saturn return  ",
-        sourceCandidate: { url: "https://x.com/example/status/1" },
+        sourceCandidate: {
+          source: "x",
+          url: "https://x.com/example/status/1",
+          author: "@example",
+          text: "Saturn return is a reset, not a punishment.",
+        },
       },
       context("x-threads-generation.normalize-run-input", handlers)
     )
@@ -546,7 +552,18 @@ describe("production pipeline stage handlers", () => {
     expect(output).toEqual({
       runInput: {
         topic: "Saturn return",
-        sourceCandidate: { url: "https://x.com/example/status/1" },
+        sourceCandidate: {
+          id: "manual-request-1",
+          source: "x",
+          url: "https://x.com/example/status/1",
+          author: "@example",
+          text: "Saturn return is a reset, not a punishment.",
+          mediaUrls: [],
+          metrics: { views: 0, likes: 0, replies: 0, reposts: 0 },
+          engagementRate: 0,
+          relevanceScore: 0,
+          reason: "Manually supplied reaction source",
+        },
         deriveBrief: true,
       },
     })

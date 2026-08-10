@@ -512,6 +512,7 @@ export function buildXAutomationRun(input: {
 export function buildXGenerationRequest(input: {
   plan: PostPlan
   record: XAutomationRecord
+  sourceCandidate?: XTrendCandidate
 }) {
   const schema = buildPostStructuredOutputSchema(input.plan.archetype)
   const voice = voicePreset(input.record.generation.voicePreset)
@@ -538,6 +539,23 @@ export function buildXGenerationRequest(input: {
   const nicheAdaptation = astrology
     ? "For astrology, value means identity insight plus emotional and behavioral specificity. Use concrete relationship, texting, conflict, and private-feeling details—not generic trait lists. If you make an every-sign claim, cover all 12 signs or explicitly name and justify the subset. Never present astrology observations as scientific studies."
     : `Stay strictly on this niche${brief ? ` and its defined pillars/keywords (${[...brief.pillars.map((pillar) => pillar.label), ...keywords].join(", ")})` : ""}. Deliver concrete, niche-specific value. Never drift into generic productivity, creator-economy, or self-help advice.`
+  const reactionContext = input.sourceCandidate
+    ? [
+        `Reaction source platform: ${input.sourceCandidate.source}.`,
+        input.sourceCandidate.author
+          ? `Source author: ${input.sourceCandidate.author}.`
+          : "",
+        input.sourceCandidate.url
+          ? `Source URL: ${input.sourceCandidate.url}.`
+          : "",
+        input.sourceCandidate.text
+          ? `Source text or transcript: ${input.sourceCandidate.text}`
+          : "",
+        "React to the supplied source directly. Make the connection obvious without inventing details that are not in the supplied source text.",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : ""
   const system = [
     nicheContext,
     voice.systemPrompt,
@@ -551,7 +569,7 @@ export function buildXGenerationRequest(input: {
   ]
     .filter(Boolean)
     .join("\n")
-  const user = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}\nTopic: ${input.plan.topic ?? "none"}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
+  const user = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}\nTopic: ${input.plan.topic ?? "none"}${reactionContext ? `\nREACTION SOURCE:\n${reactionContext}` : ""}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
   return {
     model: input.record.generation.model,
     system,

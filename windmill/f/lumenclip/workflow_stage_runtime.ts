@@ -15375,6 +15375,13 @@ function buildXGenerationRequest(input) {
   ].filter(Boolean).join(" ");
   const astrology = /astrolog|zodiac|horoscope/i.test(input.record.niche.label);
   const nicheAdaptation = astrology ? "For astrology, value means identity insight plus emotional and behavioral specificity. Use concrete relationship, texting, conflict, and private-feeling details\u2014not generic trait lists. If you make an every-sign claim, cover all 12 signs or explicitly name and justify the subset. Never present astrology observations as scientific studies." : `Stay strictly on this niche${brief ? ` and its defined pillars/keywords (${[...brief.pillars.map((pillar) => pillar.label), ...keywords].join(", ")})` : ""}. Deliver concrete, niche-specific value. Never drift into generic productivity, creator-economy, or self-help advice.`;
+  const reactionContext = input.sourceCandidate ? [
+    `Reaction source platform: ${input.sourceCandidate.source}.`,
+    input.sourceCandidate.author ? `Source author: ${input.sourceCandidate.author}.` : "",
+    input.sourceCandidate.url ? `Source URL: ${input.sourceCandidate.url}.` : "",
+    input.sourceCandidate.text ? `Source text or transcript: ${input.sourceCandidate.text}` : "",
+    "React to the supplied source directly. Make the connection obvious without inventing details that are not in the supplied source text."
+  ].filter(Boolean).join("\n") : "";
   const system = [
     nicheContext,
     voice.systemPrompt,
@@ -15393,7 +15400,9 @@ Template: ${input.plan.archetype.template}
 ${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}
 Hook formula: ${input.plan.hookStyle.formula}
 Hook examples: ${input.plan.hookStyle.examples.join(" | ")}
-Topic: ${input.plan.topic ?? "none"}${input.plan.recycleBody ? `
+Topic: ${input.plan.topic ?? "none"}${reactionContext ? `
+REACTION SOURCE:
+${reactionContext}` : ""}${input.plan.recycleBody ? `
 RECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}
 PROOF:
 ${proof}`;
@@ -21351,13 +21360,35 @@ ${clean(input.hook)}`
     }
     return { automationId, automation };
   });
-  add("x-threads-generation.normalize-run-input", async (input) => ({
-    runInput: {
-      topic: clean(input.topic),
-      sourceCandidate: isRecord(input.sourceCandidate) ? input.sourceCandidate : null,
-      deriveBrief: input.deriveBrief !== false
-    }
-  }));
+  add("x-threads-generation.normalize-run-input", async (input) => {
+    const suppliedSource = isRecord(input.sourceCandidate) ? input.sourceCandidate : null;
+    const sourceUrl = clean(suppliedSource?.url);
+    const sourceText = clean(suppliedSource?.text);
+    const sourceCandidate = sourceUrl || sourceText ? {
+      id: clean(suppliedSource?.id) || `manual-${contextId(input)}`,
+      source: suppliedSource?.source === "tiktok" || suppliedSource?.source === "instagram" ? suppliedSource.source : "x",
+      url: sourceUrl,
+      author: clean(suppliedSource?.author) || void 0,
+      text: sourceText,
+      mediaUrls: stringArray(suppliedSource?.mediaUrls),
+      metrics: {
+        views: 0,
+        likes: 0,
+        replies: 0,
+        reposts: 0
+      },
+      engagementRate: 0,
+      relevanceScore: 0,
+      reason: "Manually supplied reaction source"
+    } : null;
+    return {
+      runInput: {
+        topic: clean(input.topic),
+        sourceCandidate,
+        deriveBrief: input.deriveBrief !== false
+      }
+    };
+  });
   add("x-threads-generation.validate-input", async (input, context) => {
     let state = input;
     if (clean(input.automationId) && !isRecord(input.automation)) {
@@ -21451,7 +21482,11 @@ ${clean(input.hook)}`
       "automation"
     );
     return mergePipelineOutput(input, {
-      generationRequest: buildXGenerationRequest({ plan: plan2, record: automation })
+      generationRequest: buildXGenerationRequest({
+        plan: plan2,
+        record: automation,
+        sourceCandidate: isRecord(input.sourceCandidate) ? input.sourceCandidate : void 0
+      })
     });
   });
   add(
