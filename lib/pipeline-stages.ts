@@ -85,10 +85,10 @@ export const PIPELINE_STAGE_CATALOG = [
   stage(
     "slideshow-generation",
     2,
-    "resolve-slide-count",
-    "Resolve slide count",
+    "apply-fixed-slide-count",
+    "Apply fixed slide count",
     "deterministic",
-    "Resolve hook, body, CTA, and total slide counts."
+    "Apply the template's fixed total slide count without model or hook overrides."
   ),
   stage(
     "slideshow-generation",

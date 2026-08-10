@@ -34,6 +34,7 @@ import {
 } from "@/lib/automation-hook-pool"
 import { lintAutomationHooks } from "@/lib/automation-hook-lint"
 import { assertValidAutomationHookTokens } from "@/lib/automation-hook-token-validation"
+import { assertNoEnabledDynamicSlideCountHooks } from "@/lib/fixed-slideshow-count"
 import {
   deleteAutomationRuns,
   previewAutomationHookVariants,
@@ -1778,15 +1779,16 @@ function registerAutomationReadAndRunTools(
           const record = await services.getAutomationRecord(input.templateId)
           if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
-          const tokenValidation = assertValidAutomationHookTokens({
-            hooks: input.hooks,
-            collections: await services.listWordCollections(),
-          })
           const hooks = replaceAutomationHookPool({
             current: automationHookItems(record.schema),
             hooks: input.hooks,
             now: services.now().toISOString(),
             deduplicateNearMatches: input.deduplicateNearMatches,
+          })
+          assertNoEnabledDynamicSlideCountHooks(hooks)
+          const tokenValidation = assertValidAutomationHookTokens({
+            hooks: hooks.filter((hook) => hook.enabled),
+            collections: await services.listWordCollections(),
           })
           const updated = await services.patchAutomationRecord({
             id: record.id,
@@ -1828,14 +1830,15 @@ function registerAutomationReadAndRunTools(
           const record = await services.getAutomationRecord(input.templateId)
           if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
-          const tokenValidation = assertValidAutomationHookTokens({
-            hooks: input.hooks,
-            collections: await services.listWordCollections(),
-          })
           const hooks = upsertAutomationHooks({
             current: automationHookItems(record.schema),
             updates: input.hooks,
             now: services.now().toISOString(),
+          })
+          assertNoEnabledDynamicSlideCountHooks(hooks)
+          const tokenValidation = assertValidAutomationHookTokens({
+            hooks: hooks.filter((hook) => hook.enabled),
+            collections: await services.listWordCollections(),
           })
           const updated = await patchAutomationHooks(
             services,
@@ -1886,6 +1889,7 @@ function registerAutomationReadAndRunTools(
               ? { ...hook, enabled: input.enabled, updatedAt: now }
               : hook
           )
+          assertNoEnabledDynamicSlideCountHooks(hooks)
           const updated = await patchAutomationHooks(
             services,
             record,

@@ -134,16 +134,13 @@ Output: the updated canonical pool and a fresh duplicate analysis. This surface
 supports adding, editing, enabling, disabling, pruning, and deduplicating hooks
 without changing the rest of the template schema.
 
-`template_hooks_update` and `template_hook_upsert` validate every submitted
+`template_hooks_update` and `template_hook_upsert` validate every enabled
 `[[TOKEN]]` against owner variable collections and runtime variables before
 writing. Unknown and legacy single-bracket placeholders are rejected with a
 close-match suggestion when available. A free `[[NUMBER]]` draw is accepted
-with a warning recommending `[[SLIDE_COUNT]]` when the hook's promised count
-must equal the generated body count.
-Both mutations also return non-blocking `hookWarnings`. The narrow syntax lint
-flags numeric runtime tokens followed by an adjective/verb instead of a noun
-phrase (for example `[[SLIDE_COUNT]] destined ...`) while allowing valid forms
-such as `[[SLIDE_COUNT]] signs ...`.
+with a warning that it is unrelated to the template's fixed slide count.
+Hooks using `[[SLIDE_COUNT]]` or `bodySlideCount` cannot be added or enabled.
+Published historical hooks may remain disabled for attribution.
 
 Prefer the granular tools when full replacement is unnecessary:
 
@@ -165,7 +162,7 @@ resolved automatically against collection `variableName`; explicit persisted
 `hook_slots` are overrides only. In `lumenclip_template_get`,
 `schema.hook_slots` is the generated read-only map and
 `schema.hook_slot_overrides` preserves the explicit stored values for
-debugging. Runtime tokens such as `[[SLIDE_COUNT]]` appear as runtime bindings
+debugging. Registered date and zodiac runtime tokens appear as runtime bindings
 and never require a collection. The dedicated
 `lumenclip_template_variable_bindings_get` read tool returns both bindings for
 enabled hook tokens and the full registered runtime-variable catalog.
@@ -177,10 +174,10 @@ and reuse warnings. Debug prompt payloads are omitted unless
 
 ### Hook variables and slide-count behavior
 
-`[[SLIDE_COUNT]]` is a runtime variable resolved from the body count selected
-for that run. It has no backing word collection. Body blocks persist
-`slideCountMode: "varying"` plus `slideCountMin`/`slideCountMax`; the MCP
-formatting patch also accepts the clearer input alias `"dynamic"`.
+Each slideshow template uses `prompt_formatting.num_of_slides` as its single
+fixed count. The model may order and reuse slide designs, but cannot change the
+count. `[[SLIDE_COUNT]]`, per-hook `bodySlideCount`, varying count modes, and
+minimum/maximum ranges are no longer accepted for enabled hooks or generation.
 
 Repeated uses of one variable in a hook are distinct by default. The normalized
 schema exposes `distinct_variable_draws: true`; for example,

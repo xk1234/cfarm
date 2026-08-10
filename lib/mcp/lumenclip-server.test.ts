@@ -647,7 +647,6 @@ describe("LumenClip MCP server", () => {
           {
             id: "hook-new",
             text: "A new hook",
-            bodySlideCount: 12,
             tone: "Shadow voice",
           },
         ],
@@ -660,7 +659,6 @@ describe("LumenClip MCP server", () => {
         expect.objectContaining({
           id: "hook-new",
           enabled: true,
-          bodySlideCount: 12,
           tone: "Shadow voice",
         }),
       ]),
@@ -678,14 +676,14 @@ describe("LumenClip MCP server", () => {
         ],
       },
     })
-    expect(malformed.structuredContent).toMatchObject({
-      hookWarnings: [
-        expect.objectContaining({
-          hookId: "hook-malformed",
-          code: "NUMERIC_TOKEN_MISSING_NOUN",
-        }),
-      ],
-    })
+    expect(malformed.isError).toBe(true)
+    expect(malformed.content).toEqual([
+      expect.objectContaining({
+        text: expect.stringContaining(
+          "Dynamic slide-count hooks are no longer supported"
+        ),
+      }),
+    ])
 
     const disabled = await client.callTool({
       name: "lumenclip_template_hook_set_enabled",
@@ -712,7 +710,7 @@ describe("LumenClip MCP server", () => {
     })
     expect(deleted.structuredContent).toMatchObject({
       deletedHookIds: ["hook-new"],
-      total: 2,
+      total: 1,
     })
   })
 

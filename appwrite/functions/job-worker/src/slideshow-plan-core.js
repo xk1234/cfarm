@@ -169,10 +169,7 @@ export function slideSpecs(schema, hook, bodySlideCount) {
     const cta = formatSection(schema, "cta");
     const hookCount = Math.max(0, Math.round(Number(hookSection.slideCount) || 0));
     const configuredContentCount = Math.max(0, Math.round(Number(bodySlideCount) || Number(content.slideCount) || 0));
-    const implied = Number(clean(hook).match(/^(\d{1,2})\s+[a-z]/i)?.[1]);
-    const contentCount = configuredContentCount > 0 && implied >= 1 && implied <= 10
-        ? implied
-        : configuredContentCount;
+    const contentCount = configuredContentCount;
     const ctaCount = Number(cta.slideCount) > 0 || schema.image_collection_ids?.cta_slide?.check
         ? Math.max(1, Number(cta.slideCount) || 1)
         : 0;
@@ -196,13 +193,9 @@ export function slideSpecs(schema, hook, bodySlideCount) {
     ];
 }
 export function selectedBodySlideCount(schema, seedValue) {
+    void seedValue;
     const content = formatSection(schema, "content");
-    if (content.slideCountMode !== "varying") {
-        return Math.max(0, Math.round(Number(content.slideCount) || 0));
-    }
-    const min = Math.max(1, Math.round(Number(content.slideCountMin) || Number(content.slideCount) || 1));
-    const max = Math.max(min, Math.round(Number(content.slideCountMax) || Number(content.slideCount) || min));
-    return min + (Number(seedValue) % (max - min + 1));
+    return Math.max(0, Math.round(Number(content.slideCount) || 0));
 }
 export function specForSection(schema, section, role, index, collectionOverride) {
     const slideId = `${role}-${index + 1}`;

@@ -277,36 +277,17 @@ export function PromptConfigPanel({
                   })
                 }
               />
-              <div className="grid grid-cols-2 gap-3 sm:max-w-sm">
+              <div className="sm:max-w-[188px]">
                 <SlideCountInput
-                  label="Minimum slides"
-                  value={config.prompt_formatting.slide_count_min ?? 3}
+                  label="Slides"
+                  value={config.prompt_formatting.num_of_slides}
                   onChange={(value) =>
                     onConfigChange({
                       ...config,
                       prompt_formatting: {
                         ...config.prompt_formatting,
+                        num_of_slides: value,
                         slide_count_min: value,
-                        slide_count_max: Math.max(
-                          value,
-                          config.prompt_formatting.slide_count_max ?? 12
-                        ),
-                      },
-                    })
-                  }
-                />
-                <SlideCountInput
-                  label="Maximum slides"
-                  value={config.prompt_formatting.slide_count_max ?? 12}
-                  onChange={(value) =>
-                    onConfigChange({
-                      ...config,
-                      prompt_formatting: {
-                        ...config.prompt_formatting,
-                        slide_count_min: Math.min(
-                          value,
-                          config.prompt_formatting.slide_count_min ?? 3
-                        ),
                         slide_count_max: value,
                       },
                     })

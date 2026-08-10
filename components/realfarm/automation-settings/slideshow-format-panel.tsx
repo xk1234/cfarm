@@ -585,104 +585,50 @@ export function AutomationFormatPanel({
                 </div>
 
                 {activeTab === "Content" && (
-                  <div
-                    className={cn(
-                      "mb-3 grid gap-2",
-                      activeSection.slideCountMode === "varying"
-                        ? "grid-cols-1"
-                        : "grid-cols-[1fr_72px]"
-                    )}
-                  >
-                    <SelectLike
-                      value={
-                        activeSection.slideCountMode === "varying"
-                          ? "Varying"
-                          : "Static"
-                      }
-                      options={["Static", "Varying"]}
-                      placement="bottom"
-                      onChange={(value) =>
-                        updateFormatSection("content", {
-                          slideCountMode:
-                            value === "Varying" ? "varying" : "static",
-                          slideCountMin:
-                            activeSection.slideCountMin ??
-                            activeSection.slideCount,
-                          slideCountMax:
-                            activeSection.slideCountMax ??
-                            activeSection.slideCount,
-                        })
-                      }
-                    />
-                    {activeSection.slideCountMode !== "varying" ? (
-                      <input
-                        className="h-8 rounded-[7px] border border-[#ebeae3] bg-app-surface px-2 text-center text-[12px] font-semibold outline-none"
-                        value={activeSection.slideCount}
-                        onChange={(event) => {
-                          const value = Number(event.target.value) || 1
-                          updateSchema((current) => ({
+                  <div className="mb-3 grid grid-cols-[1fr_72px] gap-2">
+                    <div className="bg-app-subtle-surface flex h-8 items-center rounded-[7px] border border-[#ebeae3] px-3 text-[12px] font-medium text-app-muted-text">
+                      Fixed slides
+                    </div>
+                    <input
+                      className="h-8 rounded-[7px] border border-[#ebeae3] bg-app-surface px-2 text-center text-[12px] font-semibold outline-none"
+                      value={activeSection.slideCount}
+                      onChange={(event) => {
+                        const value = Number(event.target.value) || 1
+                        updateSchema((current) => {
+                          const hookCount = automationFormatSection(
+                            current,
+                            "hook"
+                          ).slideCount
+                          const ctaCount = automationFormatSection(
+                            current,
+                            "cta"
+                          ).slideCount
+                          const total = Math.max(
+                            1,
+                            value + hookCount + ctaCount
+                          )
+                          return {
                             ...updateAutomationFormatSection(
                               current,
                               "content",
                               {
                                 slideCount: value,
+                                slideCountMode: "static",
+                                slideCountMin: undefined,
+                                slideCountMax: undefined,
                               }
                             ),
                             prompt_formatting: {
                               ...current.prompt_formatting,
-                              num_of_slides: Math.max(
-                                1,
-                                value +
-                                  automationFormatSection(current, "hook")
-                                    .slideCount
-                              ),
+                              num_of_slides: total,
+                              slide_count_min: total,
+                              slide_count_max: total,
                             },
-                          }))
-                        }}
-                        aria-label="Slide count"
-                      />
-                    ) : null}
-                    {activeSection.slideCountMode === "varying" ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <SlideCountRangeInput
-                          label="Minimum"
-                          value={
-                            activeSection.slideCountMin ??
-                            activeSection.slideCount
                           }
-                          onChange={(value) =>
-                            updateFormatSection("content", {
-                              slideCount: value,
-                              slideCountMin: value,
-                              slideCountMax: Math.max(
-                                value,
-                                activeSection.slideCountMax ?? value
-                              ),
-                            })
-                          }
-                        />
-                        <SlideCountRangeInput
-                          label="Maximum"
-                          value={
-                            activeSection.slideCountMax ??
-                            activeSection.slideCount
-                          }
-                          onChange={(value) =>
-                            updateFormatSection("content", {
-                              slideCount: Math.min(
-                                activeSection.slideCountMin ?? value,
-                                value
-                              ),
-                              slideCountMin: Math.min(
-                                activeSection.slideCountMin ?? value,
-                                value
-                              ),
-                              slideCountMax: value,
-                            })
-                          }
-                        />
-                      </div>
-                    ) : null}
+                        })
+                      }}
+                      aria-label="Slide count"
+                    />
                   </div>
                 )}
 
@@ -780,31 +726,5 @@ export function AutomationFormatPanel({
         visualControlsLocked={Boolean(activeVisualPreset)}
       />
     </div>
-  )
-}
-
-function SlideCountRangeInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: number
-  onChange: (value: number) => void
-}) {
-  return (
-    <label className="space-y-1 text-[11px] font-semibold text-app-muted-text">
-      <span>{label}</span>
-      <input
-        type="number"
-        min={1}
-        max={20}
-        value={value}
-        className="h-8 w-full rounded-[7px] border border-[#ebeae3] bg-app-surface px-2 text-center text-[12px] font-semibold outline-none"
-        onChange={(event) =>
-          onChange(Math.max(1, Number(event.target.value) || 1))
-        }
-      />
-    </label>
   )
 }

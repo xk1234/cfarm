@@ -36,7 +36,7 @@ describe("production pipeline executor", () => {
     }))
     const map = handlers({
       "slideshow-generation.validate-input": first,
-      "slideshow-generation.resolve-slide-count": second,
+      "slideshow-generation.apply-fixed-slide-count": second,
     })
     const registry = createPipelineStageRegistry(map)
     expect(registry.get("slideshow-generation.validate-input")?.handler).toBe(

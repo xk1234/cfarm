@@ -45,7 +45,7 @@ export const WINDMILL_WORKFLOW_DEPENDENCIES: Record<
     dependency(
       "select_expand_hook",
       "slideshow-generation.select-expand-hook",
-      ["prepare_generation_context", "resolve_slide_count"],
+      ["prepare_generation_context", "apply_fixed_slide_count"],
       ["schema", "wordCollections", "reuseMemory", "slideCount"],
       ["hook"]
     ),

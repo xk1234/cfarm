@@ -79,7 +79,7 @@ export function validateAutomationHookTokens(input: {
           token: "[[NUMBER]]",
           code: "free_count_variable",
           message:
-            "[[NUMBER]] is a free collection draw. Use [[SLIDE_COUNT]] when the promised count must equal the generated body-slide count.",
+            "[[NUMBER]] is a free collection draw and is not tied to the template's fixed slide count. Use a literal number only when the hook must promise an exact count.",
         })
       }
       seen.add(canonical)

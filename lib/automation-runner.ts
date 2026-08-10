@@ -21,6 +21,10 @@ import { openRouterJson } from "@/lib/openrouter"
 import { automationGenerationBlockers } from "@/lib/automation-readiness"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
+  fixedSlideshowCount,
+  hookUsesDynamicSlideCount,
+} from "@/lib/fixed-slideshow-count"
+import {
   clearAutomationRunProgress,
   setAutomationRunProgress,
 } from "@/lib/automation-run-progress"
@@ -1243,18 +1247,18 @@ async function createAutomationRunPlan(
   const publishedUsageRecords = options.automationId
     ? usageRecordsForPublishedRuns(usageRecords, options.automationId)
     : []
-  const slideCountMode = "agent"
-  const slideCountMin = Math.max(
-    1,
-    Math.round(Number(schema.prompt_formatting.slide_count_min) || 3)
-  )
-  const slideCountMax = Math.max(
-    slideCountMin,
-    Math.round(Number(schema.prompt_formatting.slide_count_max) || 12)
-  )
+  const slideCountMode = "static"
+  const fixedCount = fixedSlideshowCount(schema)
   progress("Selecting hook")
-  const hookItems = automationHookItems(schema).filter((item) => item.enabled)
+  const hookItems = automationHookItems(schema).filter(
+    (item) => item.enabled && !hookUsesDynamicSlideCount(item)
+  )
   const requestedHook = clean(options.hook)
+  if (/\[\[\s*SLIDE_COUNT\s*\]\]/i.test(requestedHook)) {
+    throw new Error(
+      "[[SLIDE_COUNT]] hooks are no longer supported; use a fixed literal count or a count-free hook."
+    )
+  }
   const hookCandidates = [
     ...(requestedHook ? [requestedHook] : []),
     ...hookItems.map((item) => item.text),
@@ -1288,7 +1292,7 @@ async function createAutomationRunPlan(
           },
           index: -1,
         }
-  let selectedHook = clean(hookSelection.expansion.text)
+  const selectedHook = clean(hookSelection.expansion.text)
   const slidePlan = await planAutomationSlideSequence({
     schema,
     topic: selectedHook,
@@ -1296,16 +1300,6 @@ async function createAutomationRunPlan(
     model: textModel,
     fetchImpl: options.fetchImpl,
   })
-  const previousSlideCount = clean(
-    hookSelection.expansion.substitutions.SLIDE_COUNT
-  )
-  if (previousSlideCount && previousSlideCount !== String(slidePlan.length)) {
-    selectedHook = selectedHook.replace(
-      previousSlideCount,
-      String(slidePlan.length)
-    )
-    hookSelection.expansion.substitutions.SLIDE_COUNT = String(slidePlan.length)
-  }
   const hook = normalizeLlmPunctuation(selectedHook)
   progress("Writing slide text", hook)
   const contentRoute = selectAutomationContentRoute(schema, hook)
@@ -1471,8 +1465,8 @@ async function createAutomationRunPlan(
     slideCount: {
       mode: slideCountMode,
       count: slideCount,
-      min: slideCountMin,
-      max: slideCountMax,
+      min: fixedCount,
+      max: fixedCount,
     },
     publishType: automationPublishType(schema),
     autoMusic: schema.tiktok_post_settings.auto_music,
@@ -1835,14 +1829,7 @@ export async function planAutomationSlideSequence(input: {
   if (designs.length === 0) {
     throw new Error("The template has no slide designs")
   }
-  const min = Math.max(
-    1,
-    Math.round(Number(input.schema.prompt_formatting.slide_count_min) || 3)
-  )
-  const max = Math.max(
-    min,
-    Math.round(Number(input.schema.prompt_formatting.slide_count_max) || 12)
-  )
+  const count = fixedSlideshowCount(input.schema)
   const result = await openRouterJson({
     apiKey,
     model: input.model,
@@ -1850,12 +1837,11 @@ export async function planAutomationSlideSequence(input: {
     maxTokens: 2_048,
     temperature: 0.35,
     plugins: [{ id: "response-healing" }],
-    system:
-      "You are the text-generation director for a slideshow. Decide how many slides the idea needs, then assign one available slide design to every slide. Return only the requested JSON. Do not write the final slide copy yet.",
+    system: `You are the text-generation director for a slideshow with exactly ${count} slides. Assign one available slide design to every slide. You must not change the slide count. Return only the requested JSON. Do not write the final slide copy yet.`,
     user: [
       `Template: ${input.automationTitle}`,
       `Topic or optional hook: ${input.topic}`,
-      `Choose between ${min} and ${max} slides. Use only the listed design IDs. Designs may be reused when the story needs more slides than there are designs.`,
+      `Plan exactly ${count} slides. Use only the listed design IDs. Designs may be reused when the story needs more slides than there are designs.`,
       clean(input.schema.prompt_formatting.slide_planning_prompt),
       "Available slide designs:",
       ...designs.map((design) => {
@@ -1878,8 +1864,8 @@ export async function planAutomationSlideSequence(input: {
         properties: {
           slides: {
             type: "array",
-            minItems: min,
-            maxItems: max,
+            minItems: count,
+            maxItems: count,
             items: {
               type: "object",
               additionalProperties: false,
@@ -1904,9 +1890,9 @@ export async function planAutomationSlideSequence(input: {
         return validIds.has(designId) && purpose ? [{ designId, purpose }] : []
       })
     : []
-  if (slides.length < min || slides.length > max) {
+  if (slides.length !== count) {
     throw new Error(
-      `The text generator planned ${slides.length} slides; expected ${min}-${max}.`
+      `The text generator planned ${slides.length} slides; expected exactly ${count}.`
     )
   }
   return slides
@@ -3094,7 +3080,6 @@ function failedClaimedAutomationRun(
 
 function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
   const collectionIds = automationCollectionIds(record.schema)
-  const content = automationFormatSection(record.schema, "content")
   const slideCount = automationTotalSlideCount(record.schema)
   // Placeholder while the run generates. Never seed hook/caption from the raw
   // narrative here — those lines can contain unexpanded [[slot]] templates and
@@ -3110,8 +3095,8 @@ function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
     slideCount: {
       mode: "static",
       count: slideCount,
-      min: content.slideCount,
-      max: record.schema.prompt_formatting.num_of_slides,
+      min: slideCount,
+      max: slideCount,
     },
     publishType: automationPublishType(record.schema),
     autoMusic: record.schema.tiktok_post_settings.auto_music,

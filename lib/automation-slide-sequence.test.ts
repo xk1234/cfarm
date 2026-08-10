@@ -129,14 +129,15 @@ describe("sequence-based slideshow templates", () => {
     ])
   })
 
-  it("lets the text model choose a valid count and ordered design IDs", async () => {
+  it("keeps the fixed count while the text model orders design IDs", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key")
     const schema = schemaWithAutomationHookItems(
       defaultAutomationSchema(automation),
       []
     )
-    schema.prompt_formatting.slide_count_min = 2
-    schema.prompt_formatting.slide_count_max = 4
+    schema.prompt_formatting.num_of_slides = 2
+    schema.prompt_formatting.slide_count_min = 4
+    schema.prompt_formatting.slide_count_max = 8
     const designs = automationSlideDesigns(schema)
     const fetchImpl = vi.fn(
       async () =>

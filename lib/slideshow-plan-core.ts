@@ -297,11 +297,7 @@ export function slideSpecs(
     0,
     Math.round(Number(bodySlideCount) || Number(content.slideCount) || 0)
   )
-  const implied = Number(clean(hook).match(/^(\d{1,2})\s+[a-z]/i)?.[1])
-  const contentCount =
-    configuredContentCount > 0 && implied >= 1 && implied <= 10
-      ? implied
-      : configuredContentCount
+  const contentCount = configuredContentCount
   const ctaCount =
     Number(cta.slideCount) > 0 || schema.image_collection_ids?.cta_slide?.check
       ? Math.max(1, Number(cta.slideCount) || 1)
@@ -343,21 +339,9 @@ export function slideSpecs(
 }
 
 export function selectedBodySlideCount(schema: PlanSchema, seedValue: number) {
+  void seedValue
   const content = formatSection(schema, "content")
-  if (content.slideCountMode !== "varying") {
-    return Math.max(0, Math.round(Number(content.slideCount) || 0))
-  }
-  const min = Math.max(
-    1,
-    Math.round(Number(content.slideCountMin) || Number(content.slideCount) || 1)
-  )
-  const max = Math.max(
-    min,
-    Math.round(
-      Number(content.slideCountMax) || Number(content.slideCount) || min
-    )
-  )
-  return min + (Number(seedValue) % (max - min + 1))
+  return Math.max(0, Math.round(Number(content.slideCount) || 0))
 }
 
 export function specForSection(
