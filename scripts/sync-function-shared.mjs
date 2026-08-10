@@ -13,12 +13,22 @@ const driftedTargets = []
 
 const generatedModules = [
   {
+    source: "lib/provider-request-trace.ts",
+    target: "appwrite/functions/job-worker/src/provider-request-trace.js",
+  },
+  {
     source: "lib/fal-client.ts",
     target: "appwrite/functions/job-worker/src/fal-client.js",
+    imports: {
+      "@/lib/provider-request-trace": "./provider-request-trace.js",
+    },
   },
   {
     source: "lib/elevenlabs-tts.ts",
     target: "appwrite/functions/job-worker/src/elevenlabs-tts.js",
+    imports: {
+      "@/lib/provider-request-trace": "./provider-request-trace.js",
+    },
   },
   {
     source: "lib/ugc-rendi-compositor.ts",
@@ -30,6 +40,9 @@ const generatedModules = [
   {
     source: "lib/ugc-automation-runner.ts",
     target: "appwrite/functions/job-worker/src/ugc-automation-runner.js",
+    imports: {
+      "@/lib/provider-request-trace": "./provider-request-trace.js",
+    },
   },
   {
     source: "lib/http.ts",
@@ -43,12 +56,16 @@ const generatedModules = [
       "@/lib/http": "./http.js",
       "@/lib/realfarm-generation-model-registry":
         "./realfarm-generation-model-registry.js",
+      "@/lib/provider-request-trace": "./provider-request-trace.js",
     },
   },
   {
     source: "lib/openrouter.ts",
     target: "appwrite/functions/job-worker/src/openrouter.js",
-    imports: { "@/lib/guards": "./guards.js" },
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/provider-request-trace": "./provider-request-trace.js",
+    },
   },
   {
     source: "lib/slideshow-text-generation-payload.ts",
@@ -77,6 +94,7 @@ const generatedModules = [
       "@/lib/openrouter": "./openrouter.js",
       "@/lib/hook-expansion": "./hook-expansion.js",
       "@/lib/slideshow-image-matching": "./slideshow-image-matching.js",
+      "@/lib/provider-request-trace": "./provider-request-trace.js",
     },
   },
   {

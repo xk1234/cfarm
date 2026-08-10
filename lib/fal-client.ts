@@ -1,3 +1,5 @@
+import { recordProviderRequest } from "@/lib/provider-request-trace"
+
 export class FalProviderError extends Error {
   constructor(
     message: string,
@@ -58,6 +60,12 @@ export async function falCreateTask(input: {
   fetchImpl?: FetchLike
 }) {
   const endpoint = input.endpoint.replace(/^\/+|\/+$/g, "")
+  recordProviderRequest({
+    provider: "fal.ai",
+    operation: `queue.submit:${endpoint}`,
+    model: endpoint,
+    request: { input: input.input },
+  })
   const submitted = await falJson<{ request_id?: string }>(
     input.fetchImpl ?? fetch,
     `${FAL_QUEUE}/${endpoint}`,

@@ -9,6 +9,7 @@ import {
   type PipelineStageRegistry,
   type RegisteredPipelineStage,
 } from "@/lib/pipeline-stages"
+import { captureProviderRequests } from "@/lib/provider-request-trace"
 
 export type PipelineHandlerMap = ReadonlyMap<string, PipelineStageHandler>
 
@@ -53,23 +54,27 @@ export async function executePipelineStage(input: {
       stageInput,
       requestId,
     })
-  const rawOutput = await registered.handler(parsed, {
-    ownerId: input.ownerId,
-    workflowId: registered.workflowId,
-    stageId: registered.id,
-    requestId,
-    runStage,
-    externalCall: async (operation, task) => {
-      if (externalCalls >= registered.maxExternalCalls) {
-        throw new Error(
-          `Pipeline stage ${registered.id} exceeded maxExternalCalls=${registered.maxExternalCalls} before ${operation}`
-        )
-      }
-      externalCalls += 1
-      return task()
-    },
-  })
+  const { result: rawOutput, providerRequests } = await captureProviderRequests(
+    () =>
+      registered.handler(parsed, {
+        ownerId: input.ownerId,
+        workflowId: registered.workflowId,
+        stageId: registered.id,
+        requestId,
+        runStage,
+        externalCall: async (operation, task) => {
+          if (externalCalls >= registered.maxExternalCalls) {
+            throw new Error(
+              `Pipeline stage ${registered.id} exceeded maxExternalCalls=${registered.maxExternalCalls} before ${operation}`
+            )
+          }
+          externalCalls += 1
+          return task()
+        },
+      })
+  )
   assertSafePipelineValue(rawOutput, "output")
+  assertSafePipelineValue(providerRequests, "providerRequests")
   const output = structuredClone(rawOutput)
   const operation = runningOperation(output)
   return {
@@ -78,6 +83,7 @@ export async function executePipelineStage(input: {
     status: operation ? "running" : "succeeded",
     externalCalls,
     output,
+    ...(providerRequests.length ? { providerRequests } : {}),
     ...(operation ? { operation } : {}),
   }
 }

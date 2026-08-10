@@ -7,6 +7,7 @@ import {
   type PipelineHandlerMap,
 } from "@/lib/pipeline-executor"
 import { PIPELINE_STAGE_CATALOG } from "@/lib/pipeline-stages"
+import { recordProviderRequest } from "@/lib/provider-request-trace"
 
 function handlers(overrides: Record<string, ReturnType<typeof vi.fn>> = {}) {
   return new Map(
@@ -57,6 +58,40 @@ describe("production pipeline executor", () => {
       automationId: "automation-1",
       selectedHook: "Why Cancer goes quiet",
     })
+  })
+
+  it("returns exact provider requests beside output without forwarding them", async () => {
+    const traced = handlers({
+      "linkedin-generation.resolve-brief": vi.fn(async (input) => {
+        recordProviderRequest({
+          provider: "OpenRouter",
+          operation: "chat.completions",
+          model: "openai/test",
+          request: {
+            model: "openai/test",
+            messages: [{ role: "user", content: "Exact prompt" }],
+          },
+        })
+        return { ...input, brief: { audience: "operators" } }
+      }),
+    })
+    const execution = await executePipelineStage({
+      registry: createPipelineStageRegistry(traced),
+      ownerId: "owner-1",
+      stageId: "linkedin-generation.resolve-brief",
+      stageInput: { niche: "SaaS" },
+    })
+
+    expect(execution.providerRequests).toEqual([
+      expect.objectContaining({
+        provider: "OpenRouter",
+        model: "openai/test",
+        request: expect.objectContaining({
+          messages: [{ role: "user", content: "Exact prompt" }],
+        }),
+      }),
+    ])
+    expect(execution.output).not.toHaveProperty("providerRequests")
   })
 
   it("rejects secrets and media bytes at either side of a handler", async () => {

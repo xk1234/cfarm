@@ -25,10 +25,21 @@ formats expose their actual media slots. Manual runs derive their owner from
 `f/lumenclip/default_owner_id` and use Windmill's root flow job ID as their
 idempotency key.
 
-API and MCP callers pass `owner_id`, `request_id`, and the same named top-level
-fields shown by each flow form. Linear `start_at`/`stop_after` windows are
-rejected for DAG runs; use `lumenclip_pipeline_stage_run` for isolated component
-debugging.
+API and MCP callers pass only the named product fields shown by each flow form.
+The Lumenclip boundary derives `owner_id` and `request_id` internally. Use
+`lumenclip_pipeline_stage_run` for isolated component debugging.
+
+## Inspect generated prompts
+
+Open a Windmill run and select any provider node. Its result includes a
+top-level `providerRequests` array beside `output`. Each item contains the exact
+provider, operation, model, and request body used for that attempt, including
+system/user messages and structured-output schemas. Retries appear in order.
+The trace stays outside `output`, so diagnostic prompts are visible in Windmill
+without becoming inputs to downstream nodes. Failed private-boundary calls add
+the same request list to the node error. Queued UGC components attach their
+requests to the completed checkpoint and promote them into the Windmill node
+result.
 
 The embedded private-boundary steps inside the six flows require these
 Windmill variables:

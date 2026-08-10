@@ -5,6 +5,7 @@ import {
   ugcExportId,
   ugcRunId,
 } from "@/lib/ugc-automation-runner"
+import { recordProviderRequest } from "@/lib/provider-request-trace"
 
 describe("UGC automation identity and resume", () => {
   it("uses stable Appwrite-safe ids", () => {
@@ -17,7 +18,15 @@ describe("UGC automation identity and resume", () => {
   })
 
   it("executes only the requested component with supplied dependency checkpoints", async () => {
-    const voice = async () => ({ audioPath: "voice.mp3" })
+    const voice = async () => {
+      recordProviderRequest({
+        provider: "ElevenLabs",
+        operation: "speech synthesis",
+        model: "voice-v1",
+        request: { text: "Exact spoken script" },
+      })
+      return { audioPath: "voice.mp3" }
+    }
     const result = await runUgcAutomation({
       automationId: "standalone-debug",
       ownerId: "owner-1",
@@ -33,7 +42,15 @@ describe("UGC automation identity and resume", () => {
 
     expect(result.checkpoints).toEqual({
       script: { plan: { hook: "Existing script" } },
-      voice: { audioPath: "voice.mp3" },
+      voice: {
+        audioPath: "voice.mp3",
+        providerRequests: [
+          expect.objectContaining({
+            provider: "ElevenLabs",
+            request: { text: "Exact spoken script" },
+          }),
+        ],
+      },
     })
   })
 })

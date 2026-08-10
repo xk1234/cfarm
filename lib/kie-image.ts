@@ -15,6 +15,7 @@ import {
   persistDownloadedFileToLocalAsset,
 } from "@/lib/local-asset-download"
 import { pollUntil } from "@/lib/poll"
+import { recordProviderRequest } from "@/lib/provider-request-trace"
 
 export type KieImageMode = "edit" | "upscale"
 
@@ -504,6 +505,11 @@ async function createKieTask(
   body: unknown,
   fetchImpl?: FetchLike
 ) {
+  recordProviderRequest({
+    provider: "KIE.ai",
+    operation: `task.create:${path}`,
+    request: { body },
+  })
   const response = await fetchWithTimeout(
     `${KIE_API_BASE_URL}${path}`,
     {

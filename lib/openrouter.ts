@@ -3,6 +3,7 @@
 // several route handlers. Each caller supplies its model/messages/format and
 // optional extra headers, and reads what it needs from `payload`.
 import { clean, isRecord } from "@/lib/guards"
+import { recordProviderRequest } from "@/lib/provider-request-trace"
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -31,7 +32,9 @@ export type OpenRouterChatResult = {
  */
 export function sanitizeStructuredSchema<T>(schema: T): T {
   if (Array.isArray(schema)) {
-    return schema.map((entry) => sanitizeStructuredSchema(entry)) as unknown as T
+    return schema.map((entry) =>
+      sanitizeStructuredSchema(entry)
+    ) as unknown as T
   }
   if (!schema || typeof schema !== "object") return schema
   const next: Record<string, unknown> = {}
@@ -42,10 +45,7 @@ export function sanitizeStructuredSchema<T>(schema: T): T {
       continue
     }
     if (key === "maxItems" && typeof value === "number") continue
-    if (
-      (key === "minimum" || key === "maximum") &&
-      typeof value === "number"
-    ) {
+    if ((key === "minimum" || key === "maximum") && typeof value === "number") {
       continue
     }
     next[key] = sanitizeStructuredSchema(value)
@@ -90,6 +90,22 @@ export async function openRouterChatCompletion(input: {
   plugins?: readonly unknown[]
 }): Promise<OpenRouterChatResult> {
   const fetchImpl = input.fetchImpl ?? fetch
+  const requestBody = {
+    model: input.model,
+    messages: input.messages,
+    ...(input.responseFormat ? { response_format: input.responseFormat } : {}),
+    ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
+    ...(typeof input.temperature === "number"
+      ? { temperature: input.temperature }
+      : {}),
+    ...(input.plugins ? { plugins: input.plugins } : {}),
+  }
+  recordProviderRequest({
+    provider: "OpenRouter",
+    operation: "chat.completions",
+    model: input.model,
+    request: requestBody,
+  })
   let response: Response
   try {
     response = await fetchImpl(OPENROUTER_CHAT_URL, {
@@ -99,18 +115,7 @@ export async function openRouterChatCompletion(input: {
         "Content-Type": "application/json",
         ...input.headers,
       },
-      body: JSON.stringify({
-        model: input.model,
-        messages: input.messages,
-        ...(input.responseFormat
-          ? { response_format: input.responseFormat }
-          : {}),
-        ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
-        ...(typeof input.temperature === "number"
-          ? { temperature: input.temperature }
-          : {}),
-        ...(input.plugins ? { plugins: input.plugins } : {}),
-      }),
+      body: JSON.stringify(requestBody),
       signal: AbortSignal.timeout(input.timeoutMs ?? 60_000),
     })
   } catch (error) {
@@ -182,7 +187,10 @@ export async function openRouterJson(
     messages,
     fetchImpl: input.fetchImpl,
     responseFormat: input.schema
-      ? { type: "json_schema", json_schema: sanitizeStructuredSchema(input.schema) }
+      ? {
+          type: "json_schema",
+          json_schema: sanitizeStructuredSchema(input.schema),
+        }
       : { type: "json_object" },
     timeoutMs: input.timeoutMs,
     maxTokens: input.maxTokens,
@@ -194,8 +202,7 @@ export async function openRouterJson(
       // OpenRouter's generic "Provider returned error" is undiagnosable on its
       // own; the upstream detail lives in error.metadata. Keep both.
       message: [
-        result.payload.error?.message ||
-          `OpenRouter failed (${result.status})`,
+        result.payload.error?.message || `OpenRouter failed (${result.status})`,
         `status=${result.status}`,
         result.payload.error?.metadata
           ? `metadata=${JSON.stringify(result.payload.error.metadata).slice(0, 500)}`

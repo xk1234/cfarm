@@ -2,6 +2,7 @@ import { authorizeWindmillRequest } from "@/lib/windmill-auth"
 import { runProductionPipelineStage } from "@/lib/production-pipeline-runtime"
 import { clean, isRecord } from "@/lib/guards"
 import { withSystemOwner } from "@/lib/system-owner-context"
+import { providerRequestsFromError } from "@/lib/provider-request-trace"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -41,8 +42,12 @@ export async function POST(
     )
     return Response.json({ execution })
   } catch (error) {
+    const providerRequests = providerRequestsFromError(error)
     return Response.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      {
+        error: error instanceof Error ? error.message : String(error),
+        ...(providerRequests.length ? { providerRequests } : {}),
+      },
       { status: 400 }
     )
   }

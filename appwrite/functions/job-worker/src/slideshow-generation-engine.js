@@ -7,6 +7,7 @@ import { clean, isRecord } from "./guards.js";
 import { fetchJson, providerErrorMessage } from "./http.js";
 import { llmSlopMatches, normalizeLlmPunctuation } from "./llm-slop.js";
 import { parseOpenRouterContent } from "./openrouter.js";
+import { recordProviderRequest } from "./provider-request-trace.js";
 import { expandAllHookCombinations, } from "./hook-expansion.js";
 import { deriveSlideVisualConcepts, selectSlideshowImageWithAi, } from "./slideshow-image-matching.js";
 export { defaultSlideshowTextModel };
@@ -432,13 +433,20 @@ async function requestStructuredOutput(input) {
     throw new Error(`OpenRouter did not return complete structured slideshow text after 2 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 async function requestStructuredOutputAttempt(input) {
+    const requestBody = { ...input.promptPayload, model: input.model };
+    recordProviderRequest({
+        provider: "OpenRouter",
+        operation: "chat.completions",
+        model: input.model,
+        request: requestBody,
+    });
     const payload = await fetchJson("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
             Authorization: `Bearer ${input.apiKey}`,
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ ...input.promptPayload, model: input.model }),
+        body: JSON.stringify(requestBody),
     }, {
         fetchImpl: input.fetchImpl,
         timeoutMs: 120_000,
@@ -649,28 +657,35 @@ export async function researchSelectedHook(input) {
     throw new Error(`Could not research the selected hook after 2 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 export async function researchSelectedHookAttempt(input) {
+    const requestBody = {
+        model: input.model,
+        stream: false,
+        max_tokens: 2_000,
+        plugins: [{ id: "web", engine: "exa", max_results: 5 }],
+        messages: [
+            {
+                role: "system",
+                content: "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
+            },
+            {
+                role: "user",
+                content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
+            },
+        ],
+    };
+    recordProviderRequest({
+        provider: "OpenRouter",
+        operation: "chat.completions with Exa web search",
+        model: input.model,
+        request: requestBody,
+    });
     const payload = await fetchJson("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
             Authorization: `Bearer ${input.apiKey}`,
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-            model: input.model,
-            stream: false,
-            max_tokens: 2_000,
-            plugins: [{ id: "web", engine: "exa", max_results: 5 }],
-            messages: [
-                {
-                    role: "system",
-                    content: "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
-                },
-                {
-                    role: "user",
-                    content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
-                },
-            ],
-        }),
+        body: JSON.stringify(requestBody),
     }, {
         fetchImpl: input.fetchImpl,
         timeoutMs: 90_000,

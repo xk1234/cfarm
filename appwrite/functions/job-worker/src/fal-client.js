@@ -1,4 +1,5 @@
 // Generated from lib/fal-client.ts. Do not edit by hand.
+import { recordProviderRequest } from "./provider-request-trace.js";
 export class FalProviderError extends Error {
     retryable;
     status;
@@ -43,6 +44,12 @@ export async function falSubmitAndWait(input) {
 }
 export async function falCreateTask(input) {
     const endpoint = input.endpoint.replace(/^\/+|\/+$/g, "");
+    recordProviderRequest({
+        provider: "fal.ai",
+        operation: `queue.submit:${endpoint}`,
+        model: endpoint,
+        request: { input: input.input },
+    });
     const submitted = await falJson(input.fetchImpl ?? fetch, `${FAL_QUEUE}/${endpoint}`, {
         method: "POST",
         headers: {
