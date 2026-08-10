@@ -15,7 +15,6 @@ import {
   type LumenClipMcpServices,
 } from "@/lib/mcp/lumenclip-server"
 import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
-import { PIPELINE_STAGE_CATALOG } from "@/lib/pipeline-stages"
 import type { Job } from "@/lib/queue"
 import type {
   AccountFollowerSnapshot,
@@ -96,37 +95,7 @@ describe("LumenClip MCP server", () => {
     expect(pipelineRun?.inputSchema).not.toHaveProperty("properties.stopAfter")
   })
 
-  it("runs a named production workflow or one exact registered stage", async () => {
-    const runPipelineStage = vi.fn(
-      async (
-        input: Parameters<LumenClipMcpServices["runPipelineStage"]>[0]
-      ) => {
-        const stage = PIPELINE_STAGE_CATALOG.find(
-          (candidate) => candidate.id === input.stageId
-        )!
-        return {
-          stage,
-          requestId: input.requestId || "pipeline-test",
-          status: "succeeded" as const,
-          externalCalls: 0,
-          output:
-            input.stageId === "slideshow-generation.select-one-slide-image"
-              ? {
-                  ...input.stageInput,
-                  selectedImage: {
-                    slideId: "content-1",
-                    id: "image-1",
-                  },
-                }
-              : {
-                  normalizedInput: {
-                    niche: "B2B SaaS onboarding",
-                    count: 2,
-                  },
-                },
-        }
-      }
-    )
+  it("runs a named production workflow", async () => {
     const queuePipelineWorkflow = vi.fn(
       async (
         input: Parameters<LumenClipMcpServices["queuePipelineWorkflow"]>[0]
@@ -138,10 +107,7 @@ describe("LumenClip MCP server", () => {
         flowPath: "f/lumenclip/linkedin_generation",
       })
     )
-    const client = await connectClient({
-      runPipelineStage,
-      queuePipelineWorkflow,
-    })
+    const client = await connectClient({ queuePipelineWorkflow })
     const stageInput = {
       niche: "B2B SaaS onboarding",
       persona: "practitioner",
@@ -180,14 +146,6 @@ describe("LumenClip MCP server", () => {
       ]),
     })
 
-    const single = await client.callTool({
-      name: "lumenclip_pipeline_stage_run",
-      arguments: {
-        stageId: "linkedin-generation.validate-input",
-        input: stageInput,
-        requestId: "linkedin-stage-test",
-      },
-    })
     const workflow = await client.callTool({
       name: "lumenclip_pipeline_run",
       arguments: {
@@ -195,49 +153,12 @@ describe("LumenClip MCP server", () => {
         input: stageInput,
       },
     })
-    const selectedImage = await client.callTool({
-      name: "lumenclip_pipeline_stage_run",
-      arguments: {
-        stageId: "slideshow-generation.select-one-slide-image",
-        input: {
-          shortlist: {
-            slideId: "content-1",
-            slideText: "A supplied shortlist",
-            aiImageSelection: false,
-            candidates: [
-              {
-                id: "image-1",
-                imageUrl: "/api/assets/image-1.jpg",
-                caption: "One candidate",
-              },
-            ],
-          },
-        },
-      },
-    })
-
-    expect(single.structuredContent).toMatchObject({
-      stage: { id: "linkedin-generation.validate-input" },
-      status: "succeeded",
-      output: { normalizedInput: { niche: "B2B SaaS onboarding", count: 2 } },
-    })
     expect(workflow.structuredContent).toMatchObject({
       workflowId: "linkedin-generation",
       status: "queued",
       jobId: "windmill-job-1",
       flowPath: "f/lumenclip/linkedin_generation",
     })
-    expect(selectedImage.structuredContent).toMatchObject({
-      stage: { id: "slideshow-generation.select-one-slide-image" },
-      externalCalls: 0,
-      output: {
-        selectedImage: {
-          slideId: "content-1",
-          id: "image-1",
-        },
-      },
-    })
-    expect(runPipelineStage).toHaveBeenCalledTimes(2)
     expect(queuePipelineWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({
         workflowId: "linkedin-generation",

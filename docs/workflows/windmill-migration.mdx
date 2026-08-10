@@ -25,7 +25,8 @@ only named dependency artifacts. No generated flow uses a cumulative
 
 Named workflow runs accept the same top-level fields as the Windmill form.
 Linear `startAt`/`stopAfter` windows are rejected because they cannot preserve
-branch dependencies; isolated testing uses `lumenclip_pipeline_stage_run`.
+branch dependencies. For isolated testing, Windmill MCP runs
+`f/lumenclip/workflow_stage_runtime` directly with `runScriptByPath`.
 
 Slideshow validation joins only template/schema, collections/assets, and word
 variables. Reuse memory and model settings are loaded inside the text path,
@@ -49,20 +50,15 @@ identity artifact source and assert the recorded producer-to-consumer order.
 
 ## App boundary
 
-`lumenclip_pipeline_run` queues a Windmill flow. It no longer executes the
-named stage loop inside the Next.js process. `lumenclip_pipeline_stage_run`
-invokes the production stage registry directly so individual stages remain
-callable and composable through MCP.
-
-Windmill calls the private
-`POST /api/internal/windmill/stages/<stage-id>` boundary. The route requires a
-bearer token that matches `WINDMILL_SHARED_SECRET`; it does not accept browser
-sessions or public requests.
+`lumenclip_pipeline_run` queues a Windmill flow. It never executes a named
+stage loop inside the Next.js process. Individual stages remain callable
+through Windmill MCP's native `runScriptByPath` tool, without a LumenClip
+callback route or wrapper flow.
 
 ## Required configuration
 
 The Lumenclip web service requires `WINDMILL_BASE_URL`,
-`WINDMILL_WORKSPACE_ID`, `WINDMILL_TOKEN`, and `WINDMILL_SHARED_SECRET`.
+`WINDMILL_WORKSPACE_ID`, and `WINDMILL_TOKEN`.
 The Windmill workspace requires `f/lumenclip/internal_base_url` and the secret
 variable `f/lumenclip/shared_secret`.
 

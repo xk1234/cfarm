@@ -75,46 +75,6 @@ for (const workflow of workflows) {
   await writeFile(outputPath, `${workflowFlowYaml(workflow).trimEnd()}\n`)
 }
 
-const stageExecutionPath = path.join(
-  import.meta.dirname,
-  "f",
-  "lumenclip",
-  "workflow_stage_execution__flow",
-  "flow.yaml"
-)
-await mkdir(path.dirname(stageExecutionPath), { recursive: true })
-await writeFile(stageExecutionPath, `${stageExecutionFlowYaml().trimEnd()}\n`)
-
-function stageExecutionFlowYaml() {
-  return `summary: "lumenclip - execute one workflow stage"
-description: "Execute one registered LumenClip stage natively inside Windmill for debugging and component tests."
-value:
-  modules:
-${ugcStageModule({
-  id: "execute_stage",
-  summary: "Execute native workflow stage",
-  stageId: "",
-  stageIdExpr: "flow_input.stage_id",
-  inputExpr: "flow_input.stage_input",
-})}
-schema:
-  $schema: https://json-schema.org/draft/2020-12/schema
-  type: object
-  properties:
-    stage_id:
-      type: string
-      title: Stage ID
-    stage_input:
-      type: object
-      title: Stage input
-    owner_id:
-      type: string
-    request_id:
-      type: string
-  required: [stage_id, stage_input]
-`
-}
-
 function workflowFlowYaml(workflow: (typeof workflows)[number]) {
   switch (workflow.id) {
     case "slideshow-generation":

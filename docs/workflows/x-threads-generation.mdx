@@ -36,8 +36,9 @@ for slideshow templates and otherwise fails with `Explicit hooks are supported o
 runs`.
 
 To drive the stage graph directly, call `lumenclip_pipeline_run` with
-`workflowId: "x-threads-generation"`, or one stage with `lumenclip_pipeline_stage_run` and a
-`stageId` such as `x-threads-generation.validate-input`.
+`workflowId: "x-threads-generation"`. To test one stage, use Windmill MCP's
+`runScriptByPath` on `f/lumenclip/workflow_stage_runtime` with a `stage_id` such
+as `x-threads-generation.validate-input`.
 
 </Tab>
 

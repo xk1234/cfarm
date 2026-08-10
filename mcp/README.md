@@ -1,6 +1,6 @@
 # LumenClip MCP tool reference
 
-> Status: partially implemented. Sixty tools are callable through the
+> Status: partially implemented. Fifty-nine tools are callable through the
 > public `/mcp` Streamable HTTP route and local stdio transport. The
 > tool index is the source of truth for which contracts are implemented,
 > proposed, or deferred.
@@ -29,7 +29,6 @@ may link to a shared tool but do not invent a second incompatible schema.
 
 <!-- BEGIN:callable-tools -->
 - `lumenclip_pipeline_catalog`
-- `lumenclip_pipeline_stage_run`
 - `lumenclip_pipeline_run`
 - `lumenclip_templates_list`
 - `lumenclip_template_create`
