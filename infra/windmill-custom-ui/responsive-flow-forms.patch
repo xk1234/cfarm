@@ -1,0 +1,115 @@
+diff --git a/frontend/src/lib/components/FlowPreviewContent.svelte b/frontend/src/lib/components/FlowPreviewContent.svelte
+--- a/frontend/src/lib/components/FlowPreviewContent.svelte
++++ b/frontend/src/lib/components/FlowPreviewContent.svelte
+@@ -532,10 +532,15 @@
+ 							</div>
+ 						{:else}
+ 							{#key renderCount}
+-								<div bind:clientHeight={schemaHeight} class="min-h-[40vh]">
++								<div
++									bind:clientHeight={schemaHeight}
++									class="lumenclip-flow-form-container min-h-[40vh]"
++								>
+ 									<SchemaForm
+ 										noVariablePicker
+ 										compact
++										className="lumenclip-responsive-schema-form"
++										nestedClasses="lumenclip-responsive-schema-form"
+ 										workspace={opWs}
+ 										schema={flowStore.val.schema}
+ 										bind:args={previewArgs.val}
+diff --git a/frontend/src/lib/components/SchemaForm.svelte b/frontend/src/lib/components/SchemaForm.svelte
+--- a/frontend/src/lib/components/SchemaForm.svelte
++++ b/frontend/src/lib/components/SchemaForm.svelte
+@@ -211,6 +211,24 @@
+ 
+ 	let hidden: Record<string, boolean> = $state({})
+ 	let fields = $derived(items ?? keys.map((x) => ({ id: x, value: x })))
++	let responsiveLayout = $derived(
++		className.includes('lumenclip-responsive-schema-form') ||
++			nestedClasses.includes('lumenclip-responsive-schema-form')
++	)
++
++	function spansResponsiveColumns(property: any) {
++		if (!property) return false
++		const format = property.format ?? ''
++		return (
++			property.type === 'object' ||
++			property.type === 'array' ||
++			format === 'textarea' ||
++			format.startsWith('dynselect-') ||
++			format.startsWith('dynmultiselect-') ||
++			property.enumImages !== undefined ||
++			property.enumMedia !== undefined
++		)
++	}
+ 
+ 	function handleHiddenFields(schema: Schema | any, args: Record<string, any>) {
+ 		for (const x of fields) {
+@@ -299,6 +317,9 @@
+ 			<ResizeTransitionWrapper
+ 				vertical
+ 				class={twMerge(
++					responsiveLayout && 'min-w-0',
++					responsiveLayout && (hidden[argName] || hiddenArgs.includes(argName)) && 'hidden',
++					responsiveLayout && spansResponsiveColumns(prop) && 'lumenclip-schema-field-wide',
+ 					typeof diff[argName] === 'object' &&
+ 						diff[argName].diff !== 'same' &&
+ 						'bg-red-300 dark:bg-red-800 rounded-md',
+@@ -525,3 +546,30 @@
+ 
+ 	<VariableEditor bind:this={variableEditor} workspace={ws} />
+ {/if}
++
++<style>
++	:global(.lumenclip-flow-form-container) {
++		container-name: lumenclip-flow-form;
++		container-type: inline-size;
++	}
++
++	:global(.lumenclip-responsive-schema-form) {
++		display: grid;
++		grid-template-columns: minmax(0, 1fr);
++		column-gap: 1rem;
++	}
++
++	:global(.lumenclip-responsive-schema-form > *) {
++		min-width: 0;
++	}
++
++	:global(.lumenclip-responsive-schema-form > .lumenclip-schema-field-wide) {
++		grid-column: 1 / -1;
++	}
++
++	@container lumenclip-flow-form (min-width: 30rem) {
++		:global(.lumenclip-responsive-schema-form) {
++			grid-template-columns: repeat(2, minmax(0, 1fr));
++		}
++	}
++</style>
+diff --git a/frontend/src/lib/components/select/SelectDropdown.svelte b/frontend/src/lib/components/select/SelectDropdown.svelte
+--- a/frontend/src/lib/components/select/SelectDropdown.svelte
++++ b/frontend/src/lib/components/select/SelectDropdown.svelte
+@@ -60,6 +60,13 @@
+ 				)
+ 	)
+ 	let hasMedia = $derived(processedItems?.some((item) => item.image || item.mediaUrl) ?? false)
++	let effectiveMaxHeight = $derived(
++		hasMedia
++			? typeof window === 'undefined'
++				? 560
++				: Math.min(560, Math.max(320, Math.floor(window.innerHeight * 0.7)))
++			: maxHeight
++	)
+ 
+ 	let keyArrowPos = $state<number | undefined>()
+ 
+@@ -103,7 +110,7 @@
+ 	{disablePortal}
+ 	{open}
+ 	{disabled}
+-	{maxHeight}
++	maxHeight={effectiveMaxHeight}
+ 	{getInputRect}
+ 	class={className}
+ >
