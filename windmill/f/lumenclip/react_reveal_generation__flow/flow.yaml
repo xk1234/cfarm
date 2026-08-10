@@ -383,7 +383,7 @@ schema:
   x-lumenclip-hide-input-node: true
   properties:
     template_id:
-      type: string
+      type: object
       format: dynselect-template_id
       title: Template (optional)
     anticipation_collection_id:

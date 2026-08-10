@@ -135,18 +135,29 @@ describe("generated Lumenclip Windmill flows", () => {
 
     expect(source).toContain("contentControls: flow_input.content_controls")
     expect(source).toContain(
-      "collectionOverrides: flow_input.collection_overrides"
+      "hook_collection_id: flow_input.hook_collection_id"
     )
+    expect(source).toContain(
+      "body_collection_id: flow_input.body_collection_id"
+    )
+    expect(source).toContain("cta_collection_id: flow_input.cta_collection_id")
     expect(source).toContain("slideOverrides: flow_input.slide_overrides")
     expect(source).toContain("title: Content overrides")
-    expect(source).toContain("title: Collection overrides")
     expect(source).toContain("title: Individual slide overrides")
     expect(source).toContain("format: dynselect-hook_collection_id")
     expect(source).toContain("format: dynselect-body_collection_id")
     expect(source).toContain("format: dynselect-cta_collection_id")
-    expect(source).toContain("format: dynselect-slide_collection_id")
     expect(source).toContain("hook_collection_id(filterText")
-    expect(source).toContain("slide_collection_id(filterText")
+    expect(source).not.toContain("format: dynselect-slide_collection_id")
+  })
+
+  it("uses the object schema type required by the deployed Windmill dynamic input renderer", async () => {
+    for (const workflowId of Object.keys(flowFolders) as Array<
+      keyof typeof flowFolders
+    >) {
+      const source = await sourceFor(workflowId)
+      expect(source).not.toMatch(/type: string\n\s+format: dynselect-/)
+    }
   })
 
   it("bundles typed media artifacts for intermediate image and video values", async () => {

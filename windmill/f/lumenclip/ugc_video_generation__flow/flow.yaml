@@ -534,7 +534,7 @@ schema:
     - render
   properties:
     template_id:
-      type: string
+      type: object
       format: dynselect-template_id
       title: Template (optional)
       description: Load defaults from a UGC template; every component below can override it.

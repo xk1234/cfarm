@@ -433,7 +433,7 @@ schema:
   x-lumenclip-hide-input-node: true
   properties:
     automation_id:
-      type: string
+      type: object
       format: dynselect-automation_id
       title: Template
     topic:
