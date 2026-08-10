@@ -18738,8 +18738,8 @@ ${clean(input.hook)}`
   add(
     "slideshow-generation.list-media-collection-options",
     async (input, context) => {
-      const mediaKind = clean(input.mediaKind);
-      if (mediaKind && !["video", "image"].includes(mediaKind)) {
+      const mediaKind2 = clean(input.mediaKind);
+      if (mediaKind2 && !["video", "image"].includes(mediaKind2)) {
         throw new Error("mediaKind must be video or image");
       }
       const listed = await context.runStage(
@@ -18754,7 +18754,7 @@ ${clean(input.hook)}`
         const assetCount = collection.images.filter(
           (asset) => Boolean(clean(asset.image_link))
         ).length;
-        if (collection.deletedAt || assetCount === 0 || mediaKind && mediaKind !== kind) {
+        if (collection.deletedAt || assetCount === 0 || mediaKind2 && mediaKind2 !== kind) {
           return [];
         }
         return [
@@ -20695,10 +20695,10 @@ ${clean(input.hook)}`
     };
     for (const role of [input.primaryRole, input.secondaryRole]) {
       addFixedResolver(role, async (override, defaults, _state, context) => {
-        const mediaKind = role === "background" ? "image" : "video";
+        const mediaKind2 = role === "background" ? "image" : "video";
         const collectionMedia = await mediaFromCollection({
           collectionId: override.collectionId,
-          mediaKind,
+          mediaKind: mediaKind2,
           label: `${role} media`,
           context
         });
