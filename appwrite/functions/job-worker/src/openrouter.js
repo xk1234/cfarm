@@ -91,6 +91,7 @@ export async function openRouterChatCompletion(input) {
             feature: input.trace?.feature ?? "content-generation",
             userId: input.trace?.userId,
             sessionId: input.trace?.sessionId,
+            prompt: input.trace?.prompt,
             metadata: input.trace?.metadata,
             fetchImpl,
         });

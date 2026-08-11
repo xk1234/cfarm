@@ -1,6 +1,7 @@
 import crypto from "node:crypto"
 
 import { llmSlopPromptLine } from "@/lib/llm-slop"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 import {
@@ -165,11 +166,14 @@ export async function draftTikTokCommentReplies(input: {
 async function defaultReplyModel(prompt: { system: string; user: string }) {
   const apiKey = getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const managedPrompt = await getLumenclipChatPrompt("tiktokCommentReply", {
+    system_prompt: prompt.system,
+    comment_context: prompt.user,
+  })
   const result = await openRouterJson({
     apiKey,
     model: openRouterModelForUseCase("tiktokCommentReply"),
-    system: prompt.system,
-    user: prompt.user,
+    messages: managedPrompt.messages,
     schema: {
       name: "tiktok_comment_reply",
       strict: true,
@@ -182,6 +186,7 @@ async function defaultReplyModel(prompt: { system: string; user: string }) {
     },
     maxTokens: 120,
     temperature: 0.7,
+    trace: { feature: "tiktok-comment-reply", prompt: managedPrompt.prompt },
   })
   return typeof result.reply === "string" ? result.reply : ""
 }

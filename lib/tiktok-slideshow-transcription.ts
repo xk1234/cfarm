@@ -1,5 +1,6 @@
 import { clean, isRecord } from "@/lib/guards"
 import { getGenerationModelSettings } from "@/lib/generation-model-settings"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { parseManualPublicationUrl } from "@/lib/manual-publication"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 
@@ -77,6 +78,11 @@ export async function extractTikTokSlideTexts(post: TikTokSlideshowPost) {
   if (!apiKey) return fallbackSlideTexts(post)
   const { imageCaptioningModel } = await getGenerationModelSettings()
   const count = post.photos.length
+  const managedPrompt = await getLumenclipChatPrompt(
+    "tiktokSlideshowTranscription",
+    { slide_count: String(count), post_id: post.id }
+  )
+  const [systemMessage, userMessage] = managedPrompt.messages
   const result = await openRouterJson({
     apiKey,
     model: imageCaptioningModel,
@@ -109,17 +115,13 @@ export async function extractTikTokSlideTexts(post: TikTokSlideshowPost) {
       },
     },
     messages: [
-      {
-        role: "system",
-        content:
-          "Transcribe the visible editorial text from each TikTok slideshow image in order. Preserve words and sentence order. Ignore decorative symbols, watermarks, and background art. Return an empty string only when an image genuinely contains no text.",
-      },
+      systemMessage,
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: `These are ${count} ordered slides from TikTok post ${post.id}. Return exactly ${count} entries with one-based indices.`,
+            text: userMessage?.content ?? "",
           },
           ...post.photos.map((photo) => ({
             type: "image_url" as const,
@@ -128,6 +130,10 @@ export async function extractTikTokSlideTexts(post: TikTokSlideshowPost) {
         ],
       },
     ],
+    trace: {
+      feature: "tiktok-slideshow-transcription",
+      prompt: managedPrompt.prompt,
+    },
   })
   const slides = Array.isArray(result.slides) ? result.slides : []
   const byIndex = new Map(

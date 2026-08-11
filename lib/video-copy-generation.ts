@@ -1,6 +1,7 @@
 import { clean, isRecord } from "@/lib/guards"
 import type { AutomationRecord } from "@/lib/automations"
 import { expandHook } from "@/lib/hook-expansion"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import {
   openRouterChatCompletion,
   parseOpenRouterContent,
@@ -76,30 +77,25 @@ export async function generateVideoCopy(input: {
     return { hook, substitutions, texts: {}, ...fallback }
   }
 
+  const managedPrompt = await getLumenclipChatPrompt("videoCopy", {
+    system_prompt: buildVideoCopySystemPrompt({ requiresCommentGate }),
+    user_prompt: buildVideoCopyUserPrompt({
+      automationName: input.record.name,
+      videoFormat,
+      tone: automationTone(input.record.schema),
+      style: input.record.schema.prompt_formatting.style || "(none)",
+      hook,
+      segmentRoles,
+      metadataPromptLines: socialPostMetadataPromptLines("video"),
+      requiresCommentGate,
+      lowercase,
+      items,
+    }),
+  })
   const { ok, payload } = await openRouterChatCompletion({
     apiKey,
     model: openRouterModelForUseCase("slideshowText"),
-    messages: [
-      {
-        role: "system",
-        content: buildVideoCopySystemPrompt({ requiresCommentGate }),
-      },
-      {
-        role: "user",
-        content: buildVideoCopyUserPrompt({
-          automationName: input.record.name,
-          videoFormat,
-          tone: automationTone(input.record.schema),
-          style: input.record.schema.prompt_formatting.style || "(none)",
-          hook,
-          segmentRoles,
-          metadataPromptLines: socialPostMetadataPromptLines("video"),
-          requiresCommentGate,
-          lowercase,
-          items,
-        }),
-      },
-    ],
+    messages: managedPrompt.messages,
     responseFormat: {
       type: "json_schema",
       json_schema: {
@@ -109,6 +105,7 @@ export async function generateVideoCopy(input: {
       },
     },
     timeoutMs: 45_000,
+    trace: { feature: "video-copy", prompt: managedPrompt.prompt },
   })
   const generated = ok
     ? parseVideoCopy(

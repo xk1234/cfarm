@@ -58,6 +58,7 @@
     "@fullcalendar/interaction": "6.1.21",
     "@fullcalendar/react": "6.1.21",
     "@fullcalendar/timegrid": "6.1.21",
+    "@langfuse/client": "5.10.0",
     "@langfuse/otel": "5.10.0",
     "@langfuse/tracing": "5.10.0",
     "@modelcontextprotocol/sdk": "1.29.0",

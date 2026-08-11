@@ -1,6 +1,7 @@
 // Generated from lib/slideshow-image-matching.ts. Do not edit by hand.
 import { clean } from "./guards.js";
 import { fetchJson, providerErrorMessage } from "./http.js";
+import { getLumenclipChatPrompt } from "./langfuse-prompts.js";
 import { defaultSlideshowTextModel } from "./realfarm-generation-model-registry.js";
 import { recordProviderRequest } from "./provider-request-trace.js";
 /**
@@ -219,7 +220,14 @@ export async function deriveSlideVisualConcepts(input) {
         return [];
     const empty = input.slideTexts.map(() => []);
     try {
-        const requestBody = visualConceptsPayload(input);
+        const fallbackPayload = visualConceptsPayload(input);
+        const managedPrompt = await getLumenclipChatPrompt("slideshowVisualConcepts", {
+            slides: String(fallbackPayload.messages[1]?.content ?? ""),
+        });
+        const requestBody = {
+            ...fallbackPayload,
+            messages: managedPrompt.messages,
+        };
         recordProviderRequest({
             provider: "OpenRouter",
             operation: "visual concept derivation",
@@ -236,6 +244,10 @@ export async function deriveSlideVisualConcepts(input) {
         }, {
             fetchImpl: input.fetchImpl,
             timeoutMs: 60_000,
+            trace: {
+                feature: "slideshow-visual-concepts",
+                prompt: managedPrompt.prompt,
+            },
             errorMessage: providerErrorMessage("Visual concept derivation failed"),
         });
         const parsed = parsedContent(response);
@@ -266,10 +278,29 @@ export async function selectSlideshowImageWithAi(input) {
     });
     if (shortlist.length === 1)
         return shortlist[0].id;
-    const requestBody = slideshowImageMatchingPayload({
+    const fallbackPayload = slideshowImageMatchingPayload({
         ...input,
         candidates: shortlist,
     });
+    const fallbackUser = fallbackPayload.messages[1];
+    const fallbackContent = Array.isArray(fallbackUser?.content)
+        ? fallbackUser.content
+        : [];
+    const managedPrompt = await getLumenclipChatPrompt("slideshowImageSelection", { slide_context: fallbackContent[0]?.text ?? "" });
+    const [managedSystem, managedUser] = managedPrompt.messages;
+    const requestBody = {
+        ...fallbackPayload,
+        messages: [
+            managedSystem,
+            {
+                role: "user",
+                content: [
+                    { type: "text", text: managedUser?.content ?? "" },
+                    ...fallbackContent.slice(1),
+                ],
+            },
+        ],
+    };
     recordProviderRequest({
         provider: "OpenRouter",
         operation: "slideshow image choice",
@@ -286,6 +317,10 @@ export async function selectSlideshowImageWithAi(input) {
     }, {
         fetchImpl: input.fetchImpl,
         timeoutMs: 60_000,
+        trace: {
+            feature: "slideshow-image-selection",
+            prompt: managedPrompt.prompt,
+        },
         errorMessage: providerErrorMessage("AI image matching failed"),
     });
     const parsed = parsedContent(response);

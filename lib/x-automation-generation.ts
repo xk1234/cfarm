@@ -1,5 +1,6 @@
 import { clean, isRecord } from "@/lib/guards"
 import { llmSlopPromptLine, llmSlopViolations } from "@/lib/llm-slop"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import {
   getOpenRouterApiKey,
   OpenRouterRequestError,
@@ -132,15 +133,16 @@ export async function deriveXBriefAttempt(input: {
   if (!niche) throw new Error("A niche is required")
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const managedPrompt = await getLumenclipChatPrompt("xStrategyBrief", {
+    niche,
+  })
   const result = await openRouterJson({
     apiKey,
     fetchImpl: input.fetchImpl,
     model: input.model,
     timeoutMs: 90_000,
     maxTokens: 2_800,
-    system:
-      "You derive a focused social-content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
-    user: `Niche: ${niche}\nReturn {"audience":"...","promise":"...","pillars":[{"label":"..."}],"keywords":["..."],"painPoints":["..."]}. Return exactly 3–5 pillars.`,
+    messages: managedPrompt.messages,
     schema: {
       name: "x_automation_brief",
       schema: {
@@ -166,6 +168,7 @@ export async function deriveXBriefAttempt(input: {
         },
       },
     },
+    trace: { feature: "x-strategy-brief", prompt: managedPrompt.prompt },
   })
   return briefFromStrategyResult(result)
 }
@@ -586,15 +589,23 @@ export async function generateXStructuredAttempt(input: {
 }) {
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const repairFeedback = input.repairErrors?.length
+    ? `\n\nRepair these exact errors:\n- ${input.repairErrors.join("\n- ")}`
+    : ""
+  const managedPrompt = await getLumenclipChatPrompt("xStructuredPost", {
+    system_prompt: input.request.system,
+    user_prompt: input.request.user,
+    repair_feedback: repairFeedback,
+  })
   const output = await openRouterJson({
     apiKey,
     fetchImpl: input.fetchImpl,
     model: input.request.model,
     timeoutMs: 90_000,
     maxTokens: 2_800,
-    system: input.request.system,
-    user: `${input.request.user}${input.repairErrors?.length ? `\n\nRepair these exact errors:\n- ${input.repairErrors.join("\n- ")}` : ""}`,
+    messages: managedPrompt.messages,
     schema: input.request.schema,
+    trace: { feature: "x-structured-post", prompt: managedPrompt.prompt },
   })
   return {
     output,

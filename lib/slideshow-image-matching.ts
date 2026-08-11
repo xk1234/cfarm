@@ -1,5 +1,6 @@
 import { clean } from "@/lib/guards"
 import { fetchJson, providerErrorMessage } from "@/lib/http"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
 import { recordProviderRequest } from "@/lib/provider-request-trace"
 
@@ -255,7 +256,17 @@ export async function deriveSlideVisualConcepts(input: {
   if (input.slideTexts.length === 0) return []
   const empty = input.slideTexts.map(() => [] as string[])
   try {
-    const requestBody = visualConceptsPayload(input)
+    const fallbackPayload = visualConceptsPayload(input)
+    const managedPrompt = await getLumenclipChatPrompt(
+      "slideshowVisualConcepts",
+      {
+        slides: String(fallbackPayload.messages[1]?.content ?? ""),
+      }
+    )
+    const requestBody = {
+      ...fallbackPayload,
+      messages: managedPrompt.messages,
+    }
     recordProviderRequest({
       provider: "OpenRouter",
       operation: "visual concept derivation",
@@ -275,6 +286,10 @@ export async function deriveSlideVisualConcepts(input: {
       {
         fetchImpl: input.fetchImpl,
         timeoutMs: 60_000,
+        trace: {
+          feature: "slideshow-visual-concepts",
+          prompt: managedPrompt.prompt,
+        },
         errorMessage: providerErrorMessage("Visual concept derivation failed"),
       }
     )
@@ -313,10 +328,32 @@ export async function selectSlideshowImageWithAi(input: {
   })
   if (shortlist.length === 1) return shortlist[0].id
 
-  const requestBody = slideshowImageMatchingPayload({
+  const fallbackPayload = slideshowImageMatchingPayload({
     ...input,
     candidates: shortlist,
   })
+  const fallbackUser = fallbackPayload.messages[1]
+  const fallbackContent = Array.isArray(fallbackUser?.content)
+    ? fallbackUser.content
+    : []
+  const managedPrompt = await getLumenclipChatPrompt(
+    "slideshowImageSelection",
+    { slide_context: fallbackContent[0]?.text ?? "" }
+  )
+  const [managedSystem, managedUser] = managedPrompt.messages
+  const requestBody = {
+    ...fallbackPayload,
+    messages: [
+      managedSystem,
+      {
+        role: "user",
+        content: [
+          { type: "text", text: managedUser?.content ?? "" },
+          ...fallbackContent.slice(1),
+        ],
+      },
+    ],
+  }
   recordProviderRequest({
     provider: "OpenRouter",
     operation: "slideshow image choice",
@@ -336,6 +373,10 @@ export async function selectSlideshowImageWithAi(input: {
     {
       fetchImpl: input.fetchImpl,
       timeoutMs: 60_000,
+      trace: {
+        feature: "slideshow-image-selection",
+        prompt: managedPrompt.prompt,
+      },
       errorMessage: providerErrorMessage("AI image matching failed"),
     }
   )

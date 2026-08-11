@@ -1,6 +1,7 @@
 import type { BrandProfile } from "@/lib/brand-profile"
 import { clean } from "@/lib/guards"
 import { llmSlopPromptLine } from "@/lib/llm-slop"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { openRouterJson } from "@/lib/openrouter"
 
 export type GenerationChainStage = {
@@ -130,6 +131,7 @@ export async function humanizeContent(input: {
       .filter(Boolean)
       .join("\n\n"),
     user: `DRAFT:\n${input.content}`,
+    promptKey: "generationChainHumanize",
   })
 }
 
@@ -140,20 +142,29 @@ export async function reviewContent(input: {
   brandProfile: BrandProfile
   fetchImpl?: typeof fetch
 }) {
+  const system = [
+    input.stage.system,
+    "Review the content against every brand rule and factual constraint. Return pass when no changes are needed. Return fix when you corrected anything; content must always contain the publishable final version.",
+    brandProfilePrompt(input.brandProfile),
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+  const user = `CONTENT:\n${input.content}`
+  const managedPrompt = await getLumenclipChatPrompt(
+    "generationChainReview",
+    { system_prompt: system, user_prompt: user }
+  )
   const reviewed = await openRouterJson({
     apiKey: input.apiKey,
     fetchImpl: input.fetchImpl,
     model: input.stage.model,
-    system: [
-      input.stage.system,
-      "Review the content against every brand rule and factual constraint. Return pass when no changes are needed. Return fix when you corrected anything; content must always contain the publishable final version.",
-      brandProfilePrompt(input.brandProfile),
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-    user: `CONTENT:\n${input.content}`,
+    messages: managedPrompt.messages,
     schema: reviewSchema,
     temperature: 0.2,
+    trace: {
+      feature: "generation-chain-review",
+      prompt: managedPrompt.prompt,
+    },
   })
   return {
     verdict: reviewed.verdict === "fix" ? ("fix" as const) : ("pass" as const),
@@ -169,16 +180,29 @@ async function contentPass(
     apiKey: string
     fetchImpl?: typeof fetch
     user: string
+    promptKey?: "generationChainContent" | "generationChainHumanize"
   }
 ) {
+  const system = input.system || "Create accurate, useful content."
+  const managedPrompt = await getLumenclipChatPrompt(
+    input.promptKey ?? "generationChainContent",
+    {
+      system_prompt: system,
+      content_prompt: input.user,
+      user_prompt: input.user,
+    }
+  )
   const result = await openRouterJson({
     apiKey: input.apiKey,
     fetchImpl: input.fetchImpl,
     model: input.model,
-    system: input.system || "Create accurate, useful content.",
-    user: input.user,
+    messages: managedPrompt.messages,
     schema: contentSchema,
     temperature: 0.7,
+    trace: {
+      feature: "generation-chain-content",
+      prompt: managedPrompt.prompt,
+    },
   })
   const content = clean(result.content)
   if (!content) throw new Error("Generation chain returned empty content")

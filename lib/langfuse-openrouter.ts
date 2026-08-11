@@ -10,6 +10,7 @@ export type LangfuseTraceContext = {
   feature: string
   userId?: string
   sessionId?: string
+  prompt?: LangfuseGenerationAttributes["prompt"]
   metadata?: Record<string, string | number | boolean>
   fetchImpl?: typeof fetch
 }
@@ -57,6 +58,7 @@ export async function tracedOpenRouterFetch(
           generation.update({
             model: stringValue(requestBody?.model),
             modelParameters: modelParameters(requestBody),
+            prompt: context.prompt,
             input: sanitizeTraceValue(
               requestBody?.messages ?? requestBody?.input_audio
             ),

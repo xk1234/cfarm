@@ -4,6 +4,7 @@ import type { SocialPlatformKey } from "@/lib/social/provider-contract"
 import { getCurrentUser } from "@/lib/auth"
 import { resolveComposerSources } from "@/lib/compose-sources.server"
 import { clean, isRecord } from "@/lib/guards"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 import { getSocialProvider } from "@/lib/social/registry"
@@ -75,12 +76,14 @@ export async function POST(request: Request) {
     .join("\n")
 
   try {
+    const managedPrompt = await getLumenclipChatPrompt("composeRepurpose", {
+      limits,
+      source_material: sourceMaterial,
+    })
     const result = await openRouterJson({
       apiKey,
       model: openRouterModelForUseCase("slideshowText"),
-      system:
-        "Repurpose existing generated content for social platforms. Preserve the source facts and point of view. Do not invent claims, offers, statistics, links, or calls to action that are not supported by the source. Make each version native to its platform instead of merely truncating it. Return only the requested JSON.",
-      user: `Create one publish-ready variant for each platform.\n\nPLATFORM LIMITS\n${limits}\n\nSOURCE MATERIAL\n${sourceMaterial}`,
+      messages: managedPrompt.messages,
       schema: {
         name: "compose_platform_variants",
         strict: true,
@@ -97,6 +100,7 @@ export async function POST(request: Request) {
       trace: {
         feature: "compose-repurpose",
         userId: user.$id,
+        prompt: managedPrompt.prompt,
         metadata: { route: "api/compose/repurpose" },
       },
     })

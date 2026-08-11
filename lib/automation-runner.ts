@@ -17,6 +17,7 @@ import {
   type AutomationRecord,
 } from "@/lib/automations"
 import { listAvailableImageCollections } from "@/lib/available-image-collections"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { openRouterJson } from "@/lib/openrouter"
 import { automationGenerationBlockers } from "@/lib/automation-readiness"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
@@ -1404,6 +1405,27 @@ export async function planAutomationSlideSequence(input: {
     min,
     Math.round(Number(input.schema.prompt_formatting.slide_count_max) || 12)
   )
+  const planningContext = [
+    `Template: ${input.automationTitle}`,
+    `Topic or optional hook: ${input.topic}`,
+    `Choose between ${min} and ${max} slides. Use only the listed design IDs. Designs may be reused when the story needs more slides than there are designs.`,
+    clean(input.schema.prompt_formatting.slide_planning_prompt),
+    "Available slide designs:",
+    ...designs.map((design) => {
+      const textDirections = design.textItems
+        .map((item) => clean(item.contentDirection))
+        .filter(Boolean)
+        .join("; ")
+      return `- ${design.id} (${design.name}): ${[design.instructions, textDirections].filter(Boolean).join(" ") || "general-purpose slide"}`
+    }),
+    "For each slide, provide a short purpose that makes the full sequence coherent and non-repetitive.",
+  ]
+    .filter(Boolean)
+    .join("\n")
+  const managedPrompt = await getLumenclipChatPrompt(
+    "slideshowSequencePlan",
+    { planning_context: planningContext }
+  )
   const result = await openRouterJson({
     apiKey,
     model: input.model,
@@ -1411,25 +1433,7 @@ export async function planAutomationSlideSequence(input: {
     maxTokens: 2_048,
     temperature: 0.35,
     plugins: [{ id: "response-healing" }],
-    system:
-      "You are the text-generation director for a slideshow. Decide how many slides the idea needs, then assign one available slide design to every slide. Return only the requested JSON. Do not write the final slide copy yet.",
-    user: [
-      `Template: ${input.automationTitle}`,
-      `Topic or optional hook: ${input.topic}`,
-      `Choose between ${min} and ${max} slides. Use only the listed design IDs. Designs may be reused when the story needs more slides than there are designs.`,
-      clean(input.schema.prompt_formatting.slide_planning_prompt),
-      "Available slide designs:",
-      ...designs.map((design) => {
-        const textDirections = design.textItems
-          .map((item) => clean(item.contentDirection))
-          .filter(Boolean)
-          .join("; ")
-        return `- ${design.id} (${design.name}): ${[design.instructions, textDirections].filter(Boolean).join(" ") || "general-purpose slide"}`
-      }),
-      "For each slide, provide a short purpose that makes the full sequence coherent and non-repetitive.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    messages: managedPrompt.messages,
     schema: {
       name: "automation_slide_sequence",
       strict: true,
@@ -1454,6 +1458,10 @@ export async function planAutomationSlideSequence(input: {
         },
         required: ["slides"],
       },
+    },
+    trace: {
+      feature: "slideshow-sequence-plan",
+      prompt: managedPrompt.prompt,
     },
   })
   const validIds = new Set(designs.map((design) => design.id))
