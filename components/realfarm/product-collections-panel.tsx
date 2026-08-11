@@ -9,8 +9,10 @@ import {
   IconX,
 } from "@tabler/icons-react"
 
+import { ProductSalesInspirationList } from "@/components/realfarm/product-sales-inspiration"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import type { ProductCollection } from "@/lib/product-collections"
+import type { ProductWithSalesInspirations } from "@/lib/product-sales-inspirations"
 
 export function ProductCollectionsPanel({
   collections,
@@ -155,6 +157,12 @@ function ProductCollectionModal({
                       value={`S$${item.estimatedCommission.toFixed(2)}`}
                     />
                   </div>
+                  <ProductSalesInspirationList
+                    inspirations={
+                      (item as typeof item & ProductWithSalesInspirations)
+                        .salesInspirations ?? []
+                    }
+                  />
                   <a
                     href={item.marketplaceUrl}
                     target="_blank"
