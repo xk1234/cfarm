@@ -13,12 +13,26 @@ const driftedTargets = []
 
 const generatedModules = [
   {
+    source: "lib/langfuse-config.ts",
+    target: "appwrite/functions/job-worker/src/langfuse-config.js",
+  },
+  {
+    source: "lib/langfuse-openrouter.ts",
+    target: "appwrite/functions/job-worker/src/langfuse-openrouter.js",
+    imports: {
+      "@/lib/langfuse-config": "./langfuse-config.js",
+    },
+  },
+  {
     source: "lib/provider-request-trace.ts",
     target: "appwrite/functions/job-worker/src/provider-request-trace.js",
   },
   {
     source: "lib/http.ts",
     target: "appwrite/functions/job-worker/src/http.js",
+    imports: {
+      "@/lib/langfuse-openrouter": "./langfuse-openrouter.js",
+    },
   },
   {
     source: "lib/slideshow-image-matching.ts",
@@ -36,6 +50,7 @@ const generatedModules = [
     target: "appwrite/functions/job-worker/src/openrouter.js",
     imports: {
       "@/lib/guards": "./guards.js",
+      "@/lib/langfuse-openrouter": "./langfuse-openrouter.js",
       "@/lib/provider-request-trace": "./provider-request-trace.js",
     },
   },

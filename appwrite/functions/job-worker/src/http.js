@@ -1,15 +1,20 @@
 // Generated from lib/http.ts. Do not edit by hand.
+import { openRouterOperationName, tracedOpenRouterFetch, } from "./langfuse-openrouter.js";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_BODY_SNIPPET_LENGTH = 300;
-export async function fetchWithTimeout(url, init, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = fetch } = {}) {
+export async function fetchWithTimeout(url, init, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = fetch, } = {}) {
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const signal = init?.signal
         ? AbortSignal.any([init.signal, timeoutSignal])
         : timeoutSignal;
-    return fetchImpl(url, {
+    const requestInit = {
         ...init,
         signal,
-    });
+    };
+    if (String(url).includes("openrouter.ai/api/v1/chat/completions")) {
+        return tracedOpenRouterFetch(openRouterOperationName(requestInit.body, "generate-slideshow-content"), url, requestInit, { feature: "slideshow-generation", fetchImpl });
+    }
+    return fetchImpl(url, requestInit);
 }
 export async function fetchJson(url, init, options = {}) {
     const response = await fetchWithTimeout(url, init, options);
@@ -61,9 +66,7 @@ function truncateBodySnippet(text, maxLength) {
 export function providerErrorMessage(label) {
     return (response, payload) => {
         const error = payload?.error;
-        const fallback = !error && payload
-            ? `body=${JSON.stringify(payload).slice(0, 300)}`
-            : "";
+        const fallback = !error && payload ? `body=${JSON.stringify(payload).slice(0, 300)}` : "";
         return [
             `${label} (${response.status})`,
             error?.message,

@@ -4,6 +4,7 @@
 // several route handlers. Each caller supplies its model/messages/format and
 // optional extra headers, and reads what it needs from `payload`.
 import { clean, isRecord } from "./guards.js";
+import { openRouterOperationName, tracedOpenRouterFetch, } from "./langfuse-openrouter.js";
 import { recordProviderRequest } from "./provider-request-trace.js";
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
@@ -74,17 +75,24 @@ export async function openRouterChatCompletion(input) {
         model: input.model,
         request: requestBody,
     });
+    const body = JSON.stringify(requestBody);
     let response;
     try {
-        response = await fetchImpl(OPENROUTER_CHAT_URL, {
+        response = await tracedOpenRouterFetch(openRouterOperationName(body), OPENROUTER_CHAT_URL, {
             method: "POST",
             headers: {
                 Authorization: `Bearer ${input.apiKey}`,
                 "Content-Type": "application/json",
                 ...input.headers,
             },
-            body: JSON.stringify(requestBody),
+            body,
             signal: AbortSignal.timeout(input.timeoutMs ?? 60_000),
+        }, {
+            feature: input.trace?.feature ?? "content-generation",
+            userId: input.trace?.userId,
+            sessionId: input.trace?.sessionId,
+            metadata: input.trace?.metadata,
+            fetchImpl,
         });
     }
     catch (error) {
@@ -143,6 +151,7 @@ export async function openRouterJson(input) {
         maxTokens: input.maxTokens,
         temperature: input.temperature,
         plugins: input.plugins,
+        trace: input.trace,
     });
     if (!result.ok) {
         throw new OpenRouterRequestError({
