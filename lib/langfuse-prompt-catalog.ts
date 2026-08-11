@@ -46,23 +46,6 @@ export const LUMENCLIP_PROMPT_DEFINITIONS = {
     ["template_name", "existing_hooks"],
     "app/api/templates/hooks/route.ts"
   ),
-  imageCaption: chatPrompt(
-    "lumenclip/image-caption",
-    [
-      {
-        role: "system",
-        content:
-          "Caption images for a slideshow image collection. Return one concise factual caption only. No markdown, no quotes, no hashtags.",
-      },
-      {
-        role: "user",
-        content:
-          "Write a natural one-sentence caption describing this image. Mention the main subject, setting, mood, and useful visual details in under 24 words.",
-      },
-    ],
-    [],
-    "app/api/image-collections/captions/route.ts"
-  ),
   videoCopy: chatPrompt(
     "lumenclip/video-copy",
     [
@@ -95,7 +78,7 @@ export const LUMENCLIP_PROMPT_DEFINITIONS = {
       {
         role: "system",
         content:
-          "Judge the writing voice of a TikTok slideshow transcript.\nChoose tone.value from: {{tone_options}} when one is a clear fit. In that case set tone.preset to its lowercase key. Otherwise write a short specific custom tone value and set tone.preset to \"custom\".\nReturn 2-5 short, concrete observations limited to voice, grammatical person, and sentence shape.\n{{slop_rule}}",
+          'Judge the writing voice of a TikTok slideshow transcript.\nChoose tone.value from: {{tone_options}} when one is a clear fit. In that case set tone.preset to its lowercase key. Otherwise write a short specific custom tone value and set tone.preset to "custom".\nReturn 2-5 short, concrete observations limited to voice, grammatical person, and sentence shape.\n{{slop_rule}}',
       },
       { role: "user", content: "{{transcript}}" },
     ],
@@ -113,15 +96,6 @@ export const LUMENCLIP_PROMPT_DEFINITIONS = {
   ),
   generationChainHumanize: chatPrompt(
     "lumenclip/generation-chain-humanize",
-    [
-      { role: "system", content: "{{system_prompt}}" },
-      { role: "user", content: "{{user_prompt}}" },
-    ],
-    ["system_prompt", "user_prompt"],
-    "lib/generation-chain.ts"
-  ),
-  generationChainReview: chatPrompt(
-    "lumenclip/generation-chain-review",
     [
       { role: "system", content: "{{system_prompt}}" },
       { role: "user", content: "{{user_prompt}}" },
@@ -163,7 +137,10 @@ export const LUMENCLIP_PROMPT_DEFINITIONS = {
         content:
           "You derive a focused LinkedIn content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
       },
-      { role: "user", content: "Niche: {{niche}}\nReturn exactly 3-5 pillars." },
+      {
+        role: "user",
+        content: "Niche: {{niche}}\nReturn exactly 3-5 pillars.",
+      },
     ],
     ["niche"],
     "lib/linkedin-automation-generation.ts"
