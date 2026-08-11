@@ -192,6 +192,151 @@ function buildInspirations(item: ProductItem) {
         whyItFits: `${profile.visualStart} creates an immediate before-state; ${profile.payoff} supplies the visible result.`,
       },
     },
+    {
+      id: "pdf-product-test",
+      source: {
+        platform: "pdf",
+        label: "Product test slideshow",
+        creator: "Creator College",
+        documentTitle: "100 Viral Hooks",
+        page: 1,
+      },
+      original: {
+        textHook: "Is this product overhyped? Let's put it to the test...",
+        visualHook:
+          "The PDF supplies text only; pair the hook with the product beside a short pass-or-fail checklist.",
+        script: [
+          "Ask whether the product is overhyped.",
+          "State two or three visible test criteria.",
+          "Run the test without changing the camera angle.",
+          "Show the result before giving the verdict.",
+        ],
+      },
+      repurposed: {
+        textHook: `Is this ${lowerFirst(profile.category)} overhyped? Let's put ${item.name} to the test.`,
+        visualHook: `Open on ${lowerFirst(profile.visualStart)} beside three compact test criteria; keep the product unopened or switched off until slide 2.`,
+        script: [
+          `Ask whether ${item.name} is overhyped while showing the untouched before-state.`,
+          `Score visible setup, use, and payoff rather than making unsupported quality claims.`,
+          profile.action,
+          `Show ${profile.payoff}, mark each visible criterion pass or fail, and give a narrow verdict.`,
+        ],
+      },
+      analysis: {
+        pattern:
+          "A disputed product claim becomes a four-beat visual test: question, criteria, action, verdict.",
+        whyItFits: `${profile.action} gives the slideshow a real demonstration, while ${profile.payoff} makes the verdict inspectable.`,
+      },
+    },
+    {
+      id: "pdf-watch-closely",
+      source: {
+        platform: "pdf",
+        label: "Watch-closely micro reveal",
+        creator: "Creator College",
+        documentTitle: "100 Viral Hooks",
+        page: 1,
+      },
+      original: {
+        textHook: "Watch closely or you'll miss it...",
+        visualHook:
+          "The PDF supplies text only; use a tightly framed before-state where one small motion creates the payoff.",
+        script: [
+          "Warn that the change is easy to miss.",
+          "Hold the same framing for the action.",
+          "Repeat or magnify the decisive moment.",
+          "End on the changed state.",
+        ],
+      },
+      repurposed: {
+        textHook: `Watch closely or you'll miss what this ${lowerFirst(profile.category)} changes.`,
+        visualHook: `Lock the frame on ${lowerFirst(profile.visualStart)} and reserve a small circle or zoom crop for the exact moment of change.`,
+        script: [
+          `Place the hook over ${lowerFirst(profile.visualStart)} with no product claim yet.`,
+          profile.action,
+          `Repeat the decisive movement as a tighter crop so the viewer can verify it.`,
+          `Hold on ${profile.payoff} with ${item.name} identified once.`,
+        ],
+      },
+      analysis: {
+        pattern:
+          "A visual-attention command makes the viewer search the frame for a small but satisfying change.",
+        whyItFits: `${profile.action} contains a physical moment that can be isolated, replayed, or magnified across slides.`,
+      },
+    },
+    {
+      id: "pdf-value-comparison",
+      source: {
+        platform: "pdf",
+        label: "Value comparison slideshow",
+        creator: "Creator College",
+        documentTitle: "100 Viral Hooks",
+        page: 2,
+      },
+      original: {
+        textHook:
+          "Let's compare these two products and see which one is worth your money",
+        visualHook:
+          "The PDF supplies text only; show both options in a fixed split frame with identical comparison criteria.",
+        script: [
+          "Name the two options.",
+          "Compare the same use case and visible criteria.",
+          "Show both results at equal scale.",
+          "Choose by use case instead of declaring a universal winner.",
+        ],
+      },
+      repurposed: {
+        textHook: `Let's compare your current setup with ${item.name} and see which is worth your money.`,
+        visualHook: `Use a fixed split screen: the viewer's current ${lowerFirst(profile.category)} setup on the left and ${item.name} on the right, both framed the same way.`,
+        script: [
+          `Introduce the current setup and ${item.name} without calling either one the winner.`,
+          `Compare setup effort and the visible action using the same framing.`,
+          `Compare the current result with ${profile.payoff}.`,
+          `Recommend ${item.name} only for the astrology use case it visibly improves.`,
+        ],
+      },
+      analysis: {
+        pattern:
+          "Repeated framing reduces cognitive load and turns a product pitch into a decision the viewer can audit.",
+        whyItFits: `${profile.payoff} can sit beside the current setup as a concrete, same-scale comparison rather than a vague benefit claim.`,
+      },
+    },
+    {
+      id: "pdf-interest-bridge",
+      source: {
+        platform: "pdf",
+        label: "Interest-to-product bridge",
+        creator: "Creator College",
+        documentTitle: "100 Viral Hooks",
+        page: 1,
+      },
+      original: {
+        textHook: "If you like _, you'll love _",
+        visualHook:
+          "The PDF supplies text only; open with a familiar interest or ritual, then reveal the adjacent product use.",
+        script: [
+          "Name an interest the audience already identifies with.",
+          "Reveal the product as an adjacent experience.",
+          "Demonstrate the overlap.",
+          "End on the product-specific payoff.",
+        ],
+      },
+      repurposed: {
+        textHook: `If you like ${profile.discovery}, you'll love what ${item.name} does on camera.`,
+        visualHook: `Begin with the familiar astrology activity implied by ${lowerFirst(profile.visualStart)}, then place ${item.name} into the same frame on slide 2.`,
+        script: [
+          `Open with the audience interest: ${profile.discovery}.`,
+          `Reveal ${item.name} as the adjacent product, keeping the original setting visible.`,
+          profile.action,
+          `End on ${profile.payoff} and explain the specific overlap in one sentence.`,
+        ],
+      },
+      analysis: {
+        pattern:
+          "The hook borrows affinity from an existing interest, then proves that the product extends the same experience.",
+        whyItFits: `${item.name} is already tied to ${profile.discovery}; the demonstration shows the bridge instead of merely asserting it.`,
+      },
+    },
   ]
 }
 

@@ -55,8 +55,7 @@ function InspirationMapping({
             {source.label}
           </span>
           <span className="mt-0.5 block text-[10px] font-semibold text-app-muted-text">
-            {source.creator} · {compactNumber.format(source.views)} views ·{" "}
-            {source.engagementRate.toFixed(1)}% like rate
+            <SourceMeta source={source} />
           </span>
         </span>
         <span className="shrink-0 text-[10px] font-bold text-app-muted-text group-open:hidden">
@@ -85,17 +84,42 @@ function InspirationMapping({
           <span className="font-bold">Why it fits:</span>{" "}
           {inspiration.analysis.whyItFits}
         </div>
-        <a
-          href={source.url}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-[10px] font-bold text-app-muted-text underline underline-offset-2 hover:text-app-text"
-        >
-          Open Reel Farm database
-          <IconArrowUpRight className="size-3" />
-        </a>
+        {source.url ? (
+          <a
+            href={source.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] font-bold text-app-muted-text underline underline-offset-2 hover:text-app-text"
+          >
+            Open Reel Farm database
+            <IconArrowUpRight className="size-3" />
+          </a>
+        ) : null}
       </div>
     </details>
+  )
+}
+
+function SourceMeta({ source }: { source: ProductSalesInspiration["source"] }) {
+  if (
+    source.platform === "reel_farm" &&
+    typeof source.views === "number" &&
+    typeof source.engagementRate === "number"
+  ) {
+    return (
+      <>
+        {source.creator} · {compactNumber.format(source.views)} views ·{" "}
+        {source.engagementRate.toFixed(1)}% like rate
+      </>
+    )
+  }
+
+  return (
+    <>
+      {source.creator}
+      {source.documentTitle ? ` · ${source.documentTitle}` : ""}
+      {source.page ? ` · p.${source.page}` : ""}
+    </>
   )
 }
 
