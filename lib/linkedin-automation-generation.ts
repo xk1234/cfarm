@@ -1,11 +1,14 @@
 import { clean } from "@/lib/guards"
 import { llmSlopMatches } from "@/lib/llm-slop"
-import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
+import {
+  compileLumenclipPromptFallback,
+  getLumenclipChatPrompt,
+} from "@/lib/langfuse-prompts"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 import {
   archetypeById,
-  buildLinkedInSystemPrompt,
-  buildLinkedInUserPrompt,
+  buildLinkedInSystemPromptVariables,
+  buildLinkedInUserPromptVariables,
   hookStyleById,
   linkedInArchetypes,
   linkedInFormatRules,
@@ -28,6 +31,7 @@ export type LinkedInGenerationRequest = {
   model: string
   system: string
   user: string
+  promptVariables: Record<string, string>
   schema: ReturnType<typeof buildPostSchema>
 }
 
@@ -67,10 +71,9 @@ export async function deriveLinkedInBrief(input: {
   if (!niche) throw new Error("A niche is required")
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const managedPrompt = await getLumenclipChatPrompt(
-    "linkedinStrategyBrief",
-    { niche }
-  )
+  const managedPrompt = await getLumenclipChatPrompt("linkedinStrategyBrief", {
+    niche,
+  })
   const result = await openRouterJson({
     apiKey,
     fetchImpl: input.fetchImpl,
@@ -365,16 +368,26 @@ export function buildLinkedInGenerationRequest(input: {
   proof?: string[]
 }): LinkedInGenerationRequest {
   const voice = voicePresetById(input.personaVoiceId)
-  return {
-    model: input.model,
-    system: buildLinkedInSystemPrompt({
+  const promptVariables = {
+    ...buildLinkedInSystemPromptVariables({
       voice,
       niche: input.niche,
       brief: input.brief,
       excludedTopics: input.excludedTopics,
       proof: input.proof,
     }),
-    user: buildLinkedInUserPrompt({ plan: input.plan }),
+    ...buildLinkedInUserPromptVariables({ plan: input.plan }),
+  }
+  const fallback = compileLumenclipPromptFallback("linkedinStructuredPost", {
+    ...promptVariables,
+    repair_feedback: "",
+  })
+  const [systemMessage, userMessage] = fallback.messages
+  return {
+    model: input.model,
+    system: systemMessage.content,
+    user: userMessage.content,
+    promptVariables,
     schema: buildPostSchema(input.plan.archetype),
   }
 }
@@ -391,14 +404,10 @@ export async function generateLinkedInSlotsAttempt(input: {
   const repairFeedback = input.repairViolations?.length
     ? `\n\nYour previous attempt failed validation. Repair these exact errors:\n- ${input.repairViolations.join("\n- ")}`
     : ""
-  const managedPrompt = await getLumenclipChatPrompt(
-    "linkedinStructuredPost",
-    {
-      system_prompt: input.request.system,
-      user_prompt: input.request.user,
-      repair_feedback: repairFeedback,
-    }
-  )
+  const managedPrompt = await getLumenclipChatPrompt("linkedinStructuredPost", {
+    ...input.request.promptVariables,
+    repair_feedback: repairFeedback,
+  })
   let output: Record<string, unknown>
   try {
     output = await openRouterJson({

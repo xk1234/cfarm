@@ -19,6 +19,9 @@ export function slideshowTextGenerationPayload(input) {
         performanceMemory: input.performanceMemory,
     });
     return {
+        ...(bundle.managedPromptVariables
+            ? { langfusePromptVariables: bundle.managedPromptVariables }
+            : {}),
         model,
         stream: false,
         max_tokens: Math.min(8_192, Math.max(2_048, 512 + placeholders.length * 256)),

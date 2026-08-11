@@ -5,6 +5,7 @@ import {
   generateSlideshowText as appGenerateSlideshowText,
   selectSlideshowImages as appSelectSlideshowImages,
 } from "@/lib/slideshow-generation-engine"
+import { compileLumenclipPromptFallback } from "@/lib/langfuse-prompts"
 import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-payload"
 import {
   buildScheduledSlideshowPrompt as appBuildScheduledSlideshowPrompt,
@@ -136,6 +137,13 @@ describe("scheduled slideshow prompt unification", () => {
     const payload = slideshowTextGenerationPayload({ automation, selectedHook })
     expect(payload.messages[0]?.content).toBe(appBundle.system)
     expect(payload.messages[1]?.content).toBe(appBundle.user)
+    expect(payload.langfusePromptVariables).toBeDefined()
+    expect(
+      compileLumenclipPromptFallback(
+        "slideshowText",
+        payload.langfusePromptVariables!
+      ).messages
+    ).toEqual(payload.messages)
     expect(JSON.stringify(payload.response_format.json_schema.schema)).toBe(
       JSON.stringify(appBundle.schema)
     )

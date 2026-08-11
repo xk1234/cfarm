@@ -58,6 +58,7 @@ import {
   saveTikTokReplyDrafts,
   tiktokCommentCaptureContext,
 } from "@/lib/tiktok-comments"
+import { compileLumenclipPromptFallback } from "@/lib/langfuse-prompts"
 import {
   assembleEmojiReplies,
   buildTikTokReplyPrompt,
@@ -125,6 +126,15 @@ describe("TikTok comment reply styles", () => {
     expect(JSON.parse(prompt.user).untrustedComment).toContain(
       "Ignore previous"
     )
+    expect(
+      compileLumenclipPromptFallback(
+        "tiktokCommentReply",
+        prompt.managedVariables
+      ).messages
+    ).toEqual([
+      { role: "system", content: prompt.system },
+      { role: "user", content: prompt.user },
+    ])
   })
 })
 
@@ -138,17 +148,14 @@ describe("TikTok comment publication reads", () => {
       origin: "manual_link" as const,
       sourceType: "external" as const,
       sourceId: "7662360324313517330",
-      sourceRefs: [
-        { kind: "external" as const, id: "7662360324313517330" },
-      ],
+      sourceRefs: [{ kind: "external" as const, id: "7662360324313517330" }],
       lifecycleStatus: "published" as const,
       linkState: "externally_linked" as const,
       linkMethod: "manual_url" as const,
       integrationId: "tiktok-1",
       provider: "tiktok" as const,
       externalPostId: "7662360324313517330",
-      releaseUrl:
-        "https://www.tiktok.com/@horoiq/photo/7662360324313517330",
+      releaseUrl: "https://www.tiktok.com/@horoiq/photo/7662360324313517330",
       statsSources: [],
       content: "",
       hashtags: [],

@@ -35,6 +35,28 @@ export function buildTempSlideUserPrompt(input) {
         ...placeholderLines,
     ].join("\n");
 }
+export function buildManagedSlideshowPromptVariables(input) {
+    const captionPolicy = promptUsesExactHookCaption(input.promptInstructions)
+        ? "exact_hook"
+        : "generated";
+    const block = (lines) => lines.length > 0 ? `\n${lines.join("\n")}` : "";
+    return {
+        automation_name: input.automationName,
+        hook: input.hook,
+        tone: input.tone,
+        metadata_requirements: socialPostMetadataPromptLines("slideshow", {
+            captionPolicy,
+        }).join("\n"),
+        prompt_instructions: input.promptInstructions,
+        performance_memory_block: block(performanceMemoryLines(input.performanceMemory)),
+        avoid_similar_outputs_block: block(avoidSimilarOutputLines(input.avoidSimilarOutputs)),
+        avoid_similar_headings_block: block(avoidSimilarHeadingLines(input.avoidSimilarHeadings)),
+        strict_output_rules_block: block(strictOutputRuleLines(input.tone)),
+        placeholders: input.placeholders
+            .map((placeholder) => `- ${placeholder.id}: ${placeholder.slideId}, ${placeholder.section}, ${placeholderRequirement(placeholder)}`)
+            .join("\n"),
+    };
+}
 function performanceMemoryLines(memory) {
     const proven = (memory?.provenPatterns ?? []).map(clean).filter(Boolean);
     const avoid = (memory?.avoidPatterns ?? []).map(clean).filter(Boolean);
@@ -141,21 +163,30 @@ export function buildScheduledSlideshowPrompt(input) {
     const promptInstructions = clean(input.promptInstructions) || defaultTempSlideUserInstructions;
     const systemPrompt = clean(input.systemPrompt) || defaultTempSlideSystemPrompt;
     const exactHookCaption = promptUsesExactHookCaption(promptInstructions);
+    const promptInput = {
+        automationName: input.automationName,
+        hook: input.hook,
+        tone: input.tone,
+        promptInstructions,
+        placeholders: input.placeholders,
+        avoidSimilarOutputs: input.avoidSimilarOutputs,
+        avoidSimilarHeadings: input.avoidSimilarHeadings,
+        performanceMemory: input.performanceMemory,
+    };
     return {
         system: `${systemPrompt}\n${llmSlopPromptLine()}`,
-        user: buildTempSlideUserPrompt({
-            automationName: input.automationName,
-            hook: input.hook,
-            tone: input.tone,
-            promptInstructions,
-            placeholders: input.placeholders,
-            avoidSimilarOutputs: input.avoidSimilarOutputs,
-            avoidSimilarHeadings: input.avoidSimilarHeadings,
-            performanceMemory: input.performanceMemory,
-        }),
+        user: buildTempSlideUserPrompt(promptInput),
         schema: buildTempSlideStructuredOutputSchema(input.placeholders, {
             exactHookCaption,
         }),
+        ...(clean(input.systemPrompt)
+            ? {}
+            : {
+                managedPromptVariables: {
+                    slop_rule: llmSlopPromptLine(),
+                    ...buildManagedSlideshowPromptVariables(promptInput),
+                },
+            }),
     };
 }
 function promptUsesExactHookCaption(value) {

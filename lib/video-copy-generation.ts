@@ -16,8 +16,7 @@ import {
 } from "@/lib/social-post-metadata"
 import { toneRequestsLowercase } from "@/lib/temp-slide-testing"
 import {
-  buildVideoCopySystemPrompt,
-  buildVideoCopyUserPrompt,
+  buildVideoCopyPromptVariables,
   type VideoCopyItem,
   type VideoCopySegmentRole,
 } from "@/lib/video-copy-prompt"
@@ -77,21 +76,24 @@ export async function generateVideoCopy(input: {
     return { hook, substitutions, texts: {}, ...fallback }
   }
 
-  const managedPrompt = await getLumenclipChatPrompt("videoCopy", {
-    system_prompt: buildVideoCopySystemPrompt({ requiresCommentGate }),
-    user_prompt: buildVideoCopyUserPrompt({
-      automationName: input.record.name,
-      videoFormat,
-      tone: automationTone(input.record.schema),
-      style: input.record.schema.prompt_formatting.style || "(none)",
-      hook,
-      segmentRoles,
-      metadataPromptLines: socialPostMetadataPromptLines("video"),
-      requiresCommentGate,
-      lowercase,
-      items,
-    }),
-  })
+  const managedPrompt = await getLumenclipChatPrompt(
+    "videoCopy",
+    buildVideoCopyPromptVariables(
+      { requiresCommentGate },
+      {
+        automationName: input.record.name,
+        videoFormat,
+        tone: automationTone(input.record.schema),
+        style: input.record.schema.prompt_formatting.style || "(none)",
+        hook,
+        segmentRoles,
+        metadataPromptLines: socialPostMetadataPromptLines("video"),
+        requiresCommentGate,
+        lowercase,
+        items,
+      }
+    )
+  )
   const { ok, payload } = await openRouterChatCompletion({
     apiKey,
     model: openRouterModelForUseCase("slideshowText"),

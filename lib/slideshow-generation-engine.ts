@@ -728,18 +728,17 @@ async function requestStructuredOutputAttempt(input: {
   requireHookSubjectCoverage?: boolean
   allowViolations: boolean
 }) {
-  const [systemMessage, userMessage] = input.promptPayload.messages
-  const managedPrompt = await getLumenclipChatPrompt("slideshowText", {
-    system_prompt: String(systemMessage?.content ?? ""),
-    user_prompt: String(userMessage?.content ?? ""),
-  })
+  const { langfusePromptVariables, ...providerPromptPayload } =
+    input.promptPayload
+  const managedPrompt = langfusePromptVariables
+    ? await getLumenclipChatPrompt("slideshowText", langfusePromptVariables)
+    : null
   const requestBody = {
-    ...input.promptPayload,
+    ...providerPromptPayload,
     model: input.model,
-    messages: [
-      ...managedPrompt.messages,
-      ...input.promptPayload.messages.slice(2),
-    ],
+    messages: managedPrompt
+      ? [...managedPrompt.messages, ...input.promptPayload.messages.slice(2)]
+      : input.promptPayload.messages,
   }
   recordProviderRequest({
     provider: "OpenRouter",
@@ -762,7 +761,7 @@ async function requestStructuredOutputAttempt(input: {
       timeoutMs: 120_000,
       trace: {
         feature: "slideshow-text",
-        prompt: managedPrompt.prompt,
+        prompt: managedPrompt?.prompt,
       },
       errorMessage: (response, value) => {
         const providerError =
@@ -1026,10 +1025,10 @@ export async function researchSelectedHookAttempt(input: {
   hook: string
   automationName: string
 }) {
-  const managedPrompt = await getLumenclipChatPrompt(
-    "slideshowHookResearch",
-    { automation_name: input.automationName, hook: input.hook }
-  )
+  const managedPrompt = await getLumenclipChatPrompt("slideshowHookResearch", {
+    automation_name: input.automationName,
+    hook: input.hook,
+  })
   const requestBody = {
     model: input.model,
     stream: false,
