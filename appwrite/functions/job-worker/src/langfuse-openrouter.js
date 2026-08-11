@@ -26,6 +26,7 @@ export async function tracedOpenRouterFetch(name, url, init, context) {
         generation.update({
             model: stringValue(requestBody?.model),
             modelParameters: modelParameters(requestBody),
+            prompt: context.prompt,
             input: sanitizeTraceValue(requestBody?.messages ?? requestBody?.input_audio),
         });
         try {

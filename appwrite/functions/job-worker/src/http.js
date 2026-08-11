@@ -2,7 +2,7 @@
 import { openRouterOperationName, tracedOpenRouterFetch, } from "./langfuse-openrouter.js";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_BODY_SNIPPET_LENGTH = 300;
-export async function fetchWithTimeout(url, init, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = fetch, } = {}) {
+export async function fetchWithTimeout(url, init, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = fetch, trace, } = {}) {
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const signal = init?.signal
         ? AbortSignal.any([init.signal, timeoutSignal])
@@ -12,7 +12,14 @@ export async function fetchWithTimeout(url, init, { timeoutMs = DEFAULT_TIMEOUT_
         signal,
     };
     if (String(url).includes("openrouter.ai/api/v1/chat/completions")) {
-        return tracedOpenRouterFetch(openRouterOperationName(requestInit.body, "generate-slideshow-content"), url, requestInit, { feature: "slideshow-generation", fetchImpl });
+        return tracedOpenRouterFetch(openRouterOperationName(requestInit.body, "generate-slideshow-content"), url, requestInit, {
+            feature: trace?.feature ?? "slideshow-generation",
+            userId: trace?.userId,
+            sessionId: trace?.sessionId,
+            prompt: trace?.prompt,
+            metadata: trace?.metadata,
+            fetchImpl,
+        });
     }
     return fetchImpl(url, requestInit);
 }

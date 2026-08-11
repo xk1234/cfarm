@@ -16,58 +16,65 @@ export async function main(
     process.env.WM_JOB_ID?.trim() ||
     `windmill-${crypto.randomUUID()}`
   const [
+    { flushLangfuse, registerLangfuse },
     { createPipelineStageRegistry, executePipelineStage },
     { createProductionPipelineHandlers },
     { getReminderSettings, sendTelegramReminder },
     { withSystemOwner },
   ] =
     await Promise.all([
+      import("../../lib/langfuse-node"),
       import("../../lib/pipeline-executor"),
       import("./production-pipeline-handlers"),
       import("../../lib/reminder-settings"),
       import("../../lib/system-owner-context"),
     ])
-  return withSystemOwner(ownerId, async () => {
-    const registry = createPipelineStageRegistry(
-      createProductionPipelineHandlers({
-        now: () => new Date(),
-        getReminderSettings,
-        sendGeneratedReminder: async (text) => {
-          const settings = await getReminderSettings()
-          if (settings.events.generated.channel !== "telegram") {
-            return { sent: false }
-          }
-          await sendTelegramReminder({
-            text,
-            chatId: settings.telegramChatId,
-            botToken: settings.telegramBotToken,
-          })
-          return { sent: true }
-        },
-      })
-    )
-    const stageId = required("stage_id", stage_id)
-    const checkpoint =
-      checkpoint_name?.trim() || ugcCheckpointForStage(stageId)
-    if (!checkpoint) {
-      return executePipelineStage({
+  registerLangfuse("lumenclip-windmill")
+  try {
+    return await withSystemOwner(ownerId, async () => {
+      const registry = createPipelineStageRegistry(
+        createProductionPipelineHandlers({
+          now: () => new Date(),
+          getReminderSettings,
+          sendGeneratedReminder: async (text) => {
+            const settings = await getReminderSettings()
+            if (settings.events.generated.channel !== "telegram") {
+              return { sent: false }
+            }
+            await sendTelegramReminder({
+              text,
+              chatId: settings.telegramChatId,
+              botToken: settings.telegramBotToken,
+            })
+            return { sent: true }
+          },
+        })
+      )
+      const stageId = required("stage_id", stage_id)
+      const checkpoint =
+        checkpoint_name?.trim() || ugcCheckpointForStage(stageId)
+      if (!checkpoint) {
+        return executePipelineStage({
+          registry,
+          ownerId,
+          stageId,
+          stageInput: stage_input,
+          requestId,
+        })
+      }
+
+      return executeUgcComponentInsideWindmill({
         registry,
         ownerId,
-        stageId,
-        stageInput: stage_input,
         requestId,
+        stageId,
+        checkpoint,
+        stageInput: stage_input,
       })
-    }
-
-    return executeUgcComponentInsideWindmill({
-      registry,
-      ownerId,
-      requestId,
-      stageId,
-      checkpoint,
-      stageInput: stage_input,
     })
-  })
+  } finally {
+    await flushLangfuse().catch(() => undefined)
+  }
 }
 
 function ugcCheckpointForStage(stageId: string) {

@@ -97,6 +97,11 @@ describe("Langfuse OpenRouter tracing", () => {
         feature: "compose-repurpose",
         userId: "user-1",
         sessionId: "run-1",
+        prompt: {
+          name: "lumenclip/compose-repurpose",
+          version: 7,
+          isFallback: false,
+        },
         metadata: { route: "compose", attempt: 2 },
         fetchImpl,
       }
@@ -123,6 +128,11 @@ describe("Langfuse OpenRouter tracing", () => {
     expect(tracing.updates[0]).toMatchObject({
       model: "openai/test-model",
       modelParameters: { temperature: 0.4, maxTokens: 120 },
+      prompt: {
+        name: "lumenclip/compose-repurpose",
+        version: 7,
+        isFallback: false,
+      },
     })
     expect(JSON.stringify(tracing.updates[0])).not.toContain(rawBase64)
     expect(JSON.stringify(tracing.updates[0])).toContain("[MEDIA OMITTED]")

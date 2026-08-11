@@ -1,6 +1,7 @@
 import {
   openRouterOperationName,
   tracedOpenRouterFetch,
+  type OpenRouterTraceContext,
 } from "@/lib/langfuse-openrouter"
 
 type FetchInput = Parameters<typeof fetch>[0]
@@ -10,6 +11,7 @@ type FetchLike = typeof fetch
 export type FetchTimeoutOptions = {
   timeoutMs?: number
   fetchImpl?: FetchLike
+  trace?: OpenRouterTraceContext
 }
 
 export type FetchJsonOptions = FetchTimeoutOptions & {
@@ -26,6 +28,7 @@ export async function fetchWithTimeout(
   {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     fetchImpl = fetch,
+    trace,
   }: FetchTimeoutOptions = {}
 ) {
   const timeoutSignal = AbortSignal.timeout(timeoutMs)
@@ -42,7 +45,14 @@ export async function fetchWithTimeout(
       openRouterOperationName(requestInit.body, "generate-slideshow-content"),
       url,
       requestInit,
-      { feature: "slideshow-generation", fetchImpl }
+      {
+        feature: trace?.feature ?? "slideshow-generation",
+        userId: trace?.userId,
+        sessionId: trace?.sessionId,
+        prompt: trace?.prompt,
+        metadata: trace?.metadata,
+        fetchImpl,
+      }
     )
   }
   return fetchImpl(url, requestInit)

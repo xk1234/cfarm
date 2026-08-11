@@ -17,6 +17,7 @@ import {
 } from "@/lib/realfarm-generation-model-registry"
 import { clean, isRecord } from "@/lib/guards"
 import { fetchJson, providerErrorMessage } from "@/lib/http"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { llmSlopMatches, normalizeLlmPunctuation } from "@/lib/llm-slop"
 import { parseOpenRouterContent } from "@/lib/openrouter"
 import { recordProviderRequest } from "@/lib/provider-request-trace"
@@ -727,7 +728,19 @@ async function requestStructuredOutputAttempt(input: {
   requireHookSubjectCoverage?: boolean
   allowViolations: boolean
 }) {
-  const requestBody = { ...input.promptPayload, model: input.model }
+  const [systemMessage, userMessage] = input.promptPayload.messages
+  const managedPrompt = await getLumenclipChatPrompt("slideshowText", {
+    system_prompt: String(systemMessage?.content ?? ""),
+    user_prompt: String(userMessage?.content ?? ""),
+  })
+  const requestBody = {
+    ...input.promptPayload,
+    model: input.model,
+    messages: [
+      ...managedPrompt.messages,
+      ...input.promptPayload.messages.slice(2),
+    ],
+  }
   recordProviderRequest({
     provider: "OpenRouter",
     operation: "chat.completions",
@@ -747,6 +760,10 @@ async function requestStructuredOutputAttempt(input: {
     {
       fetchImpl: input.fetchImpl,
       timeoutMs: 120_000,
+      trace: {
+        feature: "slideshow-text",
+        prompt: managedPrompt.prompt,
+      },
       errorMessage: (response, value) => {
         const providerError =
           typeof value === "object" &&
@@ -1009,22 +1026,16 @@ export async function researchSelectedHookAttempt(input: {
   hook: string
   automationName: string
 }) {
+  const managedPrompt = await getLumenclipChatPrompt(
+    "slideshowHookResearch",
+    { automation_name: input.automationName, hook: input.hook }
+  )
   const requestBody = {
     model: input.model,
     stream: false,
     max_tokens: 2_000,
     plugins: [{ id: "web", engine: "exa", max_results: 5 }],
-    messages: [
-      {
-        role: "system",
-        content:
-          "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
-      },
-      {
-        role: "user",
-        content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
-      },
-    ],
+    messages: managedPrompt.messages,
   }
   recordProviderRequest({
     provider: "OpenRouter",
@@ -1045,6 +1056,10 @@ export async function researchSelectedHookAttempt(input: {
     {
       fetchImpl: input.fetchImpl,
       timeoutMs: 90_000,
+      trace: {
+        feature: "slideshow-hook-research",
+        prompt: managedPrompt.prompt,
+      },
       errorMessage: providerErrorMessage("OpenRouter hook research failed"),
     }
   )

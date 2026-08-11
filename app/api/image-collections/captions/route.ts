@@ -9,6 +9,7 @@ import {
   updateImageCollectionCaptions,
   type StoredImageCollection,
 } from "@/lib/image-collections"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { openRouterChatCompletion } from "@/lib/openrouter"
 
 export const dynamic = "force-dynamic"
@@ -126,6 +127,8 @@ async function captionImageWithRetry(
 }
 
 async function captionImage(imageUrl: string, apiKey: string, model: string) {
+  const managedPrompt = await getLumenclipChatPrompt("imageCaption", {})
+  const [systemMessage, userMessage] = managedPrompt.messages
   const {
     ok,
     status,
@@ -138,17 +141,13 @@ async function captionImage(imageUrl: string, apiKey: string, model: string) {
       "X-Title": "LumenClip Image Captioner",
     },
     messages: [
-      {
-        role: "system",
-        content:
-          "Caption images for a slideshow image collection. Return one concise factual caption only. No markdown, no quotes, no hashtags.",
-      },
+      systemMessage,
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: "Write a natural one-sentence caption describing this image. Mention the main subject, setting, mood, and useful visual details in under 24 words.",
+            text: userMessage?.content ?? "",
           },
           {
             type: "image_url",
@@ -157,6 +156,7 @@ async function captionImage(imageUrl: string, apiKey: string, model: string) {
         ],
       },
     ],
+    trace: { feature: "image-caption", prompt: managedPrompt.prompt },
   })
 
   const payload = raw as CaptionResponse & { error?: { message?: string } }

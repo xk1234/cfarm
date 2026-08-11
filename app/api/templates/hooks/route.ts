@@ -2,6 +2,7 @@ import { clean, isRecord } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import { withHandler } from "@/lib/api"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import {
   openRouterChatCompletion,
   parseOpenRouterContent,
@@ -60,6 +61,13 @@ export const POST = withHandler(async (request: Request) => {
   const recentHookKeys = await recentUsageKeys("hook_published", record.id, {
     withinDays: record.schema.reuse_policy?.hook_exclusion_days ?? 45,
   })
+  const managedPrompt = await getLumenclipChatPrompt(
+    "templateHookGeneration",
+    {
+      template_name: record.name,
+      existing_hooks: sampleHooks.map((hook) => `- ${hook}`).join("\n"),
+    }
+  )
   const {
     ok,
     status,
@@ -67,23 +75,7 @@ export const POST = withHandler(async (request: Request) => {
   } = await openRouterChatCompletion({
     apiKey,
     model: openRouterModelForUseCase("automationHooks"),
-    messages: [
-      {
-        role: "system",
-        content:
-          "You write TikTok slideshow hooks. Return only JSON that matches the schema. Do not number the hooks. Do not repeat the provided examples.",
-      },
-      {
-        role: "user",
-        content: [
-          `Template: ${record.name}`,
-          `Generate 10 new hooks in the same niche and style as these existing hooks.`,
-          `Existing hooks:`,
-          ...sampleHooks.map((hook) => `- ${hook}`),
-          "Keep each hook short, specific, and usable as the first slide of a TikTok slideshow.",
-        ].join("\n"),
-      },
-    ],
+    messages: managedPrompt.messages,
     responseFormat: {
       type: "json_schema",
       json_schema: {
@@ -106,6 +98,10 @@ export const POST = withHandler(async (request: Request) => {
           },
         },
       },
+    },
+    trace: {
+      feature: "template-hook-generation",
+      prompt: managedPrompt.prompt,
     },
   })
 

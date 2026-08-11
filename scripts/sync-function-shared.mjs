@@ -13,6 +13,17 @@ const driftedTargets = []
 
 const generatedModules = [
   {
+    source: "lib/langfuse-prompt-catalog.ts",
+    target: "appwrite/functions/job-worker/src/langfuse-prompt-catalog.js",
+  },
+  {
+    source: "lib/langfuse-prompts.ts",
+    target: "appwrite/functions/job-worker/src/langfuse-prompts.js",
+    imports: {
+      "@/lib/langfuse-prompt-catalog": "./langfuse-prompt-catalog.js",
+    },
+  },
+  {
     source: "lib/langfuse-config.ts",
     target: "appwrite/functions/job-worker/src/langfuse-config.js",
   },
@@ -40,6 +51,7 @@ const generatedModules = [
     imports: {
       "@/lib/guards": "./guards.js",
       "@/lib/http": "./http.js",
+      "@/lib/langfuse-prompts": "./langfuse-prompts.js",
       "@/lib/realfarm-generation-model-registry":
         "./realfarm-generation-model-registry.js",
       "@/lib/provider-request-trace": "./provider-request-trace.js",
@@ -77,6 +89,7 @@ const generatedModules = [
         "./realfarm-generation-model-registry.js",
       "@/lib/guards": "./guards.js",
       "@/lib/http": "./http.js",
+      "@/lib/langfuse-prompts": "./langfuse-prompts.js",
       "@/lib/llm-slop": "./llm-slop.js",
       "@/lib/openrouter": "./openrouter.js",
       "@/lib/hook-expansion": "./hook-expansion.js",

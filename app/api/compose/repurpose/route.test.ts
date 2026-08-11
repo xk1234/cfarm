@@ -65,7 +65,12 @@ describe("POST /api/compose/repurpose", () => {
     })
     expect(mocks.openRouterJson).toHaveBeenCalledWith(
       expect.objectContaining({
-        user: expect.stringContaining("Stored source caption"),
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "user",
+            content: expect.stringContaining("Stored source caption"),
+          }),
+        ]),
       })
     )
   })

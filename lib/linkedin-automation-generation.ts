@@ -1,5 +1,6 @@
 import { clean } from "@/lib/guards"
 import { llmSlopMatches } from "@/lib/llm-slop"
+import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 import {
   archetypeById,
@@ -66,6 +67,10 @@ export async function deriveLinkedInBrief(input: {
   if (!niche) throw new Error("A niche is required")
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const managedPrompt = await getLumenclipChatPrompt(
+    "linkedinStrategyBrief",
+    { niche }
+  )
   const result = await openRouterJson({
     apiKey,
     fetchImpl: input.fetchImpl,
@@ -74,9 +79,7 @@ export async function deriveLinkedInBrief(input: {
     maxTokens: 4096,
     temperature: 0.8,
     plugins: [{ id: "response-healing" }],
-    system:
-      "You derive a focused LinkedIn content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
-    user: `Niche: ${niche}\nReturn exactly 3-5 pillars.`,
+    messages: managedPrompt.messages,
     schema: {
       name: "linkedin_brief",
       strict: true,
@@ -102,6 +105,10 @@ export async function deriveLinkedInBrief(input: {
           },
         },
       },
+    },
+    trace: {
+      feature: "linkedin-strategy-brief",
+      prompt: managedPrompt.prompt,
     },
   })
   const pillarLabels = Array.isArray(result.pillars)
@@ -381,6 +388,17 @@ export async function generateLinkedInSlotsAttempt(input: {
 }): Promise<LinkedInSlotsAttempt> {
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const repairFeedback = input.repairViolations?.length
+    ? `\n\nYour previous attempt failed validation. Repair these exact errors:\n- ${input.repairViolations.join("\n- ")}`
+    : ""
+  const managedPrompt = await getLumenclipChatPrompt(
+    "linkedinStructuredPost",
+    {
+      system_prompt: input.request.system,
+      user_prompt: input.request.user,
+      repair_feedback: repairFeedback,
+    }
+  )
   let output: Record<string, unknown>
   try {
     output = await openRouterJson({
@@ -391,9 +409,12 @@ export async function generateLinkedInSlotsAttempt(input: {
       maxTokens: 4096,
       temperature: 0.8,
       plugins: [{ id: "response-healing" }],
-      system: input.request.system,
-      user: `${input.request.user}${input.repairViolations?.length ? `\n\nYour previous attempt failed validation. Repair these exact errors:\n- ${input.repairViolations.join("\n- ")}` : ""}`,
+      messages: managedPrompt.messages,
       schema: input.request.schema,
+      trace: {
+        feature: "linkedin-structured-post",
+        prompt: managedPrompt.prompt,
+      },
     })
   } catch (error) {
     return {

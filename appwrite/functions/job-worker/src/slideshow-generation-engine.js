@@ -5,6 +5,7 @@ export { slideshowTextGenerationPayload };
 import { defaultSlideshowTextModel, openRouterModelForUseCase, } from "./realfarm-generation-model-registry.js";
 import { clean, isRecord } from "./guards.js";
 import { fetchJson, providerErrorMessage } from "./http.js";
+import { getLumenclipChatPrompt } from "./langfuse-prompts.js";
 import { llmSlopMatches, normalizeLlmPunctuation } from "./llm-slop.js";
 import { parseOpenRouterContent } from "./openrouter.js";
 import { recordProviderRequest } from "./provider-request-trace.js";
@@ -433,7 +434,19 @@ async function requestStructuredOutput(input) {
     throw new Error(`OpenRouter did not return complete structured slideshow text after 2 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 async function requestStructuredOutputAttempt(input) {
-    const requestBody = { ...input.promptPayload, model: input.model };
+    const [systemMessage, userMessage] = input.promptPayload.messages;
+    const managedPrompt = await getLumenclipChatPrompt("slideshowText", {
+        system_prompt: String(systemMessage?.content ?? ""),
+        user_prompt: String(userMessage?.content ?? ""),
+    });
+    const requestBody = {
+        ...input.promptPayload,
+        model: input.model,
+        messages: [
+            ...managedPrompt.messages,
+            ...input.promptPayload.messages.slice(2),
+        ],
+    };
     recordProviderRequest({
         provider: "OpenRouter",
         operation: "chat.completions",
@@ -450,6 +463,10 @@ async function requestStructuredOutputAttempt(input) {
     }, {
         fetchImpl: input.fetchImpl,
         timeoutMs: 120_000,
+        trace: {
+            feature: "slideshow-text",
+            prompt: managedPrompt.prompt,
+        },
         errorMessage: (response, value) => {
             const providerError = typeof value === "object" &&
                 value !== null &&
@@ -657,21 +674,13 @@ export async function researchSelectedHook(input) {
     throw new Error(`Could not research the selected hook after 2 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 export async function researchSelectedHookAttempt(input) {
+    const managedPrompt = await getLumenclipChatPrompt("slideshowHookResearch", { automation_name: input.automationName, hook: input.hook });
     const requestBody = {
         model: input.model,
         stream: false,
         max_tokens: 2_000,
         plugins: [{ id: "web", engine: "exa", max_results: 5 }],
-        messages: [
-            {
-                role: "system",
-                content: "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
-            },
-            {
-                role: "user",
-                content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
-            },
-        ],
+        messages: managedPrompt.messages,
     };
     recordProviderRequest({
         provider: "OpenRouter",
@@ -689,6 +698,10 @@ export async function researchSelectedHookAttempt(input) {
     }, {
         fetchImpl: input.fetchImpl,
         timeoutMs: 90_000,
+        trace: {
+            feature: "slideshow-hook-research",
+            prompt: managedPrompt.prompt,
+        },
         errorMessage: providerErrorMessage("OpenRouter hook research failed"),
     });
     const choice = payload.choices?.[0];
