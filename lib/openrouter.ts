@@ -3,6 +3,11 @@
 // several route handlers. Each caller supplies its model/messages/format and
 // optional extra headers, and reads what it needs from `payload`.
 import { clean, isRecord } from "@/lib/guards"
+import {
+  openRouterOperationName,
+  tracedOpenRouterFetch,
+  type OpenRouterTraceContext,
+} from "@/lib/langfuse-openrouter"
 import { recordProviderRequest } from "@/lib/provider-request-trace"
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -88,6 +93,7 @@ export async function openRouterChatCompletion(input: {
   maxTokens?: number
   temperature?: number
   plugins?: readonly unknown[]
+  trace?: OpenRouterTraceContext
 }): Promise<OpenRouterChatResult> {
   const fetchImpl = input.fetchImpl ?? fetch
   const requestBody = {
@@ -106,18 +112,30 @@ export async function openRouterChatCompletion(input: {
     model: input.model,
     request: requestBody,
   })
+  const body = JSON.stringify(requestBody)
   let response: Response
   try {
-    response = await fetchImpl(OPENROUTER_CHAT_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.apiKey}`,
-        "Content-Type": "application/json",
-        ...input.headers,
+    response = await tracedOpenRouterFetch(
+      openRouterOperationName(body),
+      OPENROUTER_CHAT_URL,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${input.apiKey}`,
+          "Content-Type": "application/json",
+          ...input.headers,
+        },
+        body,
+        signal: AbortSignal.timeout(input.timeoutMs ?? 60_000),
       },
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(input.timeoutMs ?? 60_000),
-    })
+      {
+        feature: input.trace?.feature ?? "content-generation",
+        userId: input.trace?.userId,
+        sessionId: input.trace?.sessionId,
+        metadata: input.trace?.metadata,
+        fetchImpl,
+      }
+    )
   } catch (error) {
     throw new OpenRouterRequestError({
       message:
@@ -169,6 +187,7 @@ type OpenRouterJsonInput = {
   maxTokens?: number
   temperature?: number
   plugins?: readonly unknown[]
+  trace?: OpenRouterTraceContext
 } & (
   | { messages: readonly unknown[]; system?: never; user?: never }
   | { messages?: never; system: string; user: string }
@@ -196,6 +215,7 @@ export async function openRouterJson(
     maxTokens: input.maxTokens,
     temperature: input.temperature,
     plugins: input.plugins,
+    trace: input.trace,
   })
   if (!result.ok) {
     throw new OpenRouterRequestError({

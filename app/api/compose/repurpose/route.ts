@@ -94,6 +94,11 @@ export async function POST(request: Request) {
       temperature: 0.6,
       maxTokens: 4_000,
       timeoutMs: 60_000,
+      trace: {
+        feature: "compose-repurpose",
+        userId: user.$id,
+        metadata: { route: "api/compose/repurpose" },
+      },
     })
     const variants = Object.fromEntries(
       platforms.flatMap((platform) => {
