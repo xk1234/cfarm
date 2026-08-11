@@ -7,13 +7,15 @@ export type ProductSalesCreative = {
 export type ProductSalesInspiration = {
   id: string
   source: {
-    platform: "reel_farm"
+    platform: "reel_farm" | "pdf"
     label: string
     creator: string
-    url: string
-    views: number
-    likes: number
-    engagementRate: number
+    url?: string
+    documentTitle?: string
+    page?: number
+    views?: number
+    likes?: number
+    engagementRate?: number
   }
   original: ProductSalesCreative
   repurposed: ProductSalesCreative

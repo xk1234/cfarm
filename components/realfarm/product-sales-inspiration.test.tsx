@@ -31,10 +31,37 @@ const inspiration: ProductSalesInspiration = {
   },
 }
 
+const pdfInspiration: ProductSalesInspiration = {
+  id: "pdf-product-test",
+  source: {
+    platform: "pdf",
+    creator: "Creator College",
+    label: "Product test slideshow",
+    documentTitle: "100 Viral Hooks",
+    page: 1,
+  },
+  original: {
+    textHook: "Is this product overhyped? Let's put it to the test...",
+    visualHook: "Pair the question with a pass-or-fail checklist.",
+    script: ["Ask the question.", "Run the test."],
+  },
+  repurposed: {
+    textHook: "Is this oracle deck overhyped? Let's test it.",
+    visualHook: "Show a face-down spread beside three test criteria.",
+    script: ["Show the untouched deck.", "Turn over one card."],
+  },
+  analysis: {
+    pattern: "Question, criteria, action, verdict.",
+    whyItFits: "A card pull gives the slideshow a visible test result.",
+  },
+}
+
 describe("ProductSalesInspirationList", () => {
   it("shows text, visual, and script mappings from source to product", () => {
     const html = renderToStaticMarkup(
-      <ProductSalesInspirationList inspirations={[inspiration]} />
+      <ProductSalesInspirationList
+        inspirations={[inspiration, pdfInspiration]}
+      />
     )
 
     expect(html).toContain("Sales inspiration")
@@ -47,5 +74,8 @@ describe("ProductSalesInspirationList", () => {
     expect(html).toContain(
       "Are you brave enough to pull the card you actually need?"
     )
+    expect(html).toContain("Creator College · 100 Viral Hooks · p.1")
+    expect(html).toContain("Product test slideshow")
+    expect(html).not.toContain("NaN")
   })
 })
