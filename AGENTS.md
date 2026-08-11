@@ -9,6 +9,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 In-app page and section headings stand alone. Do not add explanatory subtitles beneath them.
 
+All workflow inspectors and workflow-result surfaces must follow
+[docs/reference/workflow-inspector-design-contract.md](docs/reference/workflow-inspector-design-contract.md).
+Do not create workflow-specific stage navigation or generic JSON/result cards
+when the shared inspector and artifact renderers cover the use case.
+
 # Local Appwrite backend (shared stack)
 
 Local dev uses the machine-wide shared Appwrite instance at
