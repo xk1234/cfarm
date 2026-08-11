@@ -56,7 +56,7 @@ function InspirationMapping({
           </span>
           <span className="mt-0.5 block text-[10px] font-semibold text-app-muted-text">
             {source.creator} · {compactNumber.format(source.views)} views ·{" "}
-            {source.engagementRate.toFixed(1)}% engagement
+            {source.engagementRate.toFixed(1)}% like rate
           </span>
         </span>
         <span className="shrink-0 text-[10px] font-bold text-app-muted-text group-open:hidden">
