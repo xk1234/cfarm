@@ -17,7 +17,7 @@ describe("LumenClip Langfuse prompts", () => {
   it("inventories every prompt as a namespaced chat prompt", () => {
     const definitions = Object.values(LUMENCLIP_PROMPT_DEFINITIONS)
 
-    expect(definitions).toHaveLength(21)
+    expect(definitions).toHaveLength(19)
     expect(definitions.every((definition) => definition.type === "chat")).toBe(
       true
     )
@@ -26,6 +26,12 @@ describe("LumenClip Langfuse prompts", () => {
         definition.name.startsWith("lumenclip/")
       )
     ).toBe(true)
+    expect(definitions.map((definition) => definition.name)).not.toEqual(
+      expect.arrayContaining([
+        "lumenclip/image-caption",
+        "lumenclip/generation-chain-review",
+      ])
+    )
     for (const definition of definitions) {
       const placeholders = [
         ...new Set(
@@ -95,11 +101,10 @@ describe("LumenClip Langfuse prompts", () => {
       source_material: "SOURCE 1: exact fallback",
     }
 
-    const result = await getLumenclipChatPrompt(
-      "composeRepurpose",
-      variables,
-      { promptManager, credentialsAvailable: true }
-    )
+    const result = await getLumenclipChatPrompt("composeRepurpose", variables, {
+      promptManager,
+      credentialsAvailable: true,
+    })
 
     expect(result.messages).toEqual(
       compileLumenclipPromptFallback("composeRepurpose", variables).messages

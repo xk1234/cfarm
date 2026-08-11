@@ -2014,6 +2014,13 @@ var init_provider_request_trace = __esm({
   }
 });
 
+// windmill/runtime/server-only-shim.ts
+var init_server_only_shim = __esm({
+  "windmill/runtime/server-only-shim.ts"() {
+    "use strict";
+  }
+});
+
 // lib/guards.ts
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -4410,7 +4417,6 @@ var init_automation_output_qa = __esm({
 });
 
 // lib/backend-config.ts
-import "windmill/runtime/server-only-shim.ts";
 function backendValue(value, allowed, fallback, variableName) {
   if (!value) return fallback;
   if (allowed.includes(value)) return value;
@@ -4437,11 +4443,11 @@ function assetBackend() {
 var init_backend_config = __esm({
   "lib/backend-config.ts"() {
     "use strict";
+    init_server_only_shim();
   }
 });
 
 // lib/railway/database.ts
-import "windmill/runtime/server-only-shim.ts";
 import postgres from "postgres";
 function getRailwayDatabase() {
   if (cachedSql) return cachedSql;
@@ -4463,12 +4469,12 @@ var cachedSql;
 var init_database = __esm({
   "lib/railway/database.ts"() {
     "use strict";
+    init_server_only_shim();
     cachedSql = null;
   }
 });
 
 // lib/railway/object-storage.ts
-import "windmill/runtime/server-only-shim.ts";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -4553,12 +4559,12 @@ var cachedClient;
 var init_object_storage = __esm({
   "lib/railway/object-storage.ts"() {
     "use strict";
+    init_server_only_shim();
     cachedClient = null;
   }
 });
 
 // lib/railway/appwrite-compat.ts
-import "windmill/runtime/server-only-shim.ts";
 import path from "node:path";
 function parseQuery(query) {
   try {
@@ -4684,6 +4690,7 @@ var RailwayTablesCompat, RailwayStorageCompat;
 var init_appwrite_compat = __esm({
   "lib/railway/appwrite-compat.ts"() {
     "use strict";
+    init_server_only_shim();
     init_database();
     init_object_storage();
     RailwayTablesCompat = class {
@@ -4943,7 +4950,6 @@ __export(appwrite_exports, {
   appwriteEnabled: () => appwriteEnabled,
   getAppwrite: () => getAppwrite
 });
-import "windmill/runtime/server-only-shim.ts";
 import { Client, Storage, TablesDB } from "node-appwrite";
 function appwriteEnabled() {
   return dataBackend() === "railway" || assetBackend() === "railway" || Boolean(APPWRITE_ENDPOINT && APPWRITE_PROJECT_ID && APPWRITE_API_KEY);
@@ -4980,6 +4986,7 @@ var APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY, APPWRITE_DATABASE_
 var init_appwrite = __esm({
   "lib/appwrite.ts"() {
     "use strict";
+    init_server_only_shim();
     init_backend_config();
     init_appwrite_compat();
     APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT ?? "";
@@ -5497,7 +5504,6 @@ __export(system_owner_context_exports, {
   systemOwnerId: () => systemOwnerId,
   withSystemOwner: () => withSystemOwner
 });
-import "windmill/runtime/server-only-shim.ts";
 import { AsyncLocalStorage as AsyncLocalStorage2 } from "node:async_hooks";
 function withSystemOwner(ownerId, task) {
   return ownerContext.run(ownerId, task);
@@ -5509,14 +5515,41 @@ var ownerContext;
 var init_system_owner_context = __esm({
   "lib/system-owner-context.ts"() {
     "use strict";
+    init_server_only_shim();
     ownerContext = new AsyncLocalStorage2();
+  }
+});
+
+// windmill/runtime/auth-shim.ts
+async function getCurrentUser() {
+  const ownerId = systemOwnerId();
+  return ownerId ? {
+    $id: ownerId,
+    email: "windmill@lumenclip.internal",
+    name: "Windmill workflow",
+    emailVerification: true
+  } : null;
+}
+var init_auth_shim = __esm({
+  "windmill/runtime/auth-shim.ts"() {
+    "use strict";
+    init_database();
+    init_system_owner_context();
+  }
+});
+
+// windmill/runtime/workspace-members-shim.ts
+async function sharedOwnerIdsFor(_user) {
+  return [];
+}
+var init_workspace_members_shim = __esm({
+  "windmill/runtime/workspace-members-shim.ts"() {
+    "use strict";
   }
 });
 
 // lib/json-store.ts
 import { Query } from "node-appwrite";
-import { getCurrentUser } from "windmill/runtime/auth-shim.ts";
-import { sharedOwnerIdsFor } from "windmill/runtime/workspace-members-shim.ts";
 async function readJsonArrayStore(input) {
   const route = requireRouteFor(input);
   return awReadTable(route, input.normalize, await ownersForRead(route), {
@@ -5974,6 +6007,8 @@ var init_json_store = __esm({
     init_appwrite();
     init_appwrite_stores();
     init_consolidated_records();
+    init_auth_shim();
+    init_workspace_members_shim();
     init_system_owner_context();
     storeLocks = /* @__PURE__ */ new Map();
     PAGE = 100;
@@ -6120,7 +6155,6 @@ var init_realfarm_generation_model_registry = __esm({
 });
 
 // lib/generation-model-settings.ts
-import "windmill/runtime/server-only-shim.ts";
 import path3 from "node:path";
 function defaultGenerationModelSettings() {
   return {
@@ -6145,6 +6179,7 @@ var store;
 var init_generation_model_settings = __esm({
   "lib/generation-model-settings.ts"() {
     "use strict";
+    init_server_only_shim();
     init_guards();
     init_json_store();
     init_realfarm_generation_model_registry();
@@ -6423,25 +6458,21 @@ var init_influlab_collections = __esm({
 });
 
 // lib/influlab.ts
-import "windmill/runtime/server-only-shim.ts";
-import {
-  getCurrentUser as getCurrentUser2,
-  getUserPreferences,
-  updateUserPreferences
-} from "windmill/runtime/auth-shim.ts";
 var init_influlab = __esm({
   "lib/influlab.ts"() {
     "use strict";
+    init_server_only_shim();
+    init_auth_shim();
     init_influlab_collections();
     init_system_owner_context();
   }
 });
 
 // lib/available-image-collections.ts
-import "windmill/runtime/server-only-shim.ts";
 var init_available_image_collections = __esm({
   "lib/available-image-collections.ts"() {
     "use strict";
+    init_server_only_shim();
     init_image_collections();
     init_influlab();
   }
@@ -6485,21 +6516,6 @@ var init_langfuse_prompt_catalog = __esm({
         ],
         ["template_name", "existing_hooks"],
         "app/api/templates/hooks/route.ts"
-      ),
-      imageCaption: chatPrompt(
-        "lumenclip/image-caption",
-        [
-          {
-            role: "system",
-            content: "Caption images for a slideshow image collection. Return one concise factual caption only. No markdown, no quotes, no hashtags."
-          },
-          {
-            role: "user",
-            content: "Write a natural one-sentence caption describing this image. Mention the main subject, setting, mood, and useful visual details in under 24 words."
-          }
-        ],
-        [],
-        "app/api/image-collections/captions/route.ts"
       ),
       videoCopy: chatPrompt(
         "lumenclip/video-copy",
@@ -6555,15 +6571,6 @@ var init_langfuse_prompt_catalog = __esm({
         ["system_prompt", "user_prompt"],
         "lib/generation-chain.ts"
       ),
-      generationChainReview: chatPrompt(
-        "lumenclip/generation-chain-review",
-        [
-          { role: "system", content: "{{system_prompt}}" },
-          { role: "user", content: "{{user_prompt}}" }
-        ],
-        ["system_prompt", "user_prompt"],
-        "lib/generation-chain.ts"
-      ),
       xStrategyBrief: chatPrompt(
         "lumenclip/x-strategy-brief",
         [
@@ -6595,7 +6602,10 @@ var init_langfuse_prompt_catalog = __esm({
             role: "system",
             content: "You derive a focused LinkedIn content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims."
           },
-          { role: "user", content: "Niche: {{niche}}\nReturn exactly 3-5 pillars." }
+          {
+            role: "user",
+            content: "Niche: {{niche}}\nReturn exactly 3-5 pillars."
+          }
         ],
         ["niche"],
         "lib/linkedin-automation-generation.ts"
@@ -9317,7 +9327,6 @@ var init_post_repository_config = __esm({
 // lib/output-publications.ts
 import crypto5 from "node:crypto";
 import { Query as Query3 } from "node-appwrite";
-import { getCurrentUser as getCurrentUser3 } from "windmill/runtime/auth-shim.ts";
 async function listOutputPublications() {
   const ownerId = await publicationOwnerId();
   const rows = await listOutputRows(ownerId);
@@ -9631,7 +9640,7 @@ async function publicationOwnerId() {
   const workerOwner = systemOwnerId();
   if (workerOwner) return workerOwner;
   try {
-    const user = await getCurrentUser3();
+    const user = await getCurrentUser();
     if (user) return user.$id;
   } catch {
   }
@@ -9644,6 +9653,7 @@ var init_output_publications = __esm({
   "lib/output-publications.ts"() {
     "use strict";
     init_appwrite();
+    init_auth_shim();
     init_post_repository_appwrite();
     init_post_repository_config();
     init_publication_record();
@@ -13506,11 +13516,11 @@ var init_automation_runner = __esm({
 });
 
 // lib/slideshow-share.ts
-import "windmill/runtime/server-only-shim.ts";
 var defaultLifetimeSeconds;
 var init_slideshow_share = __esm({
   "lib/slideshow-share.ts"() {
     "use strict";
+    init_server_only_shim();
     init_automation_output_qa();
     init_automation_runner();
     init_automations();
@@ -13522,7 +13532,6 @@ var init_slideshow_share = __esm({
 });
 
 // lib/asset-urls.ts
-import "windmill/runtime/server-only-shim.ts";
 function configuredBaseUrl() {
   return clean(process.env.BASE_URL).replace(/\/$/, "");
 }
@@ -13540,6 +13549,7 @@ function absoluteAssetUrl(path22) {
 var init_asset_urls = __esm({
   "lib/asset-urls.ts"() {
     "use strict";
+    init_server_only_shim();
     init_guards();
     init_slideshow_share();
   }
@@ -16241,21 +16251,17 @@ async function reviewContent(input) {
   ].filter(Boolean).join("\n\n");
   const user = `CONTENT:
 ${input.content}`;
-  const managedPrompt = await getLumenclipChatPrompt(
-    "generationChainReview",
-    { system_prompt: system, user_prompt: user }
-  );
   const reviewed = await openRouterJson({
     apiKey: input.apiKey,
     fetchImpl: input.fetchImpl,
     model: input.stage.model,
-    messages: managedPrompt.messages,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user }
+    ],
     schema: reviewSchema,
     temperature: 0.2,
-    trace: {
-      feature: "generation-chain-review",
-      prompt: managedPrompt.prompt
-    }
+    trace: { feature: "generation-chain-review" }
   });
   return {
     verdict: reviewed.verdict === "fix" ? "fix" : "pass",
@@ -16618,7 +16624,6 @@ var init_pipeline_rendi = __esm({
 });
 
 // lib/pipeline-domain-storage.ts
-import "windmill/runtime/server-only-shim.ts";
 import { InputFile as InputFile2 } from "node-appwrite/file";
 import { Query as Query5 } from "node-appwrite";
 async function readPipelineDomainPageOnce(input) {
@@ -16848,6 +16853,7 @@ var DOMAINS;
 var init_pipeline_domain_storage = __esm({
   "lib/pipeline-domain-storage.ts"() {
     "use strict";
+    init_server_only_shim();
     init_appwrite();
     init_appwrite_stores();
     init_consolidated_records();
@@ -23433,7 +23439,6 @@ __export(reminder_settings_exports, {
   telegramBotRequest: () => telegramBotRequest,
   telegramReminderConfiguration: () => telegramReminderConfiguration
 });
-import "windmill/runtime/server-only-shim.ts";
 import path21 from "node:path";
 function defaultReminderSettings() {
   return {
@@ -23642,6 +23647,7 @@ var reminderEvents, reminderEventMetadata, rootDir3, store2;
 var init_reminder_settings = __esm({
   "lib/reminder-settings.ts"() {
     "use strict";
+    init_server_only_shim();
     init_guards();
     init_json_store();
     reminderEvents = [

@@ -150,21 +150,17 @@ export async function reviewContent(input: {
     .filter(Boolean)
     .join("\n\n")
   const user = `CONTENT:\n${input.content}`
-  const managedPrompt = await getLumenclipChatPrompt(
-    "generationChainReview",
-    { system_prompt: system, user_prompt: user }
-  )
   const reviewed = await openRouterJson({
     apiKey: input.apiKey,
     fetchImpl: input.fetchImpl,
     model: input.stage.model,
-    messages: managedPrompt.messages,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
     schema: reviewSchema,
     temperature: 0.2,
-    trace: {
-      feature: "generation-chain-review",
-      prompt: managedPrompt.prompt,
-    },
+    trace: { feature: "generation-chain-review" },
   })
   return {
     verdict: reviewed.verdict === "fix" ? ("fix" as const) : ("pass" as const),
