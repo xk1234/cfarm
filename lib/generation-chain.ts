@@ -122,15 +122,9 @@ export async function humanizeContent(input: {
     ...input.stage,
     apiKey: input.apiKey,
     fetchImpl: input.fetchImpl,
-    system: [
-      input.stage.system,
-      "Rewrite the draft in a natural, specific human voice without changing facts, format, or meaning.",
-      llmSlopPromptLine(),
-      brandProfilePrompt(input.brandProfile),
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-    user: `DRAFT:\n${input.content}`,
+    system: input.stage.system,
+    user: input.content,
+    brandProfile: input.brandProfile,
     promptKey: "generationChainHumanize",
   })
 }
@@ -176,28 +170,36 @@ async function contentPass(
     apiKey: string
     fetchImpl?: typeof fetch
     user: string
-    promptKey?: "generationChainContent" | "generationChainHumanize"
+    brandProfile?: BrandProfile
+    promptKey?: "generationChainHumanize"
   }
 ) {
   const system = input.system || "Create accurate, useful content."
-  const managedPrompt = await getLumenclipChatPrompt(
-    input.promptKey ?? "generationChainContent",
-    {
-      system_prompt: system,
-      content_prompt: input.user,
-      user_prompt: input.user,
-    }
-  )
+  const managedPrompt = input.promptKey
+    ? await getLumenclipChatPrompt(input.promptKey, {
+        stage_system_prefix: input.system ? `${input.system}\n\n` : "",
+        slop_rule: llmSlopPromptLine(),
+        brand_profile: input.brandProfile
+          ? brandProfilePrompt(input.brandProfile)
+          : "",
+        draft: input.user,
+      })
+    : null
   const result = await openRouterJson({
     apiKey: input.apiKey,
     fetchImpl: input.fetchImpl,
     model: input.model,
-    messages: managedPrompt.messages,
+    messages: managedPrompt?.messages ?? [
+      { role: "system", content: system },
+      { role: "user", content: input.user },
+    ],
     schema: contentSchema,
     temperature: 0.7,
     trace: {
-      feature: "generation-chain-content",
-      prompt: managedPrompt.prompt,
+      feature: input.promptKey
+        ? "generation-chain-humanize"
+        : "generation-chain-content",
+      prompt: managedPrompt?.prompt,
     },
   })
   const content = clean(result.content)

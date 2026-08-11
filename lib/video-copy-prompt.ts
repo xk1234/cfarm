@@ -18,6 +18,15 @@ export type VideoCopySystemPromptConfig = {
   requiresCommentGate: boolean
 }
 
+const commentGateSystemRule =
+  "This is a comment-gate format. Choose exactly ONE memorable alphabetic trigger word, write it in UPPERCASE, and use that identical word after 'comment' in both the CTA overlay and the social caption. Offer one clear, topic-specific resource in exchange. Never introduce a second trigger word."
+const commentGateUserRule =
+  "The social caption must re-pitch the value exchange and repeat the exact same 'comment \"WORD\"' trigger used in the CTA overlay."
+const lowercaseCommentGateRule =
+  "Write every value in lowercase EXCEPT the one CTA trigger word, which must stay UPPERCASE in both overlay and caption."
+const lowercaseRule =
+  "Write EVERY value — title, caption, hashtags, and all on-screen text — in all lowercase."
+
 export function buildVideoCopySystemPrompt({
   requiresCommentGate,
 }: VideoCopySystemPromptConfig) {
@@ -32,11 +41,7 @@ export function buildVideoCopySystemPrompt({
     "Use casual, specific native social voice. Put no hashtags in overlays and do not wrap a whole overlay in quotation marks; quotation marks around a CTA trigger word are allowed.",
     "Never refer to an assumed visual with deictic phrases such as 'this graph', 'this photo', 'on this screen', 'what you see here', or 'watch this' unless that exact visual is guaranteed by the segment guidance.",
     "Never invent numbers, revenue, percentages, follower counts, studies, testimonials, or other proof. When proof is not supplied, state only a qualitative observable outcome.",
-    ...(requiresCommentGate
-      ? [
-          "This is a comment-gate format. Choose exactly ONE memorable alphabetic trigger word, write it in UPPERCASE, and use that identical word after 'comment' in both the CTA overlay and the social caption. Offer one clear, topic-specific resource in exchange. Never introduce a second trigger word.",
-        ]
-      : []),
+    ...(requiresCommentGate ? [commentGateSystemRule] : []),
   ].join(" ")
 }
 
@@ -82,11 +87,7 @@ export function buildVideoCopyUserPrompt({
     "Metadata requirements:",
     ...metadataPromptLines,
     "Generate the social title, caption, and hashtags even when there are no on-screen caption items.",
-    ...(requiresCommentGate
-      ? [
-          "The social caption must re-pitch the value exchange and repeat the exact same 'comment \"WORD\"' trigger used in the CTA overlay.",
-        ]
-      : []),
+    ...(requiresCommentGate ? [commentGateUserRule] : []),
     "Native overlay exemplars (copy their specificity and beat-to-beat momentum, not their topic):",
     'Example 1 — story: "I found this free PDF" → "printed it out and actually did it" → "the graph doesn\'t lie" → "comment \'PLAN\' if you want the link too". Caption: "comment \'PLAN\' and I\'ll send you the free PDF."',
     'Example 2 — astrology story: "I checked my moon sign after that breakup" → "wrote down every pattern I kept repeating" → "it explained everything" → "comment \'MOON\' for your moon-sign reading". Caption: "comment \'MOON\' and I\'ll send your moon-sign reading."',
@@ -95,12 +96,8 @@ export function buildVideoCopyUserPrompt({
     "Write one output per item below, in the listed order. Arrays are consecutive beats within that item's place in the larger story.",
     ...(lowercase
       ? requiresCommentGate
-        ? [
-            "Write every value in lowercase EXCEPT the one CTA trigger word, which must stay UPPERCASE in both overlay and caption.",
-          ]
-        : [
-            "Write EVERY value — title, caption, hashtags, and all on-screen text — in all lowercase.",
-          ]
+        ? [lowercaseCommentGateRule]
+        : [lowercaseRule]
       : []),
     ...items.map((item) =>
       [
@@ -116,4 +113,56 @@ export function buildVideoCopyUserPrompt({
         .join("\n")
     ),
   ].join("\n")
+}
+
+export function buildVideoCopyPromptVariables(
+  system: VideoCopySystemPromptConfig,
+  user: VideoCopyUserPromptConfig
+): Record<string, string> {
+  const segmentRoles =
+    user.segmentRoles.length > 0
+      ? user.segmentRoles
+          .map(
+            (segment, index) =>
+              `${index + 1}. ${segment.label} [${segment.id}]: ${segment.guidance || "advance the same narrative"}`
+          )
+          .join("\n")
+      : "1. Hook → supporting beats → payoff/CTA, in the item order below."
+  const itemRequirements = user.items
+    .map((item) =>
+      [
+        `- id: ${item.id}`,
+        `  segment: ${item.segmentLabel}`,
+        `  direction: ${item.contentDirection || item.guidance || "supporting caption"}`,
+        `  length: ${item.wordLengthMin}-${item.wordLengthMax} words each`,
+        item.count > 1
+          ? `  variations: ${item.count} (one per clip, in story order)`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n")
+
+  return {
+    automation_name: user.automationName,
+    video_format: user.videoFormat,
+    tone: user.tone,
+    style: user.style,
+    hook: user.hook,
+    segment_roles: segmentRoles,
+    metadata_requirements: user.metadataPromptLines.join("\n"),
+    comment_gate_system_rule: system.requiresCommentGate
+      ? ` ${commentGateSystemRule}`
+      : "",
+    comment_gate_user_rule: user.requiresCommentGate
+      ? `\n${commentGateUserRule}`
+      : "",
+    lowercase_rule: user.lowercase
+      ? `\n${
+          user.requiresCommentGate ? lowercaseCommentGateRule : lowercaseRule
+        }`
+      : "",
+    item_requirements: itemRequirements ? `\n${itemRequirements}` : "",
+  }
 }

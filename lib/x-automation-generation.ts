@@ -1,6 +1,9 @@
 import { clean, isRecord } from "@/lib/guards"
 import { llmSlopPromptLine, llmSlopViolations } from "@/lib/llm-slop"
-import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
+import {
+  compileLumenclipPromptFallback,
+  getLumenclipChatPrompt,
+} from "@/lib/langfuse-prompts"
 import {
   getOpenRouterApiKey,
   OpenRouterRequestError,
@@ -559,24 +562,51 @@ export function buildXGenerationRequest(input: {
         .filter(Boolean)
         .join("\n")
     : ""
-  const system = [
-    nicheContext,
-    voice.systemPrompt,
-    nicheAdaptation,
-    input.record.generation.voiceOverride,
-    `Language: ${input.record.generation.language}.`,
-    `Platform rules: ${JSON.stringify(platformRules[input.plan.platform])}.`,
-    `Avoid: ${input.record.excludedTopics.join(", ")}.`,
-    "Never invent statistics, revenue figures, client results, testimonials, or first-person experience. Only use proof provided in the PROOF section. If no proof is provided, omit proof claims.",
-    llmSlopPromptLine(),
-  ]
-    .filter(Boolean)
-    .join("\n")
-  const user = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}\nTopic: ${input.plan.topic ?? "none"}${reactionContext ? `\nREACTION SOURCE:\n${reactionContext}` : ""}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
+  const promptVariables = {
+    niche_context: nicheContext,
+    voice_instructions: voice.systemPrompt,
+    niche_adaptation: nicheAdaptation,
+    voice_override_block: input.record.generation.voiceOverride
+      ? `\n${input.record.generation.voiceOverride}`
+      : "",
+    language: input.record.generation.language,
+    platform_rules: JSON.stringify(platformRules[input.plan.platform]),
+    excluded_topics: input.record.excludedTopics.join(", "),
+    slop_rule: llmSlopPromptLine(),
+    platform: input.plan.platform,
+    archetype: input.plan.archetype.label,
+    structure: input.plan.archetype.structure,
+    post_template: input.plan.archetype.template,
+    length_budget:
+      input.plan.platform === "x" && input.plan.archetype.kind === "single"
+        ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n"
+        : "",
+    closer_rule:
+      input.plan.platform === "x" && input.plan.archetype.engagementCloser
+        ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n"
+        : "",
+    pillar: input.plan.pillar.label,
+    hook_formula: input.plan.hookStyle.formula,
+    hook_examples: input.plan.hookStyle.examples.join(" | "),
+    topic: input.plan.topic ?? "none",
+    reaction_source_block: reactionContext
+      ? `\nREACTION SOURCE:\n${reactionContext}`
+      : "",
+    recycle_body_block: input.plan.recycleBody
+      ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}`
+      : "",
+    proof,
+  }
+  const fallback = compileLumenclipPromptFallback("xStructuredPost", {
+    ...promptVariables,
+    repair_feedback: "",
+  })
+  const [systemMessage, userMessage] = fallback.messages
   return {
     model: input.record.generation.model,
-    system,
-    user,
+    system: systemMessage.content,
+    user: userMessage.content,
+    promptVariables,
     schema,
   }
 }
@@ -593,8 +623,7 @@ export async function generateXStructuredAttempt(input: {
     ? `\n\nRepair these exact errors:\n- ${input.repairErrors.join("\n- ")}`
     : ""
   const managedPrompt = await getLumenclipChatPrompt("xStructuredPost", {
-    system_prompt: input.request.system,
-    user_prompt: input.request.user,
+    ...input.request.promptVariables,
     repair_feedback: repairFeedback,
   })
   const output = await openRouterJson({

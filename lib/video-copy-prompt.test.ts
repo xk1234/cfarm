@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
+import { compileLumenclipPromptFallback } from "@/lib/langfuse-prompts"
 import {
+  buildVideoCopyPromptVariables,
   buildVideoCopySystemPrompt,
   buildVideoCopyUserPrompt,
 } from "@/lib/video-copy-prompt"
@@ -22,7 +24,7 @@ describe("video copy prompt builders", () => {
   })
 
   it("builds the user prompt with automation context and native exemplars", () => {
-    const prompt = buildVideoCopyUserPrompt({
+    const userConfig = {
       automationName: "Moon Story",
       videoFormat: "story_over_broll",
       tone: "Casual",
@@ -49,7 +51,8 @@ describe("video copy prompt builders", () => {
           count: 2,
         },
       ],
-    })
+    }
+    const prompt = buildVideoCopyUserPrompt(userConfig)
 
     expect(prompt).toContain("Automation: Moon Story")
     expect(prompt).toContain("Video format: story_over_broll")
@@ -63,5 +66,15 @@ describe("video copy prompt builders", () => {
     expect(prompt).toContain("comment 'MOON' for your moon-sign reading")
     expect(prompt).toContain("- id: overlay-1")
     expect(prompt).toContain("variations: 2 (one per clip, in story order)")
+
+    const systemConfig = { requiresCommentGate: true }
+    const compiled = compileLumenclipPromptFallback(
+      "videoCopy",
+      buildVideoCopyPromptVariables(systemConfig, userConfig)
+    ).messages
+    expect(compiled).toEqual([
+      { role: "system", content: buildVideoCopySystemPrompt(systemConfig) },
+      { role: "user", content: prompt },
+    ])
   })
 })

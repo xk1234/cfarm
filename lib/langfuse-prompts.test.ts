@@ -12,12 +12,21 @@ import {
   LANGFUSE_PROMPT_CACHE_TTL_SECONDS,
   LANGFUSE_PROMPT_LABEL,
 } from "@/lib/langfuse-prompts"
+import {
+  buildLinkedInGenerationRequest,
+  selectLinkedInPlan,
+} from "@/lib/linkedin-automation-generation"
+import {
+  buildLinkedInSystemPrompt,
+  buildLinkedInUserPrompt,
+  voicePresetById,
+} from "@/lib/linkedin-post-presets"
 
 describe("LumenClip Langfuse prompts", () => {
   it("inventories every prompt as a namespaced chat prompt", () => {
     const definitions = Object.values(LUMENCLIP_PROMPT_DEFINITIONS)
 
-    expect(definitions).toHaveLength(19)
+    expect(definitions).toHaveLength(18)
     expect(definitions.every((definition) => definition.type === "chat")).toBe(
       true
     )
@@ -29,10 +38,25 @@ describe("LumenClip Langfuse prompts", () => {
     expect(definitions.map((definition) => definition.name)).not.toEqual(
       expect.arrayContaining([
         "lumenclip/image-caption",
+        "lumenclip/generation-chain-content",
         "lumenclip/generation-chain-review",
       ])
     )
     for (const definition of definitions) {
+      expect(definition.variables).not.toEqual(
+        expect.arrayContaining([
+          "system_prompt",
+          "user_prompt",
+          "content_prompt",
+        ])
+      )
+      for (const message of definition.prompt.filter(
+        (candidate) => candidate.role === "system"
+      )) {
+        expect(
+          message.content.replaceAll(/\{\{\s*[\w.-]+\s*\}\}/g, "").trim().length
+        ).toBeGreaterThan(0)
+      }
       const placeholders = [
         ...new Set(
           definition.prompt.flatMap((message) =>
@@ -138,6 +162,46 @@ describe("LumenClip Langfuse prompts", () => {
         { type: "placeholder", name: "unsupported-placeholder" },
       ])
     ).toBeNull()
+  })
+
+  it("keeps the managed LinkedIn fallback byte-identical to the production builders", () => {
+    const brief = {
+      audience: "solo consultants",
+      promise: "clearer client decisions",
+      pillars: [
+        { label: "discovery", weight: 40 },
+        { label: "delivery", weight: 30 },
+        { label: "positioning", weight: 30 },
+      ],
+      keywords: ["consulting"],
+      painPoints: ["unclear scope", "slow approvals"],
+      derivedAt: "2026-08-11T00:00:00.000Z",
+    }
+    const plan = selectLinkedInPlan({
+      brief,
+      persona: "educator",
+      hasProof: false,
+      random: () => 0,
+    })
+    const request = buildLinkedInGenerationRequest({
+      niche: "consulting operations",
+      brief,
+      plan,
+      personaVoiceId: "educator",
+      model: "mock/model",
+      excludedTopics: ["crypto"],
+    })
+    const voice = voicePresetById("educator")
+
+    expect(request.system).toBe(
+      buildLinkedInSystemPrompt({
+        voice,
+        niche: "consulting operations",
+        brief,
+        excludedTopics: ["crypto"],
+      })
+    )
+    expect(request.user).toBe(buildLinkedInUserPrompt({ plan }))
   })
 })
 

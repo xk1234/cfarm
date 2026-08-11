@@ -39,6 +39,9 @@ export function slideshowTextGenerationPayload(input: {
   })
 
   return {
+    ...(bundle.managedPromptVariables
+      ? { langfusePromptVariables: bundle.managedPromptVariables }
+      : {}),
     model,
     stream: false,
     max_tokens: Math.min(

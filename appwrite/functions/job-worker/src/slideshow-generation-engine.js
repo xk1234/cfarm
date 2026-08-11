@@ -434,18 +434,16 @@ async function requestStructuredOutput(input) {
     throw new Error(`OpenRouter did not return complete structured slideshow text after 2 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 async function requestStructuredOutputAttempt(input) {
-    const [systemMessage, userMessage] = input.promptPayload.messages;
-    const managedPrompt = await getLumenclipChatPrompt("slideshowText", {
-        system_prompt: String(systemMessage?.content ?? ""),
-        user_prompt: String(userMessage?.content ?? ""),
-    });
+    const { langfusePromptVariables, ...providerPromptPayload } = input.promptPayload;
+    const managedPrompt = langfusePromptVariables
+        ? await getLumenclipChatPrompt("slideshowText", langfusePromptVariables)
+        : null;
     const requestBody = {
-        ...input.promptPayload,
+        ...providerPromptPayload,
         model: input.model,
-        messages: [
-            ...managedPrompt.messages,
-            ...input.promptPayload.messages.slice(2),
-        ],
+        messages: managedPrompt
+            ? [...managedPrompt.messages, ...input.promptPayload.messages.slice(2)]
+            : input.promptPayload.messages,
     };
     recordProviderRequest({
         provider: "OpenRouter",
@@ -465,7 +463,7 @@ async function requestStructuredOutputAttempt(input) {
         timeoutMs: 120_000,
         trace: {
             feature: "slideshow-text",
-            prompt: managedPrompt.prompt,
+            prompt: managedPrompt?.prompt,
         },
         errorMessage: (response, value) => {
             const providerError = typeof value === "object" &&
@@ -674,7 +672,10 @@ export async function researchSelectedHook(input) {
     throw new Error(`Could not research the selected hook after 2 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 export async function researchSelectedHookAttempt(input) {
-    const managedPrompt = await getLumenclipChatPrompt("slideshowHookResearch", { automation_name: input.automationName, hook: input.hook });
+    const managedPrompt = await getLumenclipChatPrompt("slideshowHookResearch", {
+        automation_name: input.automationName,
+        hook: input.hook,
+    });
     const requestBody = {
         model: input.model,
         stream: false,
