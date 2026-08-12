@@ -25,10 +25,18 @@ const API_ENDPOINT =
 const DB = process.env.APPWRITE_DATABASE_ID || "cfarm"
 // This worker handles short notification jobs only. Generation is owned by
 // Windmill and never enters this queue.
-const BATCH = Number(process.env.BATCH || 1)
+const BATCH = Math.max(1, Math.min(50, Number(process.env.BATCH || 10)))
 // Must outlive the function timeout so another cron execution cannot reclaim a
 // notification delivery while it is still running.
 const LEASE_MS = Number(process.env.LEASE_MS || 960000)
+const TELEGRAM_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.TELEGRAM_TIMEOUT_MS || 15_000)
+)
+const JOB_RETENTION_DAYS = Math.max(
+  1,
+  Number(process.env.JOB_RETENTION_DAYS || 30)
+)
 const WID = `worker-${crypto.randomBytes(4).toString("hex")}`
 
 function db() {
@@ -122,6 +130,26 @@ async function claim(t, job) {
   return fresh.leased_by === WID ? fresh : null // lost the race
 }
 
+async function claimBatch(t) {
+  const now = nowIso()
+  if (typeof t.claimJobs === "function") {
+    return t.claimJobs({
+      workerId: WID,
+      limit: BATCH,
+      leaseUntil: new Date(Date.now() + LEASE_MS).toISOString(),
+      now,
+      excludeTypes: ["sync-post-analytics"],
+    })
+  }
+  const candidates = await findCandidates(t)
+  const claimed = []
+  for (const candidate of candidates) {
+    const leased = await claim(t, candidate).catch(() => null)
+    if (leased) claimed.push(leased)
+  }
+  return claimed
+}
+
 async function complete(t, job, result) {
   await t.updateRow(DB, "jobs", job.$id, {
     status: "completed",
@@ -208,6 +236,7 @@ async function sendTelegram(text, chatIdOverride, options = {}) {
             }
           : {}),
       }),
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
     }
   )
   if (!response.ok)
@@ -353,7 +382,6 @@ const handlers = {
       ? sendConfiguredReminder(payload, t, job)
       : sendTelegram(payload.text)
   },
-
 }
 
 export default async ({ log, error }) => {
@@ -362,28 +390,32 @@ export default async ({ log, error }) => {
     failed = 0,
     skipped = 0
   try {
-    const candidates = await findCandidates(t)
-    for (const job of candidates) {
-      const leased = await claim(t, job).catch(() => null)
-      if (!leased) {
-        skipped++
-        continue
-      }
-      const handler = handlers[leased.type]
-      try {
-        if (!handler)
-          throw new Error(`no handler for job type "${leased.type}"`)
-        const payload = leased.payload ? JSON.parse(leased.payload) : {}
-        const result = await handler(payload, t, leased)
-        await complete(t, leased, result)
-        processed++
-      } catch (e) {
-        await failOrRetry(t, leased, e)
-        failed++
-        error(
-          `job ${leased.$id} (${leased.type}) failed: ${e instanceof Error ? e.message : e}`
-        )
-      }
+    const jobs = await claimBatch(t)
+    await Promise.all(
+      jobs.map(async (leased) => {
+        const handler = handlers[leased.type]
+        try {
+          if (!handler)
+            throw new Error(`no handler for job type "${leased.type}"`)
+          const payload = leased.payload ? JSON.parse(leased.payload) : {}
+          const result = await handler(payload, t, leased)
+          await complete(t, leased, result)
+          processed++
+        } catch (e) {
+          await failOrRetry(t, leased, e)
+          failed++
+          error(
+            `job ${leased.$id} (${leased.type}) failed: ${e instanceof Error ? e.message : e}`
+          )
+        }
+      })
+    )
+    if (typeof t.deleteTerminalJobsBefore === "function") {
+      const cutoff = new Date(
+        Date.now() - JOB_RETENTION_DAYS * 24 * 60 * 60_000
+      ).toISOString()
+      const deleted = await t.deleteTerminalJobsBefore(cutoff)
+      if (deleted > 0) log(`worker ${WID}: pruned ${deleted} terminal jobs`)
     }
     log(
       `worker ${WID}: processed ${processed}, failed ${failed}, skipped ${skipped}`

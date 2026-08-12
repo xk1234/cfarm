@@ -51,7 +51,8 @@ export async function queueWindmillWorkflow(input: {
   const config = windmillConfig()
   const flowPath = WINDMILL_FLOW_PATHS[input.workflowId]
   const requestId = clean(input.requestId) || `pipeline-${crypto.randomUUID()}`
-  const response = await (input.fetchImpl ?? fetch)(
+  const response = await windmillFetch(
+    input.fetchImpl ?? fetch,
     windmillApiUrl(config, `jobs/run/f/${flowPath}`),
     {
       method: "POST",
@@ -61,7 +62,8 @@ export async function queueWindmillWorkflow(input: {
         request_id: requestId,
         ...windmillFlowInput(input.workflowId, input.workflowInput),
       }),
-    }
+    },
+    Number(process.env.WINDMILL_REQUEST_TIMEOUT_MS ?? 30_000)
   )
   const jobId = clean(await response.text())
   if (!response.ok || !jobId) {
@@ -83,12 +85,14 @@ export async function getWindmillWorkflowJob(input: {
   fetchImpl?: typeof fetch
 }): Promise<WindmillWorkflowJob> {
   const config = windmillConfig()
-  const response = await (input.fetchImpl ?? fetch)(
+  const response = await windmillFetch(
+    input.fetchImpl ?? fetch,
     windmillApiUrl(
       config,
       `jobs_u/get/${encodeURIComponent(requiredValue("jobId", input.jobId))}?no_logs=true&no_code=true`
     ),
-    { headers: windmillHeaders(config.token) }
+    { headers: windmillHeaders(config.token) },
+    Number(process.env.WINDMILL_REQUEST_TIMEOUT_MS ?? 30_000)
   )
   const payload = await response.json().catch(() => null)
   if (!response.ok || !isRecord(payload)) {
@@ -121,9 +125,10 @@ export async function waitForWindmillWorkflow(input: {
   sleep?: (milliseconds: number) => Promise<void>
 }): Promise<CompletedWindmillWorkflowRun> {
   const timeoutMs = Math.max(1_000, input.timeoutMs ?? 25 * 60_000)
-  const pollIntervalMs = Math.max(100, input.pollIntervalMs ?? 1_000)
+  const pollIntervalMs = Math.max(250, input.pollIntervalMs ?? 1_000)
   const deadline = Date.now() + timeoutMs
   const sleep = input.sleep ?? delay
+  let attempt = 0
   while (Date.now() < deadline) {
     const job = await getWindmillWorkflowJob({
       jobId: input.run.jobId,
@@ -141,7 +146,10 @@ export async function waitForWindmillWorkflow(input: {
         result: unwrapWindmillWorkflowResult(job.result),
       }
     }
-    await sleep(pollIntervalMs)
+    const backoff = Math.min(10_000, pollIntervalMs * 1.5 ** attempt)
+    const jitter = input.sleep ? 0 : Math.floor(Math.random() * backoff * 0.2)
+    await sleep(Math.min(backoff + jitter, Math.max(0, deadline - Date.now())))
+    attempt += 1
   }
   throw new Error(
     `Windmill ${input.run.workflowId} workflow timed out after ${timeoutMs}ms`
@@ -234,6 +242,19 @@ function unwrapWindmillWorkflowResult(result: unknown) {
 
 function delay(milliseconds: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function windmillFetch(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+) {
+  const boundedTimeout = Math.max(1_000, Math.min(timeoutMs, 120_000))
+  return fetchImpl(url, {
+    ...init,
+    signal: AbortSignal.timeout(boundedTimeout),
+  })
 }
 
 function assertNoLinearExecutionWindow(startAt?: string, stopAfter?: string) {

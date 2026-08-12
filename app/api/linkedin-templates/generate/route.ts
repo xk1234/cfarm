@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { ApiError, withHandler } from "@/lib/api"
 import { getCurrentUser } from "@/lib/auth"
-import { runLinkedInWorkflow } from "@/lib/generation-workflows"
+import { queueLinkedInWorkflow } from "@/lib/generation-workflows"
 import { clean } from "@/lib/guards"
 import type { LinkedInBrief } from "@/lib/linkedin-automation-generation"
 
@@ -27,7 +27,7 @@ export const POST = withHandler(async (request: Request) => {
   if (!niche) throw new ApiError(400, "A niche is required")
   const user = await getCurrentUser()
   if (!user) throw new ApiError(401, "Authentication is required")
-  const { workflow, ...result } = await runLinkedInWorkflow({
+  const workflow = await queueLinkedInWorkflow({
     ownerId: user.$id,
     requestId: clean(payload.requestId),
     niche,
@@ -45,7 +45,14 @@ export const POST = withHandler(async (request: Request) => {
     hookStyleId: clean(payload.hookStyleId) || undefined,
     pillar: clean(payload.pillar) || undefined,
   })
-  return NextResponse.json({ ...result, workflow })
+  return NextResponse.json(
+    {
+      status: "queued",
+      workflow,
+      pollUrl: `/api/workflow-runs/${encodeURIComponent(workflow.jobId)}`,
+    },
+    { status: 202 }
+  )
 })
 
 function asStringArray(value: unknown) {

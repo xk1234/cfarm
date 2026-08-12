@@ -1,6 +1,7 @@
 import path from "node:path"
 
 import { readAssetBytes } from "@/lib/asset-storage"
+import { fetchPublicResource, readResponseBytes } from "@/lib/bounded-fetch"
 import {
   postfastRequest,
   type PostFastMedia,
@@ -31,7 +32,7 @@ export async function uploadPostFastMediaSources(input: {
   const request = input.request ?? (postfastRequest as UploadRequest)
   const fetcher = input.fetcher ?? fetch
   const sources = await Promise.all(
-    input.urls.map((url, index) => loadMediaSource(url, index, fetcher))
+    input.urls.map((url, index) => loadMediaSource(url, index, input.fetcher))
   )
   const uploaded: PostFastMedia[] = []
 
@@ -56,6 +57,7 @@ export async function uploadPostFastMediaSources(input: {
             method: "PUT",
             headers: { "Content-Type": contentType },
             body: Uint8Array.from(source.bytes),
+            signal: AbortSignal.timeout(60_000),
           })
           if (!response.ok) {
             throw new Error(
@@ -78,7 +80,7 @@ export async function uploadPostFastMediaSources(input: {
 async function loadMediaSource(
   rawUrl: string,
   index: number,
-  fetcher: typeof fetch
+  fetcher?: typeof fetch
 ): Promise<MediaSource> {
   const url = rawUrl.trim()
   const contentType = contentTypeForUrl(url)
@@ -108,10 +110,15 @@ async function loadMediaSource(
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("PostFast media must use an HTTP(S) URL")
   }
-  const response = await fetcher(parsed, { redirect: "follow" })
+  const response = await fetchPublicResource(parsed.toString(), {
+    fetchImpl: fetcher,
+    trustedHosts: fetcher ? [parsed.hostname] : undefined,
+    timeoutMs: 60_000,
+    maxRedirects: 3,
+  })
   if (!response.ok) throw new Error(`Could not load media: ${response.status}`)
   return {
-    bytes: Buffer.from(await response.arrayBuffer()),
+    bytes: await readResponseBytes(response, 250 * 1024 * 1024),
     contentType:
       response.headers.get("content-type")?.split(";")[0] || contentType,
     mediaType,

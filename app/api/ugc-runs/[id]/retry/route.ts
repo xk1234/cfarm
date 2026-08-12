@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { ApiError, readRouteId, withHandler } from "@/lib/api"
 import { getCurrentUser } from "@/lib/auth"
-import { runVideoTemplateWorkflow } from "@/lib/generation-workflows"
+import { queueVideoTemplateWorkflow } from "@/lib/generation-workflows"
 import { getUgcRunStatus } from "@/lib/ugc-run-status"
 
 export const dynamic = "force-dynamic"
@@ -21,13 +21,20 @@ export const POST = withHandler<{ params: Promise<{ id: string }> }>(
         "This run has no generation identity and cannot be resumed."
       )
     }
-    const result = await runVideoTemplateWorkflow({
+    const workflow = await queueVideoTemplateWorkflow({
       templateId: run.automationId,
       ownerId: user.$id,
       requestId: `ugc-retry-${id}-${run.updatedAt}`,
       generationId: id,
       scheduledFor: run.scheduledFor,
     })
-    return NextResponse.json(result)
+    return NextResponse.json(
+      {
+        status: "queued",
+        workflow,
+        pollUrl: `/api/workflow-runs/${encodeURIComponent(workflow.jobId)}`,
+      },
+      { status: 202 }
+    )
   }
 )

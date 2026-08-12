@@ -7,9 +7,10 @@ the repository. Domain object shapes are in [Data structures](index.md),
 the HTTP surface is in [backend-endpoints.md](backend-endpoints.md), and the
 queue lifecycle is in [Backend scheduling](../jobs/backend.md).
 
-The additive Appwrite-to-Railway replacement is tracked in
-[Railway migration](railway-migration.md). Appwrite remains the runtime default
-until the documented cutover gates pass.
+The completed Appwrite-to-Railway replacement is recorded in
+[Railway migration](railway-migration.md). Railway PostgreSQL and the private
+Railway bucket are the runtime sources of truth; Appwrite is import and rollback
+material only.
 
 ## Runtime topology
 
@@ -21,35 +22,38 @@ flowchart LR
 
     Routes --> Domain["lib domain modules"]
     Pages --> Domain
-    ManualRun["Generate now / MCP run"] --> Jobs["jobs table"]
-    Jobs --> Worker["job-worker / local worker"]
-    Worker --> Domain
+    ManualRun["Generate now / MCP run"] --> Windmill["Windmill DAG"]
+    Windmill --> Domain
+    Notifications["Notification jobs"] --> Jobs["domain_records: jobs"]
+    Jobs --> Worker["Railway job-worker"]
 
     Domain --> JsonStore["lib/json-store.ts"]
-    Domain --> DirectStores["direct Appwrite modules"]
-    JsonStore --> Tables["Appwrite TablesDB"]
+    Domain --> DirectStores["direct PostgreSQL repositories"]
+    JsonStore --> Compat["Railway query compatibility layer"]
+    Compat --> Tables["Railway PostgreSQL"]
     DirectStores --> Tables
     Domain --> Assets["lib/asset-storage.ts"]
-    Assets --> Storage["Appwrite Storage"]
+    Assets --> Storage["Private Railway bucket"]
 
     Domain --> Providers["OpenRouter / Rendi / PostFast / KIE / Pexels / Pinterest / DeepL"]
 ```
 
 The HTTP layer is an adapter, not a separate backend. Most route handlers call
-modules under `lib/`; queued work calls the same domain modules where
-possible. The slideshow worker still contains a parallel JavaScript
-pipeline that must be kept aligned with the main generation path.
+modules under `lib/`. Generation routes enqueue a Windmill run, persist its
+owner-scoped job identity, and return `202`; polling reads one Windmill status
+at a time and hydrates the final typed artifact only after completion.
 
 ## Request and ownership boundary
 
-`proxy.ts` protects `/app/**` and every `/api/**` route except `/api/auth/**`.
-Authenticated requests use the HTTP-only `lumenclip-session` cookie. Domain
-stores resolve the current Appwrite user again before reading or writing private
-data; the proxy is not the only authorization check.
+`proxy.ts` applies Clerk to `/app/**` and protected `/api/**` routes. Domain
+stores resolve the Clerk owner before reading or writing private data; the proxy
+is not the only authorization check. The public MCP remains owner-scoped by
+configuration and authentication-free, with PostgreSQL-backed request,
+mutation, generation, and concurrency limits.
 
 Ownership rules:
 
-- Private rows have an `owner_id` Appwrite column.
+- Private rows have an indexed `owner_id` PostgreSQL column.
 - Serialized domain records normally also contain `ownerId` after persistence.
 - Deterministic private row IDs hash physical table, `source_key` where
   applicable, owner ID, and domain record ID.
@@ -69,7 +73,10 @@ Ownership rules:
 
 Most domain modules still present a historical `rootDir + fileName + key`
 interface through `lib/json-store.ts`. Despite the filesystem-looking API,
-mapped mutable stores are Appwrite-only. There is no JSON-file fallback.
+mapped mutable stores live in PostgreSQL through `RailwayTablesCompat`. There
+is no JSON-file runtime fallback. Compatibility filters, counts, ordering,
+cursors, offsets, and limits are translated into SQL rather than hydrating an
+entire logical table in Node.js.
 
 The mapping in `lib/appwrite-stores.ts` resolves each logical store to:
 
@@ -118,11 +125,10 @@ type ConsolidatedRow = {
 }
 ```
 
-`output_media` is deleted and recreated when its parent output is updated. The
-JSON-store hydrates normalized media rows back into the domain object before its
-normalizer runs. Rows contain only the parent/owner IDs, media kind and role,
-position, storage reference, URL, and creation time. File metadata belongs to
-Storage and is not duplicated in this join table.
+`output_media` replacement is one PostgreSQL transaction, so readers never see
+the former delete-then-partial-recreate state. A database trigger rejects
+missing parents and cascades parent deletion. The JSON-store hydrates normalized
+media rows back into the domain object before its normalizer runs.
 
 ### 3. Dedicated physical tables
 
@@ -136,13 +142,11 @@ High-churn or operational records keep dedicated tables:
 | `usage_ledger`               | Hook/image reuse events              | JSON-store append/delete |
 | `postfast_metric_snapshots`  | Per-post analytics snapshots         | JSON-store append        |
 | `account_follower_snapshots` | Per-account follower snapshots       | JSON-store               |
-| `jobs`                       | Scheduler/worker queue               | Direct TablesDB queries  |
-| `workspace_members`          | Team invitation and access records   | Direct TablesDB queries  |
-| `demos`                      | Settings demo-video metadata         | Direct TablesDB queries  |
+| `jobs`                       | Scheduler/worker queue               | Compatibility queries    |
+| `workspace_members`          | Team invitation and access records   | Compatibility queries    |
+| `demos`                      | Settings demo-video metadata         | Compatibility queries    |
 
-Pre-consolidation tables are not part of the maintained schema. Run
-`pnpm appwrite:prune-schema -- --env=<environment file>` to audit them and add
-`--apply` to delete only tables that Appwrite confirms are empty. Current
+Pre-consolidation tables are not part of the maintained Railway schema. Current
 results and generated videos use `outputs`; PostFast publication records are
 embedded in an output's `publications` field.
 
@@ -207,13 +211,13 @@ flowchart LR
 
 ## Binary storage
 
-`lib/asset-storage.ts` persists files to Appwrite Storage. Some generation and
+`lib/asset-storage.ts` persists files to the private Railway bucket. Some generation and
 render paths also require local working files for ffmpeg/sharp before mirroring
 or after downloading provider output.
 
 `/api/local-assets/**` is a compatibility URL namespace, not proof that the
 bytes live only on local disk. The route derives a deterministic Storage bucket
-and file ID from the data-relative path and streams the Appwrite object, with
+and file ID from the data-relative path and streams the bucket object, with
 range support for video/audio.
 
 | Path prefix            | Bucket                             |
@@ -249,15 +253,31 @@ table for path-derived files unless the storage contract itself changes.
 | Apify / FAL / DataForSEO | Optional discovery/generation branches                                 |
 
 Provider credentials stay server-side. API responses return provider IDs,
-status, and safe media references, never API keys or Appwrite credentials.
+status, and safe media references, never provider keys or bucket credentials.
+
+## Load and failure boundaries
+
+- Queue workers atomically claim batches with `FOR UPDATE SKIP LOCKED`. A lease
+  cannot be won by two replicas, expired leases are recoverable, terminal jobs
+  are retained for a bounded period, and provider calls have deadlines.
+- Windmill queue and status calls have individual timeouts. Browser requests do
+  not poll Windmill inside one long-lived route-handler invocation.
+- Remote media follows manually validated redirects, rejects private/reserved
+  hosts, enforces byte limits while streaming, and times out stalled bodies.
+- Public slideshow ZIPs are built sequentially once per output revision and
+  cached in the private bucket. Concurrent cache misses share a PostgreSQL
+  advisory lock.
+- Aggregate compatibility-store rewrites use cross-process PostgreSQL advisory
+  locks; output-media replacement uses a transaction and referential triggers.
 
 ## Source-of-truth rules
 
 1. `lib/appwrite-stores.ts` is authoritative for logical store routing.
 2. Type definitions in `lib/` are authoritative for serialized domain shapes.
 3. `app/api/**/route.ts` is authoritative for the internal HTTP contract.
-4. Provisioning scripts define physical columns and indexes.
+4. `infra/railway/migrations/**` defines physical tables, indexes, constraints,
+   retention support, and concurrency guards.
 5. Runtime brand configuration lives in `lib/realfarm-data.ts`; persisted
-   workspace data lives in Appwrite.
+   workspace data lives in Railway PostgreSQL and its private bucket.
 6. Roadmap documents describe intended changes and must not be read as current
    behavior.

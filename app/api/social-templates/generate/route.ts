@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { ApiError, withHandler } from "@/lib/api"
 import { getCurrentUser } from "@/lib/auth"
-import { runSocialTemplateWorkflow } from "@/lib/generation-workflows"
+import { queueSocialTemplateWorkflow } from "@/lib/generation-workflows"
 import { clean, isRecord } from "@/lib/guards"
 import {
   deleteXAutomationRuns,
@@ -51,7 +51,7 @@ export const POST = withHandler(async (request: Request) => {
   if (!automation) throw new ApiError(404, "Social template not found")
   const user = await getCurrentUser()
   if (!user) throw new ApiError(401, "Authentication is required")
-  const { run, workflow } = await runSocialTemplateWorkflow({
+  const workflow = await queueSocialTemplateWorkflow({
     templateId: automation.id,
     ownerId: user.$id,
     topic: clean(payload?.topic),
@@ -60,5 +60,12 @@ export const POST = withHandler(async (request: Request) => {
       : undefined,
     requestId: clean(payload?.requestId),
   })
-  return NextResponse.json({ run, workflow }, { status: 201 })
+  return NextResponse.json(
+    {
+      status: "queued",
+      workflow,
+      pollUrl: `/api/workflow-runs/${encodeURIComponent(workflow.jobId)}`,
+    },
+    { status: 202 }
+  )
 })

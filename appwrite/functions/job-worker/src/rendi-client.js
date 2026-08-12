@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { cleanString, readLooseRecord, readTrimmedString } from "./guards.js";
 import { fetchWithTimeout } from "./http.js";
+import { readResponseBytes } from "@/lib/bounded-fetch";
 import { pollUntil } from "./poll.js";
 const RENDI_API_BASE_URL = "https://api.rendi.dev";
 const DEFAULT_POLL_DELAY_MS = 5000;
@@ -130,7 +131,7 @@ export async function downloadRendiOutputBytes(input) {
     if (!response.ok) {
         throw new Error(`Failed to download Rendi output with ${response.status}`);
     }
-    return new Uint8Array(await response.arrayBuffer());
+    return new Uint8Array(await readResponseBytes(response, Math.max(1, Number(process.env.RENDI_MAX_OUTPUT_BYTES ?? 1024 ** 3))));
 }
 export async function submitRendiCommand(input) {
     const submitted = await rendiJson({

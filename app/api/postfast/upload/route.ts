@@ -2,12 +2,22 @@ import { NextResponse } from "next/server"
 
 import { postfastRequest, type PostFastMediaType } from "@/lib/postfast-client"
 import { postfastRouteError } from "@/lib/postfast-route"
+import {
+  fetchPublicResource,
+  PayloadTooLargeError,
+  readResponseBytes,
+} from "@/lib/bounded-fetch"
 import { assertPublicHttpUrl } from "@/lib/url-guard"
 
 export const dynamic = "force-dynamic"
+const maxUploadBytes = 250 * 1024 * 1024
 
 export async function POST(request: Request) {
   const contentType = request.headers.get("content-type") ?? ""
+  const contentLength = Number(request.headers.get("content-length") ?? 0)
+  if (Number.isFinite(contentLength) && contentLength > maxUploadBytes) {
+    return NextResponse.json({ error: "Media is too large" }, { status: 413 })
+  }
 
   try {
     let file: File | null = null
@@ -16,15 +26,27 @@ export async function POST(request: Request) {
       const payload = await request.json().catch(() => null)
       sourceUrl = typeof payload?.url === "string" ? payload.url.trim() : ""
       if (!sourceUrl) {
-        return NextResponse.json({ error: "A url is required" }, { status: 400 })
+        return NextResponse.json(
+          { error: "A url is required" },
+          { status: 400 }
+        )
       }
     } else {
       const formData = await request.formData()
       const formFile = formData.get("file")
       if (!(formFile instanceof File)) {
-        return NextResponse.json({ error: "A file is required" }, { status: 400 })
+        return NextResponse.json(
+          { error: "A file is required" },
+          { status: 400 }
+        )
       }
       file = formFile
+      if (file.size > maxUploadBytes) {
+        return NextResponse.json(
+          { error: "Media is too large" },
+          { status: 413 }
+        )
+      }
     }
 
     const source = file
@@ -40,7 +62,9 @@ export async function POST(request: Request) {
     }
 
     const uploadContentType =
-      source.contentType || contentTypeFromUrl(sourceUrl) || "application/octet-stream"
+      source.contentType ||
+      contentTypeFromUrl(sourceUrl) ||
+      "application/octet-stream"
     const mediaType = postFastMediaType(uploadContentType)
     if (!mediaType) {
       return NextResponse.json(
@@ -66,10 +90,15 @@ export async function POST(request: Request) {
       )
     }
 
+    const uploadBody =
+      source.bytes instanceof ArrayBuffer
+        ? new Uint8Array(source.bytes)
+        : Uint8Array.from(source.bytes)
     const uploadResponse = await fetch(signedUpload.signedUrl, {
       method: "PUT",
       headers: { "Content-Type": uploadContentType },
-      body: source.bytes,
+      body: uploadBody,
+      signal: AbortSignal.timeout(60_000),
     })
     if (!uploadResponse.ok) {
       return NextResponse.json(
@@ -86,40 +115,29 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ upload })
   } catch (error) {
+    if (error instanceof PayloadTooLargeError) {
+      return NextResponse.json({ error: "Media is too large" }, { status: 413 })
+    }
     return postfastRouteError(error)
   }
 }
 
 async function fetchSource(url: string, requestUrl: string) {
   const resolvedUrl = await absoluteSourceUrl(url, requestUrl)
-  const response = await fetchPublicSource(resolvedUrl)
+  const requestHost = new URL(requestUrl).hostname
+  const response = await fetchPublicResource(resolvedUrl, {
+    timeoutMs: 30_000,
+    maxRedirects: 3,
+    trustedHosts: [requestHost],
+  })
   if (!response.ok) {
     throw new Error("Failed to fetch media source")
   }
   return {
-    bytes: await response.arrayBuffer(),
-    contentType: response.headers.get("content-type")?.split(";")[0]?.trim() ?? "",
+    bytes: await readResponseBytes(response, maxUploadBytes),
+    contentType:
+      response.headers.get("content-type")?.split(";")[0]?.trim() ?? "",
   }
-}
-
-async function fetchPublicSource(url: string, redirectCount = 0): Promise<Response> {
-  const response = await fetch(url, { redirect: "manual" })
-  if (!isRedirect(response.status)) {
-    return response
-  }
-
-  if (redirectCount >= 3) {
-    throw new SourceUrlError("Too many media source redirects")
-  }
-
-  const location = response.headers.get("location")
-  if (!location) {
-    throw new SourceUrlError("Media source redirect did not include a location")
-  }
-
-  const nextUrl = new URL(location, url).toString()
-  await assertPublicHttpUrl(nextUrl)
-  return fetchPublicSource(nextUrl, redirectCount + 1)
 }
 
 async function absoluteSourceUrl(url: string, requestUrl: string) {
@@ -127,19 +145,19 @@ async function absoluteSourceUrl(url: string, requestUrl: string) {
     return new URL(url, requestUrl).toString()
   }
   if (url.startsWith("/")) {
-    throw new SourceUrlError("Only /api/local-assets/ relative URLs are supported")
+    throw new SourceUrlError(
+      "Only /api/local-assets/ relative URLs are supported"
+    )
   }
 
   try {
     const parsedUrl = await assertPublicHttpUrl(url)
     return parsedUrl.toString()
   } catch {
-    throw new SourceUrlError("A public http or https media source URL is required")
+    throw new SourceUrlError(
+      "A public http or https media source URL is required"
+    )
   }
-}
-
-function isRedirect(status: number) {
-  return status >= 300 && status < 400
 }
 
 function contentTypeFromUrl(url: string) {
@@ -182,8 +200,7 @@ function firstSignedUpload(value: unknown) {
   }
   const record = first as Record<string, unknown>
   const key = typeof record.key === "string" ? record.key : ""
-  const signedUrl =
-    typeof record.signedUrl === "string" ? record.signedUrl : ""
+  const signedUrl = typeof record.signedUrl === "string" ? record.signedUrl : ""
   return key && signedUrl ? { key, signedUrl } : null
 }
 

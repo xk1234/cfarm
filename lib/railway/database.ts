@@ -21,7 +21,10 @@ export function getRailwayDatabase(): Sql {
     )
   }
   cachedSql = postgres(connectionString, {
-    max: Number(process.env.POSTGRES_POOL_SIZE ?? 10),
+    max: Math.max(
+      2,
+      Math.min(50, Number(process.env.POSTGRES_POOL_SIZE ?? 10))
+    ),
     idle_timeout: 20,
     connect_timeout: 15,
     prepare: false,

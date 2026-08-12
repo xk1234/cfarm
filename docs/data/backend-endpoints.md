@@ -56,8 +56,10 @@ The app has no custom authentication API routes.
 | `DELETE /api/templates/[id]`             | Path template ID                                                   | Cascades through runs, slideshow results, and local publication records                        | Current |
 | `POST /api/templates/hooks`              | JSON `{ templateId }`                                              | Generates and persists a fresh hook set; rejects missing/exhausted inputs                      | Current |
 | `POST /api/templates/video-copy`         | JSON `{ templateId, template?, hook?, items?, segmentRoles? }`     | Generated/fallback title, caption, hashtags, substitutions, and per-item text                  | Current |
-| `POST /api/templates/run`                | JSON `{ templateId, force: true, now?, requestId? }`               | Runs one interactive generation and returns created/results/skipped                            | Current |
+| `POST /api/templates/video-generate`     | JSON `{ templateId, requestId? }`                                  | Queues the matching Windmill video DAG; returns `202` with `workflow` and `pollUrl`            | Current |
+| `POST /api/templates/run`                | JSON `{ templateId, force: true, now?, requestId? }`               | Queues one Windmill generation; returns `202` with `workflow` and `pollUrl`                    | Current |
 | `GET /api/templates/runs`                | Query `templateId?`, `limit?`                                      | Unified run views, including generated-video-backed runs                                       | Current |
+| `GET /api/workflow-runs/:id`             | Path id from a generation `pollUrl`                                | Owner-scoped queued/running/failed state or the hydrated typed result                          | Current |
 | `GET /api/templates/[id]/hook-analytics` | Path template ID                                                   | Published hook lock state and aggregated metric rows                                           | Current |
 
 The old `/api/automations`, `/api/x-automations`, `/api/automation-templates`,
@@ -160,7 +162,7 @@ calling PostFast's create-post endpoint.
 | `POST /api/social-templates/[id]/derive-brief` | Path ID                                                   | Derives niche strategy and persists it                                           | Current |
 | `POST /api/social-templates/discover`          | JSON `{ templateId, query?, source? }`                    | Trend candidates from configured discovery source                                | Current |
 | `GET /api/social-templates/generate`           | Query `templateId?`                                       | `{ runs }`                                                                       | Current |
-| `POST /api/social-templates/generate`          | JSON `{ templateId, topic?, sourceCandidate? }`           | Generates and persists a draft run; `201`                                        | Current |
+| `POST /api/social-templates/generate`          | JSON `{ templateId, topic?, sourceCandidate? }`           | Queues generation; returns `202` with an owner-scoped `pollUrl`                  | Current |
 | `DELETE /api/social-templates/generate`        | Query `templateId`                                        | Deletes runs and resets recent-use memory                                        | Current |
 | `POST /api/social-templates/image`             | JSON `{ runId, prompt?, aspectRatio? }`                   | Generates a KIE image, persists it in Storage, and attaches it to the run; `201` | Current |
 | `POST /api/social-templates/publish`           | JSON `{ runId }`                                          | Publishes through configured integration(s) and updates run status               | Current |
@@ -178,9 +180,9 @@ calling PostFast's create-post endpoint.
 
 ## Backend-only and development endpoints
 
-| Method and path                         | Input                                                                       | Response / behavior                                        | State            |
-| --------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------- |
-| `POST /api/linkedin-templates/generate` | JSON containing `niche` plus optional brief/persona/plan/model/count inputs | Stateless LinkedIn generation; no persistence or scheduler | Internal preview |
+| Method and path                         | Input                                                                       | Response / behavior                                               | State            |
+| --------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------- |
+| `POST /api/linkedin-templates/generate` | JSON containing `niche` plus optional brief/persona/plan/model/count inputs | Queues stateless LinkedIn generation; returns `202` and `pollUrl` | Internal preview |
 
 Development routes should not be treated as stable integrations and must stay
 restricted to an administrative capability.

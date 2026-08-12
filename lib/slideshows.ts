@@ -45,7 +45,7 @@ import {
   type SlideshowSlide,
   type SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
-import { fetchWithTimeout } from "@/lib/http"
+import { fetchPublicResource, readResponseBytes } from "@/lib/bounded-fetch"
 export type {
   SlideshowOverlayImage,
   SlideshowImageItem,
@@ -1692,15 +1692,16 @@ async function fetchRemoteAsset(sourceUrl: string) {
     return null
   }
 
-  const response = await fetchWithTimeout(sourceUrl, undefined, {
+  const response = await fetchPublicResource(sourceUrl, {
     timeoutMs: 120_000,
+    maxRedirects: 3,
   })
   if (!response.ok) {
     throw new Error(
       `Could not load slideshow image ${sourceUrl} (${response.status})`
     )
   }
-  const body = Buffer.from(await response.arrayBuffer())
+  const body = await readResponseBytes(response, 20 * 1024 * 1024)
   return {
     body,
     extension:

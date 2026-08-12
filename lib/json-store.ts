@@ -19,6 +19,8 @@ import {
   type OutputMediaDraft,
 } from "@/lib/consolidated-records"
 import { getCurrentUser } from "@/lib/auth"
+import { dataBackend } from "@/lib/backend-config"
+import { getRailwayDatabase } from "@/lib/railway/database"
 import { sharedOwnerIdsFor } from "@/lib/workspace-members"
 import { systemOwnerId } from "@/lib/system-owner-context"
 
@@ -649,6 +651,29 @@ async function syncOutputMedia(
   ownerId: string,
   media: OutputMediaDraft[]
 ) {
+  const railwayTables = aw.tables as typeof aw.tables & {
+    replaceRows?: (input: {
+      tableId: string
+      parentAttribute: string
+      parentValue: string
+      rows: Array<{
+        rowId: string
+        data: Record<string, unknown>
+      }>
+    }) => Promise<void>
+  }
+  if (typeof railwayTables.replaceRows === "function") {
+    await railwayTables.replaceRows({
+      tableId: "output_media",
+      parentAttribute: "output_id",
+      parentValue: outputRowId,
+      rows: media.map((item) => ({
+        rowId: outputMediaRowId(outputRowId, item),
+        data: outputMediaRowFields(outputRowId, ownerId, item),
+      })),
+    })
+    return
+  }
   await deleteOutputMedia(aw, [outputRowId])
   await runPool(media, 3, async (item) => {
     await retryTransient(() =>
@@ -743,7 +768,21 @@ async function withStoreLock<T>(
   task: () => Promise<T>
 ): Promise<T> {
   const previous = storeLocks.get(lockKey) ?? Promise.resolve()
-  const run = previous.catch(() => undefined).then(task)
+  const run = previous
+    .catch(() => undefined)
+    .then(async () => {
+      if (dataBackend() !== "railway") return task()
+      const reserved = await getRailwayDatabase().reserve()
+      try {
+        await reserved`SELECT pg_advisory_lock(hashtext(${lockKey}))`
+        return await task()
+      } finally {
+        await reserved`SELECT pg_advisory_unlock(hashtext(${lockKey}))`.catch(
+          () => undefined
+        )
+        reserved.release()
+      }
+    })
   const next = run.then(
     () => undefined,
     () => undefined

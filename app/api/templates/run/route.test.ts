@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { getCurrentUser } from "@/lib/auth"
 import { getAutomationRecord } from "@/lib/automations"
-import { runSlideshowTemplateWorkflow } from "@/lib/generation-workflows"
+import { queueSlideshowTemplateWorkflow } from "@/lib/generation-workflows"
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }))
 vi.mock("@/lib/automations", () => ({ getAutomationRecord: vi.fn() }))
 vi.mock("@/lib/generation-workflows", () => ({
-  runSlideshowTemplateWorkflow: vi.fn(),
+  queueSlideshowTemplateWorkflow: vi.fn(),
 }))
 
 const template = {
@@ -20,18 +20,12 @@ describe("POST /api/templates/run", () => {
     vi.clearAllMocks()
     vi.mocked(getCurrentUser).mockResolvedValue({ $id: "owner-1" } as never)
     vi.mocked(getAutomationRecord).mockResolvedValue(template as never)
-    vi.mocked(runSlideshowTemplateWorkflow).mockResolvedValue({
-      created: [],
-      results: [],
-      skipped: [],
-      workflow: {
-        workflowId: "slideshow-generation",
-        requestId: "request-1",
-        status: "succeeded",
-        jobId: "job-1",
-        flowPath: "f/lumenclip/slideshow_generation",
-        result: {},
-      },
+    vi.mocked(queueSlideshowTemplateWorkflow).mockResolvedValue({
+      workflowId: "slideshow-generation",
+      requestId: "request-1",
+      status: "queued",
+      jobId: "job-1",
+      flowPath: "f/lumenclip/slideshow_generation",
     })
   })
 
@@ -51,8 +45,12 @@ describe("POST /api/templates/run", () => {
       })
     )
 
-    expect(response.status).toBe(200)
-    expect(runSlideshowTemplateWorkflow).toHaveBeenCalledWith({
+    expect(response.status).toBe(202)
+    await expect(response.json()).resolves.toMatchObject({
+      status: "queued",
+      pollUrl: "/api/workflow-runs/job-1",
+    })
+    expect(queueSlideshowTemplateWorkflow).toHaveBeenCalledWith({
       templateId: "template-1",
       ownerId: "owner-1",
       requestId: "request-1",
@@ -61,7 +59,7 @@ describe("POST /api/templates/run", () => {
       generationSource: "manual",
     })
     expect(
-      vi.mocked(runSlideshowTemplateWorkflow).mock.calls[0]?.[0]
+      vi.mocked(queueSlideshowTemplateWorkflow).mock.calls[0]?.[0]
     ).not.toHaveProperty("schema")
   })
 
@@ -75,12 +73,12 @@ describe("POST /api/templates/run", () => {
       })
     )
     expect(response.status).toBe(401)
-    expect(runSlideshowTemplateWorkflow).not.toHaveBeenCalled()
+    expect(queueSlideshowTemplateWorkflow).not.toHaveBeenCalled()
   })
 
-  it("keeps unresolved hook variables as a 400 preflight error", async () => {
-    vi.mocked(runSlideshowTemplateWorkflow).mockRejectedValue(
-      new Error("Hook slot MISSING has no words in database collection MISSING")
+  it("surfaces queue submission failures without holding the request open", async () => {
+    vi.mocked(queueSlideshowTemplateWorkflow).mockRejectedValue(
+      new Error("Windmill unavailable")
     )
     const { POST } = await import("./route")
     const response = await POST(
@@ -89,6 +87,6 @@ describe("POST /api/templates/run", () => {
         body: JSON.stringify({ templateId: "template-1", force: true }),
       })
     )
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(500)
   })
 })

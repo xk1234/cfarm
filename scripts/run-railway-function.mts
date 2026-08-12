@@ -44,10 +44,26 @@ let running = false
 let stopped = false
 let shuttingDown = false
 let activeTick: Promise<void> | undefined
+const tickTimeoutMs = Math.max(
+  30_000,
+  Number(
+    (functionId === "job-worker"
+      ? process.env.JOB_WORKER_TICK_TIMEOUT_MS
+      : process.env.SCHEDULER_TICK_TIMEOUT_MS) ??
+      process.env.FUNCTION_TICK_TIMEOUT_MS ??
+      (functionId === "job-worker" ? 5 * 60_000 : 20 * 60_000)
+  )
+)
 
 async function tick() {
   if (running || stopped) return
   running = true
+  const watchdog = setTimeout(() => {
+    console.error(
+      `[${functionId}] tick exceeded ${tickTimeoutMs}ms; exiting so Railway can restart the stalled worker`
+    )
+    process.exit(1)
+  }, tickTimeoutMs)
   try {
     const result = await handler({
       log: (message: unknown) =>
@@ -62,6 +78,7 @@ async function tick() {
     )
     process.exitCode = 1
   } finally {
+    clearTimeout(watchdog)
     await flushLangfuse().catch(() => {
       console.error(`[${functionId}] Langfuse trace flush failed`)
     })

@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises"
 import { isIP } from "node:net"
+import { readResponseBytes } from "@/lib/bounded-fetch"
 
 import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { openRouterJson } from "@/lib/openrouter"
@@ -102,9 +103,7 @@ export async function fetchProductPageResponse(input: {
     const declared = Number(response.headers.get("content-length"))
     if (Number.isFinite(declared) && declared > maxBytes)
       throw new Error("Product page exceeds size limit")
-    const bytes = new Uint8Array(await response.arrayBuffer())
-    if (bytes.byteLength > maxBytes)
-      throw new Error("Product page exceeds size limit")
+    const bytes = await readResponseBytes(response, maxBytes)
     const html = new TextDecoder().decode(bytes)
     const title = decodeEntities(
       html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ""
