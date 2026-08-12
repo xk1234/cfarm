@@ -4910,8 +4910,22 @@ var init_appwrite_compat = __esm({
         const limit = Math.max(1, Math.min(100, Math.floor(input.limit)));
         const includeTypes = input.includeTypes?.filter(Boolean) ?? [];
         const excludeTypes = input.excludeTypes?.filter(Boolean) ?? [];
-        const includeTypeFilter = includeTypes.length > 0 ? sql`AND source_row ->> 'type' = ANY(${sql.array(includeTypes, 25)}::text[])` : sql``;
-        const excludeTypeFilter = excludeTypes.length > 0 ? sql`AND COALESCE(source_row ->> 'type', '') <> ALL(${sql.array(excludeTypes, 25)}::text[])` : sql``;
+        let includeTypeFilter = sql``;
+        if (includeTypes.length > 0) {
+          let predicate = sql`source_row ->> 'type' = ${includeTypes[0]}`;
+          for (const type of includeTypes.slice(1)) {
+            predicate = sql`${predicate} OR source_row ->> 'type' = ${type}`;
+          }
+          includeTypeFilter = sql`AND (${predicate})`;
+        }
+        let excludeTypeFilter = sql``;
+        if (excludeTypes.length > 0) {
+          let predicate = sql`COALESCE(source_row ->> 'type', '') <> ${excludeTypes[0]}`;
+          for (const type of excludeTypes.slice(1)) {
+            predicate = sql`${predicate} AND COALESCE(source_row ->> 'type', '') <> ${type}`;
+          }
+          excludeTypeFilter = sql`AND (${predicate})`;
+        }
         const rows = await sql`
       WITH candidates AS (
         SELECT row_id
