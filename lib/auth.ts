@@ -6,6 +6,12 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 
 import { getRailwayDatabase } from "@/lib/railway/database"
 
+const userCache = new Map<string, { expiresAt: number; user: AuthUser }>()
+const userCacheTtlMs = Math.max(
+  30_000,
+  Number(process.env.CLERK_USER_CACHE_TTL_MS ?? 5 * 60_000)
+)
+
 export type AuthUser = {
   $id: string
   email: string
@@ -86,6 +92,9 @@ export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
   const { userId } = await auth()
   if (!userId) return null
 
+  const cached = userCache.get(userId)
+  if (cached && cached.expiresAt > Date.now()) return cached.user
+
   const client = await clerkClient()
   const clerkUser = await client.users.getUser(userId)
   const email =
@@ -104,6 +113,7 @@ export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
     emailVerification: verifiedEmail(clerkUser),
   }
   await persistUser(user)
+  userCache.set(userId, { user, expiresAt: Date.now() + userCacheTtlMs })
   return user
 })
 
@@ -122,18 +132,16 @@ export async function updateUserPreferences(
   userId: string,
   patch: Partial<LumenClipUserPreferences>
 ) {
-  const current = await getUserPreferences(userId)
-  const preferences = { ...current, ...patch }
   const sql = getRailwayDatabase()
-  const rows = await sql`
+  const [row] = await sql<Array<{ preferences: LumenClipUserPreferences }>>`
     UPDATE app_users
-    SET preferences = ${sql.json(JSON.parse(JSON.stringify(preferences)))},
+    SET preferences = preferences || ${sql.json(JSON.parse(JSON.stringify(patch)))},
         updated_at = now()
     WHERE id = ${userId}
-    RETURNING id
+    RETURNING preferences
   `
-  if (rows.length === 0) {
+  if (!row) {
     throw Object.assign(new Error("User not found."), { code: 404 })
   }
-  return preferences
+  return row.preferences
 }

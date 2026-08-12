@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   loadSharedSlideshow: vi.fn(),
+  persistAsset: vi.fn(),
   readAssetBytes: vi.fn(),
 }))
 
@@ -10,8 +11,10 @@ vi.mock("@/lib/slideshow-share", () => ({
   loadSharedSlideshow: mocks.loadSharedSlideshow,
 }))
 vi.mock("@/lib/asset-storage", () => ({
+  persistAsset: mocks.persistAsset,
   readAssetBytes: mocks.readAssetBytes,
 }))
+vi.mock("@/lib/backend-config", () => ({ assetBackend: () => "appwrite" }))
 
 import { GET } from "@/app/api/public/slideshows/[id]/download/route"
 
@@ -21,12 +24,14 @@ describe("public slideshow ZIP download", () => {
     mocks.loadSharedSlideshow.mockResolvedValue({
       id: "output-1",
       title: "Astrology Test",
+      updated_at: "2026-08-12T12:00:00.000Z",
       output_images: [
         "/api/local-assets/slideshows/outputs/output-1/slide-001.png",
         "/api/local-assets/slideshows/outputs/output-1/slide-002.png",
       ],
     })
     mocks.readAssetBytes
+      .mockRejectedValueOnce(Object.assign(new Error("missing"), { code: 404 }))
       .mockResolvedValueOnce(Buffer.from("first"))
       .mockResolvedValueOnce(Buffer.from("second"))
   })
@@ -45,7 +50,8 @@ describe("public slideshow ZIP download", () => {
       'filename="astrology-test.zip"'
     )
     expect(Number(response.headers.get("content-length"))).toBeGreaterThan(0)
-    expect(mocks.readAssetBytes).toHaveBeenCalledTimes(2)
+    expect(mocks.readAssetBytes).toHaveBeenCalledTimes(3)
+    expect(mocks.persistAsset).toHaveBeenCalledOnce()
 
     const zip = await JSZip.loadAsync(await response.arrayBuffer())
     await expect(zip.file("slide-01.png")?.async("string")).resolves.toBe(

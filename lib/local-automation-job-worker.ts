@@ -12,6 +12,7 @@ const pollIntervalMs = 5 * 60_000
 const leaseMs = 30 * 60_000
 // Slideshow execution belongs exclusively to the Appwrite job-worker.
 const localJobTypes = ["sync-post-analytics"]
+const localWorkerId = `local-${process.pid}-${crypto.randomBytes(3).toString("hex")}`
 
 type WorkerState = {
   running: boolean
@@ -50,6 +51,25 @@ async function nextLocalJob() {
   const aw = getAppwrite()
   if (!aw) return null
   const now = new Date().toISOString()
+  const railwayTables = aw.tables as typeof aw.tables & {
+    claimJobs?: (input: {
+      workerId: string
+      limit: number
+      leaseUntil: string
+      now: string
+      includeTypes: string[]
+    }) => Promise<JobRow[]>
+  }
+  if (typeof railwayTables.claimJobs === "function") {
+    const [claimed] = await railwayTables.claimJobs({
+      workerId: localWorkerId,
+      limit: 1,
+      leaseUntil: new Date(Date.now() + leaseMs).toISOString(),
+      now,
+      includeTypes: localJobTypes,
+    })
+    return claimed ?? null
+  }
   const queued = await aw.tables.listRows(APPWRITE_DATABASE_ID, "jobs", [
     Query.equal("type", localJobTypes),
     Query.equal("status", ["queued"]),
@@ -73,21 +93,24 @@ async function nextLocalJob() {
 async function processLocalJob(job: JobRow) {
   const aw = getAppwrite()
   if (!aw) return
-  const workerId = `local-${process.pid}-${crypto.randomBytes(3).toString("hex")}`
-  const attempts = Number(job.attempts ?? 0) + 1
-  await aw.tables.updateRow(APPWRITE_DATABASE_ID, "jobs", job.$id, {
-    status: "processing",
-    leased_by: workerId,
-    leased_until: new Date(Date.now() + leaseMs).toISOString(),
-    attempts,
-    updated_at: new Date().toISOString(),
-  })
-  const claimed = (await aw.tables.getRow(
-    APPWRITE_DATABASE_ID,
-    "jobs",
-    job.$id
-  )) as unknown as JobRow
-  if (claimed.leased_by !== workerId) return
+  let claimed = job
+  if (job.leased_by !== localWorkerId || job.status !== "processing") {
+    const attempts = Number(job.attempts ?? 0) + 1
+    await aw.tables.updateRow(APPWRITE_DATABASE_ID, "jobs", job.$id, {
+      status: "processing",
+      leased_by: localWorkerId,
+      leased_until: new Date(Date.now() + leaseMs).toISOString(),
+      attempts,
+      updated_at: new Date().toISOString(),
+    })
+    claimed = (await aw.tables.getRow(
+      APPWRITE_DATABASE_ID,
+      "jobs",
+      job.$id
+    )) as unknown as JobRow
+    if (claimed.leased_by !== localWorkerId) return
+  }
+  const attempts = Number(claimed.attempts ?? 0)
 
   try {
     const payload = jsonRecord(claimed.payload)

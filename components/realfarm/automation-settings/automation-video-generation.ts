@@ -1,6 +1,6 @@
 "use client"
 
-import { fetchJsonWithTimeout } from "@/lib/client-api"
+import { queueWorkflowAndWait } from "@/lib/client-api"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import {
   automationCollectionId,
@@ -26,7 +26,7 @@ export type AutomationVideoGenerationInput = {
 export async function generateAutomationVideo(
   input: AutomationVideoGenerationInput
 ) {
-  const payload = await fetchJsonWithTimeout<{
+  const payload = await queueWorkflowAndWait<{
     export?: GeneratedVideoExport
   }>("/api/templates/video-generate", {
     method: "POST",

@@ -107,6 +107,8 @@ dependency changes, then lint before importing.
   and joins only after rendering. Both create draft outputs only.
 - Stage handlers and UGC orchestration live under `windmill/runtime/` and are
   bundled into the deployed native runtime by `build-native-runtime.mts`.
-- Appwrite remains the durable database and object store. Provider APIs remain
-  external dependencies invoked by Windmill stages.
+- Railway PostgreSQL and the private Railway bucket remain the durable database
+  and object store. The bundled compatibility layer pushes filters, ordering,
+  counts, and pagination into SQL. Provider APIs remain external dependencies
+  invoked by Windmill stages.
 - Publishing remains outside generation workflows.

@@ -6,7 +6,11 @@ import { toast } from "sonner"
 import { IconChevronLeft, IconPlus } from "@tabler/icons-react"
 import { LuPanelsTopLeft, LuSettings2, LuType } from "react-icons/lu"
 
-import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import {
+  fetchJsonWithTimeout,
+  getApiErrorMessage,
+  queueWorkflowAndWait,
+} from "@/lib/client-api"
 import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
@@ -363,7 +367,7 @@ export function AutomationSettingsDrawer({
       // canonical Appwrite row. Passing a client-side schema override here can
       // resurrect stale prompt/style fields from a long-open drawer.
       await persistDraftConfig(automation.id, generationConfig)
-      const payload = await fetchJsonWithTimeout<AutomationRunApiPayload>(
+      const payload = await queueWorkflowAndWait<AutomationRunApiPayload>(
         "/api/templates/run",
         {
           method: "POST",

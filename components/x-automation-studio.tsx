@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { queueWorkflowAndWait } from "@/lib/client-api"
 import {
   SettingsFooter,
   SettingsPage,
@@ -180,10 +181,13 @@ export function XAutomationStudio({
       const saved = await saveAutomation(false)
       if (!saved) return
       setBusy("generate")
-      const payload = await request<{ run: XAutomationRun }>(
+      const payload = await queueWorkflowAndWait<{ run: XAutomationRun }>(
         "/api/social-templates/generate",
         {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          timeoutMs: 25 * 60_000,
+          toastOnError: false,
           body: JSON.stringify({
             templateId: selected.id,
             topic: topic.trim(),

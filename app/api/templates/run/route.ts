@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { ApiError, withHandler } from "@/lib/api"
 import { getCurrentUser } from "@/lib/auth"
 import { getAutomationRecord } from "@/lib/automations"
-import { runSlideshowTemplateWorkflow } from "@/lib/generation-workflows"
+import { queueSlideshowTemplateWorkflow } from "@/lib/generation-workflows"
 
 export const dynamic = "force-dynamic"
 
@@ -30,29 +30,22 @@ async function runAutomations(request: Request) {
       "This endpoint accepts slideshow templates; video and post templates use their Windmill generation endpoints"
     )
   }
-  let result
-  try {
-    result = await runSlideshowTemplateWorkflow({
-      templateId,
-      ownerId: user.$id,
-      requestId: stringValue(body?.requestId),
-      hook: stringValue(body?.hook),
-      scheduledFor: dateValue(body?.now)?.toISOString(),
-      generationSource: "manual",
-    })
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      /^Hook slot .+ has no words in database collection .+$/.test(
-        error.message
-      )
-    ) {
-      throw new ApiError(400, error.message)
-    }
-    throw error
-  }
-
-  return NextResponse.json(result)
+  const workflow = await queueSlideshowTemplateWorkflow({
+    templateId,
+    ownerId: user.$id,
+    requestId: stringValue(body?.requestId),
+    hook: stringValue(body?.hook),
+    scheduledFor: dateValue(body?.now)?.toISOString(),
+    generationSource: "manual",
+  })
+  return NextResponse.json(
+    {
+      status: "queued",
+      workflow,
+      pollUrl: `/api/workflow-runs/${encodeURIComponent(workflow.jobId)}`,
+    },
+    { status: 202 }
+  )
 }
 
 function dateValue(value: unknown) {

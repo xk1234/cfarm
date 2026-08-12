@@ -15,8 +15,16 @@ const allowedAudioTypes = new Set([
   "audio/x-wav",
 ])
 const allowedExtensions = new Set([".mp3", ".wav"])
+const maxUploadBytes = 25 * 1024 * 1024
 
 export const POST = withHandler(async (request: Request) => {
+  const contentLength = Number(request.headers.get("content-length") ?? 0)
+  if (Number.isFinite(contentLength) && contentLength > maxUploadBytes) {
+    return NextResponse.json(
+      { error: "Audio file is too large" },
+      { status: 413 }
+    )
+  }
   const formData = await request.formData()
   const file = formData.get("file")
 
@@ -24,6 +32,12 @@ export const POST = withHandler(async (request: Request) => {
     return NextResponse.json(
       { error: "Audio file is required" },
       { status: 400 }
+    )
+  }
+  if (file.size > maxUploadBytes) {
+    return NextResponse.json(
+      { error: "Audio file is too large" },
+      { status: 413 }
     )
   }
 
