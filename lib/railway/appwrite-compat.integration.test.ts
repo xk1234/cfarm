@@ -12,7 +12,9 @@ describeWithDatabase("RailwayTablesCompat PostgreSQL integration", () => {
   const tables = new RailwayTablesCompat()
   const suffix = randomUUID()
   const outputId = `compat-output-${suffix}`
-  const jobIds = [0, 1, 2].map((index) => `compat-job-${index}-${suffix}`)
+  const jobIds = [0, 1, 2, 3, 4].map(
+    (index) => `compat-job-${index}-${suffix}`
+  )
 
   afterAll(async () => {
     await Promise.allSettled([
@@ -54,7 +56,7 @@ describeWithDatabase("RailwayTablesCompat PostgreSQL integration", () => {
   it("atomically claims each queued job once", async () => {
     const now = new Date().toISOString()
     await Promise.all(
-      jobIds.map((jobId, index) =>
+      jobIds.slice(0, 3).map((jobId, index) =>
         tables.createRow("", "jobs", jobId, {
           status: "queued",
           type: "compat-integration",
@@ -88,14 +90,31 @@ describeWithDatabase("RailwayTablesCompat PostgreSQL integration", () => {
     expect(claimedIds).toHaveLength(3)
     expect(new Set(claimedIds)).toHaveLength(3)
 
+    await tables.createRow("", "jobs", jobIds[3], {
+      status: "queued",
+      type: "sync-post-analytics",
+      priority: 1,
+      available_at: now,
+      created_at: now,
+      attempts: 0,
+    })
+    await tables.createRow("", "jobs", jobIds[4], {
+      status: "queued",
+      type: "compat-allowed",
+      priority: 1,
+      available_at: now,
+      created_at: now,
+      attempts: 0,
+    })
     const excluded = await tables.claimJobs({
       workerId: "compat-worker-c",
       limit: 2,
       leaseUntil,
       now,
-      excludeTypes: ["compat-integration"],
+      excludeTypes: ["sync-post-analytics"],
     })
-    expect(excluded).toEqual([])
+    expect(excluded.map((row) => row.$id)).toContain(jobIds[4])
+    expect(excluded.map((row) => row.$id)).not.toContain(jobIds[3])
   })
 
   it("replaces output media transactionally and cascades parent deletion", async () => {
