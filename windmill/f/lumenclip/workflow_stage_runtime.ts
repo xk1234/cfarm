@@ -4910,8 +4910,8 @@ var init_appwrite_compat = __esm({
         const limit = Math.max(1, Math.min(100, Math.floor(input.limit)));
         const includeTypes = input.includeTypes?.filter(Boolean) ?? [];
         const excludeTypes = input.excludeTypes?.filter(Boolean) ?? [];
-        const includeTypeFilter = includeTypes.length > 0 ? sql`AND source_row ->> 'type' = ANY(${sql.array(includeTypes)}::text[])` : sql``;
-        const excludeTypeFilter = excludeTypes.length > 0 ? sql`AND COALESCE(source_row ->> 'type', '') <> ALL(${sql.array(excludeTypes)}::text[])` : sql``;
+        const includeTypeFilter = includeTypes.length > 0 ? sql`AND source_row ->> 'type' = ANY(${sql.array(includeTypes, 25)})` : sql``;
+        const excludeTypeFilter = excludeTypes.length > 0 ? sql`AND COALESCE(source_row ->> 'type', '') <> ALL(${sql.array(excludeTypes, 25)})` : sql``;
         const rows = await sql`
       WITH candidates AS (
         SELECT row_id

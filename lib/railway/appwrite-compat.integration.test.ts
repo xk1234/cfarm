@@ -87,6 +87,15 @@ describeWithDatabase("RailwayTablesCompat PostgreSQL integration", () => {
     const claimedIds = [...first, ...second].map((row) => row.$id)
     expect(claimedIds).toHaveLength(3)
     expect(new Set(claimedIds)).toHaveLength(3)
+
+    const excluded = await tables.claimJobs({
+      workerId: "compat-worker-c",
+      limit: 2,
+      leaseUntil,
+      now,
+      excludeTypes: ["compat-integration"],
+    })
+    expect(excluded).toEqual([])
   })
 
   it("replaces output media transactionally and cascades parent deletion", async () => {

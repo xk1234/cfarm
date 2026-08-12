@@ -205,11 +205,11 @@ export class RailwayTablesCompat {
     const excludeTypes = input.excludeTypes?.filter(Boolean) ?? []
     const includeTypeFilter =
       includeTypes.length > 0
-        ? sql`AND source_row ->> 'type' = ANY(${sql.array(includeTypes)}::text[])`
+        ? sql`AND source_row ->> 'type' = ANY(${sql.array(includeTypes, 25)})`
         : sql``
     const excludeTypeFilter =
       excludeTypes.length > 0
-        ? sql`AND COALESCE(source_row ->> 'type', '') <> ALL(${sql.array(excludeTypes)}::text[])`
+        ? sql`AND COALESCE(source_row ->> 'type', '') <> ALL(${sql.array(excludeTypes, 25)})`
         : sql``
     const rows = await sql<Array<{ source_row: StoredRow; row_id: string }>>`
       WITH candidates AS (
