@@ -206,7 +206,6 @@ export function LumenLabHookImporter({
           >
             <AppModalHeader
               title="Import hooks from LumenLab"
-              description="Import saved hooks, or analyze every project script into a hook, content direction, and source brief."
               onClose={() => setOpen(false)}
             />
 

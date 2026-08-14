@@ -96,14 +96,11 @@ function ProductCollectionModal({
         className="flex max-h-[92vh] max-w-[1240px] flex-col overflow-hidden rounded-[12px] bg-[#f6f5f0]"
       >
         <header className="flex items-start justify-between gap-4 border-b border-app-panel-border bg-app-surface px-4 py-4 sm:gap-5 sm:px-6 sm:py-5">
-          <div>
-            <h2 className="text-[22px] font-bold text-app-text">
-              {collection.name}
-            </h2>
-            <p className="mt-1 max-w-[760px] text-[13px] leading-5 font-medium text-app-muted-text">
-              {collection.description}
-            </p>
-            <p className="mt-2 text-[10px] font-medium text-app-text-faint">
+          <h2 className="text-[22px] font-bold text-app-text">
+            {collection.name}
+          </h2>
+          <div className="flex items-center gap-4">
+            <p className="text-[10px] font-medium text-app-text-faint">
               {collection.commissionDisclaimer}
               {collection.commissionSourceUrl ? (
                 <>
@@ -130,6 +127,11 @@ function ProductCollectionModal({
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+          {collection.description ? (
+            <p className="mb-5 max-w-[760px] text-[13px] leading-5 font-medium text-app-muted-text">
+              {collection.description}
+            </p>
+          ) : null}
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {collection.items.map((item) => (
               <article

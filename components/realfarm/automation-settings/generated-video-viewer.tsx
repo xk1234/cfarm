@@ -47,21 +47,30 @@ export function GeneratedAutomationVideoViewer({
         >
           <AppModalHeader
             title={slideshowTitle(run)}
-            description={`${runStatusLabel(run.status, run.socialStatuses, run.manuallyPublishedAt)} · ${formatRunDate(run.createdAt)}`}
             closeLabel="Close generated video"
             onClose={onClose}
             actions={
-              canDelete ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  <IconTrash className="size-4" />
-                  Delete
-                </Button>
-              ) : undefined
+              <>
+                <span className="hidden text-[12px] font-semibold text-app-muted-text sm:inline">
+                  {runStatusLabel(
+                    run.status,
+                    run.socialStatuses,
+                    run.manuallyPublishedAt
+                  )}{" "}
+                  · {formatRunDate(run.createdAt)}
+                </span>
+                {canDelete ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <IconTrash className="size-4" />
+                    Delete
+                  </Button>
+                ) : null}
+              </>
             }
           />
 

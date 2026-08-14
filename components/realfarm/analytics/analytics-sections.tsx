@@ -215,14 +215,14 @@ export function AccountSelectorRail({
   return (
     <section aria-label={multi ? "Compare accounts" : "Filter by account"}>
       <div className="mb-3 flex items-center justify-between gap-4">
-        <div>
+        <div className="flex items-baseline gap-2">
           <h2 className="text-[15px] font-semibold tracking-[-0.015em] text-app-text">
             {multi ? "Accounts" : "Connected accounts"}
           </h2>
           {multi ? (
-            <p className="mt-0.5 text-[11px] font-medium text-app-muted-text">
+            <span className="text-[11px] font-medium text-app-muted-text">
               {selectedIds.length} of {integrations.length} selected
-            </p>
+            </span>
           ) : null}
         </div>
         {multi ? (
