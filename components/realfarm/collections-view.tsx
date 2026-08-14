@@ -707,7 +707,6 @@ export function CollectionsView({
           >
             <AppModalHeader
               title={`Delete ${deleteRequestIds.length === 1 ? "collection" : `${deleteRequestIds.length} collections`}?`}
-              description="This is a recoverable soft deletion."
               onClose={() => {
                 setDeleteRequestIds([])
                 setDeletePreview(null)

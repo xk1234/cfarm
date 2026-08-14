@@ -186,6 +186,9 @@ export function PostAnalyticsPage({
           ) : (
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
               <div className="min-w-0">
+                <h1 className="max-w-[900px] text-[clamp(25px,3vw,38px)] leading-[1.08] font-semibold tracking-[-0.045em] text-app-text">
+                  {latest.content || "Post performance"}
+                </h1>
                 <div className="flex flex-wrap items-center gap-2">
                   <FormatBadge type={contentType} />
                   <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[10px] font-semibold text-app-muted-text">
@@ -195,9 +198,6 @@ export function PostAnalyticsPage({
                     Published {formatDate(latest.publishedAt)}
                   </span>
                 </div>
-                <h1 className="mt-5 max-w-[900px] text-[clamp(25px,3vw,38px)] leading-[1.08] font-semibold tracking-[-0.045em] text-app-text">
-                  {latest.content || "Post performance"}
-                </h1>
                 <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-app-panel-border pt-5">
                   <AccountProfileIcon integration={integration} size="md" />
                   <div>

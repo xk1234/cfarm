@@ -58,10 +58,7 @@ export function AppModalPanel({
   return (
     <Dialog.Content
       aria-describedby={undefined}
-      className={cn(
-        "app-dialog-surface w-full",
-        className
-      )}
+      className={cn("app-dialog-surface w-full", className)}
     >
       {accessibleTitle ? (
         <Dialog.Title className="sr-only">{accessibleTitle}</Dialog.Title>
@@ -73,29 +70,20 @@ export function AppModalPanel({
 
 export function AppModalHeader({
   title,
-  description,
   actions,
   onClose,
   closeLabel = "Close modal",
 }: {
   title: string
-  description?: string
   actions?: ReactNode
   onClose: () => void
   closeLabel?: string
 }) {
   return (
     <div className="flex items-center justify-between border-b border-app-panel-border px-5 py-4">
-      <div>
-        <Dialog.Title className="text-[22px] font-bold text-app-text">
-          {title}
-        </Dialog.Title>
-        {description && (
-          <Dialog.Description className="mt-1 text-[13px] font-semibold text-app-muted-text">
-            {description}
-          </Dialog.Description>
-        )}
-      </div>
+      <Dialog.Title className="text-[22px] font-bold text-app-text">
+        {title}
+      </Dialog.Title>
       <div className="flex items-center gap-2">
         {actions}
         <AppModalCloseButton onClick={onClose} ariaLabel={closeLabel} />

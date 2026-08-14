@@ -149,7 +149,6 @@ function RendererCaseModal({
       >
         <AppModalHeader
           title={`Renderer case ${item.id.replace("case-", "#")}`}
-          description={`${item.aspectRatio} · ${item.wordCount} rendered words · seed ${item.settings.seed}`}
           onClose={onClose}
           closeLabel="Close renderer case"
         />

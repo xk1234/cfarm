@@ -327,7 +327,6 @@ function SettingExampleModal({
       >
         <AppModalHeader
           title={`${setting.title} · ${example.label}`}
-          description={`${setting.editorLocation} · ${setting.category}`}
           onClose={onClose}
           closeLabel="Close setting comparison"
         />

@@ -20,7 +20,11 @@ export function GeneratedVideoExportViewer({
       >
         <AppModalHeader
           title={item.title}
-          description={videoStatusLabel(item.status)}
+          actions={
+            <span className="text-[12px] font-semibold text-app-muted-text">
+              {videoStatusLabel(item.status)}
+            </span>
+          }
           closeLabel="Close generated video"
           onClose={onClose}
         />

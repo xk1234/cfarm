@@ -323,12 +323,7 @@ export function XAutomationStudio({
             >
               <LuArrowLeft />
             </Button>
-            <div>
-              <div className="text-[11px] font-bold tracking-[0.14em] text-app-text-faint uppercase">
-                Separate content engine
-              </div>
-              <h1 className="text-lg font-semibold">X and Threads templates</h1>
-            </div>
+            <h1 className="text-lg font-semibold">X and Threads templates</h1>
           </div>
         </header>
       ) : null}
@@ -498,12 +493,10 @@ export function XAutomationStudio({
           ) : (
             <>
               <div className="mb-5 flex flex-wrap items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-bold tracking-[0.12em] text-app-text-faint uppercase">
-                    {selected.platform === "threads" ? "Threads" : "X"}
-                  </div>
-                  <h2 className="text-2xl font-semibold">Content Engine</h2>
-                </div>
+                <h2 className="min-w-0 flex-1 text-2xl font-semibold">
+                  {selected.platform === "threads" ? "Threads" : "X"} post
+                  template
+                </h2>
                 <Button
                   variant="softControl"
                   onClick={() => void saveAutomation()}
@@ -558,16 +551,12 @@ export function XAutomationStudio({
             )}
           >
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-xs font-bold tracking-[0.12em] text-app-text-faint uppercase">
-                  Native preview
-                </div>
-                <h2 className="text-lg font-semibold">
-                  {(preview?.platform ?? selected?.platform) === "threads"
-                    ? "Threads"
-                    : "X"}
-                </h2>
-              </div>
+              <h2 className="text-lg font-semibold">
+                {(preview?.platform ?? selected?.platform) === "threads"
+                  ? "Threads"
+                  : "X"}{" "}
+                preview
+              </h2>
               <div className="flex gap-2">
                 {preview && selected?.media.mode === "generate" && (
                   <Button
@@ -1215,10 +1204,7 @@ function XPreview({
       ))}
       {run.articleBody && (
         <div className="border-t border-app-panel-border p-5">
-          <div className="text-xs font-bold text-app-text-faint uppercase">
-            Article preview
-          </div>
-          <h3 className="mt-2 text-xl font-bold">{run.articleTitle}</h3>
+          <h3 className="text-xl font-bold">{run.articleTitle}</h3>
           <p className="mt-3 max-h-72 overflow-auto text-sm leading-6 whitespace-pre-wrap">
             {run.articleBody}
           </p>
@@ -1406,9 +1392,6 @@ function EmptyState({
         <h2 className="text-xl font-semibold">
           Create your social content engine
         </h2>
-        <p className="mt-2 text-sm text-app-muted-text">
-          Niche + content type → generated post.
-        </p>
         <div className="mt-4 flex justify-center gap-3">
           <Button variant="action" onClick={() => onCreate("x")}>
             <LuPlus /> New X template

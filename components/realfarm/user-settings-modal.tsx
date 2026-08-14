@@ -779,11 +779,11 @@ function BillingPanel() {
       <PanelHeading title="Billing & plans" />
       <div className="rounded-[14px] border border-[#e4d7ff] bg-[#f6f2ff] p-5">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.12em] text-app-action uppercase">
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-xl font-semibold">LumenClip Free</h3>
+            <span className="text-xs font-semibold text-app-action">
               Current plan
-            </p>
-            <h3 className="mt-1 text-xl font-semibold">LumenClip Free</h3>
+            </span>
           </div>
           <span className="rounded-full bg-app-surface px-3 py-1 text-xs font-semibold text-app-action">
             Active
