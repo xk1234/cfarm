@@ -41,4 +41,14 @@ describe("buildListRowsQuery", () => {
 
     expect(built.parameters.at(-1)).toBe(5_000)
   })
+
+  it("keeps promoted order columns available inside the filtered CTE", () => {
+    const built = buildListRowsQuery("outputs", [
+      JSON.parse(Query.orderAsc("ord")),
+    ])
+
+    expect(built.text).toMatch(/SELECT\s+source_row,\s+row_id,\s+owner_id,/)
+    expect(built.text).toMatch(/status,\s+ord\s+FROM domain_records/)
+    expect(built.text).toContain("safe_numeric(ord::text) ASC")
+  })
 })

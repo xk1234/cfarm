@@ -554,7 +554,15 @@ export function buildListRowsQuery(
   return {
     text: `
       WITH filtered AS (
-        SELECT source_row, row_id
+        SELECT
+          source_row,
+          row_id,
+          owner_id,
+          source_key,
+          rid,
+          name,
+          status,
+          ord
         FROM domain_records
         WHERE ${filters.join(" AND ")}
       ), ranked AS (
