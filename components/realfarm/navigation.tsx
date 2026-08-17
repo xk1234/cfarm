@@ -73,7 +73,7 @@ export function Sidebar({
     ? calendarStatus.summary.needsAction + calendarStatus.summary.failed
     : 0
   return (
-    <aside className="hidden h-svh w-56 shrink-0 overflow-y-auto border-r border-app-panel-border bg-[#fbfbfd] px-3 py-5 md:flex md:flex-col">
+    <aside className="hidden h-dvh w-56 shrink-0 overflow-y-auto border-r border-app-panel-border bg-[#fbfbfd] px-3 py-5 md:flex md:flex-col">
       <button className="lc-focus-ring mb-6 flex items-center gap-2.5 rounded-lg px-2 text-left text-[15px] font-semibold tracking-[-0.025em] text-app-text">
         <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
           <Image
@@ -233,7 +233,7 @@ export function MobileNavigation({
           <nav
             id="mobile-nav-menu"
             aria-label="Primary navigation"
-            className="flex h-svh w-full flex-col overflow-y-auto bg-white"
+            className="flex h-dvh w-full flex-col overflow-y-auto bg-white"
           >
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-app-panel-border px-4">
               <Link

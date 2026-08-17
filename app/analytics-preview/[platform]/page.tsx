@@ -34,7 +34,7 @@ export default async function AnalyticsPreviewPage({
   const renderedData =
     platform === "overall" ? oneAccountPerProvider(previewData) : previewData
   return (
-    <main className="min-h-screen bg-[#f8f7fb] px-7 py-9 lg:px-12">
+    <main className="min-h-dvh bg-[#f8f7fb] px-3 py-5 sm:px-7 sm:py-9 lg:px-12">
       <AnalyticsView
         previewData={renderedData}
         initialPlatform={initialPlatform}

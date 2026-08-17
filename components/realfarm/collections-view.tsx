@@ -24,6 +24,13 @@ import { Button } from "@/components/ui/button"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
 import { SearchControl, SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import {
+  ResponsiveControlBar,
+  ResponsiveGrid,
+  ResponsivePage,
+  ResponsivePageHeader,
+  ResponsiveScrollRegion,
+} from "@/components/ui/responsive-layout"
 import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle"
 import {
   CollectionPreview,
@@ -349,84 +356,90 @@ export function CollectionsView({
   }
 
   return (
-    <div className="mx-auto max-w-[1540px]">
-      <div className="mb-6 flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
-        <h1 className="flex h-10 items-center gap-2 text-[24px] leading-none font-semibold tracking-normal md:h-9">
-          Collections
-          <button
-            type="button"
-            aria-label="About collections"
-            aria-describedby="collections-help"
-            className="group relative grid size-10 place-items-center rounded-full border border-[#aeb5c0] text-[14px] font-semibold text-[#7b8492] md:size-6"
-          >
-            ?
-            <span
-              id="collections-help"
-              role="tooltip"
-              className="pointer-events-none absolute top-7 left-1/2 z-20 hidden w-[280px] -translate-x-1/2 rounded-[8px] bg-[#2f2f2d] px-3 py-2 text-left text-[12px] leading-5 font-medium text-white shadow-lg group-hover:block group-focus:block"
+    <ResponsivePage width="full">
+      <ResponsivePageHeader
+        className="mb-6"
+        titleClassName="flex items-center gap-2"
+        title={
+          <>
+            Collections
+            <button
+              type="button"
+              aria-label="About collections"
+              aria-describedby="collections-help"
+              className="group relative grid size-10 place-items-center rounded-full border border-[#aeb5c0] text-[14px] font-semibold text-[#7b8492] md:size-6"
             >
-              Collections organize images, videos, and reusable variables for
-              automations.
-            </span>
-          </button>
-        </h1>
-        {activeTab !== "variables" && selectedIds.length > 0 ? (
-          <div className="flex w-full items-center gap-2 overflow-x-auto md:w-auto">
-            <Button
-              variant="softControl"
-              size="appDefault"
-              className="h-10 md:h-9"
-              onClick={() => setSelectedCollectionIds(new Set())}
-            >
-              Clear
-            </Button>
-            <Button
-              variant="destructive"
-              size="appDefault"
-              className="h-10 md:h-9"
-              onClick={() => void requestCollectionDelete(selectedIds)}
-            >
-              <IconTrash className="size-4" />
-              Delete {selectedIds.length}{" "}
-              {selectedIds.length === 1 ? "Collection" : "Collections"}
-            </Button>
-          </div>
-        ) : activeTab === "images" ? (
-          <div className="flex w-full items-center gap-2 overflow-x-auto md:w-auto">
-            <Button
-              variant="softControl"
-              size="appDefault"
-              className="h-10 md:h-9"
-              onClick={() =>
-                onCreateCollection({
-                  id: `collection-empty-${Date.now()}`,
-                  title: "Empty collection",
-                  images: [],
-                  createdAt: new Date().toISOString(),
-                  source: "empty",
-                })
-              }
-            >
-              <IconPhotoPlus className="size-4" />
-              New collection
-            </Button>
-            <Button
-              variant="action"
-              size="appDefault"
-              className="h-10 md:h-9"
-              onClick={() => setSearchOpen(true)}
-            >
-              <IconPlus className="size-4" />
-              Import images
-            </Button>
-          </div>
-        ) : null}
-      </div>
+              ?
+              <span
+                id="collections-help"
+                role="tooltip"
+                className="pointer-events-none absolute top-7 left-1/2 z-20 hidden w-[280px] -translate-x-1/2 rounded-[8px] bg-[#2f2f2d] px-3 py-2 text-left text-[12px] leading-5 font-medium text-white shadow-lg group-hover:block group-focus:block"
+              >
+                Collections organize images, videos, and reusable variables for
+                automations.
+              </span>
+            </button>
+          </>
+        }
+        actions={
+          activeTab !== "variables" && selectedIds.length > 0 ? (
+            <>
+              <Button
+                variant="softControl"
+                size="appDefault"
+                className="h-10 md:h-9"
+                onClick={() => setSelectedCollectionIds(new Set())}
+              >
+                Clear
+              </Button>
+              <Button
+                variant="destructive"
+                size="appDefault"
+                className="h-10 md:h-9"
+                onClick={() => void requestCollectionDelete(selectedIds)}
+              >
+                <IconTrash className="size-4" />
+                Delete {selectedIds.length}{" "}
+                {selectedIds.length === 1 ? "Collection" : "Collections"}
+              </Button>
+            </>
+          ) : activeTab === "images" ? (
+            <>
+              <Button
+                variant="softControl"
+                size="appDefault"
+                className="h-10 md:h-9"
+                onClick={() =>
+                  onCreateCollection({
+                    id: `collection-empty-${Date.now()}`,
+                    title: "Empty collection",
+                    images: [],
+                    createdAt: new Date().toISOString(),
+                    source: "empty",
+                  })
+                }
+              >
+                <IconPhotoPlus className="size-4" />
+                New collection
+              </Button>
+              <Button
+                variant="action"
+                size="appDefault"
+                className="h-10 md:h-9"
+                onClick={() => setSearchOpen(true)}
+              >
+                <IconPlus className="size-4" />
+                Import images
+              </Button>
+            </>
+          ) : null
+        }
+      />
       <Tabs.Root
         value={activeTab}
         onValueChange={(value) => selectTab(value as typeof activeTab)}
       >
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <ResponsiveControlBar className="mb-6">
           <SelectControl
             aria-label="Collection type"
             value={activeTab}
@@ -438,7 +451,7 @@ export function CollectionsView({
             <option value="products">Products</option>
             <option value="variables">Variables</option>
           </SelectControl>
-          <div className="hidden max-w-full overflow-x-auto pb-1 md:block">
+          <ResponsiveScrollRegion className="hidden pb-1 md:block">
             <Tabs.List
               className="flex w-max rounded-[7px] border border-app-panel-border bg-app-surface-subtle p-1"
               aria-label="Collection types"
@@ -466,7 +479,7 @@ export function CollectionsView({
                 </Tabs.Trigger>
               ))}
             </Tabs.List>
-          </div>
+          </ResponsiveScrollRegion>
           {(activeTab === "images" || activeTab === "videos") && (
             <div className="flex w-full min-w-0 items-center gap-2 md:ml-auto md:w-auto">
               <SearchControl
@@ -499,7 +512,7 @@ export function CollectionsView({
               />
             </div>
           )}
-        </div>
+        </ResponsiveControlBar>
         {activeTab === "products" ? (
           <ProductCollectionsPanel collections={productCollections} />
         ) : activeTab === "variables" ? (
@@ -555,7 +568,7 @@ export function CollectionsView({
                   />
                 ) : (
                   <>
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 md:gap-5">
+                    <ResponsiveGrid min="small" className="gap-3 md:gap-5">
                       {visibleCollections.map((collection, index) => (
                         <MediaCardShell
                           key={collection.id}
@@ -668,7 +681,7 @@ export function CollectionsView({
                           <IconPlus className="size-6" />
                         </Button>
                       ) : null}
-                    </div>
+                    </ResponsiveGrid>
                     {hasMoreCollections && (
                       <div className="mt-8 flex justify-center">
                         <Button
@@ -792,7 +805,7 @@ export function CollectionsView({
           }}
         />
       )}
-    </div>
+    </ResponsivePage>
   )
 }
 

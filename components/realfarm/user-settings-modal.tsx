@@ -127,14 +127,17 @@ export function UserSettingsModal({
   return (
     <>
       <AppModal className="z-[100] bg-[#242136]/45" onClose={requestClose}>
-        <AppModalPanel className="max-h-[calc(100vh-2rem)] max-w-[980px] overflow-hidden p-0">
+        <AppModalPanel className="max-h-[calc(100dvh-1rem)] max-w-[980px] overflow-hidden p-0 sm:max-h-[calc(100dvh-2rem)]">
           <AppModalHeader
             title="Workspace settings"
             closeLabel="Close settings"
             onClose={requestClose}
           />
-          <div className="grid h-[calc(100vh-7rem)] max-h-[600px] min-h-0 md:grid-cols-[220px_1fr]">
-            <nav className="overflow-y-auto border-b border-app-panel-border bg-[#fafafd] p-3 md:border-r md:border-b-0">
+          <div className="grid h-[calc(100dvh-6rem)] max-h-[600px] min-h-0 grid-rows-[auto_minmax(0,1fr)] md:h-[calc(100dvh-7rem)] md:grid-cols-[220px_1fr] md:grid-rows-1">
+            <nav
+              aria-label="Settings sections"
+              className="flex max-w-full gap-1 overflow-x-auto border-b border-app-panel-border bg-[#fafafd] p-2 md:block md:overflow-y-auto md:border-r md:border-b-0 md:p-3"
+            >
               {tabs.map((item) => {
                 const Icon = item.icon
                 return (
@@ -142,7 +145,7 @@ export function UserSettingsModal({
                     key={item.id}
                     onClick={() => selectTab(item.id)}
                     className={cn(
-                      "mb-1 flex h-10 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-sm font-medium",
+                      "flex h-10 w-auto shrink-0 items-center gap-2.5 rounded-[10px] px-3 text-left text-sm font-medium md:mb-1 md:w-full",
                       tab === item.id
                         ? "bg-app-strong text-white"
                         : "text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
@@ -154,7 +157,7 @@ export function UserSettingsModal({
                 )
               })}
             </nav>
-            <div className="min-w-0 overflow-y-auto p-6 sm:p-8">
+            <div className="min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
               {tab === "billing" && <BillingPanel />}
               {tab === "accounts" && (
                 <AccountsPanel

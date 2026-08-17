@@ -13,6 +13,11 @@ import { LuPencil } from "react-icons/lu"
 
 import { Button } from "@/components/ui/button"
 import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
+import {
+  ResponsiveGrid,
+  ResponsivePage,
+  ResponsivePageHeader,
+} from "@/components/ui/responsive-layout"
 import { SlideshowToneAnalyzerDialog } from "@/components/realfarm/slideshow-tone-analyzer-dialog"
 import { TemplateDefinitionPreview } from "@/components/realfarm/template-definition-preview"
 import type { SocialAccountStatusItem } from "@/components/realfarm/social-account-status"
@@ -56,12 +61,10 @@ export function TemplatesView({
   const [visibility, setVisibility] = useState<"active" | "hidden">("active")
   const visibleTemplates = templatesForVisibility(automations, visibility)
   return (
-    <div className="mx-auto max-w-[1160px]">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="flex h-10 items-center text-[24px] leading-none font-semibold sm:h-9">
-          Templates
-        </h1>
-        <div className="flex flex-wrap justify-end gap-2 sm:gap-3">
+    <ResponsivePage width="standard">
+      <ResponsivePageHeader
+        title="Templates"
+        actions={
           <Button
             variant="softControl"
             size="appDefault"
@@ -71,8 +74,8 @@ export function TemplatesView({
             <IconSlideshow className="size-4" />
             Match slideshow
           </Button>
-        </div>
-      </div>
+        }
+      />
       <div
         className="mb-4 flex w-fit items-center gap-1 rounded-[8px] bg-app-control-bg p-1"
         role="tablist"
@@ -96,7 +99,7 @@ export function TemplatesView({
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <ResponsiveGrid min="card" className="gap-4">
         {automationsLoading ? (
           <CardGridSkeleton
             count={6}
@@ -133,14 +136,14 @@ export function TemplatesView({
               : "No active templates."}
           </div>
         )}
-      </div>
+      </ResponsiveGrid>
       {toneAnalyzerOpen ? (
         <SlideshowToneAnalyzerDialog
           onClose={() => setToneAnalyzerOpen(false)}
           onCreate={onCreateFromTone}
         />
       ) : null}
-    </div>
+    </ResponsivePage>
   )
 }
 

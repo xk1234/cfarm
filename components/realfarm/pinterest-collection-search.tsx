@@ -226,7 +226,7 @@ export function PinterestCollectionSearch({
     <AppModal className="bg-[#24251f]/50 p-0 sm:p-4" onClose={cancel}>
       <AppModalPanel
         accessibleTitle="Search for collection images"
-        className="relative flex h-dvh max-w-none flex-col rounded-none sm:h-auto sm:max-h-[78vh] sm:max-w-[640px] sm:rounded-[10px]"
+        className="relative flex h-dvh max-w-none flex-col rounded-none sm:h-auto sm:max-h-[78dvh] sm:max-w-[640px] sm:rounded-[10px]"
       >
         <AppModalCloseButton
           className="absolute top-3 right-3 z-10"

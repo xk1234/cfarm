@@ -69,11 +69,11 @@ export function SlideshowToneAnalyzerDialog({
   return (
     <AppModal onClose={onClose}>
       <AppModalPanel
-        className="max-h-[90vh] max-w-4xl overflow-hidden"
+        className="max-h-[calc(100dvh-1rem)] max-w-4xl overflow-hidden sm:max-h-[90dvh]"
         accessibleTitle="Match a TikTok slideshow"
       >
         <AppModalHeader title="Match a TikTok slideshow" onClose={onClose} />
-        <div className="max-h-[calc(90vh-5rem)] overflow-y-auto p-5">
+        <div className="max-h-[calc(100dvh-6rem)] overflow-y-auto p-4 sm:max-h-[calc(90dvh-5rem)] sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row">
             <label className="app-field-label flex-1">
               TikTok slideshow URL

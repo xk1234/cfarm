@@ -23,7 +23,7 @@ export function AppModal({
       <Dialog.Overlay className={cn("inset-0 z-50", layer)} />
       <div
         className={cn(
-          "inset-0 z-50 grid place-items-center bg-app-overlay p-4",
+          "inset-0 z-50 grid place-items-center bg-app-overlay p-2 sm:p-4",
           layer,
           className
         )}
@@ -58,7 +58,10 @@ export function AppModalPanel({
   return (
     <Dialog.Content
       aria-describedby={undefined}
-      className={cn("app-dialog-surface w-full", className)}
+      className={cn(
+        "app-dialog-surface max-h-[calc(100dvh-1rem)] w-full max-w-[calc(100vw-1rem)] min-w-0 sm:max-h-[calc(100dvh-2rem)] sm:max-w-[calc(100vw-2rem)]",
+        className
+      )}
     >
       {accessibleTitle ? (
         <Dialog.Title className="sr-only">{accessibleTitle}</Dialog.Title>
@@ -80,11 +83,11 @@ export function AppModalHeader({
   closeLabel?: string
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-app-panel-border px-5 py-4">
-      <Dialog.Title className="text-[22px] font-bold text-app-text">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-app-panel-border px-4 py-3 sm:px-5 sm:py-4">
+      <Dialog.Title className="min-w-0 text-[20px] leading-tight font-bold break-words text-app-text sm:text-[22px]">
         {title}
       </Dialog.Title>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         {actions}
         <AppModalCloseButton onClick={onClose} ariaLabel={closeLabel} />
       </div>

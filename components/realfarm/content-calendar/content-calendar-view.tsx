@@ -45,6 +45,11 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
+import {
+  ResponsiveGrid,
+  ResponsivePage,
+  ResponsivePageHeader,
+} from "@/components/ui/responsive-layout"
 import type {
   CalendarItem,
   CalendarLifecycleStatus,
@@ -364,36 +369,37 @@ export function ContentCalendarView({
   }
 
   return (
-    <div className="mx-auto max-w-[1380px] pb-12">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-5">
-        <h1 className="flex h-9 items-center text-[30px] leading-none font-semibold tracking-[-0.035em] text-[#20201d]">
-          Content calendar
-        </h1>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="softControl"
-            size="compact"
-            className="h-9"
-            onClick={() => void mutate()}
-            disabled={isValidating}
-          >
-            <IconRefresh
-              className={cn("size-4", isValidating && "animate-spin")}
-            />
-            Refresh
-          </Button>
-          <Button
-            variant="action"
-            size="compact"
-            className="h-9"
-            onClick={onGoAutomations}
-          >
-            <IconSparkles className="size-4" /> Templates
-          </Button>
-        </div>
-      </header>
+    <ResponsivePage width="canvas" className="pb-12">
+      <ResponsivePageHeader
+        title="Content calendar"
+        className="mb-6"
+        actions={
+          <>
+            <Button
+              variant="softControl"
+              size="compact"
+              className="h-9"
+              onClick={() => void mutate()}
+              disabled={isValidating}
+            >
+              <IconRefresh
+                className={cn("size-4", isValidating && "animate-spin")}
+              />
+              Refresh
+            </Button>
+            <Button
+              variant="action"
+              size="compact"
+              className="h-9"
+              onClick={onGoAutomations}
+            >
+              <IconSparkles className="size-4" /> Templates
+            </Button>
+          </>
+        }
+      />
 
-      <section className="mb-4 grid grid-cols-3 gap-2">
+      <ResponsiveGrid min="small" className="mb-4 gap-2">
         <SummaryCard
           label="Needs action"
           value={visibleSummary.needsAction}
@@ -409,7 +415,7 @@ export function ContentCalendarView({
           value={visibleSummary.planned}
           tone="neutral"
         />
-      </section>
+      </ResponsiveGrid>
 
       <section className="mb-4 md:hidden">
         <Button
@@ -572,7 +578,7 @@ export function ContentCalendarView({
           ) : null}
         </>
       )}
-    </div>
+    </ResponsivePage>
   )
 }
 
@@ -657,7 +663,7 @@ function CalendarItemDetail({
       <AppModal className="z-[70] bg-[#24251f]/45" onClose={onClose}>
         <AppModalPanel
           accessibleTitle={item.title}
-          className="max-h-[calc(100vh-2rem)] max-w-[560px] overflow-y-auto p-0"
+          className="max-h-[calc(100dvh-1rem)] max-w-[560px] overflow-y-auto p-0 sm:max-h-[calc(100dvh-2rem)]"
         >
           <article className="p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">

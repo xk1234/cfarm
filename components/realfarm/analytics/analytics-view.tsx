@@ -26,6 +26,7 @@ import {
   type LatestPost,
 } from "@/components/realfarm/analytics/analytics-selectors"
 import { TikTokStudioBatchDialog } from "@/components/realfarm/analytics/tiktok-studio-batch-dialog"
+import { ResponsivePage } from "@/components/ui/responsive-layout"
 
 export type AnalyticsPayload = {
   integrations: SocialIntegration[]
@@ -143,7 +144,7 @@ export function AnalyticsView({
     router.push(`/app/analytics/posts/${encodeURIComponent(post.postId)}`)
 
   return (
-    <div className="mx-auto max-w-[1380px] pb-14">
+    <ResponsivePage width="canvas" className="pb-14">
       <AnalyticsHeader
         platform={showingPlatform ? activePlatform : ""}
         days={days}
@@ -233,6 +234,6 @@ export function AnalyticsView({
           onLinked={() => void refreshReport()}
         />
       ) : null}
-    </div>
+    </ResponsivePage>
   )
 }

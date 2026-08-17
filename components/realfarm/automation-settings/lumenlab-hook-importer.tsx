@@ -201,7 +201,7 @@ export function LumenLabHookImporter({
       {open ? (
         <AppModal onClose={() => setOpen(false)}>
           <AppModalPanel
-            className="flex max-h-[min(760px,calc(100vh-2rem))] max-w-3xl flex-col overflow-hidden"
+            className="flex max-h-[min(760px,calc(100dvh-1rem))] max-w-3xl flex-col overflow-hidden sm:max-h-[min(760px,calc(100dvh-2rem))]"
             accessibleTitle="Import hooks from LumenLab"
           >
             <AppModalHeader

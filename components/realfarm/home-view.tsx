@@ -32,6 +32,11 @@ import { AutomationRecentRunCard } from "@/components/realfarm/automation-settin
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  ResponsiveGrid,
+  ResponsivePage,
+  ResponsivePageHeader,
+} from "@/components/ui/responsive-layout"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { clientSWRFetcher } from "@/lib/client-swr"
 import { nextUpcomingAutomationPost } from "@/lib/automation-upcoming-posts"
@@ -185,10 +190,8 @@ export function HomeView({
   }
 
   return (
-    <div className="mx-auto max-w-[1280px] pb-16">
-      <h1 className="pt-5 text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text sm:pt-7">
-        Home
-      </h1>
+    <ResponsivePage width="wide" className="pb-16">
+      <ResponsivePageHeader title="Home" className="pt-5 sm:pt-7" />
       <section className="py-7 text-center sm:py-10 lg:py-14">
         <div className="mx-auto max-w-[1100px]">
           <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
@@ -284,7 +287,7 @@ export function HomeView({
         </div>
 
         {activeTab === "slideshows" && pagedGeneratedSlideshows.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+          <ResponsiveGrid min="small" className="gap-3">
             {pagedGeneratedSlideshows.map((item) => (
               <AutomationRecentRunCard
                 key={item.slideshow.id}
@@ -299,7 +302,7 @@ export function HomeView({
                 }
               />
             ))}
-          </div>
+          </ResponsiveGrid>
         ) : activeTab === "slideshows" && generatedRunsLoading ? (
           <HomeCardSkeletonRow />
         ) : activeTab === "slideshows" && generatedRunsError ? (
@@ -312,7 +315,7 @@ export function HomeView({
             No generated slideshows yet. Generate one from a slideshow template.
           </div>
         ) : pagedVideos.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+          <ResponsiveGrid min="small" className="gap-3">
             {pagedVideos.map((item) => (
               <VideoCard
                 key={item.id}
@@ -325,7 +328,7 @@ export function HomeView({
                 }
               />
             ))}
-          </div>
+          </ResponsiveGrid>
         ) : videosLoading ? (
           <HomeCardSkeletonRow />
         ) : videosError ? (
@@ -359,7 +362,7 @@ export function HomeView({
           onClose={() => setSelectedGeneratedSlideshow(null)}
         />
       ) : null}
-    </div>
+    </ResponsivePage>
   )
 }
 
@@ -396,7 +399,7 @@ type GeneratedHomeSlideshowCard = {
 
 function HomeCardSkeletonRow() {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+    <ResponsiveGrid min="small" className="gap-3">
       {Array.from({ length: 5 }, (_, index) => (
         <div
           key={index}
@@ -404,7 +407,7 @@ function HomeCardSkeletonRow() {
           aria-hidden="true"
         />
       ))}
-    </div>
+    </ResponsiveGrid>
   )
 }
 
