@@ -1080,7 +1080,7 @@ function SlideImagePickerModal({
     <AppModal className="z-[90] p-0 sm:p-4" onClose={onClose}>
       <AppModalPanel
         accessibleTitle="Choose a replacement image"
-        className="flex h-dvh max-w-none flex-col rounded-none bg-app-surface-subtle sm:h-[min(680px,90vh)] sm:max-w-[900px] sm:rounded-[10px]"
+        className="flex h-dvh max-w-none flex-col rounded-none bg-app-surface-subtle sm:h-[min(680px,90dvh)] sm:max-w-[900px] sm:rounded-[10px]"
       >
         <header className="flex items-start justify-between gap-4 border-b border-app-panel-border bg-app-surface px-4 py-4 sm:px-5">
           <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-app-text sm:text-[18px]">

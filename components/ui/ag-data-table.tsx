@@ -61,8 +61,8 @@ export function AgDataTable<TData extends object>({
   )
 
   return (
-    <div className={cn("app-card overflow-hidden", className)}>
-      <div className="h-[620px] min-w-0">
+    <div className={cn("app-card min-w-0 overflow-hidden", className)}>
+      <div className="h-[min(620px,calc(100dvh-10rem))] min-h-[360px] min-w-0">
         <AgGridReact<TData>
           className="app-data-grid h-full w-full"
           theme={appDataGridTheme}

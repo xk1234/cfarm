@@ -24,6 +24,11 @@ import {
   ToggleRow,
 } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import {
+  ResponsiveActions,
+  ResponsiveControlBar,
+  ResponsivePage,
+} from "@/components/ui/responsive-layout"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import { ImageViewerModal } from "@/components/realfarm/image-viewer-modal"
 import {
@@ -376,8 +381,8 @@ export function CollectionDetailView({
   }
 
   return (
-    <div className="mx-auto max-w-[1120px]">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <ResponsivePage width="standard">
+      <ResponsiveControlBar className="mb-4">
         <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
           <Button
             type="button"
@@ -450,7 +455,7 @@ export function CollectionDetailView({
             </Button>
           )}
         </div>
-        <div className="flex w-full items-center gap-2 overflow-x-auto sm:w-auto">
+        <ResponsiveActions>
           <Button
             variant="softControl"
             size="compact"
@@ -510,8 +515,8 @@ export function CollectionDetailView({
               Add
             </Button>
           )}
-        </div>
-      </div>
+        </ResponsiveActions>
+      </ResponsiveControlBar>
 
       {!readonly && (
         <UploadDropzone
@@ -544,8 +549,8 @@ export function CollectionDetailView({
         </div>
       ) : (
         <>
-          <div className="mb-5 flex flex-nowrap items-center justify-between gap-3 overflow-x-auto pb-1">
-            <div className="flex shrink-0 items-center gap-2">
+          <ResponsiveControlBar className="mb-5 pb-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Button
                 variant="softControl"
                 size="compact"
@@ -580,7 +585,7 @@ export function CollectionDetailView({
               )}
             </div>
             {selectedCount > 0 && (
-              <div className="flex shrink-0 items-center gap-2">
+              <ResponsiveActions>
                 <span className="rounded-[8px] bg-app-surface px-3 py-2 text-[13px] font-semibold text-app-text-soft shadow-sm">
                   {selectedCount} selected
                   {selectedVisibleCount > 0 ? ` loaded` : ""}
@@ -596,9 +601,9 @@ export function CollectionDetailView({
                     Delete
                   </Button>
                 )}
-              </div>
+              </ResponsiveActions>
             )}
-          </div>
+          </ResponsiveControlBar>
 
           <div
             className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 sm:gap-x-4 sm:gap-y-6 md:[grid-template-columns:repeat(var(--collection-columns),minmax(0,1fr))]"
@@ -756,7 +761,7 @@ export function CollectionDetailView({
           onClose={() => setViewerIndex(null)}
         />
       )}
-    </div>
+    </ResponsivePage>
   )
 }
 

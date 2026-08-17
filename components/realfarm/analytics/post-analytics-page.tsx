@@ -43,6 +43,7 @@ import {
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import { cn } from "@/lib/utils"
+import { ResponsivePage } from "@/components/ui/responsive-layout"
 
 export type AnalyticsSlide = {
   index: number
@@ -131,8 +132,8 @@ export function PostAnalyticsPage({
   }, [integration.integration_id, ordered, router])
 
   return (
-    <main className="min-h-screen bg-[#f8f7fb] px-4 py-6 sm:px-7 lg:px-10 lg:py-9">
-      <div className="mx-auto max-w-[1380px]">
+    <main className="min-h-dvh bg-[#f8f7fb] px-3 py-4 sm:px-7 sm:py-6 lg:px-10 lg:py-9">
+      <ResponsivePage width="canvas">
         <header>
           <Link
             href="/app?view=analytics"
@@ -142,7 +143,7 @@ export function PostAnalyticsPage({
           </Link>
         </header>
 
-        <section className="mt-6 rounded-[20px] border border-app-panel-border bg-app-surface p-5 shadow-[0_18px_55px_rgba(35,24,67,0.06)] lg:p-7">
+        <section className="mt-4 rounded-[14px] border border-app-panel-border bg-app-surface p-4 shadow-[0_18px_55px_rgba(35,24,67,0.06)] sm:mt-6 sm:rounded-[20px] sm:p-5 lg:p-7">
           {hasSlideshowViewer ? (
             <>
               <div className="flex flex-wrap items-center gap-2">
@@ -169,7 +170,7 @@ export function PostAnalyticsPage({
                 slides={viewerSlides}
                 activeSlide={activeSlideshowSlide}
                 onActiveSlideChange={setActiveSlideshowSlide}
-                className="mt-4 h-[min(72dvh,720px)] min-h-[440px] overflow-hidden rounded-[14px] bg-[#efefec] sm:min-h-[560px]"
+                className="mt-4 h-[min(68dvh,720px)] min-h-[320px] overflow-hidden rounded-[14px] bg-[#efefec] sm:min-h-[560px]"
               />
               <div className="mt-5 flex items-center gap-3 border-t border-app-panel-border pt-5">
                 <AccountProfileIcon integration={integration} size="md" />
@@ -189,7 +190,7 @@ export function PostAnalyticsPage({
                 <h1 className="max-w-[900px] text-[clamp(25px,3vw,38px)] leading-[1.08] font-semibold tracking-[-0.045em] text-app-text">
                   {latest.content || "Post performance"}
                 </h1>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                   <FormatBadge type={contentType} />
                   <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[10px] font-semibold text-app-muted-text">
                     {providerName(latest.provider)}
@@ -392,7 +393,7 @@ export function PostAnalyticsPage({
             </dl>
           </aside>
         </div>
-      </div>
+      </ResponsivePage>
     </main>
   )
 }

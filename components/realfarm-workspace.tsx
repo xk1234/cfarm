@@ -830,8 +830,8 @@ export function RealFarmWorkspace({
   )
 
   return (
-    <main className="relative h-svh overflow-hidden bg-[#f7f7fa] text-app-text">
-      <div className="flex h-svh">
+    <main className="relative h-dvh min-h-svh overflow-hidden bg-[#f7f7fa] text-app-text">
+      <div className="flex h-full min-w-0">
         <Sidebar
           data={data}
           view={view}
@@ -843,7 +843,7 @@ export function RealFarmWorkspace({
           onViewChange={changeView}
           onSettings={() => setSettingsOpen(true)}
         />
-        <section className="min-w-0 flex-1 overflow-y-auto px-4 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7">
+        <section className="w-full min-w-0 flex-1 overflow-y-auto px-3 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7">
           {view === "home" && (
             <HomeView
               currentUserId={user.id}
@@ -975,7 +975,7 @@ export function RealFarmWorkspace({
                 >
                   <AppModalPanel
                     accessibleTitle={`${editingAutomation.name} template editor`}
-                    className="h-[calc(100svh-1rem)] max-h-[900px] max-w-[1320px] overflow-hidden rounded-[12px] sm:h-[calc(100svh-2rem)]"
+                    className="h-[calc(100dvh-1rem)] max-h-[900px] max-w-[1320px] overflow-hidden rounded-[12px] sm:h-[calc(100dvh-2rem)]"
                   >
                     {editingAutomation.automationKind === "x_threads" ? (
                       <XAutomationStudio

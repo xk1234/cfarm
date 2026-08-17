@@ -24,6 +24,7 @@ import {
 } from "@tabler/icons-react"
 import { SelectControl } from "@/components/ui/form-controls"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
+import { ResponsivePageHeader } from "@/components/ui/responsive-layout"
 import {
   AccountProfileIcon,
   normalizeProvider,
@@ -94,9 +95,10 @@ export function AnalyticsHeader({
   onBack: () => void
 }) {
   return (
-    <header className="mb-7 flex min-w-0 flex-wrap items-center justify-between gap-5">
-      <div className="flex min-w-0 items-center gap-2">
-        {platform ? (
+    <ResponsivePageHeader
+      className="mb-7"
+      leading={
+        platform ? (
           <button
             type="button"
             onClick={onBack}
@@ -104,12 +106,10 @@ export function AnalyticsHeader({
           >
             <IconArrowLeft className="size-4" /> Back to overview
           </button>
-        ) : null}
-        <h1 className="flex min-h-9 min-w-0 items-center text-[28px] leading-tight font-semibold tracking-[-0.04em] text-app-text sm:text-[30px]">
-          {platform ? `${providerName(platform)} analytics` : "Analytics"}
-        </h1>
-      </div>
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+        ) : null
+      }
+      title={platform ? `${providerName(platform)} analytics` : "Analytics"}
+      actions={
         <SelectControl
           aria-label="Analytics date range"
           value={days}
@@ -121,8 +121,8 @@ export function AnalyticsHeader({
             </option>
           ))}
         </SelectControl>
-      </div>
-    </header>
+      }
+    />
   )
 }
 

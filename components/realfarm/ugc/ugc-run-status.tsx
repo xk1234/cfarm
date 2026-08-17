@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react"
 
 import { WorkflowArtifactPreview } from "@/components/realfarm/workflow-artifacts/artifact-preview"
+import { Button } from "@/components/ui/button"
+import { ResponsivePageHeader } from "@/components/ui/responsive-layout"
 import type { UgcCostBreakdown } from "@/lib/ugc-cost"
 import type { UgcRunStatus } from "@/lib/ugc-run-status"
 
@@ -70,7 +72,7 @@ export function UgcRunStatusPanel({ runId }: { runId: string }) {
 
   if (!data)
     return (
-      <section className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-6 text-card-foreground">
+      <section className="w-full rounded-2xl border border-border bg-card p-4 text-card-foreground sm:p-6">
         {error || "Loading UGC run…"}
       </section>
     )
@@ -79,23 +81,26 @@ export function UgcRunStatusPanel({ runId }: { runId: string }) {
     data.run.stages.some((stage) => stage.status === "failed") ||
     data.run.status === "failed"
   return (
-    <section className="mx-auto max-w-3xl space-y-6 rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-sm">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">UGC generation</h1>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {data.run.id}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={retry}
-          disabled={retrying || !failed}
-          className="rounded-lg border border-border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {retrying ? "Re-enqueuing…" : "Retry from cache"}
-        </button>
-      </header>
+    <section className="w-full space-y-6 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm sm:p-6">
+      <div>
+        <ResponsivePageHeader
+          className="mb-2"
+          title="UGC generation"
+          actions={
+            <Button
+              type="button"
+              onClick={retry}
+              disabled={retrying || !failed}
+              variant="softControl"
+            >
+              {retrying ? "Re-enqueuing…" : "Retry from cache"}
+            </Button>
+          }
+        />
+        <p className="font-mono text-xs break-all text-muted-foreground">
+          {data.run.id}
+        </p>
+      </div>
 
       {error ? (
         <p

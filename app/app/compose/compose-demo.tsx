@@ -18,6 +18,11 @@ import type {
 } from "@/components/realfarm/composer/composer-types"
 import { SocialPlatformIcon } from "@/components/realfarm/social-platform"
 import { Button } from "@/components/ui/button"
+import {
+  ResponsivePage,
+  ResponsivePageHeader,
+  ResponsiveScrollRegion,
+} from "@/components/ui/responsive-layout"
 import { composeLimitErrors } from "@/lib/compose-validation"
 import { getApiErrorMessage } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
@@ -231,12 +236,8 @@ export function ComposeDemo({
   }
 
   return (
-    <div className="mx-auto max-w-[1440px]">
-      <header className="mb-5 flex min-h-11 items-center">
-        <h1 className="text-metric font-semibold tracking-tight text-app-text">
-          Compose
-        </h1>
-      </header>
+    <ResponsivePage width="full">
+      <ResponsivePageHeader title="Compose" />
 
       {accounts.length === 0 ? (
         <section className="grid min-h-80 place-items-center rounded-app-panel border border-dashed border-app-panel-border bg-app-surface p-8 text-center shadow-app-card">
@@ -299,7 +300,7 @@ export function ComposeDemo({
                   </Button>
                 </div>
                 {sourceOutputs.length > 0 ? (
-                  <div className="flex gap-3 overflow-x-auto pb-1">
+                  <ResponsiveScrollRegion className="flex gap-3 pb-1">
                     {sourceOutputs.map((source) => (
                       <SourceOutputCard
                         key={source.id}
@@ -308,7 +309,7 @@ export function ComposeDemo({
                         source={source}
                       />
                     ))}
-                  </div>
+                  </ResponsiveScrollRegion>
                 ) : (
                   <div className="grid min-h-24 place-items-center bg-app-surface-subtle p-4 text-center">
                     <div>
@@ -327,9 +328,9 @@ export function ComposeDemo({
                 )}
               </div>
 
-              <div
+              <ResponsiveScrollRegion
                 aria-label="Publish accounts"
-                className="flex items-center gap-2 overflow-x-auto border-t border-app-panel-border pt-4"
+                className="flex items-center gap-2 border-t border-app-panel-border pt-4"
               >
                 {accounts.map((account) => {
                   const selected = selectedIds.has(account.integrationId)
@@ -355,7 +356,7 @@ export function ComposeDemo({
                     </button>
                   )
                 })}
-              </div>
+              </ResponsiveScrollRegion>
             </div>
           }
           onChange={setValue}
@@ -365,7 +366,7 @@ export function ComposeDemo({
           value={value}
         />
       )}
-    </div>
+    </ResponsivePage>
   )
 }
 

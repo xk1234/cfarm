@@ -43,7 +43,7 @@ export function GeneratedAutomationVideoViewer({
       <AppModal onClose={onClose}>
         <AppModalPanel
           accessibleTitle={`${slideshowTitle(run)} video`}
-          className="max-h-[90vh] max-w-[880px] overflow-hidden rounded-[10px] bg-app-surface"
+          className="max-h-[calc(100dvh-1rem)] max-w-[880px] overflow-hidden rounded-[10px] bg-app-surface sm:max-h-[90dvh]"
         >
           <AppModalHeader
             title={slideshowTitle(run)}
@@ -74,7 +74,7 @@ export function GeneratedAutomationVideoViewer({
             }
           />
 
-          <main className="grid max-h-[calc(90vh-73px)] gap-5 overflow-y-auto bg-app-surface-subtle p-5 md:grid-cols-[minmax(260px,360px)_1fr]">
+          <main className="grid max-h-[calc(100dvh-4.75rem)] gap-4 overflow-y-auto bg-app-surface-subtle p-4 sm:max-h-[calc(90dvh-73px)] sm:gap-5 sm:p-5 md:grid-cols-[minmax(260px,360px)_1fr]">
             <section className="min-w-0">
               <div className="grid aspect-[9/16] max-h-[68vh] place-items-center overflow-hidden rounded-[9px] bg-black shadow-xl">
                 {run.videoUrl ? (

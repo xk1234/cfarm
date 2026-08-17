@@ -451,6 +451,11 @@
   }
   html {
     @apply font-sans;
+    text-size-adjust: 100%;
+  }
+  img,
+  video {
+    max-width: 100%;
   }
 }
 
@@ -869,6 +874,17 @@
 }
 
 @media (max-width: 640px) {
+  .app-data-grid .ag-paging-page-size,
+  .app-data-grid .ag-paging-row-summary-panel {
+    display: none;
+  }
+
+  .app-data-grid .ag-paging-panel {
+    gap: 0.25rem;
+    min-width: 0;
+    padding-inline: 0.5rem;
+  }
+
   .lumenclip-calendar .fc-toolbar {
     align-items: stretch;
     flex-direction: column;
@@ -877,5 +893,9 @@
   .lumenclip-calendar .fc-toolbar-chunk {
     display: flex;
     justify-content: center;
+  }
+
+  .lumenclip-calendar .fc-daygrid-day-frame {
+    min-height: 92px;
   }
 }
