@@ -8,7 +8,7 @@ import { SelectControl, SwitchPillButton } from "@/components/ui/form-controls"
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import type { UgcCostBreakdown } from "@/lib/ugc-cost"
 import {
   normalizeUgcConfig,

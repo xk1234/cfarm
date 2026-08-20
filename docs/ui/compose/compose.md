@@ -3,7 +3,7 @@ title: Compose
 description: Create one post for selected connected social accounts and publish it now or schedule it for later.
 ---
 
-Route: `/app?view=compose`
+Route: `/app/compose`
 
 ![Desktop compose](../assets/screenshots/desktop-compose.png)
 
@@ -11,8 +11,8 @@ Route: `/app?view=compose`
 
 ## Layout
 
-Owner: `app/app/compose/compose-demo.tsx`. The editor itself is owned by
-`components/realfarm/composer/post-composer.tsx`.
+Owner: `features/composer/ui/composer-screen.tsx`. The editor itself is owned by
+`features/composer/ui/post-composer.tsx`.
 
 The header shows every connected publishing account. Desktop renders the
 accounts as wrapping selection buttons. Mobile uses a collapsed account summary

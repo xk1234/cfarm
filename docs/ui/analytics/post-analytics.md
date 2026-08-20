@@ -7,11 +7,11 @@ Route: `/app/analytics/posts/[id]`
 
 ## Layout
 
-Owner: `components/realfarm/analytics/post-analytics-page.tsx`.
+Owner: `features/analytics/ui/post-analytics-page.tsx`.
 
 This authenticated standalone page loads the publication identified by `id`,
 its dated metric snapshots, the connected account, and any source automation
-run. The header only returns to `/app?view=analytics`; data-ingestion controls
+run. The header only returns to `/app/analytics`; data-ingestion controls
 do not compete with the report. The lead card shows content type, platform,
 publication date, account, last capture time, live-post link, and the shared
 interactive slideshow viewer when rendered slides exist. Other formats retain

@@ -107,6 +107,23 @@ describe("generated video exports", () => {
     })
   })
 
+  it("loads a requested export without returning newer records", async () => {
+    const requested = await createGeneratedVideoExport({
+      rootDir: videoRoot,
+      type: "ugc_ad",
+      title: "Requested export",
+    })
+    await createGeneratedVideoExport({
+      rootDir: videoRoot,
+      type: "greenscreen",
+      title: "Newer export",
+    })
+
+    await expect(
+      listGeneratedVideoExports({ rootDir: videoRoot, id: requested.id })
+    ).resolves.toEqual([expect.objectContaining({ id: requested.id })])
+  })
+
   it("can create a ready export when rendered media already exists", async () => {
     const exportRecord = await createGeneratedVideoExport({
       rootDir: videoRoot,

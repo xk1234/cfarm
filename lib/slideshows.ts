@@ -13,8 +13,8 @@ import path from "node:path"
 
 import { toDataUrl } from "@/lib/data-url"
 import {
-  deleteAssetFromAppwrite,
-  mirrorDirToAppwrite,
+  deleteAsset,
+  persistAssetDirectory,
   readAssetBytes,
 } from "@/lib/asset-storage"
 import {
@@ -45,6 +45,7 @@ import {
   type SlideshowSlide,
   type SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
+import type { SlideshowSettings } from "@/lib/slideshow-contract"
 import { fetchWithTimeout } from "@/lib/http"
 export type {
   SlideshowOverlayImage,
@@ -53,23 +54,9 @@ export type {
   SlideshowSlide,
   SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
+export type { SlideshowSettings } from "@/lib/slideshow-contract"
 
 export type SlideshowStatus = "exported" | "failed"
-
-export type SlideshowSettings = {
-  duration: number
-  // One aspect ratio and font for the whole slideshow — every slide/text box
-  // shares them (a carousel with mixed ratios gets cropped by TikTok/IG, and
-  // the font is a brand constant). Not per-slide / per-text-item.
-  aspect_ratio: string
-  font: string
-  background_color: string
-  transition_style: string
-  export_as_video: boolean
-  sound_id: string
-  sound_name: string
-  sound_url: string
-}
 
 // Authoring inputs: everything that describes a slideshow independent of any
 // render. This is the shape a caller conceptually fills in before rendering.
@@ -513,7 +500,7 @@ export async function renderStoredSlideshowVideo(input: {
       durationSeconds: prepared.durationSeconds,
       slideImagePaths: prepared.slideImagePaths,
     })
-    await mirrorDirToAppwrite(prepared.scratchDir, prepared.storageOutputDir)
+    await persistAssetDirectory(prepared.scratchDir, prepared.storageOutputDir)
     return finalizeStoredSlideshowVideo({ ...prepared, ...rendered })
   } finally {
     await rm(prepared.scratchDir, { recursive: true, force: true })
@@ -1264,7 +1251,7 @@ async function writeSlideshowOutputs(
       }),
     }
 
-    await mirrorDirToAppwrite(scratchDir, logicalOutputDir)
+    await persistAssetDirectory(scratchDir, logicalOutputDir)
     return outputRecord
   } finally {
     await rm(scratchDir, { recursive: true, force: true })
@@ -1289,7 +1276,7 @@ async function writeSlideshowSlideOutput(
       aspectRatio: record.settings.aspect_ratio,
       font: record.settings.font,
     })
-    await mirrorDirToAppwrite(scratchDir, logicalOutputDir)
+    await persistAssetDirectory(scratchDir, logicalOutputDir)
     return {
       ...slide,
       image_url: output.publicUrl,
@@ -1358,7 +1345,7 @@ async function deleteSlideshowOutput(
       .filter((url): url is string => Boolean(url?.startsWith(outputPrefix)))
       .map((url) => localAssetPathForUrl(url))
       .filter((assetPath): assetPath is string => Boolean(assetPath))
-      .map((assetPath) => deleteAssetFromAppwrite(assetPath))
+      .map((assetPath) => deleteAsset(assetPath))
   )
   await rm(path.join(rootDir, "outputs", record.id), {
     recursive: true,

@@ -1,0 +1,904 @@
+"use client"
+
+// Route-owned post analytics detail surface.
+
+import Link from "next/link"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { DateTime } from "luxon"
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+import {
+  IconArrowLeft,
+  IconBrandTiktok,
+  IconExternalLink,
+  IconPhoto,
+  IconVideo,
+} from "@tabler/icons-react"
+
+import {
+  AccountProfileIcon,
+  providerName,
+} from "@/features/analytics/ui/account-profile-icon"
+import {
+  SlideshowViewer,
+  type SlideshowViewerSlide,
+} from "@/components/realfarm/slideshow-viewer-modal"
+import { analyticsNeedsRefresh } from "@/lib/analytics-auto-refresh"
+import { fetchJsonWithTimeout } from "@/lib/client-api"
+import {
+  canonicalMetricOrder,
+  metricLabel,
+  type CanonicalMetric,
+} from "@/lib/metric-registry"
+import {
+  postContentTypeLabel,
+  type PostContentType,
+} from "@/lib/post-content-type"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
+import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
+import { cn } from "@/lib/utils"
+
+export type AnalyticsSlide = {
+  index: number
+  imageUrl: string
+}
+
+export function PostAnalyticsPage({
+  snapshots,
+  integration,
+  contentType,
+  publicationPlatformPostId,
+  slides = [],
+}: {
+  snapshots: PostFastMetricSnapshot[]
+  integration: SocialIntegration
+  contentType: PostContentType
+  publicationPlatformPostId?: string
+  slides?: AnalyticsSlide[]
+}) {
+  const router = useRouter()
+  const ordered = useMemo(
+    () =>
+      [...snapshots].sort(
+        (left, right) =>
+          Date.parse(left.capturedAt) - Date.parse(right.capturedAt)
+      ),
+    [snapshots]
+  )
+  const latest = ordered.at(-1)!
+  const metrics = availableMetrics(ordered)
+  const [metric, setMetric] = useState<CanonicalMetric>(defaultMetric(metrics))
+  const autoSyncAttempted = useRef(false)
+  const [activeSlideshowSlide, setActiveSlideshowSlide] = useState(0)
+  const viewerSlides = useMemo(
+    () =>
+      slides.map<SlideshowViewerSlide>((slide) => ({
+        id: `${latest.postId}-slide-${slide.index}`,
+        imageUrl: slide.imageUrl,
+        text: "",
+        section: slide.index === 1 ? "hook" : "content",
+      })),
+    [latest.postId, slides]
+  )
+  const hasSlideshowViewer =
+    contentType === "slideshow" && viewerSlides.length > 0
+  const activeMetric = metrics.includes(metric)
+    ? metric
+    : defaultMetric(metrics)
+  const series = metricSeries(ordered, activeMetric)
+  const stats = featuredStats(latest, contentType)
+  const rawMetrics = platformSpecificMetrics(latest)
+  const studioSnapshot = [...ordered]
+    .reverse()
+    .find((snapshot) => snapshot.tiktokStudio)
+  const studio = studioSnapshot?.tiktokStudio
+  const platformPostId =
+    publicationPlatformPostId?.trim() ||
+    [...ordered].reverse().find((snapshot) => snapshot.platformPostId?.trim())
+      ?.platformPostId
+
+  useEffect(() => {
+    if (
+      autoSyncAttempted.current ||
+      !analyticsNeedsRefresh({
+        integrationIds: [integration.integration_id],
+        snapshots: ordered,
+      })
+    ) {
+      return
+    }
+    autoSyncAttempted.current = true
+    void fetchJsonWithTimeout("/api/analytics/report", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        days: 90,
+        integrationIds: [integration.integration_id],
+      }),
+      timeoutMs: 120_000,
+      toastOnError: false,
+    })
+      .then(() => router.refresh())
+      .catch(() => {
+        // Stored metrics remain usable when PostFast is temporarily unavailable.
+      })
+  }, [integration.integration_id, ordered, router])
+
+  return (
+    <main className="min-h-screen bg-[#f8f7fb] px-4 py-6 sm:px-7 lg:px-10 lg:py-9">
+      <div className="mx-auto max-w-[1380px]">
+        <header>
+          <Link
+            href="/app/analytics"
+            className="lc-focus-ring inline-flex items-center gap-2 rounded-[9px] px-2 py-1.5 text-[12px] font-semibold text-app-muted-text transition hover:bg-app-control-hover hover:text-app-text"
+          >
+            <IconArrowLeft className="size-4" /> Analytics
+          </Link>
+        </header>
+
+        <section className="mt-6 rounded-[20px] border border-app-panel-border bg-app-surface p-5 shadow-[0_18px_55px_rgba(35,24,67,0.06)] lg:p-7">
+          {hasSlideshowViewer ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <FormatBadge type={contentType} />
+                <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[10px] font-semibold text-app-muted-text">
+                  {providerName(latest.provider)}
+                </span>
+                <span className="text-[10px] font-medium text-app-text-faint">
+                  Published {formatDate(latest.publishedAt)}
+                </span>
+                {latest.releaseUrl ? (
+                  <a
+                    href={latest.releaseUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lc-focus-ring ml-auto inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-2 text-[11px] font-semibold text-[#6d28d9] transition hover:bg-[#f1eafe]"
+                  >
+                    Open live post <IconExternalLink className="size-3.5" />
+                  </a>
+                ) : null}
+              </div>
+              <SlideshowViewer
+                title="Published slideshow"
+                slides={viewerSlides}
+                activeSlide={activeSlideshowSlide}
+                onActiveSlideChange={setActiveSlideshowSlide}
+                className="mt-4 h-[min(72dvh,720px)] min-h-[440px] overflow-hidden rounded-[14px] bg-[#efefec] sm:min-h-[560px]"
+              />
+              <div className="mt-5 flex items-center gap-3 border-t border-app-panel-border pt-5">
+                <AccountProfileIcon integration={integration} size="md" />
+                <div>
+                  <div className="text-[12px] font-semibold text-app-text">
+                    {integration.name}
+                  </div>
+                  <div className="text-[10px] font-medium text-app-text-faint">
+                    Last captured {formatDateTime(latest.capturedAt)}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <FormatBadge type={contentType} />
+                  <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[10px] font-semibold text-app-muted-text">
+                    {providerName(latest.provider)}
+                  </span>
+                  <span className="text-[10px] font-medium text-app-text-faint">
+                    Published {formatDate(latest.publishedAt)}
+                  </span>
+                </div>
+                <h1 className="mt-5 max-w-[900px] text-[clamp(25px,3vw,38px)] leading-[1.08] font-semibold tracking-[-0.045em] text-app-text">
+                  {latest.content || "Post performance"}
+                </h1>
+                <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-app-panel-border pt-5">
+                  <AccountProfileIcon integration={integration} size="md" />
+                  <div>
+                    <div className="text-[12px] font-semibold text-app-text">
+                      {integration.name}
+                    </div>
+                    <div className="text-[10px] font-medium text-app-text-faint">
+                      Last captured {formatDateTime(latest.capturedAt)}
+                    </div>
+                  </div>
+                  {latest.releaseUrl ? (
+                    <a
+                      href={latest.releaseUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="lc-focus-ring ml-auto inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-2 text-[11px] font-semibold text-[#6d28d9] transition hover:bg-[#f1eafe]"
+                    >
+                      Open live post <IconExternalLink className="size-3.5" />
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+              <PostPreview post={latest} type={contentType} />
+            </div>
+          )}
+        </section>
+
+        <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <article
+              key={stat.label}
+              className="rounded-[15px] border border-app-panel-border bg-app-surface p-4"
+            >
+              <div className="text-[10px] font-semibold text-app-muted-text">
+                {stat.label}
+              </div>
+              <div className="mt-2 text-[27px] leading-none font-semibold tracking-[-0.035em] text-app-text tabular-nums">
+                {stat.value}
+              </div>
+              <div className="mt-2 text-[10px] font-medium text-app-text-faint">
+                {stat.note}
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="mt-5 rounded-[18px] border border-app-panel-border bg-app-surface p-5 lg:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text">
+                Performance over time
+              </h2>
+            </div>
+            <div className="flex max-w-full gap-1.5 overflow-x-auto pb-1">
+              {metrics.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setMetric(item)}
+                  className={cn(
+                    "lc-focus-ring shrink-0 rounded-[8px] px-2.5 py-1.5 text-[10px] font-semibold transition",
+                    activeMetric === item
+                      ? "bg-app-strong text-app-on-strong"
+                      : "bg-app-surface-subtle text-app-muted-text hover:text-app-text"
+                  )}
+                >
+                  {metricLabel(item, latest.provider)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-5 h-[320px]">
+            {series.length > 1 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={series}
+                  margin={{ top: 10, right: 8, bottom: 0, left: 0 }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="post-metric"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="#6d28d9"
+                        stopOpacity={0.22}
+                      />
+                      <stop offset="100%" stopColor="#6d28d9" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    vertical={false}
+                    stroke="#eceaf1"
+                    strokeDasharray="3 4"
+                  />
+                  <XAxis
+                    dataKey="label"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 10, fill: "#858592" }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={56}
+                    tick={{ fontSize: 10, fill: "#858592" }}
+                    tickFormatter={(value) => formatCompact(Number(value))}
+                  />
+                  <Tooltip content={<MetricTooltip metric={activeMetric} />} />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#6d28d9"
+                    strokeWidth={2.5}
+                    fill="url(#post-metric)"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="grid h-full place-items-center rounded-[12px] bg-app-surface-subtle px-6 text-center text-[12px] font-medium text-app-text-faint">
+                More points will appear after the next automatic PostFast
+                refresh.
+              </div>
+            )}
+          </div>
+        </section>
+
+        {studio ? <TikTokStudioBreakdown studio={studio} /> : null}
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="rounded-[18px] border border-app-panel-border bg-app-surface p-5 lg:p-6">
+            <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-app-text">
+              Platform-specific metrics
+            </h2>
+            {rawMetrics.length ? (
+              <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {rawMetrics.map((item) => (
+                  <div
+                    key={item.key}
+                    className="rounded-[11px] bg-app-surface-subtle px-3.5 py-3"
+                  >
+                    <div className="text-[9px] font-semibold text-app-text-faint">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 text-[16px] font-semibold text-app-text tabular-nums">
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-5 rounded-[11px] bg-app-surface-subtle px-4 py-7 text-center text-[11px] font-medium text-app-text-faint">
+                This provider returned only the shared metrics above.
+              </div>
+            )}
+          </section>
+
+          <aside className="rounded-[18px] border border-app-panel-border bg-app-surface p-5">
+            <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-app-text">
+              Measurement notes
+            </h2>
+            <div className="mt-4 space-y-4 text-[11px] leading-5 font-medium text-app-muted-text">
+              <p>{formatMeasurementNote(contentType, Boolean(studio))}</p>
+              <p>
+                PostFast returns only successfully published posts with a
+                platform post ID. Metrics can remain empty until the platform’s
+                first refresh completes.
+              </p>
+            </div>
+            <dl className="mt-5 space-y-3 border-t border-app-panel-border pt-4">
+              <DetailRow
+                label="Post type"
+                value={postContentTypeLabel(contentType)}
+              />
+              <DetailRow label="Snapshots" value={String(ordered.length)} />
+              <DetailRow
+                label="Source"
+                value={latest.sourceType || "external"}
+              />
+              <DetailRow
+                label="Post ID"
+                value={platformPostId || latest.postId}
+                mono
+              />
+            </dl>
+          </aside>
+        </div>
+      </div>
+    </main>
+  )
+}
+
+function TikTokStudioBreakdown({
+  studio,
+}: {
+  studio: NonNullable<PostFastMetricSnapshot["tiktokStudio"]>
+}) {
+  const maxLike = Math.max(
+    0,
+    ...studio.slides.map((slide) => slide.likeDistributionPercent ?? 0)
+  )
+  return (
+    <section className="mt-5 rounded-[18px] border border-app-panel-border bg-app-surface p-5 lg:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <IconBrandTiktok className="size-4 text-app-text" />
+            <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text">
+              Slideshow journey
+            </h2>
+          </div>
+        </div>
+        <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[9px] font-semibold text-app-muted-text">
+          {studio.capturedSections.join(" · ")}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {studio.slides.map((slide) => {
+          const retention = slide.retentionPercent
+          const likes = slide.likeDistributionPercent
+          return (
+            <article
+              key={slide.slideIndex}
+              className="rounded-[13px] border border-app-panel-border p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-semibold text-app-text">
+                  Slide {slide.slideIndex}
+                </div>
+                {slide.isLikePeak ? (
+                  <span className="rounded-full bg-[#f1eafe] px-2 py-0.5 text-[8px] font-bold text-[#6123bc]">
+                    Like peak
+                  </span>
+                ) : null}
+              </div>
+              <MetricBar
+                label="Still viewing"
+                value={retention}
+                color="bg-[#6d28d9]"
+              />
+              <MetricBar
+                label="Share of likes"
+                value={likes}
+                scale={maxLike}
+                color="bg-[#ef4f91]"
+              />
+            </article>
+          )
+        })}
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <StudioList title="Traffic sources" values={studio.trafficSources} />
+        <StudioList
+          title="Viewer countries"
+          values={studio.audience?.countryPercent ?? {}}
+          limit={5}
+        />
+        <div className="rounded-[13px] bg-app-surface-subtle p-4">
+          <div className="text-[11px] font-semibold text-app-text">
+            Search discovery
+          </div>
+          {studio.searchTerms.length > 0 ? (
+            <ol className="mt-3 space-y-2">
+              {studio.searchTerms.slice(0, 5).map((item) => (
+                <li
+                  key={item.term}
+                  className="flex items-center justify-between gap-3 text-[10px]"
+                >
+                  <span className="truncate font-medium text-app-muted-text">
+                    {item.term}
+                  </span>
+                  <span className="font-semibold text-app-text tabular-nums">
+                    {formatPercent(item.percent)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="mt-3 text-[10px] font-medium text-app-text-faint">
+              No search-query detail captured.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MetricBar({
+  label,
+  value,
+  scale = 1,
+  color,
+}: {
+  label: string
+  value?: number
+  scale?: number
+  color: string
+}) {
+  const width =
+    value === undefined || scale <= 0
+      ? 0
+      : Math.max(0, Math.min(100, (value / scale) * 100))
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between gap-3 text-[9px]">
+        <span className="font-medium text-app-text-faint">{label}</span>
+        <span className="font-semibold text-app-text tabular-nums">
+          {value === undefined ? "—" : formatPercent(value)}
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-app-surface-subtle">
+        <div
+          className={cn("h-full rounded-full", color)}
+          style={{ width: `${width}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function StudioList({
+  title,
+  values,
+  limit = 7,
+}: {
+  title: string
+  values: Record<string, number>
+  limit?: number
+}) {
+  const rows = Object.entries(values)
+    .sort(([, left], [, right]) => right - left)
+    .slice(0, limit)
+  return (
+    <div className="rounded-[13px] bg-app-surface-subtle p-4">
+      <div className="text-[11px] font-semibold text-app-text">{title}</div>
+      {rows.length > 0 ? (
+        <dl className="mt-3 space-y-2">
+          {rows.map(([label, value]) => (
+            <div
+              key={label}
+              className="flex items-center justify-between gap-3 text-[10px]"
+            >
+              <dt className="truncate font-medium text-app-muted-text">
+                {label}
+              </dt>
+              <dd className="font-semibold text-app-text tabular-nums">
+                {formatPercent(value)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <div className="mt-3 text-[10px] font-medium text-app-text-faint">
+          Open the matching Studio tab to capture this breakdown.
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormatBadge({ type }: { type: PostContentType }) {
+  const Icon = type === "video" ? IconVideo : IconPhoto
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f1eafe] px-2.5 py-1 text-[10px] font-semibold text-[#6123bc]">
+      <Icon className="size-3.5" /> {postContentTypeLabel(type)}
+    </span>
+  )
+}
+
+function PostPreview({
+  post,
+  type,
+}: {
+  post: PostFastMetricSnapshot
+  type: PostContentType
+}) {
+  return (
+    <div className="mx-auto w-full max-w-[300px]">
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-[14px] bg-[radial-gradient(circle_at_20%_20%,#e5dbf7,transparent_46%),linear-gradient(135deg,#f4f1f8,#e8e5ed)] bg-cover bg-center",
+          type === "video" ? "aspect-video lg:aspect-[4/5]" : "aspect-[4/5]"
+        )}
+        style={
+          post.thumbnailUrl
+            ? {
+                backgroundImage: `url("${post.thumbnailUrl.replace(/"/g, "%22")}")`,
+              }
+            : undefined
+        }
+      >
+        {!post.thumbnailUrl ? (
+          <div className="absolute inset-0 grid place-items-center p-6 text-center text-[13px] leading-5 font-semibold text-[#56476e]">
+            {(post.content || "Published post").slice(0, 100)}
+          </div>
+        ) : null}
+        <div className="absolute right-2 bottom-2 rounded-[6px] bg-black/65 px-2 py-1 text-[9px] font-semibold text-white backdrop-blur-sm">
+          {postContentTypeLabel(type)}
+          {post.mediaCount ? ` · ${post.mediaCount} media` : ""}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function featuredStats(post: PostFastMetricSnapshot, type: PostContentType) {
+  const exposureMetric =
+    post.metrics.views !== undefined ? "views" : "impressions"
+  const common = [
+    {
+      label: metricLabel(exposureMetric, post.provider),
+      value: formatMetric(exposureMetric, post.metrics[exposureMetric]),
+      note: "Latest cumulative total",
+    },
+  ]
+  if (type === "video") {
+    const averageWatch = rawValue(post.rawMetrics, [
+      "avgWatchTimeSeconds",
+      "avg_watch_time_seconds",
+      "average_watch_time",
+    ])
+    const completion = rawValue(post.rawMetrics, [
+      "full_video_watched_rate",
+      "fullVideoWatchedRate",
+      "completionRate",
+    ])
+    return [
+      ...common,
+      {
+        label: "Average watch time",
+        value: averageWatch === undefined ? "—" : `${averageWatch.toFixed(2)}s`,
+        note: "When the platform reports watch time",
+      },
+      {
+        label: "Completion rate",
+        value: formatRawRate(completion),
+        note: "Full-video watched rate",
+      },
+      engagementStat(post),
+    ]
+  }
+  if (type === "slideshow") {
+    return [
+      ...common,
+      canonicalStat(post, "saves", "Save intent"),
+      canonicalStat(post, "shares", "Distribution intent"),
+      engagementStat(post),
+    ]
+  }
+  return [
+    ...common,
+    canonicalStat(post, "likes", "Latest cumulative total"),
+    canonicalStat(post, "comments", "Latest cumulative total"),
+    engagementStat(post),
+  ]
+}
+
+function canonicalStat(
+  post: PostFastMetricSnapshot,
+  metric: CanonicalMetric,
+  note: string
+) {
+  return {
+    label: metricLabel(metric, post.provider),
+    value: formatMetric(metric, post.metrics[metric]),
+    note,
+  }
+}
+
+function engagementStat(post: PostFastMetricSnapshot) {
+  return canonicalStat(
+    post,
+    "engagementRate",
+    "Interactions divided by exposure"
+  )
+}
+
+function availableMetrics(snapshots: PostFastMetricSnapshot[]) {
+  return canonicalMetricOrder.filter(
+    (metric) =>
+      metric !== "followers" &&
+      snapshots.some((snapshot) => snapshot.metrics[metric] !== undefined)
+  )
+}
+
+function defaultMetric(metrics: CanonicalMetric[]): CanonicalMetric {
+  if (metrics.includes("views")) return "views"
+  if (metrics.includes("impressions")) return "impressions"
+  return metrics[0] ?? "interactions"
+}
+
+function metricSeries(
+  snapshots: PostFastMetricSnapshot[],
+  metric: CanonicalMetric
+) {
+  return snapshots.flatMap((snapshot) => {
+    const value = snapshot.metrics[metric]
+    return value === undefined
+      ? []
+      : [
+          {
+            date: snapshot.capturedAt,
+            label: DateTime.fromISO(snapshot.capturedAt).toFormat("d LLL"),
+            value,
+          },
+        ]
+  })
+}
+
+function platformSpecificMetrics(post: PostFastMetricSnapshot) {
+  const hidden = new Set([
+    "likes",
+    "likeCount",
+    "comments",
+    "commentCount",
+    "shares",
+    "shareCount",
+    "saves",
+    "impressions",
+    "reach",
+    "totalInteractions",
+    "interactions",
+  ])
+  return Object.entries(post.rawMetrics)
+    .filter(([key, value]) => !hidden.has(key) && Number.isFinite(value))
+    .sort(
+      ([left], [right]) => rawMetricPriority(left) - rawMetricPriority(right)
+    )
+    .slice(0, 12)
+    .map(([key, value]) => ({
+      key,
+      label: humanizeMetricKey(key),
+      value: formatRawMetric(key, value),
+    }))
+}
+
+function rawMetricPriority(key: string) {
+  const order = [
+    "avgWatchTimeSeconds",
+    "totalWatchTimeSeconds",
+    "full_video_watched_rate",
+    "videoViews",
+    "saveRate",
+    "reelsSkipRate",
+  ]
+  const index = order.indexOf(key)
+  return index === -1 ? order.length : index
+}
+
+function rawValue(metrics: Record<string, number>, keys: string[]) {
+  for (const key of keys) {
+    if (Number.isFinite(metrics[key])) return metrics[key]
+  }
+  return undefined
+}
+
+function formatRawMetric(key: string, value: number) {
+  const normalized = key.toLowerCase()
+  if (normalized.includes("rate") || normalized.includes("percentage")) {
+    return formatRawRate(value)
+  }
+  if (normalized.includes("total") && normalized.includes("time")) {
+    return formatDuration(value)
+  }
+  if (normalized.includes("time") && normalized.includes("second")) {
+    return `${value.toFixed(2)}s`
+  }
+  return formatCompact(value)
+}
+
+function formatRawRate(value: number | undefined) {
+  if (value === undefined) return "—"
+  const percentage = Math.abs(value) <= 1 ? value * 100 : value
+  return `${percentage.toFixed(2)}%`
+}
+
+function humanizeMetricKey(value: string) {
+  const labels: Record<string, string> = {
+    avgWatchTimeSeconds: "Average watch time",
+    totalWatchTimeSeconds: "Total watch time",
+    full_video_watched_rate: "Full-video watched rate",
+    videoViews: "Video views",
+    saveRate: "Save rate",
+    reelsSkipRate: "Reels skip rate",
+  }
+  if (labels[value]) return labels[value]
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function formatDuration(seconds: number) {
+  const rounded = Math.max(0, Math.round(seconds))
+  const hours = Math.floor(rounded / 3600)
+  const minutes = Math.floor((rounded % 3600) / 60)
+  const remainingSeconds = rounded % 60
+  return (
+    [
+      hours ? `${hours}h` : "",
+      minutes ? `${minutes}m` : "",
+      !hours && remainingSeconds ? `${remainingSeconds}s` : "",
+    ]
+      .filter(Boolean)
+      .join(" ") || "0s"
+  )
+}
+
+function formatMeasurementNote(type: PostContentType, hasStudio = false) {
+  if (type === "slideshow") {
+    return hasStudio
+      ? "Post totals come from the latest provider capture. Per-slide retention and like distribution come from the linked TikTok Studio snapshot."
+      : "PostFast exposes only post-level slideshow totals. The TikTok companion adds per-slide retention and like distribution when it captures this post in Studio."
+  }
+  if (type === "video") {
+    return "Video watch-time and completion fields appear only when the connected platform returns them; availability varies by provider and post age."
+  }
+  return "Availability varies by provider. Unsupported fields are omitted instead of displayed as zero."
+}
+
+function formatPercent(value: number) {
+  const percentage = Math.abs(value) <= 1 ? value * 100 : value
+  return `${percentage.toFixed(1)}%`
+}
+
+function DetailRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string
+  value: string
+  mono?: boolean
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <dt className="text-[10px] font-medium text-app-text-faint">{label}</dt>
+      <dd
+        className={cn(
+          "max-w-[220px] text-right text-[10px] font-semibold break-all text-app-text",
+          mono && "font-mono"
+        )}
+      >
+        {value}
+      </dd>
+    </div>
+  )
+}
+
+function MetricTooltip({
+  active,
+  payload,
+  label,
+  metric,
+}: {
+  active?: boolean
+  payload?: Array<{ value?: number }>
+  label?: string
+  metric: CanonicalMetric
+}) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-[8px] border border-app-panel-border bg-white px-3 py-2 shadow-lg">
+      <div className="text-[9px] font-medium text-app-text-faint">{label}</div>
+      <div className="mt-0.5 text-[12px] font-semibold tabular-nums">
+        {formatMetric(metric, payload[0]?.value)}
+      </div>
+    </div>
+  )
+}
+
+function formatMetric(metric: CanonicalMetric, value: number | undefined) {
+  if (value === undefined) return "—"
+  if (metric === "engagementRate") return `${value.toFixed(2)}%`
+  return formatCompact(value)
+}
+
+function formatCompact(value: number) {
+  return Intl.NumberFormat("en", {
+    notation: Math.abs(value) >= 10_000 ? "compact" : "standard",
+    maximumFractionDigits: Math.abs(value) >= 10_000 ? 1 : 2,
+  }).format(value)
+}
+
+function formatDate(value?: string) {
+  if (!value) return "date unavailable"
+  return DateTime.fromISO(value).toFormat("d LLL yyyy")
+}
+
+function formatDateTime(value: string) {
+  return DateTime.fromISO(value).toFormat("d LLL yyyy, h:mm a")
+}

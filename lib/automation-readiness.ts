@@ -10,7 +10,7 @@ import {
 import {
   collectionAliases,
   storedToCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
 export type AutomationCollectionInventoryItem = {

@@ -99,77 +99,77 @@ function pipelineStorageBoundaryStages() {
       "slideshow-generation",
       202,
       "list-image-collections-page",
-      "Appwrite permanent_assets listRows",
+      "Railway permanent_assets listRows",
       "Read exactly one owner-scoped image-collection page."
     ),
     atomic(
       "slideshow-generation",
       203,
       "list-word-collections-page",
-      "Appwrite permanent_assets listRows",
+      "Railway permanent_assets listRows",
       "Read exactly one owner-scoped word-collection page."
     ),
     atomic(
       "slideshow-generation",
       206,
       "get-result-document",
-      "Appwrite outputs getRow",
+      "Railway outputs getRow",
       "Read exactly one owner-scoped slideshow result row."
     ),
     atomic(
       "slideshow-generation",
       207,
       "create-result-document",
-      "Appwrite outputs createRow",
+      "Railway outputs createRow",
       "Create exactly one owner-scoped slideshow result row."
     ),
     atomic(
       "slideshow-generation",
       208,
       "update-result-document",
-      "Appwrite outputs updateRow",
+      "Railway outputs updateRow",
       "Update exactly one owner-scoped slideshow result row."
     ),
     atomic(
       "slideshow-generation",
       209,
       "list-result-media-page",
-      "Appwrite output_media listRows",
+      "Railway output_media listRows",
       "Read exactly one media page for one owner-scoped result."
     ),
     atomic(
       "slideshow-generation",
       210,
       "create-one-result-media",
-      "Appwrite output_media createRow",
+      "Railway output_media createRow",
       "Create exactly one media row for one slideshow result."
     ),
     atomic(
       "slideshow-generation",
       211,
       "delete-one-result-media",
-      "Appwrite output_media deleteRow",
+      "Railway output_media deleteRow",
       "Delete exactly one media row obtained from an owner-scoped result page."
     ),
     atomic(
       "slideshow-generation",
       212,
       "read-one-source-asset",
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       "Read one permitted slideshow source object into local staging."
     ),
     atomic(
       "slideshow-generation",
       213,
       "create-one-output-asset",
-      "Appwrite Storage createFile",
+      "Railway object storage createFile",
       "Create one slideshow output object from local staging."
     ),
     atomic(
       "slideshow-generation",
       214,
       "delete-one-output-asset",
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       "Delete one slideshow output object before an explicit replacement attempt."
     ),
     stage(
@@ -185,7 +185,7 @@ function pipelineStorageBoundaryStages() {
       "slideshow-generation",
       216,
       "get-model-settings-document",
-      "Appwrite permanent_assets getRow",
+      "Railway permanent_assets getRow",
       "Read exactly one owner-scoped generation-model settings row."
     ),
     atomicStage(
@@ -201,35 +201,35 @@ function pipelineStorageBoundaryStages() {
       "slideshow-generation",
       218,
       "get-one-post-intent",
-      "Appwrite posts getRow",
+      "Railway posts getRow",
       "Read exactly one owner-scoped generated post-intent row."
     ),
     atomic(
       "slideshow-generation",
       219,
       "create-one-post-intent",
-      "Appwrite posts createRow",
+      "Railway posts createRow",
       "Create exactly one owner-scoped generated post-intent row."
     ),
     atomic(
       "slideshow-generation",
       220,
       "update-one-post-intent",
-      "Appwrite posts updateRow",
+      "Railway posts updateRow",
       "Update exactly one owner-scoped generated post-intent row."
     ),
     atomic(
       "slideshow-generation",
       221,
       "get-one-post-identity",
-      "Appwrite post_identities getRow",
+      "Railway post_identities getRow",
       "Read exactly one owner-scoped generated post identity."
     ),
     atomic(
       "slideshow-generation",
       222,
       "create-one-post-identity",
-      "Appwrite post_identities createRow",
+      "Railway post_identities createRow",
       "Create exactly one owner-scoped generated post identity."
     ),
     stage(
@@ -395,70 +395,70 @@ function pipelineStorageBoundaryStages() {
       "ugc-video-generation",
       304,
       "inspect-one-saved-asset",
-      "Appwrite Storage getFile",
+      "Railway object storage getFile",
       "Inspect exactly one owner-scoped durable UGC asset."
     ),
     atomic(
       "ugc-video-generation",
       305,
       "read-one-saved-asset",
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       "Read exactly one owner-scoped durable UGC asset into local staging."
     ),
     atomic(
       "ugc-video-generation",
       306,
       "create-one-saved-asset",
-      "Appwrite Storage createFile",
+      "Railway object storage createFile",
       "Create exactly one owner-scoped durable UGC asset."
     ),
     atomic(
       "ugc-video-generation",
       307,
       "delete-one-saved-asset",
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       "Delete exactly one owner-scoped durable UGC asset before replacement."
     ),
     atomic(
       "ugc-video-generation",
       308,
       "get-final-output-document",
-      "Appwrite outputs getRow",
+      "Railway outputs getRow",
       "Read exactly one owner-scoped UGC output row."
     ),
     atomic(
       "ugc-video-generation",
       309,
       "create-final-output-document",
-      "Appwrite outputs createRow",
+      "Railway outputs createRow",
       "Create exactly one owner-scoped UGC output row."
     ),
     atomic(
       "ugc-video-generation",
       310,
       "update-final-output-document",
-      "Appwrite outputs updateRow",
+      "Railway outputs updateRow",
       "Update exactly one owner-scoped UGC output row."
     ),
     atomic(
       "ugc-video-generation",
       311,
       "list-final-output-media-page",
-      "Appwrite output_media listRows",
+      "Railway output_media listRows",
       "Read exactly one media page for one owner-scoped UGC output."
     ),
     atomic(
       "ugc-video-generation",
       312,
       "create-one-final-output-media",
-      "Appwrite output_media createRow",
+      "Railway output_media createRow",
       "Create exactly one UGC output-media row."
     ),
     atomic(
       "ugc-video-generation",
       313,
       "delete-one-final-output-media",
-      "Appwrite output_media deleteRow",
+      "Railway output_media deleteRow",
       "Delete exactly one UGC output-media row returned by an owner-scoped page."
     ),
     stage(
@@ -499,21 +499,21 @@ function pipelineStorageBoundaryStages() {
       "ugc-video-generation",
       318,
       "get-usage-document",
-      "Appwrite usage_ledger getRow",
+      "Railway usage_ledger getRow",
       "Read exactly one owner-scoped UGC usage row."
     ),
     atomic(
       "ugc-video-generation",
       319,
       "create-usage-document",
-      "Appwrite usage_ledger createRow",
+      "Railway usage_ledger createRow",
       "Create exactly one owner-scoped UGC usage row."
     ),
     atomic(
       "ugc-video-generation",
       320,
       "update-usage-document",
-      "Appwrite usage_ledger updateRow",
+      "Railway usage_ledger updateRow",
       "Update exactly one owner-scoped UGC usage row."
     ),
     stage(
@@ -529,14 +529,14 @@ function pipelineStorageBoundaryStages() {
       "ugc-video-generation",
       322,
       "create-generated-notification-job",
-      "Appwrite jobs createRow",
+      "Railway jobs createRow",
       "Create exactly one owner-scoped generated-output reminder job."
     ),
     atomic(
       "ugc-video-generation",
       323,
       "delete-one-broll-asset",
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       "Delete exactly one fixed-domain b-roll object before an explicit create retry."
     ),
     stage(
@@ -582,42 +582,42 @@ function pipelineStorageBoundaryStages() {
       "x-threads-generation",
       204,
       "get-run-document",
-      "Appwrite outputs getRow",
+      "Railway outputs getRow",
       "Read exactly one owner-scoped X/Threads run row."
     ),
     atomic(
       "x-threads-generation",
       205,
       "create-run-document",
-      "Appwrite outputs createRow",
+      "Railway outputs createRow",
       "Create exactly one owner-scoped X/Threads run row."
     ),
     atomic(
       "x-threads-generation",
       206,
       "update-run-document",
-      "Appwrite outputs updateRow",
+      "Railway outputs updateRow",
       "Update exactly one owner-scoped X/Threads run row."
     ),
     atomic(
       "x-threads-generation",
       207,
       "list-run-media-page",
-      "Appwrite output_media listRows",
+      "Railway output_media listRows",
       "Read exactly one media page for one owner-scoped X/Threads run."
     ),
     atomic(
       "x-threads-generation",
       208,
       "create-one-run-media",
-      "Appwrite output_media createRow",
+      "Railway output_media createRow",
       "Create exactly one X/Threads run-media row."
     ),
     atomic(
       "x-threads-generation",
       209,
       "delete-one-run-media",
-      "Appwrite output_media deleteRow",
+      "Railway output_media deleteRow",
       "Delete exactly one X/Threads run-media row returned by an owner-scoped page."
     ),
     stage(
@@ -642,7 +642,7 @@ function pipelineStorageBoundaryStages() {
       "x-threads-generation",
       212,
       "delete-image-asset",
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       "Delete exactly one fixed-domain generated image before an explicit create retry."
     ),
     stage(
@@ -752,7 +752,7 @@ function rendiProtocolStages(workflowId, firstOrder) {
       firstOrder + 8,
       "rendi-persist-output",
       "storage",
-      "Appwrite Rendi output-file create",
+      "Railway Rendi output-file create",
       "Persist one locally staged Rendi output."
     ),
     stage(
@@ -1396,7 +1396,7 @@ var init_pipeline_stages = __esm({
         113,
         "persist-one-broll-asset",
         "storage",
-        "Appwrite asset-file create",
+        "Railway asset-file create",
         "Persist one locally staged b-roll image and return its durable URL."
       ),
       stage(
@@ -1422,7 +1422,7 @@ var init_pipeline_stages = __esm({
         116,
         "persist-voice-audio",
         "storage",
-        "Appwrite voice asset-file create",
+        "Railway voice asset-file create",
         "Persist one locally staged voice audio file."
       ),
       atomicStage(
@@ -1430,7 +1430,7 @@ var init_pipeline_stages = __esm({
         117,
         "persist-voice-timings",
         "storage",
-        "Appwrite timings asset-file create",
+        "Railway timings asset-file create",
         "Persist one locally staged word-timing file."
       ),
       stage(
@@ -1929,7 +1929,7 @@ var init_pipeline_stages = __esm({
         110,
         "get-generated-reminder-policy",
         "storage",
-        "Appwrite reminder-settings read",
+        "Railway reminder-settings read",
         "Read only the non-secret delivery channel for generated reminders."
       ),
       atomicStage(
@@ -1937,7 +1937,7 @@ var init_pipeline_stages = __esm({
         111,
         "enqueue-reminder-job",
         "storage",
-        "Appwrite reminder-job enqueue",
+        "Railway reminder-job enqueue",
         "Enqueue one generated-content reminder job."
       ),
       atomicStage(
@@ -1963,7 +1963,7 @@ var init_pipeline_stages = __esm({
         114,
         "persist-image-asset",
         "storage",
-        "Appwrite asset-file create",
+        "Railway asset-file create",
         "Persist one locally staged image and return its durable URL."
       ),
       stage(
@@ -2280,6 +2280,13 @@ var init_automation_template_defaults = __esm({
         slideshow_sound_url: ""
       }
     };
+  }
+});
+
+// lib/realfarm-automation-labels.ts
+var init_realfarm_automation_labels = __esm({
+  "lib/realfarm-automation-labels.ts"() {
+    "use strict";
   }
 });
 
@@ -3589,6 +3596,7 @@ var init_realfarm_automation = __esm({
     init_guards();
     init_postfast_provider_controls();
     init_automation_template_defaults();
+    init_realfarm_automation_labels();
     init_slideshow_publishing_config();
     init_slideshow_plan_core();
     init_slideshow_plan_core();
@@ -4334,7 +4342,7 @@ function unresolvedTokenFindings(run) {
         (item) => values.push({ text: item.text, slideIndex, textItemId: item.id })
       );
     } else {
-      values.push({ text: slide.text, slideIndex });
+      values.push({ text: slide.text ?? "", slideIndex });
     }
   });
   return values.flatMap((value) => {
@@ -4450,34 +4458,50 @@ var init_automation_output_qa = __esm({
   }
 });
 
-// lib/backend-config.ts
-function backendValue(value, allowed, fallback, variableName) {
-  if (!value) return fallback;
-  if (allowed.includes(value)) return value;
-  throw new Error(
-    `${variableName} must be one of ${allowed.join(", ")}; received ${value}.`
-  );
+// lib/record-query.ts
+function query(method, attribute, values) {
+  return JSON.stringify({
+    method,
+    ...attribute ? { attribute } : {},
+    ...values ? { values } : {}
+  });
 }
-function dataBackend() {
-  return backendValue(
-    process.env.LUMENCLIP_DATA_BACKEND,
-    ["appwrite", "railway"],
-    "railway",
-    "LUMENCLIP_DATA_BACKEND"
-  );
+function list(value) {
+  return Array.isArray(value) ? value : [value];
 }
-function assetBackend() {
-  return backendValue(
-    process.env.LUMENCLIP_ASSET_BACKEND,
-    ["appwrite", "railway"],
-    "railway",
-    "LUMENCLIP_ASSET_BACKEND"
-  );
-}
-var init_backend_config = __esm({
-  "lib/backend-config.ts"() {
+var RecordQuery;
+var init_record_query = __esm({
+  "lib/record-query.ts"() {
     "use strict";
-    init_server_only_shim();
+    RecordQuery = {
+      equal(attribute, values) {
+        return query("equal", attribute, list(values));
+      },
+      notEqual(attribute, values) {
+        return query("notEqual", attribute, list(values));
+      },
+      lessThan(attribute, value) {
+        return query("lessThan", attribute, [value]);
+      },
+      lessThanEqual(attribute, value) {
+        return query("lessThanEqual", attribute, [value]);
+      },
+      orderAsc(attribute) {
+        return query("orderAsc", attribute);
+      },
+      orderDesc(attribute) {
+        return query("orderDesc", attribute);
+      },
+      limit(value) {
+        return query("limit", void 0, [value]);
+      },
+      offset(value) {
+        return query("offset", void 0, [value]);
+      },
+      cursorAfter(id) {
+        return query("cursorAfter", void 0, [id]);
+      }
+    };
   }
 });
 
@@ -4600,36 +4624,36 @@ var init_object_storage = __esm({
 
 // lib/railway/appwrite-compat.ts
 import path from "node:path";
-function parseQuery(query) {
+function parseQuery(query2) {
   try {
-    const parsed = JSON.parse(query);
+    const parsed = JSON.parse(query2);
     return parsed && typeof parsed.method === "string" ? parsed : null;
   } catch {
     return null;
   }
 }
-function matches(row, query) {
-  const actual = valueAt(row, query.attribute ?? "");
-  const expected = query.values ?? [];
-  if (query.method === "equal") {
+function matches(row, query2) {
+  const actual = valueAt(row, query2.attribute ?? "");
+  const expected = query2.values ?? [];
+  if (query2.method === "equal") {
     return expected.some((value) => comparable(actual) === comparable(value));
   }
-  if (query.method === "notEqual") {
+  if (query2.method === "notEqual") {
     return expected.every((value) => comparable(actual) !== comparable(value));
   }
   const right = expected[0];
-  if (query.method === "lessThan") return comparable(actual) < comparable(right);
-  if (query.method === "lessThanEqual") {
+  if (query2.method === "lessThan") return comparable(actual) < comparable(right);
+  if (query2.method === "lessThanEqual") {
     return comparable(actual) <= comparable(right);
   }
   return true;
 }
 function compareRows(left, right, queries) {
-  for (const query of queries) {
-    const leftValue = comparable(valueAt(left, query.attribute ?? ""));
-    const rightValue = comparable(valueAt(right, query.attribute ?? ""));
+  for (const query2 of queries) {
+    const leftValue = comparable(valueAt(left, query2.attribute ?? ""));
+    const rightValue = comparable(valueAt(right, query2.attribute ?? ""));
     const result = leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
-    if (result !== 0) return query.method === "orderDesc" ? -result : result;
+    if (result !== 0) return query2.method === "orderDesc" ? -result : result;
   }
   return left.$id.localeCompare(right.$id);
 }
@@ -4643,9 +4667,15 @@ function comparable(value) {
 }
 function numberQuery(queries, method, fallback) {
   const value = Number(
-    queries.find((query) => query.method === method)?.values?.[0]
+    queries.find((query2) => query2.method === method)?.values?.[0]
   );
   return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+}
+function equalTextValues(queries, attribute) {
+  const query2 = queries.find(
+    (candidate) => candidate.method === "equal" && candidate.attribute === attribute
+  );
+  return (query2?.values ?? []).filter((value) => value != null && value !== "").map(String);
 }
 function normalizeStoredRow(row, rowId) {
   return {
@@ -4720,39 +4750,47 @@ function mimeTypeFor(filename) {
     ".zip": "application/zip"
   }[extension] ?? "application/octet-stream";
 }
-var RailwayTablesCompat, RailwayStorageCompat;
+var RailwayRecordStore, RailwayObjectStore;
 var init_appwrite_compat = __esm({
   "lib/railway/appwrite-compat.ts"() {
     "use strict";
     init_server_only_shim();
     init_database();
     init_object_storage();
-    RailwayTablesCompat = class {
+    RailwayRecordStore = class {
       async listRows(_databaseId, tableId, queries = []) {
         const sql = getRailwayDatabase();
+        const parsed = queries.map(parseQuery).filter(Boolean);
+        const ownerIds = equalTextValues(parsed, "owner_id");
+        const sourceKeys = equalTextValues(parsed, "source_key");
+        const recordIds = equalTextValues(parsed, "rid");
+        const statuses = equalTextValues(parsed, "status");
         const rows = await sql`
       SELECT source_row, row_id
       FROM domain_records
       WHERE table_name = ${tableId}
+        ${ownerIds.length ? sql`AND owner_id IN ${sql(ownerIds)}` : sql``}
+        ${sourceKeys.length ? sql`AND source_key IN ${sql(sourceKeys)}` : sql``}
+        ${recordIds.length ? sql`AND rid IN ${sql(recordIds)}` : sql``}
+        ${statuses.length ? sql`AND status IN ${sql(statuses)}` : sql``}
     `;
-        const parsed = queries.map(parseQuery).filter(Boolean);
         let filtered = rows.map(
           (row) => normalizeStoredRow(row.source_row, row.row_id)
         );
-        for (const query of parsed) {
-          if (query.method === "equal" || query.method === "notEqual" || query.method === "lessThan" || query.method === "lessThanEqual") {
-            filtered = filtered.filter((row) => matches(row, query));
+        for (const query2 of parsed) {
+          if (query2.method === "equal" || query2.method === "notEqual" || query2.method === "lessThan" || query2.method === "lessThanEqual") {
+            filtered = filtered.filter((row) => matches(row, query2));
           }
         }
         const orderQueries = parsed.filter(
-          (query) => query.method === "orderAsc" || query.method === "orderDesc"
+          (query2) => query2.method === "orderAsc" || query2.method === "orderDesc"
         );
         if (orderQueries.length > 0) {
           filtered.sort((left, right) => compareRows(left, right, orderQueries));
         } else {
           filtered.sort((left, right) => left.$id.localeCompare(right.$id));
         }
-        const cursorAfter = parsed.find((query) => query.method === "cursorAfter")?.values?.[0];
+        const cursorAfter = parsed.find((query2) => query2.method === "cursorAfter")?.values?.[0];
         if (cursorAfter) {
           const cursorIndex = filtered.findIndex(
             (row) => row.$id === String(cursorAfter)
@@ -4881,7 +4919,7 @@ var init_appwrite_compat = __esm({
         return sourceRow;
       }
     };
-    RailwayStorageCompat = class {
+    RailwayObjectStore = class {
       async createFile(bucketOrInput, fileIdInput, fileInput, permissionsInput = []) {
         const input = typeof bucketOrInput === "object" ? bucketOrInput : {
           bucketId: bucketOrInput,
@@ -4944,11 +4982,7 @@ var init_appwrite_compat = __esm({
       async getFileView(bucketOrInput, fileIdInput) {
         const { bucketId, fileId: fileId2 } = storageIdentity(bucketOrInput, fileIdInput);
         try {
-          const bytes = await readRailwayObject(railwayObjectKey(bucketId, fileId2));
-          return bytes.buffer.slice(
-            bytes.byteOffset,
-            bytes.byteOffset + bytes.byteLength
-          );
+          return await readRailwayObject(railwayObjectKey(bucketId, fileId2));
         } catch (error) {
           if (status(error) === 404) {
             throw compatError(404, `File ${bucketId}/${fileId2} was not found.`);
@@ -4974,59 +5008,28 @@ var init_appwrite_compat = __esm({
   }
 });
 
-// lib/appwrite.ts
-var appwrite_exports = {};
-__export(appwrite_exports, {
-  APPWRITE_API_KEY: () => APPWRITE_API_KEY,
-  APPWRITE_DATABASE_ID: () => APPWRITE_DATABASE_ID,
-  APPWRITE_ENDPOINT: () => APPWRITE_ENDPOINT,
-  APPWRITE_PROJECT_ID: () => APPWRITE_PROJECT_ID,
-  appwriteEnabled: () => appwriteEnabled,
-  getAppwrite: () => getAppwrite
+// lib/runtime-store.ts
+var runtime_store_exports = {};
+__export(runtime_store_exports, {
+  RUNTIME_DATABASE_ID: () => RUNTIME_DATABASE_ID,
+  getRuntimeStore: () => getRuntimeStore
 });
-import { Client, Storage, TablesDB } from "node-appwrite";
-function appwriteEnabled() {
-  return dataBackend() === "railway" || assetBackend() === "railway" || Boolean(APPWRITE_ENDPOINT && APPWRITE_PROJECT_ID && APPWRITE_API_KEY);
-}
-function getAppwrite() {
-  if (!appwriteEnabled()) return null;
-  if (cached) return cached;
-  const railwayTables = dataBackend() === "railway";
-  const railwayStorage = assetBackend() === "railway";
-  if (railwayTables || railwayStorage) {
-    let nativeTables = null;
-    let nativeStorage = null;
-    if (!railwayTables || !railwayStorage) {
-      if (!APPWRITE_ENDPOINT || !APPWRITE_PROJECT_ID || !APPWRITE_API_KEY) {
-        throw new Error(
-          "A mixed Railway/Appwrite backend requires the Appwrite server credentials."
-        );
-      }
-      const client3 = new Client().setEndpoint(APPWRITE_ENDPOINT).setProject(APPWRITE_PROJECT_ID).setKey(APPWRITE_API_KEY);
-      nativeTables = new TablesDB(client3);
-      nativeStorage = new Storage(client3);
-    }
+function getRuntimeStore() {
+  if (!cached) {
     cached = {
-      tables: railwayTables ? new RailwayTablesCompat() : nativeTables,
-      storage: railwayStorage ? new RailwayStorageCompat() : nativeStorage
+      records: new RailwayRecordStore(),
+      objects: new RailwayObjectStore()
     };
-    return cached;
   }
-  const client2 = new Client().setEndpoint(APPWRITE_ENDPOINT).setProject(APPWRITE_PROJECT_ID).setKey(APPWRITE_API_KEY);
-  cached = { tables: new TablesDB(client2), storage: new Storage(client2) };
   return cached;
 }
-var APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY, APPWRITE_DATABASE_ID, cached;
-var init_appwrite = __esm({
-  "lib/appwrite.ts"() {
+var RUNTIME_DATABASE_ID, cached;
+var init_runtime_store = __esm({
+  "lib/runtime-store.ts"() {
     "use strict";
     init_server_only_shim();
-    init_backend_config();
     init_appwrite_compat();
-    APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT ?? "";
-    APPWRITE_PROJECT_ID = process.env.APPWRITE_PROJECT_ID ?? "";
-    APPWRITE_API_KEY = process.env.APPWRITE_API_KEY ?? "";
-    APPWRITE_DATABASE_ID = process.env.APPWRITE_DATABASE_ID ?? "cfarm";
+    RUNTIME_DATABASE_ID = "cfarm";
     cached = null;
   }
 });
@@ -5583,7 +5586,6 @@ var init_workspace_members_shim = __esm({
 });
 
 // lib/json-store.ts
-import { Query } from "node-appwrite";
 async function readJsonArrayStore(input) {
   const route = requireRouteFor(input);
   return awReadTable(route, input.normalize, await ownersForRead(route), {
@@ -5596,12 +5598,11 @@ async function readJsonArrayRecord(input) {
   const route = requireRouteFor(input);
   const ownerIds = await ownersForRead(route);
   const rowIds = ownerIds?.length ? ownerIds.map((ownerId) => storeOwnedRowId(route, ownerId, input.id, 0)) : [storeRowId(route, input.id, 0)];
-  const aw = getAppwrite();
-  if (!aw) throw new Error("Appwrite is not configured.");
+  const aw = getRuntimeStore();
   for (const rowId of rowIds) {
     try {
-      const row = await aw.tables.getRow(
-        APPWRITE_DATABASE_ID,
+      const row = await aw.records.getRow(
+        RUNTIME_DATABASE_ID,
         route.table,
         rowId
       );
@@ -5658,24 +5659,16 @@ async function appendJsonArrayRecords(input) {
   );
 }
 function requireRouteFor(input) {
-  if (!getAppwrite()) {
-    throw new Error(
-      "Appwrite is not configured. Set APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, and APPWRITE_API_KEY \u2014 this app is Appwrite-only and has no filesystem fallback."
-    );
-  }
   const route = routeForStore(input.rootDir, input.fileName);
   if (!route) {
     throw new Error(
-      `No Appwrite table is mapped for store "${input.fileName}". Add it to STORE_TABLES in lib/appwrite-stores.ts.`
+      `No Railway record table is mapped for store "${input.fileName}". Add it to STORE_TABLES in lib/appwrite-stores.ts.`
     );
   }
   return route;
 }
 async function awReadTable(route, normalize, ownerIds, options = {}) {
-  const aw = getAppwrite();
-  if (!aw) {
-    throw new Error("Appwrite is not configured.");
-  }
+  const aw = getRuntimeStore();
   const out = [];
   const requestedLimit = Number.isFinite(options.limit) ? Math.max(1, Math.floor(options.limit)) : Number.POSITIVE_INFINITY;
   let cursor = null;
@@ -5684,20 +5677,20 @@ async function awReadTable(route, normalize, ownerIds, options = {}) {
     if (remaining <= 0) break;
     const queries = [
       ...options.queries ?? [],
-      Query.limit(Math.min(PAGE, remaining))
+      RecordQuery.limit(Math.min(PAGE, remaining))
     ];
     if (isConsolidated(route)) {
-      queries.unshift(Query.equal("source_key", [route.sourceKey]));
+      queries.unshift(RecordQuery.equal("source_key", [route.sourceKey]));
     }
     if (options.order !== "none") {
       queries.push(
-        options.order === "desc" ? Query.orderDesc("ord") : Query.orderAsc("ord")
+        options.order === "desc" ? RecordQuery.orderDesc("ord") : RecordQuery.orderAsc("ord")
       );
     }
-    if (ownerIds?.length) queries.unshift(Query.equal("owner_id", ownerIds));
-    if (cursor) queries.push(Query.cursorAfter(cursor));
-    const res = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    if (ownerIds?.length) queries.unshift(RecordQuery.equal("owner_id", ownerIds));
+    if (cursor) queries.push(RecordQuery.cursorAfter(cursor));
+    const res = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       route.table,
       queries
     );
@@ -5743,10 +5736,7 @@ async function ownersForRead(route) {
   return [user.$id, ...await sharedOwnerIdsFor(user)];
 }
 async function awWriteTable(route, records, ownerId) {
-  const aw = getAppwrite();
-  if (!aw) {
-    throw new Error("Appwrite is not configured.");
-  }
+  const aw = getRuntimeStore();
   const desired = records.map((rec, index) => {
     const rid = pickField(rec, ID_KEYS);
     const nameKey = route.sourceKey === "image_collection" ? normalizeStoreName(pickField(rec, NAME_KEYS)) : "";
@@ -5770,14 +5760,14 @@ async function awWriteTable(route, records, ownerId) {
   const existingImageCollectionIdsByName = /* @__PURE__ */ new Map();
   let cursor = null;
   for (; ; ) {
-    const queries = [Query.limit(PAGE)];
+    const queries = [RecordQuery.limit(PAGE)];
     if (isConsolidated(route)) {
-      queries.unshift(Query.equal("source_key", [route.sourceKey]));
+      queries.unshift(RecordQuery.equal("source_key", [route.sourceKey]));
     }
-    if (ownerId) queries.unshift(Query.equal("owner_id", [ownerId]));
-    if (cursor) queries.push(Query.cursorAfter(cursor));
-    const res = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    if (ownerId) queries.unshift(RecordQuery.equal("owner_id", [ownerId]));
+    if (cursor) queries.push(RecordQuery.cursorAfter(cursor));
+    const res = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       route.table,
       queries
     );
@@ -5810,7 +5800,7 @@ async function awWriteTable(route, records, ownerId) {
   }
   await runPool(desired, 3, async (d) => {
     await retryTransient(
-      () => aw.tables.upsertRow(APPWRITE_DATABASE_ID, route.table, d.id, d.payload)
+      () => aw.records.upsertRow(RUNTIME_DATABASE_ID, route.table, d.id, d.payload)
     );
     if (route.table === "outputs") {
       if (!ownerId) throw new Error("Output records require an owner id.");
@@ -5819,7 +5809,7 @@ async function awWriteTable(route, records, ownerId) {
   });
   await runPool(toDelete, 3, async (id) => {
     await retryTransient(
-      () => aw.tables.deleteRow(APPWRITE_DATABASE_ID, route.table, id)
+      () => aw.records.deleteRow(RUNTIME_DATABASE_ID, route.table, id)
     );
     if (route.table === "outputs") await deleteOutputMedia(aw, [id]);
   });
@@ -5828,13 +5818,12 @@ function normalizeStoreName(value) {
   return (value ?? "").trim().toLowerCase();
 }
 async function awUpsertRecord(route, record2, rid, ownerId, position) {
-  const aw = getAppwrite();
-  if (!aw) throw new Error("Appwrite is not configured.");
+  const aw = getRuntimeStore();
   const rowId = ownerId ? storeOwnedRowId(route, ownerId, rid, 0) : storeRowId(route, rid, 0);
   let existingOrd = null;
   try {
-    const existing = await aw.tables.getRow(
-      APPWRITE_DATABASE_ID,
+    const existing = await aw.records.getRow(
+      RUNTIME_DATABASE_ID,
       route.table,
       rowId
     );
@@ -5846,7 +5835,7 @@ async function awUpsertRecord(route, record2, rid, ownerId, position) {
   const extracted = route.table === "outputs" ? extractOutputMedia(route.sourceKey, ownedRecord) : { storedData: ownedRecord, media: [] };
   const ord = existingOrd ?? (position === "first" ? -Date.now() : Date.now());
   await retryTransient(
-    () => aw.tables.upsertRow(APPWRITE_DATABASE_ID, route.table, rowId, {
+    () => aw.records.upsertRow(RUNTIME_DATABASE_ID, route.table, rowId, {
       rid: rid.slice(0, 1024),
       ...canonicalRowFields(route, record2, extracted.storedData),
       ord,
@@ -5859,14 +5848,13 @@ async function awUpsertRecord(route, record2, rid, ownerId, position) {
   }
 }
 async function awAppendRecord(route, record2, rid, ownerId) {
-  const aw = getAppwrite();
-  if (!aw) throw new Error("Appwrite is not configured.");
+  const aw = getRuntimeStore();
   const rowId = ownerId ? storeOwnedRowId(route, ownerId, rid, 0) : storeRowId(route, rid, 0);
   const ownedRecord = ownerId ? attachOwner(record2, ownerId) : record2;
   const extracted = route.table === "outputs" ? extractOutputMedia(route.sourceKey, ownedRecord) : { storedData: ownedRecord, media: [] };
   try {
     await retryTransient(
-      () => aw.tables.createRow(APPWRITE_DATABASE_ID, route.table, rowId, {
+      () => aw.records.createRow(RUNTIME_DATABASE_ID, route.table, rowId, {
         rid: rid.slice(0, 1024),
         ...canonicalRowFields(route, record2, extracted.storedData),
         ord: -Date.now(),
@@ -5919,13 +5907,13 @@ async function listOutputMedia(aw, outputIds) {
   let cursor = null;
   for (; ; ) {
     const queries = [
-      Query.equal("output_id", outputIds),
-      Query.orderAsc("position"),
-      Query.limit(PAGE)
+      RecordQuery.equal("output_id", outputIds),
+      RecordQuery.orderAsc("position"),
+      RecordQuery.limit(PAGE)
     ];
-    if (cursor) queries.push(Query.cursorAfter(cursor));
-    const response = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    if (cursor) queries.push(RecordQuery.cursorAfter(cursor));
+    const response = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       "output_media",
       queries
     );
@@ -5951,8 +5939,8 @@ async function syncOutputMedia(aw, outputRowId, ownerId, media) {
   await deleteOutputMedia(aw, [outputRowId]);
   await runPool(media, 3, async (item) => {
     await retryTransient(
-      () => aw.tables.createRow(
-        APPWRITE_DATABASE_ID,
+      () => aw.records.createRow(
+        RUNTIME_DATABASE_ID,
         "output_media",
         outputMediaRowId(outputRowId, item),
         outputMediaRowFields(outputRowId, ownerId, item)
@@ -5965,10 +5953,10 @@ async function deleteOutputMedia(aw, outputIds) {
   let cursor = null;
   const ids = [];
   for (; ; ) {
-    const queries = [Query.equal("output_id", outputIds), Query.limit(PAGE)];
-    if (cursor) queries.push(Query.cursorAfter(cursor));
-    const response = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    const queries = [RecordQuery.equal("output_id", outputIds), RecordQuery.limit(PAGE)];
+    if (cursor) queries.push(RecordQuery.cursorAfter(cursor));
+    const response = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       "output_media",
       queries
     );
@@ -5978,7 +5966,7 @@ async function deleteOutputMedia(aw, outputIds) {
   }
   await runPool(ids, 3, async (id) => {
     await retryTransient(
-      () => aw.tables.deleteRow(APPWRITE_DATABASE_ID, "output_media", id)
+      () => aw.records.deleteRow(RUNTIME_DATABASE_ID, "output_media", id)
     );
   });
 }
@@ -6038,7 +6026,8 @@ var storeLocks, PAGE;
 var init_json_store = __esm({
   "lib/json-store.ts"() {
     "use strict";
-    init_appwrite();
+    init_record_query();
+    init_runtime_store();
     init_appwrite_stores();
     init_consolidated_records();
     init_auth_shim();
@@ -6370,92 +6359,54 @@ var init_automations = __esm({
 
 // lib/asset-storage.ts
 import path5 from "node:path";
-import { InputFile } from "node-appwrite/file";
 function toBuffer(bytes) {
   if (typeof bytes === "string") return Buffer.from(bytes);
   if (bytes instanceof ArrayBuffer) return Buffer.from(bytes);
   return Buffer.from(bytes);
 }
-function relForAppwrite(absPath) {
+function relativeAssetPath(absPath) {
   const rel = path5.relative(dataRoot(), path5.resolve(absPath));
   if (rel.startsWith("..") || path5.isAbsolute(rel)) return null;
   return rel.split(path5.sep).join("/");
 }
 async function readAssetBytes(absPath) {
-  const relPath = relForAppwrite(absPath);
+  const relPath = relativeAssetPath(absPath);
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`);
   }
   const bucket = bucketForPath(relPath);
   const fileId2 = fileIdForPath(relPath);
-  if (assetBackend() === "railway") {
-    return readRailwayObject(railwayObjectKey(bucket, fileId2));
-  }
-  const aw = getAppwrite();
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot read asset bytes.");
-  }
-  const view = await aw.storage.getFileView(bucket, fileId2);
-  return Buffer.from(view);
+  return readRailwayObject(railwayObjectKey(bucket, fileId2));
 }
-async function deleteAssetFromAppwrite(absPath) {
-  const relPath = relForAppwrite(absPath);
+async function deleteAsset(absPath) {
+  const relPath = relativeAssetPath(absPath);
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`);
   }
   const bucket = bucketForPath(relPath);
   const fileId2 = fileIdForPath(relPath);
-  if (assetBackend() === "railway") {
-    await deleteRailwayObject(railwayObjectKey(bucket, fileId2));
-    return;
-  }
-  const aw = getAppwrite();
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot delete asset bytes.");
-  }
-  try {
-    await aw.storage.deleteFile(bucket, fileId2);
-  } catch (error) {
-    if (error.code !== 404) {
-      throw error;
-    }
-  }
+  await deleteRailwayObject(railwayObjectKey(bucket, fileId2));
 }
 async function createAssetOnce(absPath, bytes) {
-  const relPath = relForAppwrite(absPath);
+  const relPath = relativeAssetPath(absPath);
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`);
   }
   const buffer = toBuffer(bytes);
   const bucket = bucketForPath(relPath);
   const fileId2 = fileIdForPath(relPath);
-  if (assetBackend() === "railway") {
-    const key = railwayObjectKey(bucket, fileId2);
-    if (await railwayObjectExists(key)) {
-      throw Object.assign(new Error(`Asset already exists: ${relPath}`), {
-        code: 409
-      });
-    }
-    await putRailwayObject({ key, body: buffer });
-    return;
+  const key = railwayObjectKey(bucket, fileId2);
+  if (await railwayObjectExists(key)) {
+    throw Object.assign(new Error(`Asset already exists: ${relPath}`), {
+      code: 409
+    });
   }
-  const aw = getAppwrite();
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot persist asset bytes.");
-  }
-  await aw.storage.createFile(
-    bucket,
-    fileId2,
-    InputFile.fromBuffer(buffer, path5.basename(relPath)),
-    []
-  );
+  await putRailwayObject({ key, body: buffer });
 }
 var init_asset_storage = __esm({
   "lib/asset-storage.ts"() {
     "use strict";
-    init_appwrite();
     init_appwrite_stores();
-    init_backend_config();
     init_object_storage();
   }
 });
@@ -7414,7 +7365,7 @@ var init_deepl_translate = __esm({
   }
 });
 
-// lib/realfarm-collections.ts
+// features/collections/domain/collections.ts
 function slugify(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -7424,8 +7375,8 @@ function storedCollectionId(collection) {
 function legacyStoredCollectionId(collection) {
   return `collection-${slugify(`${collection.name}-${collection.created_at}`)}`;
 }
-var init_realfarm_collections = __esm({
-  "lib/realfarm-collections.ts"() {
+var init_collections = __esm({
+  "features/collections/domain/collections.ts"() {
     "use strict";
   }
 });
@@ -8939,7 +8890,6 @@ var init_posts = __esm({
 
 // lib/post-repository-appwrite.ts
 import crypto4 from "node:crypto";
-import { Query as Query2 } from "node-appwrite";
 function postRowId(ownerId, postId) {
   return deterministicRowId("p", ["posts", ownerId, postId]);
 }
@@ -8969,7 +8919,7 @@ async function reserveIdentity(ownerId, postId, claim) {
   const rowId = postIdentityRowId(claim);
   try {
     const created = await tables().createRow(
-      APPWRITE_DATABASE_ID,
+      RUNTIME_DATABASE_ID,
       POST_IDENTITIES_TABLE,
       rowId,
       {
@@ -8999,7 +8949,7 @@ async function reserveIdentity(ownerId, postId, claim) {
 async function getIdentity(claim) {
   try {
     const row = await tables().getRow(
-      APPWRITE_DATABASE_ID,
+      RUNTIME_DATABASE_ID,
       POST_IDENTITIES_TABLE,
       postIdentityRowId(claim)
     );
@@ -9062,7 +9012,7 @@ async function getCanonicalPostOnce(ownerIdInput, idInput) {
   const id = required2(idInput, "canonical post id");
   try {
     const row = await tables().getRow(
-      APPWRITE_DATABASE_ID,
+      RUNTIME_DATABASE_ID,
       POSTS_TABLE,
       postRowId(ownerId, id)
     );
@@ -9077,7 +9027,7 @@ async function createCanonicalPostOnce(postInput) {
   const post = normalizePost(postInput);
   if (!post) throw new Error("A valid canonical post is required.");
   await tables().createRow(
-    APPWRITE_DATABASE_ID,
+    RUNTIME_DATABASE_ID,
     POSTS_TABLE,
     postRowId(post.ownerId, post.id),
     postRowFields(post, {
@@ -9091,7 +9041,7 @@ async function updateCanonicalPostOnce(postInput) {
   const post = normalizePost(postInput);
   if (!post) throw new Error("A valid canonical post is required.");
   await tables().updateRow(
-    APPWRITE_DATABASE_ID,
+    RUNTIME_DATABASE_ID,
     POSTS_TABLE,
     postRowId(post.ownerId, post.id),
     postRowFields(post, {
@@ -9111,7 +9061,7 @@ async function createPostIdentityOnce(ownerIdInput, postIdInput, claim) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const identityHash = postIdentityHash(claim);
   const row = await tables().createRow(
-    APPWRITE_DATABASE_ID,
+    RUNTIME_DATABASE_ID,
     POST_IDENTITIES_TABLE,
     postIdentityRowId(claim),
     {
@@ -9223,9 +9173,7 @@ function deterministicRowId(prefix, values) {
   return `${prefix}${crypto4.createHash("sha256").update(JSON.stringify(values)).digest("hex").slice(0, 35)}`;
 }
 function tables() {
-  const aw = getAppwrite();
-  if (!aw) throw new Error("Appwrite is not configured.");
-  return aw.tables;
+  return getRuntimeStore().records;
 }
 function appwriteStatus2(error) {
   if (!error || typeof error !== "object") return null;
@@ -9244,9 +9192,10 @@ var POSTS_TABLE, POST_IDENTITIES_TABLE, PAGE2, AppwritePostRepository, appwriteP
 var init_post_repository_appwrite = __esm({
   "lib/post-repository-appwrite.ts"() {
     "use strict";
-    init_appwrite();
     init_guards();
     init_post_repository_errors();
+    init_record_query();
+    init_runtime_store();
     init_posts();
     POSTS_TABLE = "posts";
     POST_IDENTITIES_TABLE = "post_identities";
@@ -9258,13 +9207,13 @@ var init_post_repository_appwrite = __esm({
         let cursor = null;
         for (; ; ) {
           const queries = [
-            Query2.equal("owner_id", [ownerId]),
-            Query2.equal("write_state", ["reconciled"]),
-            Query2.limit(PAGE2)
+            RecordQuery.equal("owner_id", [ownerId]),
+            RecordQuery.equal("write_state", ["reconciled"]),
+            RecordQuery.limit(PAGE2)
           ];
-          if (cursor) queries.push(Query2.cursorAfter(cursor));
+          if (cursor) queries.push(RecordQuery.cursorAfter(cursor));
           const response = await tables().listRows(
-            APPWRITE_DATABASE_ID,
+            RUNTIME_DATABASE_ID,
             POSTS_TABLE,
             queries
           );
@@ -9323,7 +9272,7 @@ var init_post_repository_appwrite = __esm({
         const post = mergePost(stored?.post ?? null, incoming, targetId);
         const writeState = options.writeState ?? stored?.writeState ?? "reconciled";
         await tables().upsertRow(
-          APPWRITE_DATABASE_ID,
+          RUNTIME_DATABASE_ID,
           POSTS_TABLE,
           postRowId(post.ownerId, post.id),
           postRowFields(post, {
@@ -9367,13 +9316,13 @@ var init_post_repository_appwrite = __esm({
         let cursor = null;
         for (; ; ) {
           const queries = [
-            Query2.equal("owner_id", [ownerId]),
-            Query2.equal("post_id", [current.id]),
-            Query2.limit(PAGE2)
+            RecordQuery.equal("owner_id", [ownerId]),
+            RecordQuery.equal("post_id", [current.id]),
+            RecordQuery.limit(PAGE2)
           ];
-          if (cursor) queries.push(Query2.cursorAfter(cursor));
+          if (cursor) queries.push(RecordQuery.cursorAfter(cursor));
           const response = await tables().listRows(
-            APPWRITE_DATABASE_ID,
+            RUNTIME_DATABASE_ID,
             POST_IDENTITIES_TABLE,
             queries
           );
@@ -9383,14 +9332,14 @@ var init_post_repository_appwrite = __esm({
         }
         for (const identity of identities) {
           await tables().deleteRow(
-            APPWRITE_DATABASE_ID,
+            RUNTIME_DATABASE_ID,
             POST_IDENTITIES_TABLE,
             identity.$id
           );
         }
         try {
           await tables().deleteRow(
-            APPWRITE_DATABASE_ID,
+            RUNTIME_DATABASE_ID,
             POSTS_TABLE,
             postRowId(ownerId, current.id)
           );
@@ -9403,7 +9352,7 @@ var init_post_repository_appwrite = __esm({
         const ownerId = required2(ownerIdInput, "post owner");
         const id = required2(idInput, "canonical post id");
         await tables().updateRow(
-          APPWRITE_DATABASE_ID,
+          RUNTIME_DATABASE_ID,
           POSTS_TABLE,
           postRowId(ownerId, id),
           {
@@ -9416,7 +9365,7 @@ var init_post_repository_appwrite = __esm({
       async getStoredPost(ownerId, id) {
         try {
           const row = await tables().getRow(
-            APPWRITE_DATABASE_ID,
+            RUNTIME_DATABASE_ID,
             POSTS_TABLE,
             postRowId(ownerId, id)
           );
@@ -9458,7 +9407,6 @@ var init_post_repository_config = __esm({
 
 // lib/output-publications.ts
 import crypto5 from "node:crypto";
-import { Query as Query3 } from "node-appwrite";
 async function listOutputPublications() {
   const ownerId = await publicationOwnerId();
   const rows = await listOutputRows(ownerId);
@@ -9473,8 +9421,8 @@ async function listOutputPublicationsForSources(input) {
   if (entityIds.length === 0 && runIds.length === 0) return [];
   const ownerId = await publicationOwnerId();
   const groups = await Promise.all([
-    ...entityIds.length ? [listOutputRows(ownerId, [Query3.equal("source_entity_id", entityIds)])] : [],
-    ...runIds.length ? [listOutputRows(ownerId, [Query3.equal("source_run_id", runIds)])] : []
+    ...entityIds.length ? [listOutputRows(ownerId, [RecordQuery.equal("source_entity_id", entityIds)])] : [],
+    ...runIds.length ? [listOutputRows(ownerId, [RecordQuery.equal("source_run_id", runIds)])] : []
   ]);
   const rows = new Map(groups.flat().map((row) => [row.$id, row]));
   return [...rows.values()].flatMap(
@@ -9607,8 +9555,7 @@ async function markRepairs(ownerId, posts, target, message) {
   );
 }
 async function writeLegacyOutputPublications(records, resolvedOwnerId) {
-  const aw = getAppwrite();
-  if (!aw) throw new Error("Appwrite is not configured.");
+  const aw = getRuntimeStore();
   const ownerId = resolvedOwnerId ?? await publicationOwnerId();
   const rows = await listOutputRows(ownerId);
   const desiredById = new Map(records.map((record2) => [record2.id, record2]));
@@ -9637,19 +9584,18 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 async function listOutputRows(ownerId, filters = []) {
-  const aw = getAppwrite();
-  if (!aw) throw new Error("Appwrite is not configured.");
+  const aw = getRuntimeStore();
   const rows = [];
   let cursor = null;
   for (; ; ) {
     const queries = [
-      Query3.equal("owner_id", [ownerId]),
+      RecordQuery.equal("owner_id", [ownerId]),
       ...filters,
-      Query3.limit(PAGE3)
+      RecordQuery.limit(PAGE3)
     ];
-    if (cursor) queries.push(Query3.cursorAfter(cursor));
-    const response = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    if (cursor) queries.push(RecordQuery.cursorAfter(cursor));
+    const response = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       "outputs",
       queries
     );
@@ -9663,10 +9609,9 @@ function cleanIds(values) {
   return [...new Set((values ?? []).map((value) => value.trim()))].filter(Boolean).slice(0, 100);
 }
 async function updateOutputPublications(row, publications) {
-  const aw = getAppwrite();
-  if (!aw) throw new Error("Appwrite is not configured.");
+  const aw = getRuntimeStore();
   const summary = publicationRecordSummary(publications);
-  await aw.tables.updateRow(APPWRITE_DATABASE_ID, "outputs", row.$id, {
+  await aw.records.updateRow(RUNTIME_DATABASE_ID, "outputs", row.$id, {
     publications: JSON.stringify(publications),
     publication_status: summary.status,
     scheduled_at: summary.scheduledAt,
@@ -9677,8 +9622,7 @@ async function updateOutputPublications(row, publications) {
   });
 }
 async function createPublicationOutput(ownerId, record2) {
-  const aw = getAppwrite();
-  if (!aw) throw new Error("Appwrite is not configured.");
+  const aw = getRuntimeStore();
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const rid = `published-${record2.sourceType}-${crypto5.createHash("sha256").update(record2.sourceId).digest("hex").slice(0, 18)}`;
   const rowId = `o${crypto5.createHash("sha256").update(`outputs:publication_wrapper:${ownerId}:${rid}`).digest("hex").slice(0, 35)}`;
@@ -9689,8 +9633,8 @@ async function createPublicationOutput(ownerId, record2) {
     createdAt: now,
     updatedAt: now
   };
-  const created = await aw.tables.upsertRow(
-    APPWRITE_DATABASE_ID,
+  const created = await aw.records.upsertRow(
+    RUNTIME_DATABASE_ID,
     "outputs",
     rowId,
     {
@@ -9784,11 +9728,12 @@ var PAGE3, PostDualWriteError;
 var init_output_publications = __esm({
   "lib/output-publications.ts"() {
     "use strict";
-    init_appwrite();
     init_auth_shim();
     init_post_repository_appwrite();
     init_post_repository_config();
     init_publication_record();
+    init_record_query();
+    init_runtime_store();
     init_posts();
     init_system_owner_context();
     PAGE3 = 100;
@@ -11472,7 +11417,6 @@ var init_rendi_ffmpeg = __esm({
 
 // lib/results.ts
 import path9 from "node:path";
-import { Query as Query4 } from "node-appwrite";
 async function listResultRecords(input = {}) {
   if (input.id) {
     const record2 = await readResultRecord(input.rootDir, input.id);
@@ -11488,7 +11432,7 @@ async function listResultRecords(input = {}) {
   const automationId = clean(input.automationId);
   if (input.slideshowIds && slideshowIds.length === 0) return [];
   const records = await readResultRecords(input.rootDir, {
-    queries: slideshowIds.length ? [Query4.equal("source_entity_id", slideshowIds)] : runId ? [Query4.equal("source_run_id", [runId])] : automationId ? [Query4.equal("source_automation_id", [automationId])] : void 0,
+    queries: slideshowIds.length ? [RecordQuery.equal("source_entity_id", slideshowIds)] : runId ? [RecordQuery.equal("source_run_id", [runId])] : automationId ? [RecordQuery.equal("source_automation_id", [automationId])] : void 0,
     limit: slideshowIds.length ? Math.max(1, Math.min(input.limit ?? slideshowIds.length, 100)) : Math.max(1, input.limit ?? 100),
     order: slideshowIds.length || runId || automationId ? "none" : void 0
   });
@@ -11609,6 +11553,7 @@ var init_results = __esm({
     "use strict";
     init_guards();
     init_json_store();
+    init_record_query();
     dbFileName2 = "results.json";
   }
 });
@@ -13090,7 +13035,7 @@ var init_automation_templates = __esm({
     "use strict";
     init_guards();
     init_json_store();
-    init_realfarm_collections();
+    init_collections();
     init_realfarm_automation();
     init_automations();
     defaultRootDir5 = path12.join(process.cwd(), "data", "starter-templates");
@@ -13275,7 +13220,7 @@ var init_temp_slide_testing = __esm({
     "use strict";
     init_guards();
     init_automation_templates();
-    init_realfarm_collections();
+    init_collections();
     init_realfarm_automation();
     init_temp_slide_testing_shared();
     init_slideshow_plan_core();
@@ -13348,7 +13293,8 @@ var init_word_collections = __esm({
 import path14 from "node:path";
 async function listAutomationRuns(input = {}) {
   const runRootDir = input.runRootDir ?? defaultRunRootDir;
-  const runs = await readAutomationRuns(runRootDir);
+  const requestedRunId = clean(input.runId);
+  const runs = requestedRunId ? await readRequestedAutomationRun(runRootDir, requestedRunId) : await readAutomationRuns(runRootDir);
   const now = Date.now();
   let reconciled = false;
   const settledRuns = runs.map((run) => {
@@ -13366,7 +13312,13 @@ async function listAutomationRuns(input = {}) {
     return run;
   });
   if (reconciled) {
-    await writeAutomationRuns(runRootDir, settledRuns);
+    if (requestedRunId) {
+      await Promise.all(
+        settledRuns.map((run) => updateAutomationRun(runRootDir, run))
+      );
+    } else {
+      await writeAutomationRuns(runRootDir, settledRuns);
+    }
   }
   const filteredRuns = input.automationId ? settledRuns.filter((run) => run.automationId === input.automationId) : settledRuns;
   const limitedRuns = filteredRuns.toSorted(
@@ -13382,6 +13334,14 @@ async function listAutomationRuns(input = {}) {
     input.postfastRootDir,
     input.postRecords
   );
+}
+async function readRequestedAutomationRun(rootDir4, id) {
+  const direct = await readAutomationRunRecord(rootDir4, id);
+  if (direct) return [direct];
+  const bySlideshow = (await readAutomationRuns(rootDir4)).find(
+    (run) => run.slideshowId === id
+  );
+  return bySlideshow ? [bySlideshow] : [];
 }
 function automationRunTimestamp(run) {
   const createdAt = new Date(run.createdAt).getTime();
@@ -13530,6 +13490,23 @@ async function writeAutomationRuns(rootDir4, runs) {
     records: runs
   });
 }
+async function updateAutomationRun(runRootDir, run) {
+  await upsertJsonArrayRecord({
+    rootDir: runRootDir,
+    fileName: runsFileName,
+    key: "runs",
+    record: run
+  });
+}
+function readAutomationRunRecord(rootDir4, id) {
+  return readJsonArrayRecord({
+    rootDir: rootDir4,
+    fileName: runsFileName,
+    key: "runs",
+    id,
+    normalize: normalizeRun
+  });
+}
 function normalizeRun(run) {
   if (run?.kind === "ugc" || run?.checkpoints && typeof run.checkpoints === "object") {
     return null;
@@ -13627,7 +13604,7 @@ var init_automation_runner = __esm({
     init_slideshow_plan_core();
     init_slideshow_plan_core();
     init_realfarm_automation();
-    init_realfarm_collections();
+    init_collections();
     init_slideshow_generation_engine();
     init_hook_expansion();
     init_postfast_posts();
@@ -14098,7 +14075,7 @@ var init_automation_readiness = __esm({
     "use strict";
     init_hook_expansion();
     init_realfarm_automation();
-    init_realfarm_collections();
+    init_collections();
   }
 });
 
@@ -17106,22 +17083,21 @@ var init_pipeline_rendi = __esm({
 });
 
 // lib/pipeline-domain-storage.ts
-import { InputFile as InputFile2 } from "node-appwrite/file";
-import { Query as Query5 } from "node-appwrite";
+import { InputFile } from "node-appwrite/file";
 async function readPipelineDomainPageOnce(input) {
-  const { tables: tables2 } = clients();
+  const { records } = clients();
   const config = DOMAINS[input.domain];
   const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 100)));
   const queries = [
-    Query5.equal("owner_id", [required3(input.ownerId, "owner")]),
-    Query5.limit(limit)
+    RecordQuery.equal("owner_id", [required3(input.ownerId, "owner")]),
+    RecordQuery.limit(limit)
   ];
   if (config.route.table === "outputs" || config.route.table === "permanent_assets") {
-    queries.push(Query5.equal("source_key", [config.route.sourceKey]));
+    queries.push(RecordQuery.equal("source_key", [config.route.sourceKey]));
   }
-  if (clean(input.cursor)) queries.push(Query5.cursorAfter(clean(input.cursor)));
-  const response = await tables2.listRows(
-    APPWRITE_DATABASE_ID,
+  if (clean(input.cursor)) queries.push(RecordQuery.cursorAfter(clean(input.cursor)));
+  const response = await records.listRows(
+    RUNTIME_DATABASE_ID,
     config.route.table,
     queries
   );
@@ -17144,8 +17120,8 @@ async function readPipelineDomainDocumentOnce(input) {
     0
   );
   try {
-    const row = await clients().tables.getRow(
-      APPWRITE_DATABASE_ID,
+    const row = await clients().records.getRow(
+      RUNTIME_DATABASE_ID,
       config.route.table,
       rowId
     );
@@ -17184,8 +17160,8 @@ function pipelineDomainRowId(domain, ownerIdInput, idInput) {
 }
 async function createPipelineDomainDocumentOnce(input) {
   const prepared = preparePipelineDomainDocument(input);
-  await clients().tables.createRow(
-    APPWRITE_DATABASE_ID,
+  await clients().records.createRow(
+    RUNTIME_DATABASE_ID,
     DOMAINS[input.domain].route.table,
     prepared.rowId,
     prepared.fields
@@ -17194,8 +17170,8 @@ async function createPipelineDomainDocumentOnce(input) {
 }
 async function updatePipelineDomainDocumentOnce(input) {
   const prepared = preparePipelineDomainDocument(input);
-  await clients().tables.updateRow(
-    APPWRITE_DATABASE_ID,
+  await clients().records.updateRow(
+    RUNTIME_DATABASE_ID,
     DOMAINS[input.domain].route.table,
     prepared.rowId,
     prepared.fields
@@ -17205,13 +17181,13 @@ async function updatePipelineDomainDocumentOnce(input) {
 async function readOutputMediaPageOnce(input) {
   const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 100)));
   const queries = [
-    Query5.equal("owner_id", [required3(input.ownerId, "owner")]),
-    Query5.equal("output_id", [required3(input.outputRowId, "output row")]),
-    Query5.limit(limit)
+    RecordQuery.equal("owner_id", [required3(input.ownerId, "owner")]),
+    RecordQuery.equal("output_id", [required3(input.outputRowId, "output row")]),
+    RecordQuery.limit(limit)
   ];
-  if (clean(input.cursor)) queries.push(Query5.cursorAfter(clean(input.cursor)));
-  const response = await clients().tables.listRows(
-    APPWRITE_DATABASE_ID,
+  if (clean(input.cursor)) queries.push(RecordQuery.cursorAfter(clean(input.cursor)));
+  const response = await clients().records.listRows(
+    RUNTIME_DATABASE_ID,
     "output_media",
     queries
   );
@@ -17232,8 +17208,8 @@ async function createOutputMediaOnce(input) {
     required3(input.outputRowId, "output row"),
     input.media
   );
-  await clients().tables.createRow(
-    APPWRITE_DATABASE_ID,
+  await clients().records.createRow(
+    RUNTIME_DATABASE_ID,
     "output_media",
     rowId,
     outputMediaRowFields(
@@ -17247,25 +17223,23 @@ async function createOutputMediaOnce(input) {
 async function deleteOutputMediaOnce(input) {
   required3(input.ownerId, "owner");
   const outputRowId = required3(input.outputRowId, "output row");
-  await clients().tables.deleteRow(
-    APPWRITE_DATABASE_ID,
+  await clients().records.deleteRow(
+    RUNTIME_DATABASE_ID,
     "output_media",
     outputMediaRowId(outputRowId, input.media)
   );
 }
 async function readDomainAssetOnce(input) {
   const relativePath = safeAssetPath(input);
-  return Buffer.from(
-    await clients().storage.getFileView(
-      bucketForPath(relativePath),
-      fileIdForPath(relativePath)
-    )
+  return clients().objects.getFileView(
+    bucketForPath(relativePath),
+    fileIdForPath(relativePath)
   );
 }
 async function inspectDomainAssetOnce(input) {
   const relativePath = safeAssetPath(input);
   try {
-    await clients().storage.getFile(
+    await clients().objects.getFile(
       bucketForPath(relativePath),
       fileIdForPath(relativePath)
     );
@@ -17277,10 +17251,10 @@ async function inspectDomainAssetOnce(input) {
 }
 async function createDomainAssetOnce(input) {
   const relativePath = safeAssetPath(input);
-  await clients().storage.createFile(
+  await clients().objects.createFile(
     bucketForPath(relativePath),
     fileIdForPath(relativePath),
-    InputFile2.fromBuffer(
+    InputFile.fromBuffer(
       Buffer.from(input.bytes),
       relativePath.split("/").at(-1) ?? "pipeline-asset"
     ),
@@ -17290,7 +17264,7 @@ async function createDomainAssetOnce(input) {
 }
 async function deleteDomainAssetOnce(input) {
   const relativePath = safeAssetPath(input);
-  await clients().storage.deleteFile(
+  await clients().objects.deleteFile(
     bucketForPath(relativePath),
     fileIdForPath(relativePath)
   );
@@ -17319,9 +17293,7 @@ function rowNamespace(config) {
   return config.route.table === "outputs" || config.route.table === "permanent_assets" ? `${config.route.table}:${config.route.sourceKey}` : config.route.table;
 }
 function clients() {
-  const appwrite = getAppwrite();
-  if (!appwrite) throw new Error("Appwrite is not configured");
-  return appwrite;
+  return getRuntimeStore();
 }
 function required3(value, label) {
   const result = clean(value);
@@ -17336,7 +17308,8 @@ var init_pipeline_domain_storage = __esm({
   "lib/pipeline-domain-storage.ts"() {
     "use strict";
     init_server_only_shim();
-    init_appwrite();
+    init_record_query();
+    init_runtime_store();
     init_appwrite_stores();
     init_consolidated_records();
     init_guards();
@@ -18641,7 +18614,7 @@ function createProductionPipelineHandlers(services) {
   const add = (id, handler) => handlers.set(id, handler);
   const addPageRead = (id, domain, outputKey) => add(id, async (input, context) => {
     const page = await context.externalCall(
-      `Appwrite ${domain} listRows`,
+      `Railway ${domain} listRows`,
       () => readPipelineDomainPageOnce({
         domain,
         ownerId: context.ownerId,
@@ -18653,7 +18626,7 @@ function createProductionPipelineHandlers(services) {
   });
   const addDocumentRead = (id, domain, inputKey, outputKey) => add(id, async (input, context) => {
     const document = await context.externalCall(
-      `Appwrite ${domain} getRow`,
+      `Railway ${domain} getRow`,
       () => readPipelineDomainDocumentOnce({
         domain,
         ownerId: context.ownerId,
@@ -18665,7 +18638,7 @@ function createProductionPipelineHandlers(services) {
   const addDocumentWrite = (id, domain, operation, inputKey, outputKey) => add(id, async (input, context) => {
     const record2 = requiredRecord(input[inputKey], inputKey);
     const persisted = await context.externalCall(
-      `Appwrite ${domain} ${operation}Row`,
+      `Railway ${domain} ${operation}Row`,
       () => (operation === "create" ? createPipelineDomainDocumentOnce : updatePipelineDomainDocumentOnce)({
         domain,
         ownerId: context.ownerId,
@@ -18852,7 +18825,7 @@ function createProductionPipelineHandlers(services) {
         requiredString2(state[input.idKey], input.idKey)
       );
       const page = await context.externalCall(
-        "Appwrite output_media listRows",
+        "Railway output_media listRows",
         () => readOutputMediaPageOnce({
           ownerId: context.ownerId,
           outputRowId,
@@ -18876,7 +18849,7 @@ function createProductionPipelineHandlers(services) {
         requiredString2(state[input.idKey], input.idKey)
       );
       const created = await context.externalCall(
-        "Appwrite output_media createRow",
+        "Railway output_media createRow",
         () => createOutputMediaOnce({
           ownerId: context.ownerId,
           outputRowId,
@@ -18896,7 +18869,7 @@ function createProductionPipelineHandlers(services) {
         requiredString2(state[input.idKey], input.idKey)
       );
       await context.externalCall(
-        "Appwrite output_media deleteRow",
+        "Railway output_media deleteRow",
         () => deleteOutputMediaOnce({
           ownerId: context.ownerId,
           outputRowId,
@@ -19086,7 +19059,7 @@ ${clean(input.hook)}`
     "ugc-video-generation.inspect-one-saved-asset",
     async (input, context) => {
       const inspection = await context.externalCall(
-        "Appwrite Storage getFile",
+        "Railway object storage getFile",
         () => inspectDomainAssetOnce({
           domain: "ugc",
           ownerId: context.ownerId,
@@ -19099,7 +19072,7 @@ ${clean(input.hook)}`
   add("ugc-video-generation.read-one-saved-asset", async (input, context) => {
     const relativePath = requiredString2(input.storagePath, "storagePath");
     const bytes = await context.externalCall(
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       () => readDomainAssetOnce({
         domain: "ugc",
         ownerId: context.ownerId,
@@ -19114,7 +19087,7 @@ ${clean(input.hook)}`
     const localPath = requiredTempPath(input.localPath, "cfarm-ugc-");
     const bytes = await readFile4(localPath);
     await context.externalCall(
-      "Appwrite Storage createFile",
+      "Railway object storage createFile",
       () => createDomainAssetOnce({
         domain: "ugc",
         ownerId: context.ownerId,
@@ -19126,7 +19099,7 @@ ${clean(input.hook)}`
   });
   add("ugc-video-generation.delete-one-saved-asset", async (input, context) => {
     await context.externalCall(
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       () => deleteDomainAssetOnce({
         domain: "ugc",
         ownerId: context.ownerId,
@@ -19193,7 +19166,7 @@ ${clean(input.hook)}`
     const request = requiredRecord(input.assetRequest, "assetRequest");
     const render = requiredRecord(input.slideshowRender, "slideshowRender");
     const staged2 = await context.externalCall(
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       () => stageOneStoredSlideshowAsset({
         scratchDir: requiredString2(
           render.scratchDir,
@@ -19343,7 +19316,7 @@ ${clean(input.hook)}`
       const relativePath = `slideshows/outputs/${requiredString2(asRecord4(render.record).id, "slideshow id")}/${fileName4}`;
       const bytes = await readFile4(localPath);
       await context.externalCall(
-        "Appwrite Storage createFile",
+        "Railway object storage createFile",
         () => createDomainAssetOnce({
           domain: "slideshow",
           ownerId: context.ownerId,
@@ -19361,7 +19334,7 @@ ${clean(input.hook)}`
       const file = requiredRecord(input.outputFile, "outputFile");
       const relativePath = `slideshows/outputs/${requiredString2(asRecord4(render.record).id, "slideshow id")}/${path20.basename(requiredString2(file.fileName, "outputFile.fileName"))}`;
       await context.externalCall(
-        "Appwrite Storage deleteFile",
+        "Railway object storage deleteFile",
         () => deleteDomainAssetOnce({
           domain: "slideshow",
           ownerId: context.ownerId,
@@ -19519,7 +19492,7 @@ ${clean(input.hook)}`
       "postIntent"
     );
     const existing = await context.externalCall(
-      "Appwrite posts getRow",
+      "Railway posts getRow",
       () => getCanonicalPostOnce(context.ownerId, post.id)
     );
     return mergePipelineOutput(input, { existingPostIntent: existing });
@@ -19530,7 +19503,7 @@ ${clean(input.hook)}`
       ownerId: context.ownerId
     };
     await context.externalCall(
-      "Appwrite posts createRow",
+      "Railway posts createRow",
       () => createCanonicalPostOnce(post)
     );
     return mergePipelineOutput(input, { persistedPostIntent: post.id });
@@ -19541,7 +19514,7 @@ ${clean(input.hook)}`
       ownerId: context.ownerId
     };
     await context.externalCall(
-      "Appwrite posts updateRow",
+      "Railway posts updateRow",
       () => updateCanonicalPostOnce(post)
     );
     return mergePipelineOutput(input, { persistedPostIntent: post.id });
@@ -19552,7 +19525,7 @@ ${clean(input.hook)}`
       "postIdentityClaim"
     );
     const identity = await context.externalCall(
-      "Appwrite post_identities getRow",
+      "Railway post_identities getRow",
       () => getPostIdentityOnce(claim)
     );
     if (identity && identity.ownerId !== context.ownerId)
@@ -19571,7 +19544,7 @@ ${clean(input.hook)}`
         "postIdentityClaim"
       );
       const identity = await context.externalCall(
-        "Appwrite post_identities createRow",
+        "Railway post_identities createRow",
         () => createPostIdentityOnce(context.ownerId, post.id, claim)
       );
       return mergePipelineOutput(input, {
@@ -19867,7 +19840,7 @@ ${clean(input.hook)}`
     add(id("rendi-persist-output"), async (input, context) => {
       const target = rendiPersistenceTarget(workflowId, context.ownerId, input);
       await context.externalCall(
-        "Appwrite Rendi output-file create",
+        "Railway Rendi output-file create",
         () => persistPipelineTempFile({
           tempPath: requiredString2(
             input.tempRendiOutputPath,
@@ -20675,7 +20648,7 @@ ${clean(input.hook)}`
       throw new Error("Unsupported rendered slide URL");
     const relativePath = decodeURIComponent(pathname.slice(prefix.length));
     const bytes = await context.externalCall(
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       () => readDomainAssetOnce({
         domain: "slideshow",
         ownerId: context.ownerId,
@@ -21249,7 +21222,7 @@ ${clean(input.hook)}`
         fileName4
       );
       await context.externalCall(
-        "Appwrite b-roll asset-file create",
+        "Railway b-roll asset-file create",
         () => persistPipelineTempFile({
           tempPath: requiredString2(input.tempBrollPath, "tempBrollPath"),
           outputPath
@@ -21271,8 +21244,8 @@ ${clean(input.hook)}`
       fileName4
     );
     await context.externalCall(
-      "Appwrite b-roll asset-file delete",
-      () => deleteAssetFromAppwrite(outputPath)
+      "Railway b-roll asset-file delete",
+      () => deleteAsset(outputPath)
     );
     return mergePipelineOutput(input, { deletedBrollAsset: fileName4 });
   });
@@ -21599,7 +21572,7 @@ ${clean(input.hook)}`
         }
       );
       await context.externalCall(
-        `Appwrite ${kind} asset-file create`,
+        `Railway ${kind} asset-file create`,
         () => persistPipelineTempFile({
           tempPath: requiredString2(input[field], field),
           outputPath: target.outputPath
@@ -23032,7 +23005,7 @@ ${clean(input.hook)}`
     "x-threads-generation.get-generated-reminder-policy",
     async (input, context) => {
       const settings = await context.externalCall(
-        "Appwrite reminder-settings read",
+        "Railway reminder-settings read",
         () => services.getReminderSettings()
       );
       return mergePipelineOutput(input, {
@@ -23217,7 +23190,7 @@ ${run.hook || automation.name}`
       fileName4
     );
     await context.externalCall(
-      "Appwrite asset-file create",
+      "Railway asset-file create",
       () => persistPipelineTempFile({
         tempPath: requiredString2(input.tempImagePath, "tempImagePath"),
         outputPath
@@ -23238,8 +23211,8 @@ ${run.hook || automation.name}`
       fileName4
     );
     await context.externalCall(
-      "Appwrite asset-file delete",
-      () => deleteAssetFromAppwrite(outputPath)
+      "Railway asset-file delete",
+      () => deleteAsset(outputPath)
     );
     return mergePipelineOutput(input, { deletedImageAsset: fileName4 });
   });
@@ -23488,6 +23461,9 @@ function pipelineDelay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 async function requireNativeUgcComponentExecution(_input, _context, _stopAfter) {
+  void _input;
+  void _context;
+  void _stopAfter;
   throw new Error(
     "UGC component execution must run through the native Windmill runtime"
   );
@@ -23831,7 +23807,7 @@ var init_production_pipeline_handlers = __esm({
     init_automation_readiness();
     init_realfarm_automation();
     init_fixed_slideshow_count();
-    init_realfarm_collections();
+    init_collections();
     init_automation_runner();
     init_temp_slide_testing();
     init_slideshow_generation_engine();
@@ -24253,7 +24229,7 @@ __export(ugc_automation_exports, {
   runUgcAutomationJob: () => runUgcAutomationJob
 });
 import crypto8 from "node:crypto";
-import { InputFile as InputFile3 } from "node-appwrite/file";
+import { InputFile as InputFile2 } from "node-appwrite/file";
 function hash3(value, length) {
   return crypto8.createHash("sha256").update(String(value)).digest("hex").slice(0, length);
 }
@@ -24778,7 +24754,7 @@ async function persistAsset2(storage, storagePath, bytes, contentType) {
   const body = Buffer.from(bytes);
   if (!body.length)
     throw new UgcConfigurationError(`UGC generated an empty ${storagePath}`);
-  const input = InputFile3.fromBuffer(body, relative.split("/").at(-1));
+  const input = InputFile2.fromBuffer(body, relative.split("/").at(-1));
   try {
     await storage.createFile(UGC_BUCKET, id, input, []);
   } catch (error) {
@@ -25355,12 +25331,11 @@ function ugcCheckpointForStage(stageId) {
   return checkpoints[stageId];
 }
 async function executeUgcComponentInsideWindmill(input) {
-  const [{ getAppwrite: getAppwrite2, APPWRITE_DATABASE_ID: APPWRITE_DATABASE_ID2 }, { runUgcAutomationJob: runUgcAutomationJob2 }] = await Promise.all([
-    Promise.resolve().then(() => (init_appwrite(), appwrite_exports)),
+  const [{ getRuntimeStore: getRuntimeStore2, RUNTIME_DATABASE_ID: RUNTIME_DATABASE_ID2 }, { runUgcAutomationJob: runUgcAutomationJob2 }] = await Promise.all([
+    Promise.resolve().then(() => (init_runtime_store(), runtime_store_exports)),
     Promise.resolve().then(() => (init_ugc_automation(), ugc_automation_exports))
   ]);
-  const clients2 = getAppwrite2();
-  if (!clients2) throw new Error("LumenClip persistence is not configured");
+  const clients2 = getRuntimeStore2();
   const generation = record(input.stageInput.generation);
   const generationId = `${text2(generation.generationId) || input.requestId}-${input.checkpoint}`;
   const scheduledFor = text2(generation.scheduledFor) || (/* @__PURE__ */ new Date()).toISOString();
@@ -25378,10 +25353,10 @@ async function executeUgcComponentInsideWindmill(input) {
       components: record(input.stageInput.components),
       checkpoints: record(input.stageInput.checkpoints)
     },
-    tables: clients2.tables,
-    storage: clients2.storage,
+    tables: clients2.records,
+    storage: clients2.objects,
     job: { id: generationId, $id: generationId, owner_id: input.ownerId },
-    databaseId: APPWRITE_DATABASE_ID2,
+    databaseId: RUNTIME_DATABASE_ID2,
     sendTelegram: async () => void 0
   });
   if (result.skipped === true) {
@@ -25412,7 +25387,9 @@ async function executeUgcComponentInsideWindmill(input) {
   };
 }
 function publicStageMetadata(stage2) {
-  const { handler: _handler, inputSchema: _inputSchema, ...metadata } = stage2;
+  const metadata = { ...stage2 };
+  delete metadata.handler;
+  delete metadata.inputSchema;
   return metadata;
 }
 function installRuntimeEnvironment(serialized) {

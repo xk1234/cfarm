@@ -4,7 +4,7 @@ import {
   defaultAutomationSchema,
   schemaWithAutomationCollectionId,
 } from "@/lib/realfarm-automation"
-import type { CreatedImageCollection } from "@/lib/realfarm-collections"
+import type { CreatedImageCollection } from "@/features/collections/domain/collections"
 import type { Automation } from "@/lib/realfarm-data"
 import { videoAutomationTemplatePreset } from "@/lib/video-automation-templates"
 

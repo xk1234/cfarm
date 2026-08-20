@@ -1,4 +1,4 @@
-import type { WordCollectionRecord } from "@/lib/word-collections"
+import type { WordCollectionRecord } from "@/lib/word-collection-contract"
 
 export type RuntimeHookVariableDefinition = {
   name: string

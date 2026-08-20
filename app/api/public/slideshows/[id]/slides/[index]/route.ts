@@ -1,6 +1,4 @@
 import { bucketForPath, fileIdForPath } from "@/lib/appwrite-stores"
-import { appwriteFileResponse } from "@/lib/appwrite-storage-response"
-import { assetBackend } from "@/lib/backend-config"
 import {
   slideshowImageContentType,
   slideshowOutputAssetPath,
@@ -38,7 +36,5 @@ export async function GET(
     contentType: slideshowImageContentType(relativePath),
     range: request.headers.get("range"),
   }
-  return assetBackend() === "railway"
-    ? railwayFileResponse(responseInput)
-    : appwriteFileResponse(responseInput)
+  return railwayFileResponse(responseInput)
 }

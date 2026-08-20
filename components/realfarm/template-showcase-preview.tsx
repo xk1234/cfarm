@@ -20,9 +20,16 @@ export type GeneratedShowcaseRun = {
   id: string
   automationTitle?: string
   scheduledFor?: string
+  generationSource?: "manual" | "scheduled"
   status?: string
+  progress?: {
+    stage: string
+    detail?: string
+    updatedAt: string
+  }
   slideshowId?: string
   workflowUrl?: string
+  durationSeconds?: number
   socialStatuses?: Array<{ status?: string }>
   createdAt?: string
   updatedAt?: string
@@ -120,7 +127,8 @@ export function generatedExampleSlideshows(
           status: failed ? "failed" : stage || "completed",
           scheduledFor: run.scheduledFor,
           createdAt: run.createdAt,
-          durationSeconds: slideshowDurationSeconds(slides),
+          durationSeconds:
+            run.durationSeconds ?? slideshowDurationSeconds(slides),
           caption: run.plan?.hook?.trim() || slides[0]?.text || run.error || "",
           publishType: run.plan?.publishType,
           language: run.plan?.language,

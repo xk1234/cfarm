@@ -1,7 +1,8 @@
 import type {
   PostFastPostRecord,
   PostFastStatsSource,
-} from "@/lib/postfast-posts"
+  PublicationLinkState,
+} from "@/lib/publication-contract"
 
 export const PUBLICATION_LINK_STATES = [
   "postfast_published",
@@ -9,7 +10,7 @@ export const PUBLICATION_LINK_STATES = [
   "unlinked",
 ] as const
 
-export type PublicationLinkState = (typeof PUBLICATION_LINK_STATES)[number]
+export type { PublicationLinkState } from "@/lib/publication-contract"
 
 type PublicationLinkStateRecord = Pick<
   PostFastPostRecord,

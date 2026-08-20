@@ -3,7 +3,7 @@ title: Collections
 description: Build reusable image, video, product, and variable libraries for content generation.
 ---
 
-Route: `/app?view=collections`
+Route: `/app/collections`
 
 ![Desktop collections](../assets/screenshots/desktop-collections.png)
 
@@ -15,7 +15,7 @@ Route: `/app?view=collections`
 
 ## Layout
 
-Owner: `components/realfarm/collections-view.tsx`.
+Owner: `features/collections/ui/collections-view.tsx`.
 
 Desktop places Images, Videos, Products, and Variables in a tab row. Image and
 video views add search, sort, and grid or table controls. The grid shows each

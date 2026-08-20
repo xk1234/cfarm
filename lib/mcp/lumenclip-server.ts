@@ -117,7 +117,7 @@ import {
   collectionAliases,
   collectionMatchesId,
   storedToCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import { listProductCollections } from "@/lib/product-collections"
 import { generatedVideoDeletionBlockReason } from "@/lib/generated-video-deletion"
 import { slideshowDeletionBlockReason } from "@/lib/slideshow-lifecycle"

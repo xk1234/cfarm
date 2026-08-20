@@ -7,9 +7,9 @@ the repository. Domain object shapes are in [Data structures](index.md),
 the HTTP surface is in [backend-endpoints.md](backend-endpoints.md), and the
 queue lifecycle is in [Backend scheduling](../jobs/backend.md).
 
-The additive Appwrite-to-Railway replacement is tracked in
-[Railway migration](railway-migration.md). Appwrite remains the runtime default
-until the documented cutover gates pass.
+Railway is the runtime source of truth. The completed Appwrite import and the
+remaining rollback-only material are documented in
+[Railway migration](railway-migration.md).
 
 ## Runtime topology
 
@@ -21,35 +21,34 @@ flowchart LR
 
     Routes --> Domain["lib domain modules"]
     Pages --> Domain
-    ManualRun["Generate now / MCP run"] --> Jobs["jobs table"]
-    Jobs --> Worker["job-worker / local worker"]
+    ManualRun["Generate now / MCP run"] --> Windmill["Windmill workflows"]
+    Jobs["native Railway jobs table"] --> Worker["Railway job-worker"]
     Worker --> Domain
 
     Domain --> JsonStore["lib/json-store.ts"]
-    Domain --> DirectStores["direct Appwrite modules"]
-    JsonStore --> Tables["Appwrite TablesDB"]
-    DirectStores --> Tables
+    Domain --> RuntimeStore["lib/runtime-store.ts"]
+    JsonStore --> RuntimeStore
+    RuntimeStore --> Tables["Railway PostgreSQL"]
     Domain --> Assets["lib/asset-storage.ts"]
-    Assets --> Storage["Appwrite Storage"]
+    Assets --> Storage["Railway private bucket"]
 
     Domain --> Providers["OpenRouter / Rendi / PostFast / KIE / Pexels / Pinterest / DeepL"]
 ```
 
 The HTTP layer is an adapter, not a separate backend. Most route handlers call
 modules under `lib/`; queued work calls the same domain modules where
-possible. The slideshow worker still contains a parallel JavaScript
-pipeline that must be kept aligned with the main generation path.
+possible. Generation workflows execute through the checked Windmill manifest;
+the Railway worker is limited to explicit queued jobs such as notifications.
 
 ## Request and ownership boundary
 
-`proxy.ts` protects `/app/**` and every `/api/**` route except `/api/auth/**`.
-Authenticated requests use the HTTP-only `lumenclip-session` cookie. Domain
-stores resolve the current Appwrite user again before reading or writing private
+`proxy.ts` and Clerk protect the authenticated application boundary. Domain
+stores resolve the current Clerk user again before reading or writing private
 data; the proxy is not the only authorization check.
 
 Ownership rules:
 
-- Private rows have an `owner_id` Appwrite column.
+- Private rows have an indexed Railway `owner_id` column.
 - Serialized domain records normally also contain `ownerId` after persistence.
 - Deterministic private row IDs hash physical table, `source_key` where
   applicable, owner ID, and domain record ID.
@@ -65,11 +64,11 @@ Ownership rules:
 
 ## Persistence layers
 
-### 1. Compatibility JSON-store API
+### 1. Domain record-store API
 
 Most domain modules still present a historical `rootDir + fileName + key`
 interface through `lib/json-store.ts`. Despite the filesystem-looking API,
-mapped mutable stores are Appwrite-only. There is no JSON-file fallback.
+mapped mutable stores are Railway-only. There is no JSON-file fallback.
 
 The mapping in `lib/appwrite-stores.ts` resolves each logical store to:
 
@@ -136,13 +135,11 @@ High-churn or operational records keep dedicated tables:
 | `usage_ledger`               | Hook/image reuse events              | JSON-store append/delete |
 | `postfast_metric_snapshots`  | Per-post analytics snapshots         | JSON-store append        |
 | `account_follower_snapshots` | Per-account follower snapshots       | JSON-store               |
-| `jobs`                       | Scheduler/worker queue               | Direct TablesDB queries  |
+| `jobs`                       | Worker queue                         | Native SQL repository    |
 | `workspace_members`          | Team invitation and access records   | Direct TablesDB queries  |
 | `demos`                      | Settings demo-video metadata         | Direct TablesDB queries  |
 
-Pre-consolidation tables are not part of the maintained schema. Run
-`pnpm appwrite:prune-schema -- --env=<environment file>` to audit them and add
-`--apply` to delete only tables that Appwrite confirms are empty. Current
+Pre-consolidation Appwrite tables are not part of the runtime schema. Current
 results and generated videos use `outputs`; PostFast publication records are
 embedded in an output's `publications` field.
 
@@ -207,13 +204,13 @@ flowchart LR
 
 ## Binary storage
 
-`lib/asset-storage.ts` persists files to Appwrite Storage. Some generation and
+`lib/asset-storage.ts` persists files to Railway object storage. Some generation and
 render paths also require local working files for ffmpeg/sharp before mirroring
 or after downloading provider output.
 
 `/api/local-assets/**` is a compatibility URL namespace, not proof that the
 bytes live only on local disk. The route derives a deterministic Storage bucket
-and file ID from the data-relative path and streams the Appwrite object, with
+and file ID from the data-relative path and streams the Railway object, with
 range support for video/audio.
 
 | Path prefix            | Bucket                             |

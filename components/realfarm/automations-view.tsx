@@ -16,7 +16,7 @@ import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SlideshowToneAnalyzerDialog } from "@/components/realfarm/slideshow-tone-analyzer-dialog"
 import { TemplateDefinitionPreview } from "@/components/realfarm/template-definition-preview"
 import type { SocialAccountStatusItem } from "@/components/realfarm/social-account-status"
-import type { CreatedImageCollection } from "@/lib/realfarm-collections"
+import type { CreatedImageCollection } from "@/features/collections/domain/collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import {
   mergeAutomationSchema,

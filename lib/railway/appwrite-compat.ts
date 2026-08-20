@@ -34,15 +34,23 @@ type JsonValue =
   | readonly JsonValue[]
   | { readonly [key: string]: JsonValue | undefined }
 
-export class RailwayTablesCompat {
+export class RailwayRecordStore {
   async listRows(_databaseId: string, tableId: string, queries: string[] = []) {
     const sql = getRailwayDatabase()
+    const parsed = queries.map(parseQuery).filter(Boolean) as ParsedQuery[]
+    const ownerIds = equalTextValues(parsed, "owner_id")
+    const sourceKeys = equalTextValues(parsed, "source_key")
+    const recordIds = equalTextValues(parsed, "rid")
+    const statuses = equalTextValues(parsed, "status")
     const rows = await sql<Array<{ source_row: StoredRow; row_id: string }>>`
       SELECT source_row, row_id
       FROM domain_records
       WHERE table_name = ${tableId}
+        ${ownerIds.length ? sql`AND owner_id IN ${sql(ownerIds)}` : sql``}
+        ${sourceKeys.length ? sql`AND source_key IN ${sql(sourceKeys)}` : sql``}
+        ${recordIds.length ? sql`AND rid IN ${sql(recordIds)}` : sql``}
+        ${statuses.length ? sql`AND status IN ${sql(statuses)}` : sql``}
     `
-    const parsed = queries.map(parseQuery).filter(Boolean) as ParsedQuery[]
     let filtered = rows.map((row) =>
       normalizeStoredRow(row.source_row, row.row_id)
     )
@@ -228,7 +236,7 @@ export class RailwayTablesCompat {
   }
 }
 
-export class RailwayStorageCompat {
+export class RailwayObjectStore {
   async createFile(
     bucketOrInput:
       | string
@@ -318,11 +326,7 @@ export class RailwayStorageCompat {
   ) {
     const { bucketId, fileId } = storageIdentity(bucketOrInput, fileIdInput)
     try {
-      const bytes = await readRailwayObject(railwayObjectKey(bucketId, fileId))
-      return bytes.buffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength
-      )
+      return await readRailwayObject(railwayObjectKey(bucketId, fileId))
     } catch (error) {
       if (status(error) === 404) {
         throw compatError(404, `File ${bucketId}/${fileId} was not found.`)
@@ -349,6 +353,10 @@ export class RailwayStorageCompat {
     return {}
   }
 }
+
+// Kept for migration scripts and rollback code while Appwrite imports remain.
+export const RailwayTablesCompat = RailwayRecordStore
+export const RailwayStorageCompat = RailwayObjectStore
 
 function parseQuery(query: string): ParsedQuery | null {
   try {
@@ -405,6 +413,16 @@ function numberQuery(queries: ParsedQuery[], method: string, fallback: number) {
     queries.find((query) => query.method === method)?.values?.[0]
   )
   return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback
+}
+
+function equalTextValues(queries: ParsedQuery[], attribute: string) {
+  const query = queries.find(
+    (candidate) =>
+      candidate.method === "equal" && candidate.attribute === attribute
+  )
+  return (query?.values ?? [])
+    .filter((value) => value != null && value !== "")
+    .map(String)
 }
 
 function normalizeStoredRow(row: StoredRow, rowId: string): StoredRow {

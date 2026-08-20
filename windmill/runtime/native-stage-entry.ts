@@ -8,7 +8,8 @@ export async function main(
   checkpoint_name = ""
 ) {
   installRuntimeEnvironment(runtime_env_json)
-  const ownerId = owner_id?.trim() || required("default_owner_id", default_owner_id)
+  const ownerId =
+    owner_id?.trim() || required("default_owner_id", default_owner_id)
   const requestId =
     request_id?.trim() ||
     process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||
@@ -21,14 +22,13 @@ export async function main(
     { createProductionPipelineHandlers },
     { getReminderSettings, sendTelegramReminder },
     { withSystemOwner },
-  ] =
-    await Promise.all([
-      import("../../lib/langfuse-node"),
-      import("../../lib/pipeline-executor"),
-      import("./production-pipeline-handlers"),
-      import("../../lib/reminder-settings"),
-      import("../../lib/system-owner-context"),
-    ])
+  ] = await Promise.all([
+    import("../../lib/langfuse-node"),
+    import("../../lib/pipeline-executor"),
+    import("./production-pipeline-handlers"),
+    import("../../lib/reminder-settings"),
+    import("../../lib/system-owner-context"),
+  ])
   registerLangfuse("lumenclip-windmill")
   try {
     return await withSystemOwner(ownerId, async () => {
@@ -93,25 +93,22 @@ function ugcCheckpointForStage(stageId: string) {
 }
 
 async function executeUgcComponentInsideWindmill(input: {
-  registry: Map<string, Record<string, unknown>>
+  registry: ReadonlyMap<string, object>
   ownerId: string
   requestId: string
   stageId: string
   checkpoint: string
   stageInput: Record<string, unknown>
 }) {
-  const [{ getAppwrite, APPWRITE_DATABASE_ID }, { runUgcAutomationJob }] =
+  const [{ getRuntimeStore, RUNTIME_DATABASE_ID }, { runUgcAutomationJob }] =
     await Promise.all([
-      import("../../lib/appwrite"),
+      import("../../lib/runtime-store"),
       import("./ugc-automation.js"),
     ])
-  const clients = getAppwrite()
-  if (!clients) throw new Error("LumenClip persistence is not configured")
+  const clients = getRuntimeStore()
   const generation = record(input.stageInput.generation)
-  const generationId =
-    `${text(generation.generationId) || input.requestId}-${input.checkpoint}`
-  const scheduledFor =
-    text(generation.scheduledFor) || new Date().toISOString()
+  const generationId = `${text(generation.generationId) || input.requestId}-${input.checkpoint}`
+  const scheduledFor = text(generation.scheduledFor) || new Date().toISOString()
   const result = (await runUgcAutomationJob({
     payload: {
       templateId: text(generation.templateId) || undefined,
@@ -126,10 +123,10 @@ async function executeUgcComponentInsideWindmill(input: {
       components: record(input.stageInput.components),
       checkpoints: record(input.stageInput.checkpoints),
     },
-    tables: clients.tables,
-    storage: clients.storage,
+    tables: clients.records,
+    storage: clients.objects,
     job: { id: generationId, $id: generationId, owner_id: input.ownerId },
-    databaseId: APPWRITE_DATABASE_ID,
+    databaseId: RUNTIME_DATABASE_ID,
     sendTelegram: async () => undefined,
   })) as Record<string, unknown>
   if (result.skipped === true) {
@@ -160,8 +157,10 @@ async function executeUgcComponentInsideWindmill(input: {
   }
 }
 
-function publicStageMetadata(stage: Record<string, unknown>) {
-  const { handler: _handler, inputSchema: _inputSchema, ...metadata } = stage
+function publicStageMetadata(stage: object) {
+  const metadata = { ...(stage as Record<string, unknown>) }
+  delete metadata.handler
+  delete metadata.inputSchema
   return metadata
 }
 

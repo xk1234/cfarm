@@ -3,8 +3,6 @@ import path from "node:path"
 import { NextResponse } from "next/server"
 
 import { bucketForPath, fileIdForPath } from "@/lib/appwrite-stores"
-import { appwriteFileResponse } from "@/lib/appwrite-storage-response"
-import { assetBackend } from "@/lib/backend-config"
 import { railwayFileResponse } from "@/lib/railway/storage-response"
 
 export const dynamic = "force-dynamic"
@@ -49,7 +47,5 @@ export async function GET(
     contentType,
     range: request.headers.get("range"),
   }
-  return assetBackend() === "railway"
-    ? railwayFileResponse(storageResponse)
-    : appwriteFileResponse(storageResponse)
+  return railwayFileResponse(storageResponse)
 }

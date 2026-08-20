@@ -217,12 +217,11 @@ Record:
 
 ## 8. Worker and scheduler changes
 
-The worker and scheduler still reuse source files under `appwrite/functions/`
-while the directory is being renamed. That path does not authorize an Appwrite
-deployment. Validate shared modules, then deploy the affected Railway services:
+The worker and scheduler use native TypeScript entrypoints under `services/`.
+Validate them, then deploy the affected Railway services:
 
 ```bash
-pnpm appwrite:check-shared
+pnpm typecheck
 railway up --environment production --service worker
 railway up --environment production --service scheduler
 ```

@@ -10,7 +10,7 @@ import type {
   PostFastPostStatus,
   PostFastSourceType,
   PostFastStatsSource,
-} from "@/lib/postfast-posts"
+} from "@/lib/publication-contract"
 
 export type PostLifecycleStatus =
   "generated" | "ready" | "scheduled" | "published" | "failed"

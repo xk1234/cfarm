@@ -15,7 +15,7 @@ import {
   MediaCardPreview,
 } from "@/components/ui/media-card"
 import { Spinner } from "@/components/ui/spinner"
-import type { CreatedImageCollection } from "@/lib/realfarm-collections"
+import type { CreatedImageCollection } from "@/features/collections/domain/collections"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
 

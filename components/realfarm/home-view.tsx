@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ComponentType } from "react"
+import dynamic from "next/dynamic"
 import {
   IconAlertCircle,
   IconChevronLeft,
@@ -24,10 +25,6 @@ import {
   MediaFrame,
   MediaPendingState,
 } from "@/components/realfarm/shared-media"
-import {
-  GeneratedSlideshowViewerModal,
-  automationRunViewerImageUrls,
-} from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
 import { AutomationRecentRunCard } from "@/components/realfarm/automation-settings/automation-recent-run-card"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import { Button } from "@/components/ui/button"
@@ -44,6 +41,17 @@ import { cn } from "@/lib/utils"
 import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
 
 const ITEMS_PER_PAGE = 5
+
+const loadGeneratedSlideshowViewer = () =>
+  import("@/components/realfarm/automation-settings/generated-slideshow-viewer")
+
+const GeneratedSlideshowViewerModal = dynamic(
+  () =>
+    loadGeneratedSlideshowViewer().then(
+      (module) => module.GeneratedSlideshowViewerModal
+    ),
+  { loading: () => <ViewerLoadingModal /> }
+)
 
 export function HomeView({
   currentUserId,
@@ -85,9 +93,10 @@ export function HomeView({
     refreshWhenOffline: false,
   })
   const [selectedGeneratedSlideshow, setSelectedGeneratedSlideshow] = useState<{
-    runs: GeneratedShowcaseRun[]
+    runs: AutomationRunApiRecord[]
     runId: string
   } | null>(null)
+  const [viewerLoading, setViewerLoading] = useState(false)
   const activeAutomationCount = automations.filter(
     (automation) =>
       automation.status === "live" && automation.schedule?.paused !== true
@@ -123,24 +132,6 @@ export function HomeView({
     (safePage - 1) * ITEMS_PER_PAGE,
     safePage * ITEMS_PER_PAGE
   )
-
-  useEffect(() => {
-    if (activeTab !== "slideshows") return
-    const preloaded: HTMLImageElement[] = []
-    for (const src of automationRunViewerImageUrls(
-      pagedGeneratedSlideshows.flatMap((item) =>
-        item.runs.filter((run) => run.id === item.slideshow.id)
-      ) as AutomationRunApiRecord[]
-    )) {
-      const image = new window.Image()
-      image.decoding = "async"
-      image.src = src
-      preloaded.push(image)
-    }
-    return () => {
-      for (const image of preloaded) image.src = ""
-    }
-  }, [activeTab, pagedGeneratedSlideshows])
 
   useEffect(() => {
     if (activeTab !== "videos" || videosLoaded) return
@@ -182,6 +173,33 @@ export function HomeView({
   function switchTab(tab: "slideshows" | "videos") {
     setActiveTab(tab)
     setPage(1)
+  }
+
+  async function openGeneratedSlideshow(item: GeneratedHomeSlideshowCard) {
+    if (viewerLoading) return
+    setViewerLoading(true)
+    try {
+      const [payload] = await Promise.all([
+        fetchJsonWithTimeout<{ runs?: AutomationRunApiRecord[] }>(
+          `/api/templates/runs?templateId=${encodeURIComponent(item.automationId)}&limit=100`,
+          { timeoutMs: 12_000, toastOnError: false }
+        ),
+        loadGeneratedSlideshowViewer(),
+      ])
+      const runs = payload.runs ?? []
+      const selectedRun = runs.find(
+        (run) =>
+          run.id === item.run.id || run.slideshowId === item.run.slideshowId
+      )
+      if (!selectedRun) {
+        throw new Error("This slideshow is no longer available.")
+      }
+      setSelectedGeneratedSlideshow({ runs, runId: selectedRun.id })
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Failed to open slideshow"))
+    } finally {
+      setViewerLoading(false)
+    }
   }
 
   return (
@@ -291,12 +309,7 @@ export function HomeView({
                 run={item.run as unknown as AutomationRunApiRecord}
                 mediaKind="slideshow"
                 shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
-                onOpen={() =>
-                  setSelectedGeneratedSlideshow({
-                    runs: item.runs,
-                    runId: item.slideshow.id,
-                  })
-                }
+                onOpen={() => void openGeneratedSlideshow(item)}
               />
             ))}
           </div>
@@ -346,8 +359,8 @@ export function HomeView({
 
       {selectedGeneratedSlideshow && selectedGeneratedRun ? (
         <GeneratedSlideshowViewerModal
-          run={selectedGeneratedRun as AutomationRunApiRecord}
-          runs={selectedGeneratedSlideshow.runs as AutomationRunApiRecord[]}
+          run={selectedGeneratedRun}
+          runs={selectedGeneratedSlideshow.runs}
           allowDelete={
             !selectedGeneratedRun.ownerId ||
             selectedGeneratedRun.ownerId === currentUserId
@@ -359,6 +372,7 @@ export function HomeView({
           onClose={() => setSelectedGeneratedSlideshow(null)}
         />
       ) : null}
+      {viewerLoading ? <ViewerLoadingModal /> : null}
     </div>
   )
 }
@@ -387,7 +401,20 @@ function HomeLoadError({
   )
 }
 
+function ViewerLoadingModal() {
+  return (
+    <div
+      className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4"
+      role="status"
+      aria-label="Loading slideshow"
+    >
+      <div className="aspect-[9/16] h-[min(78vh,720px)] animate-pulse rounded-[10px] bg-[#242424] shadow-2xl" />
+    </div>
+  )
+}
+
 type GeneratedHomeSlideshowCard = {
+  automationId: string
   ownerId?: string
   run: GeneratedShowcaseRun
   runs: GeneratedShowcaseRun[]
@@ -455,7 +482,7 @@ function generatedHomeSlideshowCards(
   runsByAutomationId: Record<string, GeneratedShowcaseRun[]>
 ) {
   return Object.entries(runsByAutomationId)
-    .flatMap<GeneratedHomeSlideshowCard>(([, runs]) => {
+    .flatMap<GeneratedHomeSlideshowCard>(([automationId, runs]) => {
       const slideshows = generatedExampleSlideshows(runs, {
         includeFailed: true,
       })
@@ -464,6 +491,7 @@ function generatedHomeSlideshowCards(
         if (!run) return []
         return [
           {
+            automationId,
             ownerId: run.ownerId,
             run,
             runs,

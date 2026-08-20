@@ -529,7 +529,7 @@ export const PIPELINE_STAGE_CATALOG = [
     113,
     "persist-one-broll-asset",
     "storage",
-    "Appwrite asset-file create",
+    "Railway asset-file create",
     "Persist one locally staged b-roll image and return its durable URL."
   ),
   stage(
@@ -555,7 +555,7 @@ export const PIPELINE_STAGE_CATALOG = [
     116,
     "persist-voice-audio",
     "storage",
-    "Appwrite voice asset-file create",
+    "Railway voice asset-file create",
     "Persist one locally staged voice audio file."
   ),
   atomicStage(
@@ -563,7 +563,7 @@ export const PIPELINE_STAGE_CATALOG = [
     117,
     "persist-voice-timings",
     "storage",
-    "Appwrite timings asset-file create",
+    "Railway timings asset-file create",
     "Persist one locally staged word-timing file."
   ),
   stage(
@@ -1074,7 +1074,7 @@ export const PIPELINE_STAGE_CATALOG = [
     110,
     "get-generated-reminder-policy",
     "storage",
-    "Appwrite reminder-settings read",
+    "Railway reminder-settings read",
     "Read only the non-secret delivery channel for generated reminders."
   ),
   atomicStage(
@@ -1082,7 +1082,7 @@ export const PIPELINE_STAGE_CATALOG = [
     111,
     "enqueue-reminder-job",
     "storage",
-    "Appwrite reminder-job enqueue",
+    "Railway reminder-job enqueue",
     "Enqueue one generated-content reminder job."
   ),
   atomicStage(
@@ -1108,7 +1108,7 @@ export const PIPELINE_STAGE_CATALOG = [
     114,
     "persist-image-asset",
     "storage",
-    "Appwrite asset-file create",
+    "Railway asset-file create",
     "Persist one locally staged image and return its durable URL."
   ),
   stage(
@@ -1143,77 +1143,77 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "slideshow-generation",
       202,
       "list-image-collections-page",
-      "Appwrite permanent_assets listRows",
+      "Railway permanent_assets listRows",
       "Read exactly one owner-scoped image-collection page."
     ),
     atomic(
       "slideshow-generation",
       203,
       "list-word-collections-page",
-      "Appwrite permanent_assets listRows",
+      "Railway permanent_assets listRows",
       "Read exactly one owner-scoped word-collection page."
     ),
     atomic(
       "slideshow-generation",
       206,
       "get-result-document",
-      "Appwrite outputs getRow",
+      "Railway outputs getRow",
       "Read exactly one owner-scoped slideshow result row."
     ),
     atomic(
       "slideshow-generation",
       207,
       "create-result-document",
-      "Appwrite outputs createRow",
+      "Railway outputs createRow",
       "Create exactly one owner-scoped slideshow result row."
     ),
     atomic(
       "slideshow-generation",
       208,
       "update-result-document",
-      "Appwrite outputs updateRow",
+      "Railway outputs updateRow",
       "Update exactly one owner-scoped slideshow result row."
     ),
     atomic(
       "slideshow-generation",
       209,
       "list-result-media-page",
-      "Appwrite output_media listRows",
+      "Railway output_media listRows",
       "Read exactly one media page for one owner-scoped result."
     ),
     atomic(
       "slideshow-generation",
       210,
       "create-one-result-media",
-      "Appwrite output_media createRow",
+      "Railway output_media createRow",
       "Create exactly one media row for one slideshow result."
     ),
     atomic(
       "slideshow-generation",
       211,
       "delete-one-result-media",
-      "Appwrite output_media deleteRow",
+      "Railway output_media deleteRow",
       "Delete exactly one media row obtained from an owner-scoped result page."
     ),
     atomic(
       "slideshow-generation",
       212,
       "read-one-source-asset",
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       "Read one permitted slideshow source object into local staging."
     ),
     atomic(
       "slideshow-generation",
       213,
       "create-one-output-asset",
-      "Appwrite Storage createFile",
+      "Railway object storage createFile",
       "Create one slideshow output object from local staging."
     ),
     atomic(
       "slideshow-generation",
       214,
       "delete-one-output-asset",
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       "Delete one slideshow output object before an explicit replacement attempt."
     ),
     stage(
@@ -1229,7 +1229,7 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "slideshow-generation",
       216,
       "get-model-settings-document",
-      "Appwrite permanent_assets getRow",
+      "Railway permanent_assets getRow",
       "Read exactly one owner-scoped generation-model settings row."
     ),
     atomicStage(
@@ -1245,35 +1245,35 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "slideshow-generation",
       218,
       "get-one-post-intent",
-      "Appwrite posts getRow",
+      "Railway posts getRow",
       "Read exactly one owner-scoped generated post-intent row."
     ),
     atomic(
       "slideshow-generation",
       219,
       "create-one-post-intent",
-      "Appwrite posts createRow",
+      "Railway posts createRow",
       "Create exactly one owner-scoped generated post-intent row."
     ),
     atomic(
       "slideshow-generation",
       220,
       "update-one-post-intent",
-      "Appwrite posts updateRow",
+      "Railway posts updateRow",
       "Update exactly one owner-scoped generated post-intent row."
     ),
     atomic(
       "slideshow-generation",
       221,
       "get-one-post-identity",
-      "Appwrite post_identities getRow",
+      "Railway post_identities getRow",
       "Read exactly one owner-scoped generated post identity."
     ),
     atomic(
       "slideshow-generation",
       222,
       "create-one-post-identity",
-      "Appwrite post_identities createRow",
+      "Railway post_identities createRow",
       "Create exactly one owner-scoped generated post identity."
     ),
     stage(
@@ -1440,70 +1440,70 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "ugc-video-generation",
       304,
       "inspect-one-saved-asset",
-      "Appwrite Storage getFile",
+      "Railway object storage getFile",
       "Inspect exactly one owner-scoped durable UGC asset."
     ),
     atomic(
       "ugc-video-generation",
       305,
       "read-one-saved-asset",
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       "Read exactly one owner-scoped durable UGC asset into local staging."
     ),
     atomic(
       "ugc-video-generation",
       306,
       "create-one-saved-asset",
-      "Appwrite Storage createFile",
+      "Railway object storage createFile",
       "Create exactly one owner-scoped durable UGC asset."
     ),
     atomic(
       "ugc-video-generation",
       307,
       "delete-one-saved-asset",
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       "Delete exactly one owner-scoped durable UGC asset before replacement."
     ),
     atomic(
       "ugc-video-generation",
       308,
       "get-final-output-document",
-      "Appwrite outputs getRow",
+      "Railway outputs getRow",
       "Read exactly one owner-scoped UGC output row."
     ),
     atomic(
       "ugc-video-generation",
       309,
       "create-final-output-document",
-      "Appwrite outputs createRow",
+      "Railway outputs createRow",
       "Create exactly one owner-scoped UGC output row."
     ),
     atomic(
       "ugc-video-generation",
       310,
       "update-final-output-document",
-      "Appwrite outputs updateRow",
+      "Railway outputs updateRow",
       "Update exactly one owner-scoped UGC output row."
     ),
     atomic(
       "ugc-video-generation",
       311,
       "list-final-output-media-page",
-      "Appwrite output_media listRows",
+      "Railway output_media listRows",
       "Read exactly one media page for one owner-scoped UGC output."
     ),
     atomic(
       "ugc-video-generation",
       312,
       "create-one-final-output-media",
-      "Appwrite output_media createRow",
+      "Railway output_media createRow",
       "Create exactly one UGC output-media row."
     ),
     atomic(
       "ugc-video-generation",
       313,
       "delete-one-final-output-media",
-      "Appwrite output_media deleteRow",
+      "Railway output_media deleteRow",
       "Delete exactly one UGC output-media row returned by an owner-scoped page."
     ),
     stage(
@@ -1544,21 +1544,21 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "ugc-video-generation",
       318,
       "get-usage-document",
-      "Appwrite usage_ledger getRow",
+      "Railway usage_ledger getRow",
       "Read exactly one owner-scoped UGC usage row."
     ),
     atomic(
       "ugc-video-generation",
       319,
       "create-usage-document",
-      "Appwrite usage_ledger createRow",
+      "Railway usage_ledger createRow",
       "Create exactly one owner-scoped UGC usage row."
     ),
     atomic(
       "ugc-video-generation",
       320,
       "update-usage-document",
-      "Appwrite usage_ledger updateRow",
+      "Railway usage_ledger updateRow",
       "Update exactly one owner-scoped UGC usage row."
     ),
     stage(
@@ -1574,14 +1574,14 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "ugc-video-generation",
       322,
       "create-generated-notification-job",
-      "Appwrite jobs createRow",
+      "Railway jobs createRow",
       "Create exactly one owner-scoped generated-output reminder job."
     ),
     atomic(
       "ugc-video-generation",
       323,
       "delete-one-broll-asset",
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       "Delete exactly one fixed-domain b-roll object before an explicit create retry."
     ),
     stage(
@@ -1628,42 +1628,42 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "x-threads-generation",
       204,
       "get-run-document",
-      "Appwrite outputs getRow",
+      "Railway outputs getRow",
       "Read exactly one owner-scoped X/Threads run row."
     ),
     atomic(
       "x-threads-generation",
       205,
       "create-run-document",
-      "Appwrite outputs createRow",
+      "Railway outputs createRow",
       "Create exactly one owner-scoped X/Threads run row."
     ),
     atomic(
       "x-threads-generation",
       206,
       "update-run-document",
-      "Appwrite outputs updateRow",
+      "Railway outputs updateRow",
       "Update exactly one owner-scoped X/Threads run row."
     ),
     atomic(
       "x-threads-generation",
       207,
       "list-run-media-page",
-      "Appwrite output_media listRows",
+      "Railway output_media listRows",
       "Read exactly one media page for one owner-scoped X/Threads run."
     ),
     atomic(
       "x-threads-generation",
       208,
       "create-one-run-media",
-      "Appwrite output_media createRow",
+      "Railway output_media createRow",
       "Create exactly one X/Threads run-media row."
     ),
     atomic(
       "x-threads-generation",
       209,
       "delete-one-run-media",
-      "Appwrite output_media deleteRow",
+      "Railway output_media deleteRow",
       "Delete exactly one X/Threads run-media row returned by an owner-scoped page."
     ),
     stage(
@@ -1688,7 +1688,7 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "x-threads-generation",
       212,
       "delete-image-asset",
-      "Appwrite Storage deleteFile",
+      "Railway object storage deleteFile",
       "Delete exactly one fixed-domain generated image before an explicit create retry."
     ),
     stage(
@@ -1805,7 +1805,7 @@ function rendiProtocolStages(
       firstOrder + 8,
       "rendi-persist-output",
       "storage",
-      "Appwrite Rendi output-file create",
+      "Railway Rendi output-file create",
       "Persist one locally staged Rendi output."
     ),
     stage(

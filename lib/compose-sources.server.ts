@@ -3,8 +3,8 @@ import "server-only"
 import {
   composerSourcesFromRuns,
   type TemplateOutputRun,
-} from "@/components/realfarm/composer/compose-sources"
-import type { ComposerSourceOutput } from "@/components/realfarm/composer/composer-types"
+} from "@/features/composer/domain/sources"
+import type { ComposerSourceOutput } from "@/features/composer/domain/composer"
 import { listAutomationRuns } from "@/lib/automation-runner"
 import { listGeneratedVideoExports } from "@/lib/generated-videos"
 import { listXAutomationRuns } from "@/lib/x-automation-store"
@@ -15,6 +15,15 @@ export async function resolveComposerSources(
   const wanted = new Set(sourceOutputIds)
   if (wanted.size === 0) return []
 
+  const all = await listComposerSources()
+  const byId = new Map(all.map((source) => [source.id, source]))
+  return [...wanted].flatMap((id) => {
+    const source = byId.get(id)
+    return source ? [source] : []
+  })
+}
+
+export async function listComposerSources(): Promise<ComposerSourceOutput[]> {
   const [templateRuns, videoExports, socialRuns] = await Promise.all([
     listAutomationRuns({ limit: 500 }),
     listGeneratedVideoExports({ limit: 500 }),
@@ -46,13 +55,8 @@ export async function resolveComposerSources(
     },
   }))
 
-  const all = composerSourcesFromRuns({
+  return composerSourcesFromRuns({
     templateRuns: [...templateRuns, ...videoRuns],
     socialRuns,
-  })
-  const byId = new Map(all.map((source) => [source.id, source]))
-  return [...wanted].flatMap((id) => {
-    const source = byId.get(id)
-    return source ? [source] : []
   })
 }

@@ -1,9 +1,9 @@
 import "server-only"
 
 import { InputFile } from "node-appwrite/file"
-import { Query } from "node-appwrite"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { RecordQuery as Query } from "@/lib/record-query"
+import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 import {
   STORE_ROUTES,
   bucketForPath,
@@ -91,7 +91,7 @@ export async function readPipelineDomainPageOnce(input: {
   cursor?: string
   limit?: number
 }): Promise<DomainPage> {
-  const { tables } = clients()
+  const { records } = clients()
   const config = DOMAINS[input.domain]
   const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 100)))
   const queries = [
@@ -105,8 +105,8 @@ export async function readPipelineDomainPageOnce(input: {
     queries.push(Query.equal("source_key", [config.route.sourceKey]))
   }
   if (clean(input.cursor)) queries.push(Query.cursorAfter(clean(input.cursor)))
-  const response = await tables.listRows(
-    APPWRITE_DATABASE_ID,
+  const response = await records.listRows(
+    RUNTIME_DATABASE_ID,
     config.route.table,
     queries
   )
@@ -135,8 +135,8 @@ export async function readPipelineDomainDocumentOnce(input: {
     0
   )
   try {
-    const row = (await clients().tables.getRow(
-      APPWRITE_DATABASE_ID,
+    const row = (await clients().records.getRow(
+      RUNTIME_DATABASE_ID,
       config.route.table,
       rowId
     )) as unknown as Record<string, unknown>
@@ -193,8 +193,8 @@ export async function createPipelineDomainDocumentOnce(input: {
   ordinal?: number
 }) {
   const prepared = preparePipelineDomainDocument(input)
-  await clients().tables.createRow(
-    APPWRITE_DATABASE_ID,
+  await clients().records.createRow(
+    RUNTIME_DATABASE_ID,
     DOMAINS[input.domain].route.table,
     prepared.rowId,
     prepared.fields
@@ -210,8 +210,8 @@ export async function updatePipelineDomainDocumentOnce(input: {
   ordinal?: number
 }) {
   const prepared = preparePipelineDomainDocument(input)
-  await clients().tables.updateRow(
-    APPWRITE_DATABASE_ID,
+  await clients().records.updateRow(
+    RUNTIME_DATABASE_ID,
     DOMAINS[input.domain].route.table,
     prepared.rowId,
     prepared.fields
@@ -233,8 +233,8 @@ export async function readOutputMediaPageOnce(input: {
     Query.limit(limit),
   ]
   if (clean(input.cursor)) queries.push(Query.cursorAfter(clean(input.cursor)))
-  const response = await clients().tables.listRows(
-    APPWRITE_DATABASE_ID,
+  const response = await clients().records.listRows(
+    RUNTIME_DATABASE_ID,
     "output_media",
     queries
   )
@@ -260,8 +260,8 @@ export async function createOutputMediaOnce(input: {
     required(input.outputRowId, "output row"),
     input.media
   )
-  await clients().tables.createRow(
-    APPWRITE_DATABASE_ID,
+  await clients().records.createRow(
+    RUNTIME_DATABASE_ID,
     "output_media",
     rowId,
     outputMediaRowFields(
@@ -280,8 +280,8 @@ export async function deleteOutputMediaOnce(input: {
 }) {
   required(input.ownerId, "owner")
   const outputRowId = required(input.outputRowId, "output row")
-  await clients().tables.deleteRow(
-    APPWRITE_DATABASE_ID,
+  await clients().records.deleteRow(
+    RUNTIME_DATABASE_ID,
     "output_media",
     outputMediaRowId(outputRowId, input.media)
   )
@@ -293,11 +293,9 @@ export async function readDomainAssetOnce(input: {
   relativePath: string
 }) {
   const relativePath = safeAssetPath(input)
-  return Buffer.from(
-    (await clients().storage.getFileView(
-      bucketForPath(relativePath),
-      fileIdForPath(relativePath)
-    )) as ArrayBuffer
+  return clients().objects.getFileView(
+    bucketForPath(relativePath),
+    fileIdForPath(relativePath)
   )
 }
 
@@ -308,7 +306,7 @@ export async function inspectDomainAssetOnce(input: {
 }) {
   const relativePath = safeAssetPath(input)
   try {
-    await clients().storage.getFile(
+    await clients().objects.getFile(
       bucketForPath(relativePath),
       fileIdForPath(relativePath)
     )
@@ -326,7 +324,7 @@ export async function createDomainAssetOnce(input: {
   bytes: Buffer | Uint8Array
 }) {
   const relativePath = safeAssetPath(input)
-  await clients().storage.createFile(
+  await clients().objects.createFile(
     bucketForPath(relativePath),
     fileIdForPath(relativePath),
     InputFile.fromBuffer(
@@ -344,7 +342,7 @@ export async function deleteDomainAssetOnce(input: {
   relativePath: string
 }) {
   const relativePath = safeAssetPath(input)
-  await clients().storage.deleteFile(
+  await clients().objects.deleteFile(
     bucketForPath(relativePath),
     fileIdForPath(relativePath)
   )
@@ -389,9 +387,7 @@ function rowNamespace(config: DomainConfig) {
 }
 
 function clients() {
-  const appwrite = getAppwrite()
-  if (!appwrite) throw new Error("Appwrite is not configured")
-  return appwrite
+  return getRuntimeStore()
 }
 
 function required(value: unknown, label: string) {

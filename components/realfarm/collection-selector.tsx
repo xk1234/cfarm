@@ -8,7 +8,7 @@ import { PinterestCollectionSearch } from "@/components/realfarm/pinterest-colle
 import { PinterestPreviewTile } from "@/components/realfarm/shared-media"
 import { Button } from "@/components/ui/button"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
-import type { CreatedImageCollection } from "@/lib/realfarm-collections"
+import type { CreatedImageCollection } from "@/features/collections/domain/collections"
 import { cn } from "@/lib/utils"
 
 export function CollectionSelector({

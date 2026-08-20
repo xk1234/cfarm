@@ -16,7 +16,7 @@ import {
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import { previewTextForTextItem } from "@/lib/realfarm-preview-text"

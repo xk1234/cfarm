@@ -11,7 +11,7 @@ Route: `/app/collections/[id]`
 
 ## Layout
 
-Owner: `components/realfarm/collections/collection-detail-view.tsx`.
+Owner: `features/collections/ui/collection-detail-view.tsx`.
 
 The collection name and back action lead the page. Editable collections add
 rename, caption generation, view, and Add controls above an image upload

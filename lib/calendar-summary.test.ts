@@ -3,15 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   listRows: vi.fn(),
   canonicalList: vi.fn(),
+  jobStats: vi.fn(),
 }))
 
 vi.mock("@/lib/appwrite", () => ({
   APPWRITE_DATABASE_ID: "cfarm",
   getAppwrite: () => ({ tables: { listRows: mocks.listRows } }),
 }))
+vi.mock("@/lib/runtime-store", () => ({
+  RUNTIME_DATABASE_ID: "cfarm",
+  getRuntimeStore: () => ({ records: { listRows: mocks.listRows } }),
+}))
 
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: async () => ({ $id: "owner-1" }),
+}))
+vi.mock("@/lib/railway/job-repository", () => ({
+  railwayJobRepository: { stats: mocks.jobStats },
 }))
 vi.mock("@/lib/output-publications", () => ({
   outputPublicationsOwnerId: vi.fn(async () => "owner-1"),
@@ -29,6 +37,7 @@ describe("calendarAlertSummary", () => {
   beforeEach(() => {
     mocks.listRows.mockReset()
     mocks.canonicalList.mockReset()
+    mocks.jobStats.mockReset().mockResolvedValue({ dead: 3 })
     delete process.env.POST_REPOSITORY_READ_MODE
   })
 
@@ -38,7 +47,6 @@ describe("calendarAlertSummary", () => {
 
   it("uses bounded count queries instead of loading the full calendar", async () => {
     mocks.listRows
-      .mockResolvedValueOnce({ rows: [{ status: "dead" }], total: 3 })
       .mockResolvedValueOnce({ rows: [{}], total: 1 })
       .mockResolvedValueOnce({ rows: [{}], total: 1 })
 
@@ -46,7 +54,7 @@ describe("calendarAlertSummary", () => {
       needsAction: 1,
       failed: 4,
     })
-    expect(mocks.listRows).toHaveBeenCalledTimes(3)
+    expect(mocks.listRows).toHaveBeenCalledTimes(2)
   })
 
   it("keeps alert counts stable in all read modes and shadows drift", async () => {
@@ -65,7 +73,6 @@ describe("calendarAlertSummary", () => {
     for (const mode of ["legacy", "canonical", "union-shadow"] as const) {
       process.env.POST_REPOSITORY_READ_MODE = mode
       mocks.listRows.mockReset()
-      mocks.listRows.mockResolvedValueOnce({ rows: [], total: 3 })
       if (mode !== "canonical") {
         mocks.listRows
           .mockResolvedValueOnce({ rows: [], total: 1 })
@@ -82,7 +89,6 @@ describe("calendarAlertSummary", () => {
     mocks.canonicalList.mockResolvedValue([ready])
     mocks.listRows.mockReset()
     mocks.listRows
-      .mockResolvedValueOnce({ rows: [], total: 3 })
       .mockResolvedValueOnce({ rows: [], total: 1 })
       .mockResolvedValueOnce({ rows: [], total: 1 })
     process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
@@ -99,11 +105,7 @@ function canonicalSummaryPost(
   overrides: Partial<{
     id: string
     lifecycleStatus:
-      | "generated"
-      | "ready"
-      | "scheduled"
-      | "published"
-      | "failed"
+      "generated" | "ready" | "scheduled" | "published" | "failed"
     publishMode: "auto" | "review" | "manual"
   }>
 ) {

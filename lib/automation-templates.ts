@@ -9,7 +9,7 @@ import {
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import {
   automationCollectionIds,
   defaultAutomationSchema,

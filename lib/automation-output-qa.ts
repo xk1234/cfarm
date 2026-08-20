@@ -1,7 +1,4 @@
-import type {
-  AutomationRunRecord,
-  AutomationRunSlide,
-} from "@/lib/automation-runner"
+import type { AutomationRunSlideView } from "@/lib/automation-run-contract"
 import {
   automationFormatSection,
   type AutomationSchema,
@@ -34,12 +31,24 @@ export type AutomationOutputQaReport = {
   findings: AutomationOutputQaFinding[]
 }
 
+type AutomationOutputQaSlide = AutomationRunSlideView & {
+  displayText?: boolean
+  textItems?: Array<{ id: string; text: string }>
+}
+
+type AutomationOutputQaRun = {
+  plan: {
+    hook: string
+    hookSubstitutions?: Record<string, string>
+    slides: AutomationOutputQaSlide[]
+  }
+}
+
 const unresolvedTokenPattern = /\[\[[A-Z][A-Z0-9_-]*\]\]/gi
 const countTokenPattern = /(COUNT|NUMBER|TOTAL|ITEMS?|THINGS?|WAYS?|SIGNS?)/i
-export function validateAutomationRunOutput(input: {
-  run: AutomationRunRecord
-  schema?: AutomationSchema
-}): AutomationOutputQaReport {
+export function validateAutomationRunOutput<
+  Run extends AutomationOutputQaRun,
+>(input: { run: Run; schema?: AutomationSchema }): AutomationOutputQaReport {
   const findings: AutomationOutputQaFinding[] = []
   const slides = input.run.plan.slides
   const bodySlides = slides.filter((slide) => slide.role === "content")
@@ -61,7 +70,7 @@ export function validateAutomationRunOutput(input: {
 }
 
 function countMismatchFindings(
-  run: AutomationRunRecord,
+  run: AutomationOutputQaRun,
   bodySlideCount: number
 ): AutomationOutputQaFinding[] {
   if (bodySlideCount === 0) return []
@@ -91,7 +100,7 @@ function countMismatchFindings(
 }
 
 function unresolvedTokenFindings(
-  run: AutomationRunRecord
+  run: AutomationOutputQaRun
 ): AutomationOutputQaFinding[] {
   const values: Array<{
     text: string
@@ -104,7 +113,7 @@ function unresolvedTokenFindings(
         values.push({ text: item.text, slideIndex, textItemId: item.id })
       )
     } else {
-      values.push({ text: slide.text, slideIndex })
+      values.push({ text: slide.text ?? "", slideIndex })
     }
   })
   return values.flatMap((value) => {
@@ -122,7 +131,7 @@ function unresolvedTokenFindings(
 }
 
 function duplicateVariableDrawFindings(
-  run: AutomationRunRecord
+  run: AutomationOutputQaRun
 ): AutomationOutputQaFinding[] {
   const byValue = new Map<string, string[]>()
   for (const [name, rawValue] of Object.entries(
@@ -150,7 +159,7 @@ function duplicateVariableDrawFindings(
 }
 
 function slideTextFindings(
-  slides: AutomationRunSlide[],
+  slides: AutomationOutputQaSlide[],
   schema?: AutomationSchema
 ): AutomationOutputQaFinding[] {
   return slides.flatMap((slide, slideIndex) => {

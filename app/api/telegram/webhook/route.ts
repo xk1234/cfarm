@@ -1,12 +1,12 @@
 import crypto from "node:crypto"
 import { NextResponse } from "next/server"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { markReminderGenerationPosted } from "@/lib/reminder-actions"
 import {
   getReminderSettings,
   telegramBotRequest,
 } from "@/lib/reminder-settings"
+import { railwayJobRepository } from "@/lib/railway/job-repository"
 import { withSystemOwner } from "@/lib/system-owner-context"
 
 export const dynamic = "force-dynamic"
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   let botToken: string | undefined
   try {
     const job = await reminderJob(jobId)
-    const ownerId = String(job.owner_id ?? "")
+    const ownerId = job.ownerId
     const payload = parsePayload(job.payload)
     if (
       job.type !== "send-notification" ||
@@ -78,12 +78,15 @@ function validWebhookSecret(request: Request) {
 }
 
 async function reminderJob(id: string) {
-  const appwrite = getAppwrite()
-  if (!appwrite) throw new Error("Appwrite is not configured")
-  return appwrite.tables.getRow(APPWRITE_DATABASE_ID, "jobs", id)
+  const job = await railwayJobRepository.get(id)
+  if (!job) throw new Error("Reminder job not found")
+  return job
 }
 
 function parsePayload(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
   if (typeof value !== "string") return {}
   try {
     const parsed = JSON.parse(value)

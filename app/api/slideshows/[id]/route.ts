@@ -28,7 +28,7 @@ import {
 import {
   collectionAliases,
   storedToCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 
 export const dynamic = "force-dynamic"
 

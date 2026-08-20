@@ -8,7 +8,7 @@ import {
   collectionAliases,
   legacyStoredCollectionId,
   storedToCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import {
   automationCollectionId,
   automationFormatSection,
