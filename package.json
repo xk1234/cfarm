@@ -7,6 +7,7 @@
     "node": "22.x"
   },
   "scripts": {
+    "postinstall": "fumadocs-mdx",
     "env:check": "node scripts/check-env.mjs",
     "legacy:appwrite:clone-schema": "node scripts/clone-appwrite-schema.mjs",
     "legacy:appwrite:consolidated-stores": "node scripts/provision-consolidated-stores.mjs",
@@ -47,7 +48,7 @@
     "windmill:check": "tsx windmill/generate-flows.mts && git diff --exit-code -- windmill/f/lumenclip",
     "auth:migrate:clerk": "tsx scripts/migrate-railway-users-to-clerk.mts",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "fumadocs-mdx && next typegen && tsc --noEmit",
     "typecheck:windmill": "tsc -p tsconfig.windmill.json"
   },
   "dependencies": {
