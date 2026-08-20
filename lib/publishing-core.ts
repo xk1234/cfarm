@@ -21,6 +21,36 @@ export function effectivePostingMode(schema: { posting_mode?: unknown }) {
   return "auto"
 }
 
+export function postFastPostIds(value: unknown): string[] {
+  const record =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {}
+  return Array.isArray(record.postIds)
+    ? record.postIds
+        .map((id) => (typeof id === "string" ? id.trim() : ""))
+        .filter(Boolean)
+    : []
+}
+
+export function postFastReleaseUrl(value: unknown): string | undefined {
+  const record =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {}
+  const post = Array.isArray(record.posts) ? record.posts[0] : undefined
+  const postRecord =
+    post && typeof post === "object" ? (post as Record<string, unknown>) : {}
+  const valueFromResponse =
+    record.releaseUrl ??
+    record.releaseURL ??
+    postRecord.releaseUrl ??
+    postRecord.releaseURL
+  return typeof valueFromResponse === "string" && valueFromResponse.trim()
+    ? valueFromResponse.trim()
+    : undefined
+}
+
 export function postFastSchedulePayload(input: {
   content: string
   integrationId: string
