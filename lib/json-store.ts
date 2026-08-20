@@ -634,39 +634,14 @@ async function syncOutputMedia(
   ownerId: string,
   media: OutputMediaDraft[]
 ) {
-  const railwayTables = aw.tables as typeof aw.tables & {
-    replaceRows?: (input: {
-      tableId: string
-      parentAttribute: string
-      parentValue: string
-      rows: Array<{
-        rowId: string
-        data: Record<string, unknown>
-      }>
-    }) => Promise<void>
-  }
-  if (typeof railwayTables.replaceRows === "function") {
-    await railwayTables.replaceRows({
-      tableId: "output_media",
-      parentAttribute: "output_id",
-      parentValue: outputRowId,
-      rows: media.map((item) => ({
-        rowId: outputMediaRowId(outputRowId, item),
-        data: outputMediaRowFields(outputRowId, ownerId, item),
-      })),
-    })
-    return
-  }
-  await deleteOutputMedia(aw, [outputRowId])
-  await runPool(media, 3, async (item) => {
-    await retryTransient(() =>
-      aw.records.createRow(
-        RUNTIME_DATABASE_ID,
-        "output_media",
-        outputMediaRowId(outputRowId, item),
-        outputMediaRowFields(outputRowId, ownerId, item)
-      )
-    )
+  await aw.records.replaceRows({
+    tableId: "output_media",
+    parentAttribute: "output_id",
+    parentValue: outputRowId,
+    rows: media.map((item) => ({
+      rowId: outputMediaRowId(outputRowId, item),
+      data: outputMediaRowFields(outputRowId, ownerId, item),
+    })),
   })
 }
 

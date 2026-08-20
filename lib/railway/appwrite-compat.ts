@@ -20,7 +20,7 @@ type StoredRow = Record<string, unknown> & {
   $permissions: string[]
 }
 
-type ParsedQuery = {
+export type ParsedQuery = {
   method: string
   attribute?: string
   values?: unknown[]
@@ -38,58 +38,18 @@ export class RailwayRecordStore {
   async listRows(_databaseId: string, tableId: string, queries: string[] = []) {
     const sql = getRailwayDatabase()
     const parsed = queries.map(parseQuery).filter(Boolean) as ParsedQuery[]
-    const ownerIds = equalTextValues(parsed, "owner_id")
-    const sourceKeys = equalTextValues(parsed, "source_key")
-    const recordIds = equalTextValues(parsed, "rid")
-    const statuses = equalTextValues(parsed, "status")
-    const rows = await sql<Array<{ source_row: StoredRow; row_id: string }>>`
-      SELECT source_row, row_id
-      FROM domain_records
-      WHERE table_name = ${tableId}
-        ${ownerIds.length ? sql`AND owner_id IN ${sql(ownerIds)}` : sql``}
-        ${sourceKeys.length ? sql`AND source_key IN ${sql(sourceKeys)}` : sql``}
-        ${recordIds.length ? sql`AND rid IN ${sql(recordIds)}` : sql``}
-        ${statuses.length ? sql`AND status IN ${sql(statuses)}` : sql``}
-    `
-    let filtered = rows.map((row) =>
-      normalizeStoredRow(row.source_row, row.row_id)
-    )
-
-    for (const query of parsed) {
-      if (
-        query.method === "equal" ||
-        query.method === "notEqual" ||
-        query.method === "lessThan" ||
-        query.method === "lessThanEqual"
-      ) {
-        filtered = filtered.filter((row) => matches(row, query))
-      }
-    }
-
-    const orderQueries = parsed.filter(
-      (query) => query.method === "orderAsc" || query.method === "orderDesc"
-    )
-    if (orderQueries.length > 0) {
-      filtered.sort((left, right) => compareRows(left, right, orderQueries))
-    } else {
-      filtered.sort((left, right) => left.$id.localeCompare(right.$id))
-    }
-
-    const cursorAfter = parsed.find((query) => query.method === "cursorAfter")
-      ?.values?.[0]
-    if (cursorAfter) {
-      const cursorIndex = filtered.findIndex(
-        (row) => row.$id === String(cursorAfter)
-      )
-      if (cursorIndex >= 0) filtered = filtered.slice(cursorIndex + 1)
-    }
-
-    const total = filtered.length
-    const offset = numberQuery(parsed, "offset", 0)
-    const limit = numberQuery(parsed, "limit", 25)
+    const query = buildListRowsQuery(tableId, parsed)
+    const [page] = await sql.unsafe<
+      Array<{
+        total: number | string
+        rows: Array<{ source_row: StoredRow; row_id: string }>
+      }>
+    >(query.text, query.parameters)
     return {
-      total,
-      rows: filtered.slice(offset, offset + limit),
+      total: Number(page?.total ?? 0),
+      rows: (page?.rows ?? []).map((row) =>
+        normalizeStoredRow(row.source_row, row.row_id)
+      ),
     }
   }
 
@@ -112,12 +72,29 @@ export class RailwayRecordStore {
     permissions: string[] = []
   ) {
     const sql = getRailwayDatabase()
-    const [existing] = await sql<{ present: boolean }[]>`
-      SELECT true AS present FROM domain_records
-      WHERE table_name = ${tableId} AND row_id = ${rowId}
+    const now = new Date().toISOString()
+    const fields = mutationData(data)
+    const sourceRow = storedRow(rowId, fields, permissions, now)
+    const payload = decodePayload(fields.data, sourceRow)
+    const inserted = await sql<Array<{ source_row: StoredRow }>>`
+      INSERT INTO domain_records (
+        table_name, row_id, owner_id, source_key, rid, name, status, ord,
+        payload, source_row, permissions, appwrite_created_at,
+        appwrite_updated_at, migrated_at
+      ) VALUES (
+        ${tableId}, ${rowId}, ${text(fields.owner_id)}, ${text(fields.source_key)},
+        ${text(fields.rid)}, ${text(fields.name)}, ${text(fields.status)},
+        ${integer(fields.ord)}, ${sql.json(serializable(payload))},
+        ${sql.json(serializable(sourceRow))}, ${sql.json(permissions)},
+        ${now}, ${now}, now()
+      )
+      ON CONFLICT (table_name, row_id) DO NOTHING
+      RETURNING source_row
     `
-    if (existing) throw compatError(409, `Row ${tableId}/${rowId} exists.`)
-    return this.persist(tableId, rowId, data, permissions, null)
+    if (inserted.length === 0) {
+      throw compatError(409, `Row ${tableId}/${rowId} exists.`)
+    }
+    return normalizeStoredRow(inserted[0].source_row, rowId)
   }
 
   async upsertRow(
@@ -128,28 +105,43 @@ export class RailwayRecordStore {
     permissions: string[] = []
   ) {
     const sql = getRailwayDatabase()
-    const [existing] = await sql<Array<{ source_row: StoredRow }>>`
-      SELECT source_row FROM domain_records
-      WHERE table_name = ${tableId} AND row_id = ${rowId}
+    const now = new Date().toISOString()
+    const fields = mutationData(data)
+    const sourceRow = storedRow(rowId, fields, permissions, now)
+    const patch = {
+      ...fields,
+      $updatedAt: now,
+      ...(permissions.length > 0 ? { $permissions: permissions } : {}),
+    }
+    const payload = decodePayload(fields.data, sourceRow)
+    const hasPayload = Object.hasOwn(fields, "data")
+    const [saved] = await sql<Array<{ source_row: StoredRow }>>`
+      INSERT INTO domain_records (
+        table_name, row_id, owner_id, source_key, rid, name, status, ord,
+        payload, source_row, permissions, appwrite_created_at,
+        appwrite_updated_at, migrated_at
+      ) VALUES (
+        ${tableId}, ${rowId}, ${text(fields.owner_id)}, ${text(fields.source_key)},
+        ${text(fields.rid)}, ${text(fields.name)}, ${text(fields.status)},
+        ${integer(fields.ord)}, ${sql.json(serializable(payload))},
+        ${sql.json(serializable(sourceRow))}, ${sql.json(permissions)},
+        ${now}, ${now}, now()
+      )
+      ON CONFLICT (table_name, row_id) DO UPDATE SET
+        owner_id = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'owner_id', ''),
+        source_key = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'source_key', ''),
+        rid = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'rid', ''),
+        name = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'name', ''),
+        status = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'status', ''),
+        ord = safe_bigint((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'ord'),
+        payload = CASE WHEN ${hasPayload} THEN ${sql.json(serializable(payload))} ELSE domain_records.payload END,
+        source_row = domain_records.source_row || ${sql.json(serializable(patch))},
+        permissions = CASE WHEN ${permissions.length > 0} THEN ${sql.json(permissions)} ELSE domain_records.permissions END,
+        appwrite_updated_at = ${now},
+        migrated_at = now()
+      RETURNING source_row
     `
-    if (!existing) return this.persist(tableId, rowId, data, permissions, null)
-    const current = normalizeStoredRow(existing.source_row, rowId)
-    const systemKeys = new Set([
-      "$id",
-      "$createdAt",
-      "$updatedAt",
-      "$permissions",
-    ])
-    const fields = Object.fromEntries(
-      Object.entries(current).filter(([key]) => !systemKeys.has(key))
-    )
-    return this.persist(
-      tableId,
-      rowId,
-      { ...fields, ...data },
-      permissions.length > 0 ? permissions : current.$permissions,
-      current.$createdAt
-    )
+    return normalizeStoredRow(saved.source_row, rowId)
   }
 
   async updateRow(
@@ -158,23 +150,32 @@ export class RailwayRecordStore {
     rowId: string,
     data: Record<string, unknown>
   ) {
-    const current = await this.getRow(_databaseId, tableId, rowId)
-    const systemKeys = new Set([
-      "$id",
-      "$createdAt",
-      "$updatedAt",
-      "$permissions",
-    ])
-    const fields = Object.fromEntries(
-      Object.entries(current).filter(([key]) => !systemKeys.has(key))
-    )
-    return this.persist(
-      tableId,
-      rowId,
-      { ...fields, ...data },
-      current.$permissions,
-      current.$createdAt
-    )
+    const sql = getRailwayDatabase()
+    const now = new Date().toISOString()
+    const fields = mutationData(data)
+    const patch = { ...fields, $updatedAt: now }
+    const hasPayload = Object.hasOwn(fields, "data")
+    const payload = decodePayload(fields.data, fields)
+    const updated = await sql<Array<{ source_row: StoredRow }>>`
+      UPDATE domain_records
+      SET
+        owner_id = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'owner_id', ''),
+        source_key = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'source_key', ''),
+        rid = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'rid', ''),
+        name = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'name', ''),
+        status = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'status', ''),
+        ord = safe_bigint((source_row || ${sql.json(serializable(patch))}) ->> 'ord'),
+        payload = CASE WHEN ${hasPayload} THEN ${sql.json(serializable(payload))} ELSE payload END,
+        source_row = source_row || ${sql.json(serializable(patch))},
+        appwrite_updated_at = ${now},
+        migrated_at = now()
+      WHERE table_name = ${tableId} AND row_id = ${rowId}
+      RETURNING source_row
+    `
+    if (updated.length === 0) {
+      throw compatError(404, `Row ${tableId}/${rowId} was not found.`)
+    }
+    return normalizeStoredRow(updated[0].source_row, rowId)
   }
 
   async deleteRow(_databaseId: string, tableId: string, rowId: string) {
@@ -190,49 +191,47 @@ export class RailwayRecordStore {
     return {}
   }
 
-  private async persist(
-    tableId: string,
-    rowId: string,
-    data: Record<string, unknown>,
-    permissions: string[],
-    createdAt: string | null
-  ) {
+  async replaceRows(input: {
+    tableId: string
+    parentAttribute: string
+    parentValue: string
+    rows: Array<{
+      rowId: string
+      data: Record<string, unknown>
+      permissions?: string[]
+    }>
+  }) {
+    if (!/^[A-Za-z0-9_$.-]+$/.test(input.parentAttribute)) {
+      throw new Error("Invalid replacement parent attribute")
+    }
     const sql = getRailwayDatabase()
     const now = new Date().toISOString()
-    const sourceRow: StoredRow = {
-      $id: rowId,
-      $createdAt: createdAt ?? now,
-      $updatedAt: now,
-      $permissions: permissions,
-      ...data,
-    }
-    const payload = decodePayload(data.data, sourceRow)
-    await sql`
-      INSERT INTO domain_records (
-        table_name, row_id, owner_id, source_key, rid, name, status, ord,
-        payload, source_row, permissions, appwrite_created_at,
-        appwrite_updated_at, migrated_at
-      ) VALUES (
-        ${tableId}, ${rowId}, ${text(data.owner_id)}, ${text(data.source_key)},
-        ${text(data.rid)}, ${text(data.name)}, ${text(data.status)},
-        ${integer(data.ord)}, ${sql.json(serializable(payload))},
-        ${sql.json(serializable(sourceRow))}, ${sql.json(permissions)},
-        ${sourceRow.$createdAt}, ${now}, now()
-      )
-      ON CONFLICT (table_name, row_id) DO UPDATE SET
-        owner_id = excluded.owner_id,
-        source_key = excluded.source_key,
-        rid = excluded.rid,
-        name = excluded.name,
-        status = excluded.status,
-        ord = excluded.ord,
-        payload = excluded.payload,
-        source_row = excluded.source_row,
-        permissions = excluded.permissions,
-        appwrite_updated_at = excluded.appwrite_updated_at,
-        migrated_at = now()
-    `
-    return sourceRow
+    await sql.begin(async (tx) => {
+      await tx`
+        DELETE FROM domain_records
+        WHERE table_name = ${input.tableId}
+          AND source_row ->> ${input.parentAttribute} = ${input.parentValue}
+      `
+      for (const row of input.rows) {
+        const permissions = row.permissions ?? []
+        const sourceRow = storedRow(row.rowId, row.data, permissions, now)
+        const payload = decodePayload(row.data.data, sourceRow)
+        await tx`
+          INSERT INTO domain_records (
+            table_name, row_id, owner_id, source_key, rid, name, status, ord,
+            payload, source_row, permissions, appwrite_created_at,
+            appwrite_updated_at, migrated_at
+          ) VALUES (
+            ${input.tableId}, ${row.rowId}, ${text(row.data.owner_id)},
+            ${text(row.data.source_key)}, ${text(row.data.rid)},
+            ${text(row.data.name)}, ${text(row.data.status)},
+            ${integer(row.data.ord)}, ${tx.json(serializable(payload))},
+            ${tx.json(serializable(sourceRow))}, ${tx.json(permissions)},
+            ${now}, ${now}, now()
+          )
+        `
+      }
+    })
   }
 }
 
@@ -367,45 +366,139 @@ function parseQuery(query: string): ParsedQuery | null {
   }
 }
 
-function matches(row: StoredRow, query: ParsedQuery) {
-  const actual = valueAt(row, query.attribute ?? "")
-  const expected = query.values ?? []
-  if (query.method === "equal") {
-    return expected.some((value) => comparable(actual) === comparable(value))
-  }
-  if (query.method === "notEqual") {
-    return expected.every((value) => comparable(actual) !== comparable(value))
-  }
-  const right = expected[0]
-  if (query.method === "lessThan") return comparable(actual) < comparable(right)
-  if (query.method === "lessThanEqual") {
-    return comparable(actual) <= comparable(right)
-  }
-  return true
-}
+const numericAttributes = new Set([
+  "attempts",
+  "max_attempts",
+  "ord",
+  "position",
+  "priority",
+  "slideIndex",
+])
 
-function compareRows(
-  left: StoredRow,
-  right: StoredRow,
+export function buildListRowsQuery(
+  tableId: string,
   queries: ParsedQuery[]
-) {
-  for (const query of queries) {
-    const leftValue = comparable(valueAt(left, query.attribute ?? ""))
-    const rightValue = comparable(valueAt(right, query.attribute ?? ""))
-    const result = leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0
-    if (result !== 0) return query.method === "orderDesc" ? -result : result
+): { text: string; parameters: JsonValue[] } {
+  const parameters: JsonValue[] = []
+  const parameter = (value: JsonValue) => {
+    parameters.push(value)
+    return `$${parameters.length}`
   }
-  return left.$id.localeCompare(right.$id)
-}
+  const filters = [`table_name = ${parameter(tableId)}`]
+  const field = (attribute: string) => {
+    const promoted: Record<string, string> = {
+      $id: "row_id",
+      owner_id: "owner_id",
+      source_key: "source_key",
+      rid: "rid",
+      name: "name",
+      status: "status",
+      ord: "ord::text",
+    }
+    if (promoted[attribute]) return promoted[attribute]
+    const indexedJsonAttributes = new Set([
+      "$createdAt",
+      "$updatedAt",
+      "available_at",
+      "leased_until",
+      "output_id",
+      "position",
+      "priority",
+      "type",
+    ])
+    return indexedJsonAttributes.has(attribute)
+      ? `source_row ->> '${attribute}'`
+      : `source_row ->> ${parameter(attribute)}`
+  }
 
-function valueAt(row: StoredRow, attribute: string) {
-  return attribute === "$id" ? row.$id : row[attribute]
-}
+  for (const query of queries) {
+    if (!query.attribute) continue
+    const expression = field(query.attribute)
+    const values = query.values ?? []
+    if (query.method === "equal") {
+      filters.push(
+        `COALESCE(${expression}, '') = ANY(${parameter(values.map(String))}::text[])`
+      )
+    } else if (query.method === "notEqual") {
+      filters.push(
+        `COALESCE(${expression}, '') <> ALL(${parameter(values.map(String))}::text[])`
+      )
+    } else if (
+      query.method === "lessThan" ||
+      query.method === "lessThanEqual"
+    ) {
+      const operator = query.method === "lessThan" ? "<" : "<="
+      const value = values[0]
+      filters.push(
+        numericAttributes.has(query.attribute) || typeof value === "number"
+          ? `safe_numeric(${expression}) ${operator} ${parameter(Number(value))}`
+          : `COALESCE(${expression}, '') ${operator} ${parameter(String(value ?? ""))}`
+      )
+    }
+  }
 
-function comparable(value: unknown): string | number {
-  if (typeof value === "number") return value
-  if (typeof value === "boolean") return value ? 1 : 0
-  return String(value ?? "")
+  const orderQueries = queries.filter(
+    (query) =>
+      query.attribute &&
+      (query.method === "orderAsc" || query.method === "orderDesc")
+  )
+  const order = orderQueries.map((query) => {
+    const expression = field(query.attribute!)
+    const value = numericAttributes.has(query.attribute!)
+      ? `safe_numeric(${expression})`
+      : expression
+    return `${value} ${query.method === "orderDesc" ? "DESC" : "ASC"} NULLS LAST`
+  })
+  order.push("row_id ASC")
+
+  const cursor = queries.find((query) => query.method === "cursorAfter")
+    ?.values?.[0]
+  const cursorFilter = cursor
+    ? `WHERE ranked.sort_position > COALESCE((SELECT sort_position FROM ranked WHERE row_id = ${parameter(String(cursor))}), 0)`
+    : ""
+  const offset = numberQuery(queries, "offset", 0)
+  const limit = Math.min(numberQuery(queries, "limit", 25), 5_000)
+  const offsetParameter = parameter(offset)
+  const limitParameter = parameter(limit)
+
+  return {
+    text: `
+      WITH filtered AS (
+        SELECT
+          source_row,
+          row_id,
+          owner_id,
+          source_key,
+          rid,
+          name,
+          status,
+          ord
+        FROM domain_records
+        WHERE ${filters.join(" AND ")}
+      ), ranked AS (
+        SELECT source_row, row_id,
+          row_number() OVER (ORDER BY ${order.join(", ")}) AS sort_position
+        FROM filtered
+      ), page AS (
+        SELECT source_row, row_id, sort_position
+        FROM ranked
+        ${cursorFilter}
+        ORDER BY sort_position
+        OFFSET ${offsetParameter}
+        LIMIT ${limitParameter}
+      )
+      SELECT
+        (SELECT count(*)::int FROM filtered) AS total,
+        COALESCE(
+          (SELECT jsonb_agg(
+            jsonb_build_object('source_row', source_row, 'row_id', row_id)
+            ORDER BY sort_position
+          ) FROM page),
+          '[]'::jsonb
+        ) AS rows
+    `,
+    parameters,
+  }
 }
 
 function numberQuery(queries: ParsedQuery[], method: string, fallback: number) {
@@ -415,14 +508,28 @@ function numberQuery(queries: ParsedQuery[], method: string, fallback: number) {
   return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback
 }
 
-function equalTextValues(queries: ParsedQuery[], attribute: string) {
-  const query = queries.find(
-    (candidate) =>
-      candidate.method === "equal" && candidate.attribute === attribute
-  )
-  return (query?.values ?? [])
-    .filter((value) => value != null && value !== "")
-    .map(String)
+function storedRow(
+  rowId: string,
+  data: Record<string, unknown>,
+  permissions: string[],
+  now: string
+): StoredRow {
+  return {
+    ...data,
+    $id: rowId,
+    $createdAt: now,
+    $updatedAt: now,
+    $permissions: permissions,
+  }
+}
+
+function mutationData(data: Record<string, unknown>) {
+  const fields = { ...data }
+  delete fields.$id
+  delete fields.$createdAt
+  delete fields.$updatedAt
+  delete fields.$permissions
+  return fields
 }
 
 function normalizeStoredRow(row: StoredRow, rowId: string): StoredRow {

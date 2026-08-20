@@ -3946,17 +3946,17 @@ var init_llm_slop_lexicon = __esm({
 function llmSlopMatches(text3) {
   if (!text3.trim()) return [];
   const lower = text3.toLowerCase();
-  const matches2 = [];
+  const matches = [];
   for (const [index, matcher] of wordMatchers.entries()) {
-    if (matcher.test(text3)) matches2.push(llm_slop_lexicon_default.words[index]);
+    if (matcher.test(text3)) matches.push(llm_slop_lexicon_default.words[index]);
   }
   for (const phrase of llm_slop_lexicon_default.phrases) {
-    if (lower.includes(phrase)) matches2.push(phrase);
+    if (lower.includes(phrase)) matches.push(phrase);
   }
   for (const { label, regex } of patternMatchers) {
-    if (regex.test(text3)) matches2.push(label);
+    if (regex.test(text3)) matches.push(label);
   }
-  return [...new Set(matches2)];
+  return [...new Set(matches)];
 }
 function llmSlopViolations(text3) {
   return llmSlopMatches(text3).map(
@@ -4516,7 +4516,10 @@ function getRailwayDatabase() {
     );
   }
   cachedSql = postgres(connectionString, {
-    max: Number(process.env.POSTGRES_POOL_SIZE ?? 10),
+    max: Math.max(
+      2,
+      Math.min(50, Number(process.env.POSTGRES_POOL_SIZE ?? 10))
+    ),
     idle_timeout: 20,
     connect_timeout: 15,
     prepare: false
@@ -4632,38 +4635,109 @@ function parseQuery(query2) {
     return null;
   }
 }
-function matches(row, query2) {
-  const actual = valueAt(row, query2.attribute ?? "");
-  const expected = query2.values ?? [];
-  if (query2.method === "equal") {
-    return expected.some((value) => comparable(actual) === comparable(value));
-  }
-  if (query2.method === "notEqual") {
-    return expected.every((value) => comparable(actual) !== comparable(value));
-  }
-  const right = expected[0];
-  if (query2.method === "lessThan") return comparable(actual) < comparable(right);
-  if (query2.method === "lessThanEqual") {
-    return comparable(actual) <= comparable(right);
-  }
-  return true;
-}
-function compareRows(left, right, queries) {
+function buildListRowsQuery(tableId, queries) {
+  const parameters = [];
+  const parameter = (value) => {
+    parameters.push(value);
+    return `$${parameters.length}`;
+  };
+  const filters = [`table_name = ${parameter(tableId)}`];
+  const field = (attribute) => {
+    const promoted = {
+      $id: "row_id",
+      owner_id: "owner_id",
+      source_key: "source_key",
+      rid: "rid",
+      name: "name",
+      status: "status",
+      ord: "ord::text"
+    };
+    if (promoted[attribute]) return promoted[attribute];
+    const indexedJsonAttributes = /* @__PURE__ */ new Set([
+      "$createdAt",
+      "$updatedAt",
+      "available_at",
+      "leased_until",
+      "output_id",
+      "position",
+      "priority",
+      "type"
+    ]);
+    return indexedJsonAttributes.has(attribute) ? `source_row ->> '${attribute}'` : `source_row ->> ${parameter(attribute)}`;
+  };
   for (const query2 of queries) {
-    const leftValue = comparable(valueAt(left, query2.attribute ?? ""));
-    const rightValue = comparable(valueAt(right, query2.attribute ?? ""));
-    const result = leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
-    if (result !== 0) return query2.method === "orderDesc" ? -result : result;
+    if (!query2.attribute) continue;
+    const expression = field(query2.attribute);
+    const values = query2.values ?? [];
+    if (query2.method === "equal") {
+      filters.push(
+        `COALESCE(${expression}, '') = ANY(${parameter(values.map(String))}::text[])`
+      );
+    } else if (query2.method === "notEqual") {
+      filters.push(
+        `COALESCE(${expression}, '') <> ALL(${parameter(values.map(String))}::text[])`
+      );
+    } else if (query2.method === "lessThan" || query2.method === "lessThanEqual") {
+      const operator = query2.method === "lessThan" ? "<" : "<=";
+      const value = values[0];
+      filters.push(
+        numericAttributes.has(query2.attribute) || typeof value === "number" ? `safe_numeric(${expression}) ${operator} ${parameter(Number(value))}` : `COALESCE(${expression}, '') ${operator} ${parameter(String(value ?? ""))}`
+      );
+    }
   }
-  return left.$id.localeCompare(right.$id);
-}
-function valueAt(row, attribute) {
-  return attribute === "$id" ? row.$id : row[attribute];
-}
-function comparable(value) {
-  if (typeof value === "number") return value;
-  if (typeof value === "boolean") return value ? 1 : 0;
-  return String(value ?? "");
+  const orderQueries = queries.filter(
+    (query2) => query2.attribute && (query2.method === "orderAsc" || query2.method === "orderDesc")
+  );
+  const order = orderQueries.map((query2) => {
+    const expression = field(query2.attribute);
+    const value = numericAttributes.has(query2.attribute) ? `safe_numeric(${expression})` : expression;
+    return `${value} ${query2.method === "orderDesc" ? "DESC" : "ASC"} NULLS LAST`;
+  });
+  order.push("row_id ASC");
+  const cursor = queries.find((query2) => query2.method === "cursorAfter")?.values?.[0];
+  const cursorFilter = cursor ? `WHERE ranked.sort_position > COALESCE((SELECT sort_position FROM ranked WHERE row_id = ${parameter(String(cursor))}), 0)` : "";
+  const offset = numberQuery(queries, "offset", 0);
+  const limit = Math.min(numberQuery(queries, "limit", 25), 5e3);
+  const offsetParameter = parameter(offset);
+  const limitParameter = parameter(limit);
+  return {
+    text: `
+      WITH filtered AS (
+        SELECT
+          source_row,
+          row_id,
+          owner_id,
+          source_key,
+          rid,
+          name,
+          status,
+          ord
+        FROM domain_records
+        WHERE ${filters.join(" AND ")}
+      ), ranked AS (
+        SELECT source_row, row_id,
+          row_number() OVER (ORDER BY ${order.join(", ")}) AS sort_position
+        FROM filtered
+      ), page AS (
+        SELECT source_row, row_id, sort_position
+        FROM ranked
+        ${cursorFilter}
+        ORDER BY sort_position
+        OFFSET ${offsetParameter}
+        LIMIT ${limitParameter}
+      )
+      SELECT
+        (SELECT count(*)::int FROM filtered) AS total,
+        COALESCE(
+          (SELECT jsonb_agg(
+            jsonb_build_object('source_row', source_row, 'row_id', row_id)
+            ORDER BY sort_position
+          ) FROM page),
+          '[]'::jsonb
+        ) AS rows
+    `,
+    parameters
+  };
 }
 function numberQuery(queries, method, fallback) {
   const value = Number(
@@ -4671,11 +4745,22 @@ function numberQuery(queries, method, fallback) {
   );
   return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 }
-function equalTextValues(queries, attribute) {
-  const query2 = queries.find(
-    (candidate) => candidate.method === "equal" && candidate.attribute === attribute
-  );
-  return (query2?.values ?? []).filter((value) => value != null && value !== "").map(String);
+function storedRow(rowId, data, permissions, now) {
+  return {
+    ...data,
+    $id: rowId,
+    $createdAt: now,
+    $updatedAt: now,
+    $permissions: permissions
+  };
+}
+function mutationData(data) {
+  const fields = { ...data };
+  delete fields.$id;
+  delete fields.$createdAt;
+  delete fields.$updatedAt;
+  delete fields.$permissions;
+  return fields;
 }
 function normalizeStoredRow(row, rowId) {
   return {
@@ -4750,7 +4835,7 @@ function mimeTypeFor(filename) {
     ".zip": "application/zip"
   }[extension] ?? "application/octet-stream";
 }
-var RailwayRecordStore, RailwayObjectStore;
+var RailwayRecordStore, RailwayObjectStore, numericAttributes;
 var init_appwrite_compat = __esm({
   "lib/railway/appwrite-compat.ts"() {
     "use strict";
@@ -4761,48 +4846,13 @@ var init_appwrite_compat = __esm({
       async listRows(_databaseId, tableId, queries = []) {
         const sql = getRailwayDatabase();
         const parsed = queries.map(parseQuery).filter(Boolean);
-        const ownerIds = equalTextValues(parsed, "owner_id");
-        const sourceKeys = equalTextValues(parsed, "source_key");
-        const recordIds = equalTextValues(parsed, "rid");
-        const statuses = equalTextValues(parsed, "status");
-        const rows = await sql`
-      SELECT source_row, row_id
-      FROM domain_records
-      WHERE table_name = ${tableId}
-        ${ownerIds.length ? sql`AND owner_id IN ${sql(ownerIds)}` : sql``}
-        ${sourceKeys.length ? sql`AND source_key IN ${sql(sourceKeys)}` : sql``}
-        ${recordIds.length ? sql`AND rid IN ${sql(recordIds)}` : sql``}
-        ${statuses.length ? sql`AND status IN ${sql(statuses)}` : sql``}
-    `;
-        let filtered = rows.map(
-          (row) => normalizeStoredRow(row.source_row, row.row_id)
-        );
-        for (const query2 of parsed) {
-          if (query2.method === "equal" || query2.method === "notEqual" || query2.method === "lessThan" || query2.method === "lessThanEqual") {
-            filtered = filtered.filter((row) => matches(row, query2));
-          }
-        }
-        const orderQueries = parsed.filter(
-          (query2) => query2.method === "orderAsc" || query2.method === "orderDesc"
-        );
-        if (orderQueries.length > 0) {
-          filtered.sort((left, right) => compareRows(left, right, orderQueries));
-        } else {
-          filtered.sort((left, right) => left.$id.localeCompare(right.$id));
-        }
-        const cursorAfter = parsed.find((query2) => query2.method === "cursorAfter")?.values?.[0];
-        if (cursorAfter) {
-          const cursorIndex = filtered.findIndex(
-            (row) => row.$id === String(cursorAfter)
-          );
-          if (cursorIndex >= 0) filtered = filtered.slice(cursorIndex + 1);
-        }
-        const total = filtered.length;
-        const offset = numberQuery(parsed, "offset", 0);
-        const limit = numberQuery(parsed, "limit", 25);
+        const query2 = buildListRowsQuery(tableId, parsed);
+        const [page] = await sql.unsafe(query2.text, query2.parameters);
         return {
-          total,
-          rows: filtered.slice(offset, offset + limit)
+          total: Number(page?.total ?? 0),
+          rows: (page?.rows ?? []).map(
+            (row) => normalizeStoredRow(row.source_row, row.row_id)
+          )
         };
       }
       async getRow(_databaseId, tableId, rowId) {
@@ -4817,56 +4867,97 @@ var init_appwrite_compat = __esm({
       }
       async createRow(_databaseId, tableId, rowId, data, permissions = []) {
         const sql = getRailwayDatabase();
-        const [existing] = await sql`
-      SELECT true AS present FROM domain_records
-      WHERE table_name = ${tableId} AND row_id = ${rowId}
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        const fields = mutationData(data);
+        const sourceRow = storedRow(rowId, fields, permissions, now);
+        const payload = decodePayload(fields.data, sourceRow);
+        const inserted = await sql`
+      INSERT INTO domain_records (
+        table_name, row_id, owner_id, source_key, rid, name, status, ord,
+        payload, source_row, permissions, appwrite_created_at,
+        appwrite_updated_at, migrated_at
+      ) VALUES (
+        ${tableId}, ${rowId}, ${text(fields.owner_id)}, ${text(fields.source_key)},
+        ${text(fields.rid)}, ${text(fields.name)}, ${text(fields.status)},
+        ${integer(fields.ord)}, ${sql.json(serializable(payload))},
+        ${sql.json(serializable(sourceRow))}, ${sql.json(permissions)},
+        ${now}, ${now}, now()
+      )
+      ON CONFLICT (table_name, row_id) DO NOTHING
+      RETURNING source_row
     `;
-        if (existing) throw compatError(409, `Row ${tableId}/${rowId} exists.`);
-        return this.persist(tableId, rowId, data, permissions, null);
+        if (inserted.length === 0) {
+          throw compatError(409, `Row ${tableId}/${rowId} exists.`);
+        }
+        return normalizeStoredRow(inserted[0].source_row, rowId);
       }
       async upsertRow(_databaseId, tableId, rowId, data, permissions = []) {
         const sql = getRailwayDatabase();
-        const [existing] = await sql`
-      SELECT source_row FROM domain_records
-      WHERE table_name = ${tableId} AND row_id = ${rowId}
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        const fields = mutationData(data);
+        const sourceRow = storedRow(rowId, fields, permissions, now);
+        const patch = {
+          ...fields,
+          $updatedAt: now,
+          ...permissions.length > 0 ? { $permissions: permissions } : {}
+        };
+        const payload = decodePayload(fields.data, sourceRow);
+        const hasPayload = Object.hasOwn(fields, "data");
+        const [saved] = await sql`
+      INSERT INTO domain_records (
+        table_name, row_id, owner_id, source_key, rid, name, status, ord,
+        payload, source_row, permissions, appwrite_created_at,
+        appwrite_updated_at, migrated_at
+      ) VALUES (
+        ${tableId}, ${rowId}, ${text(fields.owner_id)}, ${text(fields.source_key)},
+        ${text(fields.rid)}, ${text(fields.name)}, ${text(fields.status)},
+        ${integer(fields.ord)}, ${sql.json(serializable(payload))},
+        ${sql.json(serializable(sourceRow))}, ${sql.json(permissions)},
+        ${now}, ${now}, now()
+      )
+      ON CONFLICT (table_name, row_id) DO UPDATE SET
+        owner_id = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'owner_id', ''),
+        source_key = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'source_key', ''),
+        rid = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'rid', ''),
+        name = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'name', ''),
+        status = NULLIF((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'status', ''),
+        ord = safe_bigint((domain_records.source_row || ${sql.json(serializable(patch))}) ->> 'ord'),
+        payload = CASE WHEN ${hasPayload} THEN ${sql.json(serializable(payload))} ELSE domain_records.payload END,
+        source_row = domain_records.source_row || ${sql.json(serializable(patch))},
+        permissions = CASE WHEN ${permissions.length > 0} THEN ${sql.json(permissions)} ELSE domain_records.permissions END,
+        appwrite_updated_at = ${now},
+        migrated_at = now()
+      RETURNING source_row
     `;
-        if (!existing) return this.persist(tableId, rowId, data, permissions, null);
-        const current = normalizeStoredRow(existing.source_row, rowId);
-        const systemKeys = /* @__PURE__ */ new Set([
-          "$id",
-          "$createdAt",
-          "$updatedAt",
-          "$permissions"
-        ]);
-        const fields = Object.fromEntries(
-          Object.entries(current).filter(([key]) => !systemKeys.has(key))
-        );
-        return this.persist(
-          tableId,
-          rowId,
-          { ...fields, ...data },
-          permissions.length > 0 ? permissions : current.$permissions,
-          current.$createdAt
-        );
+        return normalizeStoredRow(saved.source_row, rowId);
       }
       async updateRow(_databaseId, tableId, rowId, data) {
-        const current = await this.getRow(_databaseId, tableId, rowId);
-        const systemKeys = /* @__PURE__ */ new Set([
-          "$id",
-          "$createdAt",
-          "$updatedAt",
-          "$permissions"
-        ]);
-        const fields = Object.fromEntries(
-          Object.entries(current).filter(([key]) => !systemKeys.has(key))
-        );
-        return this.persist(
-          tableId,
-          rowId,
-          { ...fields, ...data },
-          current.$permissions,
-          current.$createdAt
-        );
+        const sql = getRailwayDatabase();
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        const fields = mutationData(data);
+        const patch = { ...fields, $updatedAt: now };
+        const hasPayload = Object.hasOwn(fields, "data");
+        const payload = decodePayload(fields.data, fields);
+        const updated = await sql`
+      UPDATE domain_records
+      SET
+        owner_id = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'owner_id', ''),
+        source_key = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'source_key', ''),
+        rid = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'rid', ''),
+        name = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'name', ''),
+        status = NULLIF((source_row || ${sql.json(serializable(patch))}) ->> 'status', ''),
+        ord = safe_bigint((source_row || ${sql.json(serializable(patch))}) ->> 'ord'),
+        payload = CASE WHEN ${hasPayload} THEN ${sql.json(serializable(payload))} ELSE payload END,
+        source_row = source_row || ${sql.json(serializable(patch))},
+        appwrite_updated_at = ${now},
+        migrated_at = now()
+      WHERE table_name = ${tableId} AND row_id = ${rowId}
+      RETURNING source_row
+    `;
+        if (updated.length === 0) {
+          throw compatError(404, `Row ${tableId}/${rowId} was not found.`);
+        }
+        return normalizeStoredRow(updated[0].source_row, rowId);
       }
       async deleteRow(_databaseId, tableId, rowId) {
         const sql = getRailwayDatabase();
@@ -4880,43 +4971,38 @@ var init_appwrite_compat = __esm({
         }
         return {};
       }
-      async persist(tableId, rowId, data, permissions, createdAt) {
+      async replaceRows(input) {
+        if (!/^[A-Za-z0-9_$.-]+$/.test(input.parentAttribute)) {
+          throw new Error("Invalid replacement parent attribute");
+        }
         const sql = getRailwayDatabase();
         const now = (/* @__PURE__ */ new Date()).toISOString();
-        const sourceRow = {
-          $id: rowId,
-          $createdAt: createdAt ?? now,
-          $updatedAt: now,
-          $permissions: permissions,
-          ...data
-        };
-        const payload = decodePayload(data.data, sourceRow);
-        await sql`
-      INSERT INTO domain_records (
-        table_name, row_id, owner_id, source_key, rid, name, status, ord,
-        payload, source_row, permissions, appwrite_created_at,
-        appwrite_updated_at, migrated_at
-      ) VALUES (
-        ${tableId}, ${rowId}, ${text(data.owner_id)}, ${text(data.source_key)},
-        ${text(data.rid)}, ${text(data.name)}, ${text(data.status)},
-        ${integer(data.ord)}, ${sql.json(serializable(payload))},
-        ${sql.json(serializable(sourceRow))}, ${sql.json(permissions)},
-        ${sourceRow.$createdAt}, ${now}, now()
-      )
-      ON CONFLICT (table_name, row_id) DO UPDATE SET
-        owner_id = excluded.owner_id,
-        source_key = excluded.source_key,
-        rid = excluded.rid,
-        name = excluded.name,
-        status = excluded.status,
-        ord = excluded.ord,
-        payload = excluded.payload,
-        source_row = excluded.source_row,
-        permissions = excluded.permissions,
-        appwrite_updated_at = excluded.appwrite_updated_at,
-        migrated_at = now()
-    `;
-        return sourceRow;
+        await sql.begin(async (tx) => {
+          await tx`
+        DELETE FROM domain_records
+        WHERE table_name = ${input.tableId}
+          AND source_row ->> ${input.parentAttribute} = ${input.parentValue}
+      `;
+          for (const row of input.rows) {
+            const permissions = row.permissions ?? [];
+            const sourceRow = storedRow(row.rowId, row.data, permissions, now);
+            const payload = decodePayload(row.data.data, sourceRow);
+            await tx`
+          INSERT INTO domain_records (
+            table_name, row_id, owner_id, source_key, rid, name, status, ord,
+            payload, source_row, permissions, appwrite_created_at,
+            appwrite_updated_at, migrated_at
+          ) VALUES (
+            ${input.tableId}, ${row.rowId}, ${text(row.data.owner_id)},
+            ${text(row.data.source_key)}, ${text(row.data.rid)},
+            ${text(row.data.name)}, ${text(row.data.status)},
+            ${integer(row.data.ord)}, ${tx.json(serializable(payload))},
+            ${tx.json(serializable(sourceRow))}, ${tx.json(permissions)},
+            ${now}, ${now}, now()
+          )
+        `;
+          }
+        });
       }
     };
     RailwayObjectStore = class {
@@ -5005,6 +5091,14 @@ var init_appwrite_compat = __esm({
         return {};
       }
     };
+    numericAttributes = /* @__PURE__ */ new Set([
+      "attempts",
+      "max_attempts",
+      "ord",
+      "position",
+      "priority",
+      "slideIndex"
+    ]);
   }
 });
 
@@ -5575,6 +5669,29 @@ var init_auth_shim = __esm({
   }
 });
 
+// lib/backend-config.ts
+function backendValue(value, allowed, fallback, variableName) {
+  if (!value) return fallback;
+  if (allowed.includes(value)) return value;
+  throw new Error(
+    `${variableName} must be one of ${allowed.join(", ")}; received ${value}.`
+  );
+}
+function dataBackend() {
+  return backendValue(
+    process.env.LUMENCLIP_DATA_BACKEND,
+    ["appwrite", "railway"],
+    "railway",
+    "LUMENCLIP_DATA_BACKEND"
+  );
+}
+var init_backend_config = __esm({
+  "lib/backend-config.ts"() {
+    "use strict";
+    init_server_only_shim();
+  }
+});
+
 // windmill/runtime/workspace-members-shim.ts
 async function sharedOwnerIdsFor(_user) {
   return [];
@@ -5936,16 +6053,14 @@ async function listOutputMedia(aw, outputIds) {
   return records;
 }
 async function syncOutputMedia(aw, outputRowId, ownerId, media) {
-  await deleteOutputMedia(aw, [outputRowId]);
-  await runPool(media, 3, async (item) => {
-    await retryTransient(
-      () => aw.records.createRow(
-        RUNTIME_DATABASE_ID,
-        "output_media",
-        outputMediaRowId(outputRowId, item),
-        outputMediaRowFields(outputRowId, ownerId, item)
-      )
-    );
+  await aw.records.replaceRows({
+    tableId: "output_media",
+    parentAttribute: "output_id",
+    parentValue: outputRowId,
+    rows: media.map((item) => ({
+      rowId: outputMediaRowId(outputRowId, item),
+      data: outputMediaRowFields(outputRowId, ownerId, item)
+    }))
   });
 }
 async function deleteOutputMedia(aw, outputIds) {
@@ -6009,7 +6124,19 @@ async function runPool(items, concurrency, task) {
 }
 async function withStoreLock(lockKey, task) {
   const previous = storeLocks.get(lockKey) ?? Promise.resolve();
-  const run = previous.catch(() => void 0).then(task);
+  const run = previous.catch(() => void 0).then(async () => {
+    if (dataBackend() !== "railway") return task();
+    const reserved = await getRailwayDatabase().reserve();
+    try {
+      await reserved`SELECT pg_advisory_lock(hashtext(${lockKey}))`;
+      return await task();
+    } finally {
+      await reserved`SELECT pg_advisory_unlock(hashtext(${lockKey}))`.catch(
+        () => void 0
+      );
+      reserved.release();
+    }
+  });
   const next = run.then(
     () => void 0,
     () => void 0
@@ -6031,6 +6158,8 @@ var init_json_store = __esm({
     init_appwrite_stores();
     init_consolidated_records();
     init_auth_shim();
+    init_backend_config();
+    init_database();
     init_workspace_members_shim();
     init_system_owner_context();
     storeLocks = /* @__PURE__ */ new Map();
@@ -7498,15 +7627,15 @@ function uniqueHookTemplateMatch(items, input) {
     );
     return exact.length === 1 ? exact[0] : void 0;
   }
-  const matches2 = items.filter(
+  const matches = items.filter(
     (item) => hookTemplateMatchesRenderedText(item.text, input.renderedHook)
   );
-  const templated = matches2.filter(
+  const templated = matches.filter(
     (item) => hookTextHasSlots(item.text) && hookTemplateLiteralLength(item.text) > 0
   );
   if (templated.length === 1) return templated[0];
   if (templated.length > 1) return void 0;
-  return matches2.length === 1 ? matches2[0] : void 0;
+  return matches.length === 1 ? matches[0] : void 0;
 }
 function expandHook(hook, slots, collections, random = Math.random, options = {}) {
   const template = clean(hook);
@@ -9961,17 +10090,17 @@ function resolveSuppliedClaims(posts, suppliedClaims) {
   );
   const resolved = /* @__PURE__ */ new Map();
   for (const claim of strongClaims) {
-    const matches2 = posts.filter(
+    const matches = posts.filter(
       (post) => postIdentityClaimsForPost(post).some(
         (candidate) => candidate.kind === claim.kind && candidate.key === claim.key
       )
     );
-    if (matches2.length > 1) {
+    if (matches.length > 1) {
       throw new PostIdentityConflictError(
         `Multiple posts claim the same ${claim.kind} identity.`
       );
     }
-    if (matches2[0]) resolved.set(matches2[0].id, matches2[0]);
+    if (matches[0]) resolved.set(matches[0].id, matches[0]);
   }
   if (resolved.size > 1) {
     throw new PostIdentityConflictError(
@@ -11149,6 +11278,57 @@ var init_data_url = __esm({
   }
 });
 
+// lib/url-guard.ts
+var init_url_guard = __esm({
+  "lib/url-guard.ts"() {
+    "use strict";
+  }
+});
+
+// lib/bounded-fetch.ts
+async function readResponseBytes(response, maxBytes) {
+  const boundedMax = Math.max(1, Math.floor(maxBytes));
+  const contentLength = Number(response.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > boundedMax) {
+    await response.body?.cancel().catch(() => void 0);
+    throw new PayloadTooLargeError(boundedMax);
+  }
+  if (!response.body) return Buffer.alloc(0);
+  const reader = response.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > boundedMax) {
+        await reader.cancel().catch(() => void 0);
+        throw new PayloadTooLargeError(boundedMax);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size);
+}
+var PayloadTooLargeError;
+var init_bounded_fetch = __esm({
+  "lib/bounded-fetch.ts"() {
+    "use strict";
+    init_server_only_shim();
+    init_url_guard();
+    PayloadTooLargeError = class extends Error {
+      constructor(maxBytes) {
+        super(`Remote response exceeded ${maxBytes} bytes`);
+        this.maxBytes = maxBytes;
+        this.name = "PayloadTooLargeError";
+      }
+    };
+  }
+});
+
 // lib/poll.ts
 async function pollUntil(fn, options) {
   for (let attempt = 0; attempt < options.maxAttempts; attempt += 1) {
@@ -11266,7 +11446,12 @@ async function downloadRendiOutputBytes(input) {
   if (!response.ok) {
     throw new Error(`Failed to download Rendi output with ${response.status}`);
   }
-  return new Uint8Array(await response.arrayBuffer());
+  return new Uint8Array(
+    await readResponseBytes(
+      response,
+      Math.max(1, Number(process.env.RENDI_MAX_OUTPUT_BYTES ?? 1024 ** 3))
+    )
+  );
 }
 async function submitRendiCommand(input) {
   const submitted = await rendiJson({
@@ -11389,6 +11574,7 @@ var init_rendi_client = __esm({
     "use strict";
     init_guards();
     init_http();
+    init_bounded_fetch();
     init_poll();
     RENDI_API_BASE_URL = "https://api.rendi.dev";
     DEFAULT_POLL_DELAY_MS = 5e3;
@@ -15231,9 +15417,7 @@ async function fetchProductPageResponse(input) {
     const declared = Number(response.headers.get("content-length"));
     if (Number.isFinite(declared) && declared > maxBytes)
       throw new Error("Product page exceeds size limit");
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > maxBytes)
-      throw new Error("Product page exceeds size limit");
+    const bytes = await readResponseBytes(response, maxBytes);
     const html = new TextDecoder().decode(bytes);
     const title = decodeEntities(
       html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ""
@@ -15362,6 +15546,7 @@ var decodeEntities, analysisSchema, scriptSchema;
 var init_ugc_video_generation = __esm({
   "lib/ugc-video-generation.ts"() {
     "use strict";
+    init_bounded_fetch();
     init_langfuse_prompts();
     init_openrouter();
     init_realfarm_generation_model_registry();
@@ -18329,7 +18514,8 @@ async function queueWindmillWorkflow(input) {
   const config = windmillConfig();
   const flowPath = WINDMILL_FLOW_PATHS[input.workflowId];
   const requestId = clean(input.requestId) || `pipeline-${crypto.randomUUID()}`;
-  const response = await (input.fetchImpl ?? fetch)(
+  const response = await windmillFetch(
+    input.fetchImpl ?? fetch,
     windmillApiUrl(config, `jobs/run/f/${flowPath}`),
     {
       method: "POST",
@@ -18339,7 +18525,8 @@ async function queueWindmillWorkflow(input) {
         request_id: requestId,
         ...windmillFlowInput(input.workflowId, input.workflowInput)
       })
-    }
+    },
+    Number(process.env.WINDMILL_REQUEST_TIMEOUT_MS ?? 3e4)
   );
   const jobId = clean(await response.text());
   if (!response.ok || !jobId) {
@@ -18357,12 +18544,14 @@ async function queueWindmillWorkflow(input) {
 }
 async function getWindmillWorkflowJob(input) {
   const config = windmillConfig();
-  const response = await (input.fetchImpl ?? fetch)(
+  const response = await windmillFetch(
+    input.fetchImpl ?? fetch,
     windmillApiUrl(
       config,
       `jobs_u/get/${encodeURIComponent(requiredValue("jobId", input.jobId))}?no_logs=true&no_code=true`
     ),
-    { headers: windmillHeaders(config.token) }
+    { headers: windmillHeaders(config.token) },
+    Number(process.env.WINDMILL_REQUEST_TIMEOUT_MS ?? 3e4)
   );
   const payload = await response.json().catch(() => null);
   if (!response.ok || !isRecord2(payload)) {
@@ -18388,9 +18577,10 @@ async function getWindmillWorkflowJob(input) {
 }
 async function waitForWindmillWorkflow(input) {
   const timeoutMs = Math.max(1e3, input.timeoutMs ?? 25 * 6e4);
-  const pollIntervalMs = Math.max(100, input.pollIntervalMs ?? 1e3);
+  const pollIntervalMs = Math.max(250, input.pollIntervalMs ?? 1e3);
   const deadline = Date.now() + timeoutMs;
   const sleep = input.sleep ?? delay2;
+  let attempt = 0;
   while (Date.now() < deadline) {
     const job = await getWindmillWorkflowJob({
       jobId: input.run.jobId,
@@ -18408,7 +18598,10 @@ async function waitForWindmillWorkflow(input) {
         result: unwrapWindmillWorkflowResult(job.result)
       };
     }
-    await sleep(pollIntervalMs);
+    const backoff = Math.min(1e4, pollIntervalMs * 1.5 ** attempt);
+    const jitter = input.sleep ? 0 : Math.floor(Math.random() * backoff * 0.2);
+    await sleep(Math.min(backoff + jitter, Math.max(0, deadline - Date.now())));
+    attempt += 1;
   }
   throw new Error(
     `Windmill ${input.run.workflowId} workflow timed out after ${timeoutMs}ms`
@@ -18474,6 +18667,13 @@ function unwrapWindmillWorkflowResult(result) {
 }
 function delay2(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+async function windmillFetch(fetchImpl, url, init, timeoutMs) {
+  const boundedTimeout = Math.max(1e3, Math.min(timeoutMs, 12e4));
+  return fetchImpl(url, {
+    ...init,
+    signal: AbortSignal.timeout(boundedTimeout)
+  });
 }
 function assertNoLinearExecutionWindow(startAt, stopAfter) {
   if (startAt || stopAfter) {

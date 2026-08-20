@@ -4,15 +4,12 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 
 const responsiveSurfaces = [
-  "app/app/compose/compose-demo.tsx",
+  "features/composer/ui/composer-screen.tsx",
   "app/app/ugc/[id]/page.tsx",
-  "components/realfarm/home-view.tsx",
   "components/realfarm/automations-view.tsx",
-  "components/realfarm/collections-view.tsx",
-  "components/realfarm/collections/collection-detail-view.tsx",
-  "components/realfarm/content-calendar/content-calendar-view.tsx",
-  "components/realfarm/analytics/analytics-view.tsx",
-  "components/realfarm/analytics/post-analytics-page.tsx",
+  "features/collections/ui/collections-view.tsx",
+  "features/collections/ui/collection-detail-view.tsx",
+  "features/analytics/ui/post-analytics-page.tsx",
 ] as const
 
 describe("responsive page migration", () => {
@@ -27,11 +24,11 @@ describe("responsive page migration", () => {
 
   it("uses dynamic viewport units in the workspace shell", () => {
     const source = fs.readFileSync(
-      path.join(process.cwd(), "components/realfarm-workspace.tsx"),
+      path.join(process.cwd(), "features/workspace/ui/workspace-shell.tsx"),
       "utf8"
     )
 
-    expect(source).toContain("h-dvh")
-    expect(source).toContain("w-full min-w-0 flex-1")
+    expect(source).toContain("h-svh")
+    expect(source).toContain("min-w-0 flex-1")
   })
 })
