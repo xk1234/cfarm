@@ -20,6 +20,13 @@ vi.mock("@/lib/appwrite", () => ({
   APPWRITE_DATABASE_ID: "cfarm",
   getAppwrite: () => appwrite,
 }))
+vi.mock("@/lib/runtime-store", () => ({
+  RUNTIME_DATABASE_ID: "cfarm",
+  getRuntimeStore: () => ({
+    records: appwrite.tables,
+    objects: appwrite.storage,
+  }),
+}))
 
 import {
   createDomainAssetOnce,

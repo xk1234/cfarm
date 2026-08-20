@@ -1,16 +1,11 @@
-// Central helper for persisting binary assets. Both backends use the same
-// deterministic bucket/file identity so cutover does not change public paths.
+// Central helper for persisting binary assets in Railway object storage.
 // Pipelines that need a real local file stage it back out via stageAssetToTmp.
 import { randomUUID } from "node:crypto"
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { InputFile } from "node-appwrite/file"
-
-import { getAppwrite } from "@/lib/appwrite"
 import { bucketForPath, dataRoot, fileIdForPath } from "@/lib/appwrite-stores"
-import { assetBackend } from "@/lib/backend-config"
 import {
   deleteRailwayObject,
   putRailwayObject,
@@ -28,106 +23,58 @@ function toBuffer(bytes: Bytes): Buffer {
 }
 
 /** Data-relative POSIX path (e.g. "assets/files/x.png") for an absolute path, or null if outside data/. */
-function relForAppwrite(absPath: string): string | null {
+function relativeAssetPath(absPath: string): string | null {
   const rel = path.relative(dataRoot(), path.resolve(absPath))
   if (rel.startsWith("..") || path.isAbsolute(rel)) return null
   return rel.split(path.sep).join("/")
 }
 
-/** Upload (or replace) a data-tree file in Appwrite Storage. */
-export async function mirrorAssetToAppwrite(
+/** Upload or replace a data-tree file in Railway object storage. */
+export async function writeAsset(
   absPath: string,
   bytes?: Bytes
 ): Promise<void> {
-  const relPath = relForAppwrite(absPath)
+  const relPath = relativeAssetPath(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
   const bucket = bucketForPath(relPath)
   const fileId = fileIdForPath(relPath)
   const buf = bytes != null ? toBuffer(bytes) : await readFile(absPath)
-  if (assetBackend() === "railway") {
-    await putRailwayObject({
-      key: railwayObjectKey(bucket, fileId),
-      body: buf,
-    })
-    return
-  }
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot persist asset bytes.")
-  }
-  const input = InputFile.fromBuffer(buf, path.basename(relPath))
-  try {
-    await aw.storage.createFile(bucket, fileId, input, [])
-  } catch (error) {
-    const code = (error as { code?: number }).code
-    if (code === 409) {
-      // Same path re-generated with new content: replace it.
-      try {
-        await aw.storage.deleteFile(bucket, fileId)
-      } catch (deleteError) {
-        if ((deleteError as { code?: number }).code !== 404) {
-          throw deleteError
-        }
-      }
-      await aw.storage.createFile(bucket, fileId, input, [])
-      return
-    }
-    throw error
-  }
+  await putRailwayObject({
+    key: railwayObjectKey(bucket, fileId),
+    body: buf,
+  })
 }
 
-/** Read a data-tree asset's bytes from Appwrite Storage. Throws if unconfigured, outside data/, or missing. */
+/** Read a data-tree asset's bytes from Railway object storage. */
 export async function readAssetBytes(absPath: string): Promise<Buffer> {
-  const relPath = relForAppwrite(absPath)
+  const relPath = relativeAssetPath(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
   const bucket = bucketForPath(relPath)
   const fileId = fileIdForPath(relPath)
-  if (assetBackend() === "railway") {
-    return readRailwayObject(railwayObjectKey(bucket, fileId))
-  }
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot read asset bytes.")
-  }
-  const view = await aw.storage.getFileView(bucket, fileId)
-  return Buffer.from(view as ArrayBuffer)
+  return readRailwayObject(railwayObjectKey(bucket, fileId))
 }
 
-/** Delete a data-tree file from Appwrite Storage. Missing files are already deleted. */
-export async function deleteAssetFromAppwrite(absPath: string): Promise<void> {
-  const relPath = relForAppwrite(absPath)
+/** Delete a data-tree file. Missing objects are already deleted. */
+export async function deleteAsset(absPath: string): Promise<void> {
+  const relPath = relativeAssetPath(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
   const bucket = bucketForPath(relPath)
   const fileId = fileIdForPath(relPath)
-  if (assetBackend() === "railway") {
-    await deleteRailwayObject(railwayObjectKey(bucket, fileId))
-    return
-  }
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot delete asset bytes.")
-  }
-  try {
-    await aw.storage.deleteFile(bucket, fileId)
-  } catch (error) {
-    if ((error as { code?: number }).code !== 404) {
-      throw error
-    }
-  }
+  await deleteRailwayObject(railwayObjectKey(bucket, fileId))
 }
 
-/** Persist a binary asset to Appwrite Storage (no local write). */
+/** Persist a binary asset without a local write. */
 export async function persistAsset(
   absPath: string,
   bytes: Bytes
 ): Promise<void> {
-  await mirrorAssetToAppwrite(absPath, bytes)
+  await writeAsset(absPath, bytes)
 }
 
 /** Create one deterministic storage object with exactly one Appwrite request. */
@@ -135,48 +82,40 @@ export async function createAssetOnce(
   absPath: string,
   bytes: Bytes
 ): Promise<void> {
-  const relPath = relForAppwrite(absPath)
+  const relPath = relativeAssetPath(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
   const buffer = toBuffer(bytes)
   const bucket = bucketForPath(relPath)
   const fileId = fileIdForPath(relPath)
-  if (assetBackend() === "railway") {
-    const key = railwayObjectKey(bucket, fileId)
-    if (await railwayObjectExists(key)) {
-      throw Object.assign(new Error(`Asset already exists: ${relPath}`), {
-        code: 409,
-      })
-    }
-    await putRailwayObject({ key, body: buffer })
-    return
+  const key = railwayObjectKey(bucket, fileId)
+  if (await railwayObjectExists(key)) {
+    throw Object.assign(new Error(`Asset already exists: ${relPath}`), {
+      code: 409,
+    })
   }
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot persist asset bytes.")
-  }
-  await aw.storage.createFile(
-    bucket,
-    fileId,
-    InputFile.fromBuffer(buffer, path.basename(relPath)),
-    []
-  )
+  await putRailwayObject({ key, body: buffer })
 }
 
-/** Upload a scratch tree to a logical data-tree destination in Storage. */
-export async function mirrorDirToAppwrite(
+/** Upload a scratch tree to a logical data-tree destination. */
+export async function persistAssetDirectory(
   dir: string,
   targetDir = dir
 ): Promise<void> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const abs = path.join(dir, entry.name)
     const target = path.join(targetDir, entry.name)
-    if (entry.isDirectory()) await mirrorDirToAppwrite(abs, target)
-    else if (entry.isFile())
-      await mirrorAssetToAppwrite(target, await readFile(abs))
+    if (entry.isDirectory()) await persistAssetDirectory(abs, target)
+    else if (entry.isFile()) await writeAsset(target, await readFile(abs))
   }
 }
+
+// Temporary compatibility aliases for call sites and rollback-oriented tests.
+// New runtime code should use the backend-neutral names above.
+export const mirrorAssetToAppwrite = writeAsset
+export const deleteAssetFromAppwrite = deleteAsset
+export const mirrorDirToAppwrite = persistAssetDirectory
 
 /** Download a data-tree asset from Storage into a fresh tmp file; returns its path. */
 export async function stageAssetToTmp(absPath: string): Promise<string> {

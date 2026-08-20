@@ -2,7 +2,7 @@ import "server-only"
 
 import crypto from "node:crypto"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 import { getCurrentUser } from "@/lib/auth"
 import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 import type { AutomationUgcConfig } from "@/lib/realfarm-automation"
@@ -151,10 +151,9 @@ type LedgerRecord = Record<string, unknown>
 export async function actualUgcCostFromLedger(
   runId: string
 ): Promise<UgcCostBreakdown> {
-  const aw = getAppwrite()
+  const aw = getRuntimeStore()
   const user = await getCurrentUser()
-  if (!aw || !user)
-    return { currency: "USD", tier: "lowcost", items: [], totalUsd: 0 }
+  if (!user) return { currency: "USD", tier: "lowcost", items: [], totalUsd: 0 }
   const stageKeys = [
     "analysis",
     "script",
@@ -170,8 +169,8 @@ export async function actualUgcCostFromLedger(
       const usageId = `usage-${crypto.createHash("sha256").update(`${runId}:${stage}`).digest("hex").slice(0, 24)}`
       const rowId = `u${crypto.createHash("sha256").update(`usage_ledger:${user.$id}:${usageId}`).digest("hex").slice(0, 35)}`
       try {
-        return (await aw.tables.getRow(
-          APPWRITE_DATABASE_ID,
+        return (await aw.records.getRow(
+          RUNTIME_DATABASE_ID,
           "usage_ledger",
           rowId
         )) as LedgerRecord

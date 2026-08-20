@@ -1,13 +1,11 @@
-import path from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
-
 import {
   flushLangfuse,
   registerLangfuse,
   shutdownLangfuse,
 } from "@/lib/langfuse-node"
+import jobWorker from "@/services/job-worker"
+import templateScheduler from "@/services/template-scheduler"
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const functionId = process.argv[2]
 const intervalMs = Number(process.argv[3])
 
@@ -23,22 +21,9 @@ if (
 
 process.env.LUMENCLIP_DATA_BACKEND ||= "railway"
 process.env.LUMENCLIP_ASSET_BACKEND ||= "railway"
-process.env.APPWRITE_DATABASE_ID ||= "cfarm"
-
 registerLangfuse(`lumenclip-${functionId}`)
 
-const entry = path.join(
-  root,
-  "appwrite",
-  "functions",
-  functionId,
-  "src",
-  "main.js"
-)
-const handler = (await import(pathToFileURL(entry).href)).default
-if (typeof handler !== "function") {
-  throw new Error(`${functionId} does not export a default handler`)
-}
+const handler = functionId === "job-worker" ? jobWorker : templateScheduler
 
 let running = false
 let stopped = false

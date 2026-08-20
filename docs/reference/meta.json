@@ -2,6 +2,7 @@
   "title": "Contributing",
   "pages": [
     "index",
+    "code-organization",
     "documentation-rules",
     "agent-github-publishing",
     "ui-audit-framework"

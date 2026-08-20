@@ -75,10 +75,10 @@ async function persistUser(user: AuthUser) {
   const sql = getRailwayDatabase()
   await sql`
     INSERT INTO app_users (
-      id, email, name, email_verified, requires_password_reset, preferences
+      id, email, name, email_verified, preferences
     ) VALUES (
       ${user.$id}, ${user.email.toLowerCase()}, ${user.name},
-      ${user.emailVerification}, false, '{}'::jsonb
+      ${user.emailVerification}, '{}'::jsonb
     )
     ON CONFLICT (id) DO UPDATE SET
       email = excluded.email,

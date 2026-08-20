@@ -17,11 +17,13 @@ const mocks = vi.hoisted(() => {
   return {
     rows,
     failLegacyUpdate: false,
-    getRow: vi.fn(async (_databaseId: string, tableId: string, rowId: string) => {
-      const row = table(tableId).get(rowId)
-      if (!row) throw missing()
-      return row
-    }),
+    getRow: vi.fn(
+      async (_databaseId: string, tableId: string, rowId: string) => {
+        const row = table(tableId).get(rowId)
+        if (!row) throw missing()
+        return row
+      }
+    ),
     createRow: vi.fn(
       async (
         _databaseId: string,
@@ -97,6 +99,18 @@ vi.mock("@/lib/appwrite", () => ({
     },
   }),
 }))
+vi.mock("@/lib/runtime-store", () => ({
+  RUNTIME_DATABASE_ID: "cfarm",
+  getRuntimeStore: () => ({
+    records: {
+      getRow: mocks.getRow,
+      createRow: mocks.createRow,
+      upsertRow: mocks.upsertRow,
+      updateRow: mocks.updateRow,
+      listRows: mocks.listRows,
+    },
+  }),
+}))
 
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: async () => ({ $id: "owner-1" }),
@@ -156,8 +170,7 @@ describe("output publication dual-write", () => {
       publication_status: "published",
       published_at: "2026-07-29T00:00:00.000Z",
       primary_post_id: "postfast-1",
-      primary_release_url:
-        "https://www.tiktok.com/@creator/video/native-1",
+      primary_release_url: "https://www.tiktok.com/@creator/video/native-1",
     })
   })
 

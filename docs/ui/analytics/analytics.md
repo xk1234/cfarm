@@ -3,7 +3,7 @@ title: Analytics
 description: Compare connected-account audience, post performance, and trends from stored social analytics snapshots.
 ---
 
-Route: `/app?view=analytics`
+Route: `/app/analytics`
 
 ![Desktop analytics](../assets/screenshots/desktop-analytics.png)
 
@@ -11,7 +11,7 @@ Route: `/app?view=analytics`
 
 ## Layout
 
-Owner: `components/realfarm/analytics/analytics-view.tsx`.
+Owner: `features/analytics/ui/analytics-view.tsx`.
 
 Connected accounts use the PostFast profile picture as the primary identity,
 with deterministic initials when no picture is available. A smaller provider

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { latestPublicationsByPost } from "@/components/realfarm/analytics/analytics-selectors"
+import { latestPublicationsByPost } from "@/features/analytics/ui/analytics-selectors"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
 

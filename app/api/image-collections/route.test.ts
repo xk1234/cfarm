@@ -1,40 +1,71 @@
-import { rm } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { clearTestTables } from "@/lib/test-helpers"
 import { writeJsonArrayStore } from "@/lib/json-store"
 
-// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
-//   data/image-collections.json -> image_collections; media -> Storage.
-let tempRoot: string
+type StoreInput = {
+  fileName: string
+  normalize?: (record: never) => unknown
+}
 
+const memory = vi.hoisted(() => ({
+  stores: new Map<string, unknown[]>(),
+}))
 
-const clearAll = () => clearTestTables("image_collections", "usage_ledger")
+vi.mock("@/lib/json-store", () => ({
+  readJsonArrayStore: vi.fn(async (input: StoreInput) =>
+    (memory.stores.get(input.fileName) ?? []).flatMap((record) => {
+      const normalized = input.normalize
+        ? input.normalize(structuredClone(record) as never)
+        : structuredClone(record)
+      return normalized == null ? [] : [normalized]
+    })
+  ),
+  writeJsonArrayStore: vi.fn(
+    async (input: StoreInput & { records: unknown[] }) => {
+      memory.stores.set(input.fileName, structuredClone(input.records))
+    }
+  ),
+  appendJsonArrayRecords: vi.fn(
+    async (input: StoreInput & { records: unknown[] }) => {
+      memory.stores.set(input.fileName, [
+        ...(memory.stores.get(input.fileName) ?? []),
+        ...structuredClone(input.records),
+      ])
+    }
+  ),
+  withJsonArrayStore: vi.fn(
+    async (
+      input: StoreInput & {
+        update: (records: unknown[]) => Promise<{
+          records: unknown[]
+          result?: unknown
+        }>
+      }
+    ) => {
+      const next = await input.update(
+        structuredClone(memory.stores.get(input.fileName) ?? [])
+      )
+      memory.stores.set(input.fileName, structuredClone(next.records))
+      return next.result
+    }
+  ),
+}))
 
-beforeEach(async () => {
-  await clearAll()
-  tempRoot = path.join(
-    os.tmpdir(),
-    `cfarm-image-route-${Date.now()}-${Math.random().toString(16).slice(2)}`
-  )
+vi.mock("@/lib/influlab", () => ({
+  listCurrentInfluLabCollections: vi.fn(async () => []),
+}))
+
+beforeEach(() => {
+  memory.stores.clear()
   vi.resetModules()
-  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
-
-afterEach(async () => {
-  vi.restoreAllMocks()
-  await rm(tempRoot, { recursive: true, force: true })
-})
-
-afterAll(clearAll)
 
 describe("GET /api/image-collections", () => {
   it("includes per-image last-used dates from the usage ledger", async () => {
     await writeJsonArrayStore({
-      rootDir: path.join(tempRoot, "data"),
+      rootDir: path.join(process.cwd(), "data"),
       fileName: "image-collections.json",
       key: "collections",
       records: [
@@ -53,7 +84,7 @@ describe("GET /api/image-collections", () => {
     })
     const { appendUsageRecords } = await import("@/lib/usage-ledger")
     await appendUsageRecords({
-      rootDir: path.join(tempRoot, "data"),
+      rootDir: path.join(process.cwd(), "data"),
       records: [
         {
           automation_id: "automation-a",

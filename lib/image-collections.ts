@@ -2,12 +2,7 @@ import { clean } from "@/lib/guards"
 import { createHash, randomUUID } from "node:crypto"
 import path from "node:path"
 
-import {
-  deleteAssetFromAppwrite,
-  persistAsset,
-  readAssetBytes,
-} from "@/lib/asset-storage"
-import { fetchPublicResource, readResponseBytes } from "@/lib/bounded-fetch"
+import { deleteAsset, persistAsset, readAssetBytes } from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type StoredImageCollection = {
@@ -370,7 +365,7 @@ async function deleteUnusedLocalCollectionFiles(
   }
 
   for (const filePath of filesToDelete.keys()) {
-    await deleteAssetFromAppwrite(filePath)
+    await deleteAsset(filePath)
   }
 
   return filesToDelete.size
@@ -491,11 +486,7 @@ async function downloadImageToCollectionFile(input: {
   mediaType?: "image" | "video"
   fetchImpl?: typeof fetch
 }) {
-  const response = await fetchPublicResource(input.url, {
-    fetchImpl: input.fetchImpl,
-    trustedHosts: input.fetchImpl ? [new URL(input.url).hostname] : undefined,
-    timeoutMs: 30_000,
-    maxRedirects: 3,
+  const response = await (input.fetchImpl ?? fetch)(input.url, {
     headers: {
       Accept:
         "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
@@ -519,7 +510,10 @@ async function downloadImageToCollectionFile(input: {
     )
   }
 
-  const bytes = await readResponseBytes(response, MAX_IMPORT_IMAGE_BYTES)
+  const bytes = Buffer.from(await response.arrayBuffer())
+  if (bytes.byteLength > MAX_IMPORT_IMAGE_BYTES) {
+    throw new Error(`Image ${input.index + 1} is too large to import`)
+  }
   const hash = createHash("sha256").update(bytes).digest("hex")
 
   const extension =

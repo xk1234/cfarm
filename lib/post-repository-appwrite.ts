@@ -1,9 +1,8 @@
 import crypto from "node:crypto"
-import { Query } from "node-appwrite"
-
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clean } from "@/lib/guards"
 import { PostIdentityConflictError } from "@/lib/post-repository-errors"
+import { RecordQuery as Query } from "@/lib/record-query"
+import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 import {
   normalizeIdentityProvider,
   normalizePost,
@@ -105,7 +104,7 @@ export class AppwritePostRepository implements AppwritePostStore {
       ]
       if (cursor) queries.push(Query.cursorAfter(cursor))
       const response = await tables().listRows(
-        APPWRITE_DATABASE_ID,
+        RUNTIME_DATABASE_ID,
         POSTS_TABLE,
         queries
       )
@@ -176,7 +175,7 @@ export class AppwritePostRepository implements AppwritePostStore {
     const post = mergePost(stored?.post ?? null, incoming, targetId)
     const writeState = options.writeState ?? stored?.writeState ?? "reconciled"
     await tables().upsertRow(
-      APPWRITE_DATABASE_ID,
+      RUNTIME_DATABASE_ID,
       POSTS_TABLE,
       postRowId(post.ownerId, post.id),
       postRowFields(post, {
@@ -249,7 +248,7 @@ export class AppwritePostRepository implements AppwritePostStore {
       ]
       if (cursor) queries.push(Query.cursorAfter(cursor))
       const response = await tables().listRows(
-        APPWRITE_DATABASE_ID,
+        RUNTIME_DATABASE_ID,
         POST_IDENTITIES_TABLE,
         queries
       )
@@ -259,14 +258,14 @@ export class AppwritePostRepository implements AppwritePostStore {
     }
     for (const identity of identities) {
       await tables().deleteRow(
-        APPWRITE_DATABASE_ID,
+        RUNTIME_DATABASE_ID,
         POST_IDENTITIES_TABLE,
         identity.$id
       )
     }
     try {
       await tables().deleteRow(
-        APPWRITE_DATABASE_ID,
+        RUNTIME_DATABASE_ID,
         POSTS_TABLE,
         postRowId(ownerId, current.id)
       )
@@ -288,7 +287,7 @@ export class AppwritePostRepository implements AppwritePostStore {
     const ownerId = required(ownerIdInput, "post owner")
     const id = required(idInput, "canonical post id")
     await tables().updateRow(
-      APPWRITE_DATABASE_ID,
+      RUNTIME_DATABASE_ID,
       POSTS_TABLE,
       postRowId(ownerId, id),
       {
@@ -317,7 +316,7 @@ export class AppwritePostRepository implements AppwritePostStore {
   } | null> {
     try {
       const row = (await tables().getRow(
-        APPWRITE_DATABASE_ID,
+        RUNTIME_DATABASE_ID,
         POSTS_TABLE,
         postRowId(ownerId, id)
       )) as PostRow
@@ -385,7 +384,7 @@ async function reserveIdentity(
   const rowId = postIdentityRowId(claim)
   try {
     const created = await tables().createRow(
-      APPWRITE_DATABASE_ID,
+      RUNTIME_DATABASE_ID,
       POST_IDENTITIES_TABLE,
       rowId,
       {
@@ -418,7 +417,7 @@ async function getIdentity(
 ): Promise<PostIdentityRecord | null> {
   try {
     const row = (await tables().getRow(
-      APPWRITE_DATABASE_ID,
+      RUNTIME_DATABASE_ID,
       POST_IDENTITIES_TABLE,
       postIdentityRowId(claim)
     )) as IdentityRow
@@ -505,7 +504,7 @@ export async function getCanonicalPostOnce(
   const id = required(idInput, "canonical post id")
   try {
     const row = (await tables().getRow(
-      APPWRITE_DATABASE_ID,
+      RUNTIME_DATABASE_ID,
       POSTS_TABLE,
       postRowId(ownerId, id)
     )) as PostRow
@@ -522,7 +521,7 @@ export async function createCanonicalPostOnce(postInput: Post) {
   const post = normalizePost(postInput)
   if (!post) throw new Error("A valid canonical post is required.")
   await tables().createRow(
-    APPWRITE_DATABASE_ID,
+    RUNTIME_DATABASE_ID,
     POSTS_TABLE,
     postRowId(post.ownerId, post.id),
     postRowFields(post, {
@@ -538,7 +537,7 @@ export async function updateCanonicalPostOnce(postInput: Post) {
   const post = normalizePost(postInput)
   if (!post) throw new Error("A valid canonical post is required.")
   await tables().updateRow(
-    APPWRITE_DATABASE_ID,
+    RUNTIME_DATABASE_ID,
     POSTS_TABLE,
     postRowId(post.ownerId, post.id),
     postRowFields(post, {
@@ -566,7 +565,7 @@ export async function createPostIdentityOnce(
   const now = new Date().toISOString()
   const identityHash = postIdentityHash(claim)
   const row = (await tables().createRow(
-    APPWRITE_DATABASE_ID,
+    RUNTIME_DATABASE_ID,
     POST_IDENTITIES_TABLE,
     postIdentityRowId(claim),
     {
@@ -731,9 +730,7 @@ function deterministicRowId(prefix: string, values: string[]) {
 }
 
 function tables() {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
-  return aw.tables
+  return getRuntimeStore().records
 }
 
 function appwriteStatus(error: unknown) {

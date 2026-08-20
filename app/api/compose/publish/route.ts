@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import type { ComposerValue } from "@/components/realfarm/composer/composer-types"
+import type { ComposerValue } from "@/features/composer/domain/composer"
 import { getCurrentUser } from "@/lib/auth"
 import { resolveComposerSources } from "@/lib/compose-sources.server"
 import {

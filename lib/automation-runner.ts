@@ -7,24 +7,12 @@ import type {
   AutomationRunStatus,
 } from "@/lib/automation-run-contract"
 import { splitDebateHook } from "@/lib/debate-hook"
-import { randomUUID } from "node:crypto"
 import path from "node:path"
 
-import {
-  getAutomationRecord,
-  listAutomationRecords,
-  patchAutomationRecord,
-  type AutomationRecord,
-} from "@/lib/automations"
+import { listAutomationRecords } from "@/lib/automations"
 import { listAvailableImageCollections } from "@/lib/available-image-collections"
 import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { openRouterJson } from "@/lib/openrouter"
-import { automationGenerationBlockers } from "@/lib/automation-readiness"
-import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
-import {
-  clearAutomationRunProgress,
-  setAutomationRunProgress,
-} from "@/lib/automation-run-progress"
 import {
   deeplTargetLanguage,
   translateTextsWithDeepL,
@@ -42,22 +30,17 @@ import {
   slideshowStructurePromptInstructions,
 } from "@/lib/slideshow-plan-core"
 import {
-  automationCollectionIds,
   automationFormatSection,
   automationHookItems,
-  automationHooks,
-  automationPostingMode,
   automationPublishType,
   automationSlideDesigns,
-  automationTotalSlideCount,
   type AutomationSchema,
   type AutomationContentRoute,
 } from "@/lib/realfarm-automation"
 import {
   collectionAliases,
   storedCollectionId,
-} from "@/lib/realfarm-collections"
-import { dueAutomationSlots } from "@/lib/automation-slots"
+} from "@/features/collections/domain/collections"
 import {
   chooseSlideshowImages,
   defaultSlideshowTextModel,
@@ -82,15 +65,6 @@ import {
 } from "@/lib/postfast-posts"
 import { markOutputPostPublished } from "@/lib/post-writer"
 import {
-  publishAutomationRun,
-  recordAwaitingManualAutomationRun,
-  recordFailedAutomationRun,
-  recordReadyForReviewAutomationRun,
-} from "@/lib/publishing"
-import { enqueueReminder } from "@/lib/reminders"
-import { uploadPostFastMediaSources } from "@/lib/postfast-media-upload"
-import {
-  createSlideshowResultRecord,
   defaultSlideshowSettings,
   listSlideshowRecords,
   type SlideshowRecord,
@@ -106,7 +80,6 @@ import {
   createOvalIconLayout,
   type OvalIconLayout,
 } from "@/lib/slideshow-oval-icons"
-import type { ResultRecord } from "@/lib/results"
 import {
   automationSchemaToTempSlideTestingAutomation,
   type TempSlideSpec,
@@ -133,7 +106,6 @@ import {
   readJsonArrayRecord,
   readJsonArrayStore,
   upsertJsonArrayRecord,
-  withJsonArrayStore,
   writeJsonArrayStore,
 } from "@/lib/json-store"
 
@@ -331,12 +303,16 @@ export async function listAutomationRuns(
     automationRootDir?: string
     postfastRootDir?: string
     automationId?: string
+    runId?: string
     limit?: number
     postRecords?: PostFastPostRecord[] | Promise<PostFastPostRecord[]>
   } = {}
 ) {
   const runRootDir = input.runRootDir ?? defaultRunRootDir
-  const runs = await readAutomationRuns(runRootDir)
+  const requestedRunId = clean(input.runId)
+  const runs = requestedRunId
+    ? await readRequestedAutomationRun(runRootDir, requestedRunId)
+    : await readAutomationRuns(runRootDir)
   const now = Date.now()
   let reconciled = false
   const settledRuns = runs.map((run) => {
@@ -357,7 +333,13 @@ export async function listAutomationRuns(
     return run
   })
   if (reconciled) {
-    await writeAutomationRuns(runRootDir, settledRuns)
+    if (requestedRunId) {
+      await Promise.all(
+        settledRuns.map((run) => updateAutomationRun(runRootDir, run))
+      )
+    } else {
+      await writeAutomationRuns(runRootDir, settledRuns)
+    }
   }
   const filteredRuns = input.automationId
     ? settledRuns.filter((run) => run.automationId === input.automationId)
@@ -378,6 +360,15 @@ export async function listAutomationRuns(
     input.postfastRootDir,
     input.postRecords
   )
+}
+
+async function readRequestedAutomationRun(rootDir: string, id: string) {
+  const direct = await readAutomationRunRecord(rootDir, id)
+  if (direct) return [direct]
+  const bySlideshow = (await readAutomationRuns(rootDir)).find(
+    (run) => run.slideshowId === id
+  )
+  return bySlideshow ? [bySlideshow] : []
 }
 
 function automationRunTimestamp(run: AutomationRunRecord) {
@@ -585,22 +576,6 @@ export function automationPostIntentOptions(schema: AutomationSchema) {
     publishMode: "manual" as const,
     destinations: [],
   }
-}
-
-function reminderAvailability(value: string) {
-  const timestamp = Date.parse(value)
-  return Number.isFinite(timestamp) && timestamp > Date.now()
-    ? new Date(timestamp)
-    : undefined
-}
-
-function automationPublishContent(plan: AutomationRunPlan): string {
-  const caption = requiredGeneratedValue("caption", plan.caption)
-  const hashtags = requiredGeneratedValue("hashtags", plan.hashtags)
-  if (!caption.includes(hashtags)) {
-    return `${caption}\n\n${hashtags}`.trim()
-  }
-  return caption
 }
 
 async function enrichRunsWithRenderedSlides(
@@ -1278,50 +1253,6 @@ async function selectAutomationHook(input: {
   })
 }
 
-async function recordRunUsage(input: {
-  rootDir?: string
-  automationId: string
-  runId: string
-  plan: AutomationRunPlan
-  usedAt?: string
-}) {
-  const usedAt = input.usedAt ?? new Date().toISOString()
-  const records: UsageRecord[] = []
-  for (const slide of input.plan.slides) {
-    const imageKey = slide.imageKey || slide.imageUrl
-    if (!imageKey) {
-      continue
-    }
-    records.push({
-      automation_id: input.automationId,
-      kind: "image",
-      key: imageKey,
-      run_id: input.runId,
-      used_at: usedAt,
-    })
-  }
-  const textKey = textUsageKeyFromPlan(input.plan)
-  if (textKey) {
-    records.push({
-      automation_id: input.automationId,
-      kind: "text",
-      key: textKey,
-      run_id: input.runId,
-      used_at: usedAt,
-    })
-  }
-  for (const headingKey of headingUsageKeysFromPlan(input.plan)) {
-    records.push({
-      automation_id: input.automationId,
-      kind: "heading",
-      key: headingKey,
-      run_id: input.runId,
-      used_at: usedAt,
-    })
-  }
-  await appendUsageRecords({ rootDir: input.rootDir, records })
-}
-
 async function translateAutomationSlides(input: {
   language: string
   slides: AutomationRunSlide[]
@@ -1422,10 +1353,9 @@ export async function planAutomationSlideSequence(input: {
   ]
     .filter(Boolean)
     .join("\n")
-  const managedPrompt = await getLumenclipChatPrompt(
-    "slideshowSequencePlan",
-    { planning_context: planningContext }
-  )
+  const managedPrompt = await getLumenclipChatPrompt("slideshowSequencePlan", {
+    planning_context: planningContext,
+  })
   const result = await openRouterJson({
     apiKey,
     model: input.model,
@@ -1516,14 +1446,6 @@ function textUsageKeyFromGeneratedOutput(output: TempSlideStructuredOutput) {
     output.title,
     output.caption,
     ...Object.values(output.text),
-  ])
-}
-
-function textUsageKeyFromPlan(plan: AutomationRunPlan) {
-  return normalizedTextSignature([
-    plan.title,
-    plan.caption,
-    ...plan.slides.map((slide) => slide.text),
   ])
 }
 
@@ -2040,10 +1962,6 @@ export function automationSlideshowSettings(schema: AutomationSchema) {
     sound_name: clean(tiktok.slideshow_sound_name),
     sound_url: clean(tiktok.slideshow_sound_url),
   })
-}
-
-function automationSlideshowPrompt(hook: string) {
-  return hook ? `Hook: ${hook}` : ""
 }
 
 function textItemPosition(

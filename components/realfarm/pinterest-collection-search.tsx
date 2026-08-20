@@ -20,7 +20,7 @@ import {
   type CreatedImageCollection,
   type PinterestCollectionCreatePayload,
   type StoredImageCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
   isPinterestBoardUrl,

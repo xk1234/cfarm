@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { flushSync } from "react-dom"
 import { toast } from "sonner"
 import { IconChevronLeft, IconPlus } from "@tabler/icons-react"
 import { LuPanelsTopLeft, LuSettings2, LuType } from "react-icons/lu"
@@ -12,7 +11,7 @@ import {
   queueWorkflowAndWait,
 } from "@/lib/client-api"
 import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
-import type { CreatedImageCollection } from "@/lib/realfarm-collections"
+import type { CreatedImageCollection } from "@/features/collections/domain/collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import type { AutomationSchema } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
@@ -20,8 +19,6 @@ import { cn } from "@/lib/utils"
 import {
   automationGenerationIssue,
   cloneAutomationSchema,
-  generationPlaceholderRun,
-  reconcileGenerationPlaceholders,
   wait,
 } from "./run-helpers"
 import type {
@@ -30,6 +27,7 @@ import type {
   AutomationRunApiRecord,
 } from "./types"
 import { AutomationGeneralSettingsPanel } from "./general-settings"
+import { GeneratedSlideshowViewerModal } from "./generated-slideshow-viewer"
 import { PromptConfigPanel } from "./prompt-settings"
 import { AutomationFormatPanel } from "./slideshow-format-panel"
 import { SlideSequencePanel } from "./slide-sequence-panel"
@@ -41,6 +39,7 @@ import {
 export function AutomationSettingsDrawer({
   modal = false,
   automation,
+  initialRunId,
   config,
   collections,
   selectedSound,
@@ -49,8 +48,6 @@ export function AutomationSettingsDrawer({
   onCreateCollection,
   onRename,
   onConfigChange,
-  onGenerationRunUpdate,
-  onGenerationRunRemove,
   onDuplicate,
   onDelete,
   onClose,
@@ -66,8 +63,6 @@ export function AutomationSettingsDrawer({
   onCreateCollection: (collection: CreatedImageCollection) => void
   onRename: (name: string) => void
   onConfigChange: (config: AutomationSchema) => void
-  onGenerationRunUpdate: (run: AutomationRunApiRecord) => void
-  onGenerationRunRemove: (runId: string) => void
   onEditSocialAccounts: () => void
   onDuplicate: () => Promise<void>
   onDelete: () => void
@@ -86,7 +81,9 @@ export function AutomationSettingsDrawer({
   const [activeGenerationCount, setActiveGenerationCount] = useState(0)
   const generating = activeGenerationCount > 0
   const [duplicating, setDuplicating] = useState(false)
-  const [, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
+  const [linkedRun, setLinkedRun] = useState<AutomationRunApiRecord | null>(
+    null
+  )
   const automationKind = draftConfig.automationKind
   const effectiveDraftConfig = useMemo(
     () => ({
@@ -165,64 +162,26 @@ export function AutomationSettingsDrawer({
   }, [configChanged, effectiveDraftConfigJson, queueConfigSave])
 
   useEffect(() => {
+    if (!initialRunId || automation.automationKind === "ugc") return
     let active = true
-    let timer: ReturnType<typeof setTimeout> | undefined
-
-    function scheduleRunRefresh(delay: number) {
-      timer = setTimeout(() => {
+    void fetchJsonWithTimeout<{ runs?: AutomationRunApiRecord[] }>(
+      `/api/templates/runs?templateId=${encodeURIComponent(automation.id)}&runId=${encodeURIComponent(initialRunId)}&limit=1`,
+      { toastOnError: false }
+    )
+      .then((payload) => {
         if (!active) return
-        if (document.visibilityState === "hidden") {
-          scheduleRunRefresh(30_000)
-          return
-        }
-        void loadRuns()
-      }, delay)
-    }
-
-    async function loadRuns() {
-      try {
-        const payload = await fetchJsonWithTimeout<{
-          runs?: AutomationRunApiRecord[]
-        }>(
-          `/api/templates/runs?templateId=${encodeURIComponent(automation.id)}&limit=100`,
-          {
-            toastOnError: false,
-          }
+        const run = (payload.runs ?? []).find(
+          (candidate) =>
+            candidate.id === initialRunId ||
+            candidate.slideshowId === initialRunId
         )
-        if (!active) {
-          return
-        }
-        const runs = payload.runs ?? []
-        const hasInFlight = runs.some((run) => run.status === "running")
-        setRecentRuns((current) => {
-          return reconcileGenerationPlaceholders({
-            current,
-            persisted: runs,
-            automationId: automation.id,
-            generating,
-          })
-        })
-        // While anything is generating (including a run discovered after a
-        // page reload), keep polling so the live progress stage updates.
-        if (hasInFlight || generating) {
-          scheduleRunRefresh(15_000)
-        }
-      } catch {
-        if (active && generating) {
-          scheduleRunRefresh(30_000)
-        }
-      }
-    }
-
-    void loadRuns()
-
+        if (run) setLinkedRun(run)
+      })
+      .catch(() => undefined)
     return () => {
       active = false
-      if (timer) {
-        clearTimeout(timer)
-      }
     }
-  }, [automation.id, generating])
+  }, [automation.automationKind, automation.id, initialRunId])
 
   function saveName() {
     const nextName = draftName.trim()
@@ -333,38 +292,12 @@ export function AutomationSettingsDrawer({
 
     const loadingStartedAt = Date.now()
     const requestId = crypto.randomUUID()
-    const placeholderRun = generationPlaceholderRun({
-      automation,
-      config: generationConfig,
-      requestId,
-    })
-    flushSync(() => {
-      setActiveGenerationCount((count) => count + 1)
-      setActiveTab("editor")
-      setRecentRuns((current) => [
-        placeholderRun,
-        ...current.filter((item) => item.id !== placeholderRun.id),
-      ])
-    })
-    onGenerationRunUpdate(placeholderRun)
-    function settleGeneration(run?: AutomationRunApiRecord) {
-      setRecentRuns((current) =>
-        run
-          ? [
-              run,
-              ...current.filter(
-                (item) => item.id !== run.id && item.id !== placeholderRun.id
-              ),
-            ]
-          : current.filter((item) => item.id !== placeholderRun.id)
-      )
-      onGenerationRunRemove(placeholderRun.id)
-      if (run) onGenerationRunUpdate(run)
-    }
+    setActiveGenerationCount((count) => count + 1)
+    setActiveTab("editor")
 
     try {
       // Persist the exact editor state first, then let the runner reload the
-      // canonical Appwrite row. Passing a client-side schema override here can
+      // canonical database row. Passing a client-side schema override here can
       // resurrect stale prompt/style fields from a long-open drawer.
       await persistDraftConfig(automation.id, generationConfig)
       const payload = await queueWorkflowAndWait<AutomationRunApiPayload>(
@@ -395,19 +328,14 @@ export function AutomationSettingsDrawer({
               : payload.skipped?.some((item) => item.reason === "no_images")
                 ? "Choose an image collection with at least one image before generating."
                 : "No slideshow slides were generated for this template.")
-        settleGeneration(run)
         showGenerationError(message)
         return
       }
 
-      settleGeneration(run)
+      toast.success("Slideshow generated")
+      if (automationKind === "slideshow") setLinkedRun(run)
       setActiveTab("editor")
     } catch (error) {
-      const failedRun = await loadFailedRunForRequest(
-        automation.id,
-        requestId
-      ).catch(() => undefined)
-      settleGeneration(failedRun)
       showGenerationError(
         getApiErrorMessage(error, "Failed to generate slideshow")
       )
@@ -588,22 +516,15 @@ export function AutomationSettingsDrawer({
           />
         ) : null}
       </div>
+      {linkedRun ? (
+        <GeneratedSlideshowViewerModal
+          run={linkedRun}
+          onRunChanged={setLinkedRun}
+          onDeleted={() => setLinkedRun(null)}
+          onClose={() => setLinkedRun(null)}
+        />
+      ) : null}
     </div>
-  )
-}
-
-async function loadFailedRunForRequest(
-  automationId: string,
-  requestId: string
-) {
-  const payload = await fetchJsonWithTimeout<{
-    runs?: AutomationRunApiRecord[]
-  }>(
-    `/api/templates/runs?templateId=${encodeURIComponent(automationId)}&limit=20`,
-    { timeoutMs: 12_000, toastOnError: false }
-  )
-  return payload.runs?.find(
-    (run) => run.requestId === requestId && run.status === "failed"
   )
 }
 

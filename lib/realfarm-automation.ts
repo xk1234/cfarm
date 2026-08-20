@@ -11,7 +11,59 @@ import {
   type PostFastProviderControlsByProvider,
 } from "@/lib/postfast-provider-controls"
 import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
-import type { Automation } from "@/lib/realfarm-data"
+import type {
+  Automation,
+  AutomationAspectRatio,
+  AutomationDay,
+  AutomationImageFit,
+  AutomationImageGrid,
+  AutomationImageMode,
+  AutomationLifecycleStatus,
+  AutomationPostingMode,
+  AutomationSchedule,
+  AutomationTextAlign,
+  AutomationTextAnchor,
+  AutomationTextPosition,
+  ImageCollectionConfig,
+  PromptFormatting,
+  TikTokPostMode,
+  TikTokPublishType,
+  TikTokVisibility,
+} from "@/lib/automation-base-contract"
+
+export type {
+  AutomationAspectRatio,
+  AutomationDay,
+  AutomationImageFit,
+  AutomationImageGrid,
+  AutomationImageMode,
+  AutomationLifecycleStatus,
+  AutomationPostingMode,
+  AutomationSchedule,
+  AutomationStatus,
+  AutomationTextAlign,
+  AutomationTextAnchor,
+  AutomationTextPosition,
+  ImageCollectionConfig,
+  PromptFormatting,
+  TikTokPostMode,
+  TikTokPublishType,
+  TikTokVisibility,
+  Time,
+} from "@/lib/automation-base-contract"
+
+export {
+  alignmentLabel,
+  anchorLabel,
+  aspectRatioLabel,
+  imageGridLabel,
+  labelToAlignment,
+  labelToAnchor,
+  labelToAspectRatio,
+  labelToImageGrid,
+  labelToWordLength,
+  wordLengthLabel,
+} from "@/lib/realfarm-automation-labels"
 import {
   defaultAutomationLanguage,
   defaultAutomationPublishType,
@@ -26,52 +78,6 @@ import {
 } from "@/lib/slideshow-plan-core"
 
 export { applyHookCase } from "@/lib/slideshow-plan-core"
-
-export type AutomationStatus = "paused" | "live"
-// Canonical persisted/lifecycle status. `unknown` covers records that predate
-// the enum. This is the single source of truth for automation status shared by
-// the stored record and the UI summary view.
-export type AutomationLifecycleStatus = AutomationStatus | "unknown"
-export type AutomationAspectRatio =
-  "9:16" | "4:5" | "3:4" | "4:3" | "3:2" | "1:1"
-export type AutomationImageFit = "cover" | "contain" | "fit"
-export type AutomationImageGrid = "none" | "2x2" | "1x2" | "1x3" | "oval-icons"
-export type AutomationImageMode = "collection" | "single_image"
-export type AutomationTextAlign = "left" | "center" | "right"
-export type AutomationTextAnchor = "padded" | "flush"
-export type AutomationTextPosition = "top" | "center" | "bottom"
-export type TikTokVisibility =
-  "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "SELF_ONLY"
-export type TikTokPostMode = "MEDIA_UPLOAD" | "DIRECT_POST"
-export type TikTokPublishType = "slideshow" | "video"
-export type AutomationDay =
-  "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun"
-export type Time = string
-
-export type PromptFormatting = {
-  style: string
-  narrative: string
-  num_of_slides: number
-  slide_count_min?: number
-  slide_count_max?: number
-  slide_planning_prompt?: string
-  hook_case?: import("@/lib/hook-casing").HookCaseMode
-}
-
-export type ImageCollectionConfig = {
-  first_slide: {
-    collection: string
-    mode: AutomationImageMode
-    single_image: string | null
-  }
-  all_slides: string
-  cta_slide: {
-    check: boolean
-    cta_collection_id: string
-    image_id: string | null
-  }
-  video_demo_asset_id?: string
-}
 
 export type PostTextSetting = {
   mode: "prompt" | "static"
@@ -223,19 +229,6 @@ export type AutomationSocialPostSettings = Partial<{
 export type AutomationSocialPublishAs = Partial<
   Record<AutomationSocialProvider, TikTokPublishType>
 >
-
-export type AutomationSchedule = {
-  timezone: string
-  posting_times: {
-    time: Time
-    days: AutomationDay[]
-    enabled?: boolean
-  }[]
-  paused?: boolean
-  jitter_minutes?: number
-}
-
-export type AutomationPostingMode = "manual" | "review" | "auto"
 
 export type AutomationReusePolicy = {
   image_exclusion_days?: number
@@ -1703,50 +1696,6 @@ export function automationCreatedAt(automation: Automation, index: number) {
     return new Date(maybeAutomation.created_at).getTime()
   }
   return DateTime.now().minus({ days: index }).toMillis()
-}
-
-export function labelToAspectRatio(value: string): AutomationAspectRatio {
-  return value as AutomationAspectRatio
-}
-
-export function aspectRatioLabel(value: AutomationAspectRatio) {
-  return value
-}
-
-export function labelToImageGrid(value: string): AutomationImageGrid {
-  if (value === "None") return "none"
-  if (value === "Oval icons") return "oval-icons"
-  return value as AutomationImageGrid
-}
-
-export function imageGridLabel(value: AutomationImageGrid) {
-  if (value === "none") return "None"
-  if (value === "oval-icons") return "Oval icons"
-  return value
-}
-
-export function wordLengthLabel(value: number) {
-  return `${value} words`
-}
-
-export function labelToWordLength(value: string) {
-  return Number(value.replace(" words", "")) || 5
-}
-
-export function alignmentLabel(value: AutomationTextAlign) {
-  return `${value[0].toUpperCase()}${value.slice(1)} align`
-}
-
-export function labelToAlignment(value: string): AutomationTextAlign {
-  return value.toLowerCase().replace(" align", "") as AutomationTextAlign
-}
-
-export function anchorLabel(value: AutomationTextAnchor) {
-  return value[0].toUpperCase() + value.slice(1)
-}
-
-export function labelToAnchor(value: string): AutomationTextAnchor {
-  return value.toLowerCase() as AutomationTextAnchor
 }
 
 function defaultAutomationSection(

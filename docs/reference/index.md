@@ -9,6 +9,8 @@ looking up product behavior.
 
 - [Documentation rules](/docs/reference/documentation-rules) — which section
   owns each kind of content, and when to update it.
+- [Code organization](/docs/reference/code-organization) — route, feature,
+  runtime, and dependency ownership conventions.
 - [Agent GitHub publishing](/docs/reference/agent-github-publishing) — the
   commit, pull request, merge, and deployment workflow for agents sharing the
   worktree.

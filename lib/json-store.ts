@@ -1,6 +1,5 @@
-import { Query } from "node-appwrite"
-
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { RecordQuery as Query } from "@/lib/record-query"
+import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 import {
   ID_KEYS,
   NAME_KEYS,
@@ -47,9 +46,9 @@ type JsonArrayStoreUpdate<T, R> = {
 const storeLocks = new Map<string, Promise<void>>()
 
 // ---------------------------------------------------------------------------
-// Appwrite-only record store. There is no filesystem fallback: every mapped
-// store lives in Appwrite TablesDB. Unconfigured Appwrite or an unmapped store
-// is a hard error rather than a silent local write.
+// Railway-only record store. There is no filesystem fallback: every mapped
+// store lives in PostgreSQL, and an unmapped store is a hard error rather than
+// a silent local write.
 // ---------------------------------------------------------------------------
 
 export async function readJsonArrayStore<T>(
@@ -69,8 +68,7 @@ export async function countJsonArrayStore<T>(
 ): Promise<number> {
   const route = requireRouteFor(input)
   const ownerIds = await ownersForRead(route)
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
   const queries = [...(input.queries ?? []), Query.limit(1)]
   if (isConsolidated(route)) {
     queries.unshift(Query.equal("source_key", [route.sourceKey]))
@@ -78,8 +76,8 @@ export async function countJsonArrayStore<T>(
   if (ownerIds?.length) {
     queries.unshift(Query.equal("owner_id", ownerIds))
   }
-  const response = await aw.tables.listRows(
-    APPWRITE_DATABASE_ID,
+  const response = await aw.records.listRows(
+    RUNTIME_DATABASE_ID,
     route.table,
     queries
   )
@@ -95,13 +93,12 @@ export async function readJsonArrayRecord<T>(
   const rowIds = ownerIds?.length
     ? ownerIds.map((ownerId) => storeOwnedRowId(route, ownerId, input.id, 0))
     : [storeRowId(route, input.id, 0)]
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
 
   for (const rowId of rowIds) {
     try {
-      const row = (await aw.tables.getRow(
-        APPWRITE_DATABASE_ID,
+      const row = (await aw.records.getRow(
+        RUNTIME_DATABASE_ID,
         route.table,
         rowId
       )) as Record<string, unknown>
@@ -194,11 +191,10 @@ export async function deleteJsonArrayRecord(input: {
   const rowId = ownerId
     ? storeOwnedRowId(route, ownerId, input.id, 0)
     : storeRowId(route, input.id, 0)
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
   try {
     await retryTransient(() =>
-      aw.tables.deleteRow(APPWRITE_DATABASE_ID, route.table, rowId)
+      aw.records.deleteRow(RUNTIME_DATABASE_ID, route.table, rowId)
     )
     if (route.table === "outputs") await deleteOutputMedia(aw, [rowId])
     return true
@@ -233,29 +229,24 @@ export async function withJsonArrayStore<T, R = void>(
 }
 
 // ---------------------------------------------------------------------------
-// Routing (Appwrite required)
+// Store routing
 // ---------------------------------------------------------------------------
 
 function requireRouteFor(input: {
   rootDir: string
   fileName: string
 }): StoreRoute {
-  if (!getAppwrite()) {
-    throw new Error(
-      "Appwrite is not configured. Set APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, and APPWRITE_API_KEY — this app is Appwrite-only and has no filesystem fallback."
-    )
-  }
   const route = routeForStore(input.rootDir, input.fileName)
   if (!route) {
     throw new Error(
-      `No Appwrite table is mapped for store "${input.fileName}". Add it to STORE_TABLES in lib/appwrite-stores.ts.`
+      `No Railway record table is mapped for store "${input.fileName}". Add it to STORE_TABLES in lib/appwrite-stores.ts.`
     )
   }
   return route
 }
 
 // ---------------------------------------------------------------------------
-// Appwrite TablesDB implementation
+// Railway record-store implementation
 // ---------------------------------------------------------------------------
 
 const PAGE = 100
@@ -270,10 +261,7 @@ async function awReadTable<T>(
     order?: "asc" | "desc" | "none"
   } = {}
 ): Promise<T[]> {
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured.")
-  }
+  const aw = getRuntimeStore()
   const out: T[] = []
   const requestedLimit = Number.isFinite(options.limit)
     ? Math.max(1, Math.floor(options.limit as number))
@@ -298,8 +286,8 @@ async function awReadTable<T>(
     }
     if (ownerIds?.length) queries.unshift(Query.equal("owner_id", ownerIds))
     if (cursor) queries.push(Query.cursorAfter(cursor))
-    const res = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    const res = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       route.table,
       queries
     )
@@ -364,10 +352,7 @@ async function awWriteTable<T>(
   records: T[],
   ownerId: string | null
 ): Promise<void> {
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured.")
-  }
+  const aw = getRuntimeStore()
 
   const desired = records.map((rec, index) => {
     const rid = pickField(rec, ID_KEYS)
@@ -407,8 +392,8 @@ async function awWriteTable<T>(
     }
     if (ownerId) queries.unshift(Query.equal("owner_id", [ownerId]))
     if (cursor) queries.push(Query.cursorAfter(cursor))
-    const res = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    const res = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       route.table,
       queries
     )
@@ -429,7 +414,7 @@ async function awWriteTable<T>(
     cursor = String(rows[rows.length - 1].$id)
   }
 
-  // Keep each collection's physical Appwrite row stable when its domain id is
+  // Keep each collection's physical storage row stable when its domain id is
   // normalized or the list is reordered. Domain ids live inside the payload;
   // row ids are storage identities and do not need to match them.
   for (const item of desired) {
@@ -453,7 +438,7 @@ async function awWriteTable<T>(
   // Upsert desired rows (bounded concurrency).
   await runPool(desired, 3, async (d) => {
     await retryTransient(() =>
-      aw.tables.upsertRow(APPWRITE_DATABASE_ID, route.table, d.id, d.payload)
+      aw.records.upsertRow(RUNTIME_DATABASE_ID, route.table, d.id, d.payload)
     )
     if (route.table === "outputs") {
       if (!ownerId) throw new Error("Output records require an owner id.")
@@ -464,7 +449,7 @@ async function awWriteTable<T>(
   // Delete rows no longer present.
   await runPool(toDelete, 3, async (id) => {
     await retryTransient(() =>
-      aw.tables.deleteRow(APPWRITE_DATABASE_ID, route.table, id)
+      aw.records.deleteRow(RUNTIME_DATABASE_ID, route.table, id)
     )
     if (route.table === "outputs") await deleteOutputMedia(aw, [id])
   })
@@ -481,15 +466,14 @@ async function awUpsertRecord<T>(
   ownerId: string | null,
   position: "first" | "last"
 ) {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
   const rowId = ownerId
     ? storeOwnedRowId(route, ownerId, rid, 0)
     : storeRowId(route, rid, 0)
   let existingOrd: number | null = null
   try {
-    const existing = (await aw.tables.getRow(
-      APPWRITE_DATABASE_ID,
+    const existing = (await aw.records.getRow(
+      RUNTIME_DATABASE_ID,
       route.table,
       rowId
     )) as Record<string, unknown>
@@ -507,7 +491,7 @@ async function awUpsertRecord<T>(
       : { storedData: ownedRecord, media: [] }
   const ord = existingOrd ?? (position === "first" ? -Date.now() : Date.now())
   await retryTransient(() =>
-    aw.tables.upsertRow(APPWRITE_DATABASE_ID, route.table, rowId, {
+    aw.records.upsertRow(RUNTIME_DATABASE_ID, route.table, rowId, {
       rid: rid.slice(0, 1024),
       ...canonicalRowFields(route, record, extracted.storedData),
       ord,
@@ -526,8 +510,7 @@ async function awAppendRecord<T>(
   rid: string,
   ownerId: string | null
 ) {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
   const rowId = ownerId
     ? storeOwnedRowId(route, ownerId, rid, 0)
     : storeRowId(route, rid, 0)
@@ -538,7 +521,7 @@ async function awAppendRecord<T>(
       : { storedData: ownedRecord, media: [] }
   try {
     await retryTransient(() =>
-      aw.tables.createRow(APPWRITE_DATABASE_ID, route.table, rowId, {
+      aw.records.createRow(RUNTIME_DATABASE_ID, route.table, rowId, {
         rid: rid.slice(0, 1024),
         ...canonicalRowFields(route, record, extracted.storedData),
         ord: -Date.now(),
@@ -576,7 +559,7 @@ async function ownerForRoute(route: StoreRoute): Promise<string | null> {
   throw new Error(`Authentication is required to access ${route.table}.`)
 }
 
-type AppwriteClients = NonNullable<ReturnType<typeof getAppwrite>>
+type RuntimeStore = ReturnType<typeof getRuntimeStore>
 type HydratedOutputMedia = OutputMediaDraft & { outputId: string }
 
 function isConsolidated(route: StoreRoute): boolean {
@@ -602,7 +585,7 @@ function storeOwnedRowId(
 }
 
 async function listOutputMedia(
-  aw: AppwriteClients,
+  aw: RuntimeStore,
   outputIds: string[]
 ): Promise<HydratedOutputMedia[]> {
   if (outputIds.length === 0) return []
@@ -615,8 +598,8 @@ async function listOutputMedia(
       Query.limit(PAGE),
     ]
     if (cursor) queries.push(Query.cursorAfter(cursor))
-    const response = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    const response = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       "output_media",
       queries
     )
@@ -646,7 +629,7 @@ async function listOutputMedia(
 }
 
 async function syncOutputMedia(
-  aw: AppwriteClients,
+  aw: RuntimeStore,
   outputRowId: string,
   ownerId: string,
   media: OutputMediaDraft[]
@@ -677,8 +660,8 @@ async function syncOutputMedia(
   await deleteOutputMedia(aw, [outputRowId])
   await runPool(media, 3, async (item) => {
     await retryTransient(() =>
-      aw.tables.createRow(
-        APPWRITE_DATABASE_ID,
+      aw.records.createRow(
+        RUNTIME_DATABASE_ID,
         "output_media",
         outputMediaRowId(outputRowId, item),
         outputMediaRowFields(outputRowId, ownerId, item)
@@ -687,15 +670,15 @@ async function syncOutputMedia(
   })
 }
 
-async function deleteOutputMedia(aw: AppwriteClients, outputIds: string[]) {
+async function deleteOutputMedia(aw: RuntimeStore, outputIds: string[]) {
   if (outputIds.length === 0) return
   let cursor: string | null = null
   const ids: string[] = []
   for (;;) {
     const queries = [Query.equal("output_id", outputIds), Query.limit(PAGE)]
     if (cursor) queries.push(Query.cursorAfter(cursor))
-    const response = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    const response = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       "output_media",
       queries
     )
@@ -705,7 +688,7 @@ async function deleteOutputMedia(aw: AppwriteClients, outputIds: string[]) {
   }
   await runPool(ids, 3, async (id) => {
     await retryTransient(() =>
-      aw.tables.deleteRow(APPWRITE_DATABASE_ID, "output_media", id)
+      aw.records.deleteRow(RUNTIME_DATABASE_ID, "output_media", id)
     )
   })
 }

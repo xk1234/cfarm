@@ -1,16 +1,12 @@
-// App-side helpers for the Appwrite-backed job queue (the `jobs` table).
-// The scheduler + job-worker Appwrite Functions produce/consume these rows;
-// the app can also enqueue jobs (e.g. asset generation) and read queue state
-// for the UI. All operations no-op to null/[] when Appwrite is unconfigured.
+// App-side helpers for Railway's native `jobs` table.
 import crypto from "node:crypto"
 
-import { Query } from "node-appwrite"
-
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { getCurrentUser } from "@/lib/auth"
+import {
+  railwayJobRepository,
+  type StoredJob,
+} from "@/lib/railway/job-repository"
 import { systemOwnerId } from "@/lib/system-owner-context"
-
-const JOBS_TABLE = "jobs"
 
 export type JobStatus =
   "queued" | "processing" | "completed" | "failed" | "dead"
@@ -50,29 +46,20 @@ function jobId(basis: string): string {
   )
 }
 
-function safeParse(value: unknown): unknown {
-  if (typeof value !== "string" || value === "") return null
-  try {
-    return JSON.parse(value)
-  } catch {
-    return value
-  }
-}
-
-function mapJob(row: Record<string, unknown>): Job {
+function mapJob(row: StoredJob): Job {
   return {
-    id: String(row.$id),
-    type: String(row.type ?? ""),
-    status: (row.status as JobStatus) ?? "queued",
-    payload: safeParse(row.payload),
-    result: safeParse(row.result),
-    error: (row.error as string) ?? null,
-    attempts: Number(row.attempts ?? 0),
-    maxAttempts: Number(row.max_attempts ?? 0),
-    availableAt: (row.available_at as string) ?? null,
-    createdAt: (row.created_at as string) ?? null,
-    updatedAt: (row.updated_at as string) ?? null,
-    ownerId: String(row.owner_id ?? ""),
+    id: row.id,
+    type: row.type,
+    status: row.status,
+    payload: row.payload,
+    result: row.result,
+    error: row.error,
+    attempts: row.attempts,
+    maxAttempts: row.maxAttempts,
+    availableAt: row.runAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    ownerId: row.ownerId,
   }
 }
 
@@ -80,80 +67,51 @@ async function queueOwnerId() {
   return systemOwnerId() ?? (await getCurrentUser())?.$id
 }
 
-/** Push a job onto the queue. Returns null when Appwrite isn't configured. */
+/** Push a job onto Railway's durable queue. */
 export async function enqueueJob(
   input: EnqueueInput
 ): Promise<{ id: string; status: "enqueued" | "duplicate" } | null> {
-  const aw = getAppwrite()
-  if (!aw) return null
   const ownerId = await queueOwnerId()
   if (!ownerId) throw new Error("Authentication is required to enqueue jobs.")
-  const nowIso = new Date().toISOString()
   const dedupe = input.dedupeKey ?? `${input.type}:${crypto.randomUUID()}`
   const id = deterministicJobId(ownerId, dedupe)
-  try {
-    await aw.tables.createRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id, {
-      type: input.type,
-      status: "queued",
-      payload: JSON.stringify(input.payload ?? null),
-      priority: input.priority ?? 0,
-      attempts: 0,
-      max_attempts: input.maxAttempts ?? 3,
-      available_at: (input.availableAt ?? new Date()).toISOString(),
-      dedupe_key: dedupe,
-      created_at: nowIso,
-      updated_at: nowIso,
-      owner_id: ownerId,
-    })
-    return { id, status: "enqueued" }
-  } catch (error) {
-    if ((error as { code?: number }).code === 409)
-      return { id, status: "duplicate" }
-    throw error
-  }
+  const status = await railwayJobRepository.enqueue({
+    id,
+    ownerId,
+    type: input.type,
+    payload: input.payload ?? null,
+    priority: input.priority ?? 0,
+    maxAttempts: input.maxAttempts ?? 3,
+    runAt: input.availableAt ?? new Date(),
+    dedupeKey: dedupe,
+  })
+  return { id, status }
 }
 
 /** List jobs, most-recent first, optionally filtered by status/type. */
 export async function listJobs(
   opts: { status?: JobStatus; type?: string; limit?: number } = {}
 ): Promise<Job[]> {
-  const aw = getAppwrite()
-  if (!aw) return []
   const ownerId = await queueOwnerId()
   if (!ownerId) return []
-  const queries = [Query.orderDesc("$createdAt"), Query.limit(opts.limit ?? 50)]
-  queries.push(Query.equal("owner_id", [ownerId]))
-  if (opts.status) queries.push(Query.equal("status", [opts.status]))
-  if (opts.type) queries.push(Query.equal("type", [opts.type]))
-  const res = await aw.tables.listRows(
-    APPWRITE_DATABASE_ID,
-    JOBS_TABLE,
-    queries
-  )
-  return (res.rows as Array<Record<string, unknown>>).map(mapJob)
+  const rows = await railwayJobRepository.list({
+    ownerId,
+    status: opts.status,
+    type: opts.type,
+    limit: Math.max(1, opts.limit ?? 50),
+  })
+  return rows.map(mapJob)
 }
 
 export async function getJob(id: string): Promise<Job | null> {
-  const aw = getAppwrite()
-  if (!aw) return null
   const ownerId = await queueOwnerId()
   if (!ownerId) return null
-  try {
-    const job = mapJob(
-      (await aw.tables.getRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id)) as Record<
-        string,
-        unknown
-      >
-    )
-    return job.ownerId === ownerId ? job : null
-  } catch {
-    return null
-  }
+  const stored = await railwayJobRepository.get(id)
+  return stored?.ownerId === ownerId ? mapJob(stored) : null
 }
 
 /** Count of jobs per status (for a queue dashboard). */
 export async function queueStats(): Promise<Record<JobStatus, number>> {
-  const aw = getAppwrite()
   const statuses: JobStatus[] = [
     "queued",
     "processing",
@@ -165,18 +123,8 @@ export async function queueStats(): Promise<Record<JobStatus, number>> {
     JobStatus,
     number
   >
-  if (!aw) return empty
   const ownerId = await queueOwnerId()
   if (!ownerId) return empty
-  await Promise.all(
-    statuses.map(async (status) => {
-      const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, JOBS_TABLE, [
-        Query.equal("status", [status]),
-        Query.equal("owner_id", [ownerId]),
-        Query.limit(1),
-      ])
-      empty[status] = res.total
-    })
-  )
+  Object.assign(empty, await railwayJobRepository.stats(ownerId))
   return empty
 }

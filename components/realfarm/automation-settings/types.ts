@@ -22,6 +22,7 @@ export type AutomationRunApiPayload = {
 }
 
 export type AutomationRunApiRecord = {
+  ownerId?: string
   id: string
   automationId: string
   automationTitle: string
@@ -37,6 +38,7 @@ export type AutomationRunApiRecord = {
   slideshowId?: string
   videoUrl?: string
   thumbnailUrl?: string
+  durationSeconds?: number
   outputImages?: string[]
   outputDir?: string
   workflowUrl?: string

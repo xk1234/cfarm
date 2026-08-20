@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   listAutomationRecords: vi.fn(),
   listAutomationRuns: vi.fn(),
-  listJobs: vi.fn(),
   listPostFastPostRecords: vi.fn(),
   listResultRecords: vi.fn(),
   listXAutomations: vi.fn(),
@@ -19,7 +18,6 @@ vi.mock("@/lib/automations", () => ({
 vi.mock("@/lib/automation-runner", () => ({
   listAutomationRuns: mocks.listAutomationRuns,
 }))
-vi.mock("@/lib/queue", () => ({ listJobs: mocks.listJobs }))
 vi.mock("@/lib/postfast-posts", () => ({
   listPostFastPostRecords: mocks.listPostFastPostRecords,
 }))
@@ -51,7 +49,6 @@ beforeEach(() => {
   delete process.env.POST_REPOSITORY_READ_MODE
   mocks.listAutomationRecords.mockResolvedValue([])
   mocks.listAutomationRuns.mockResolvedValue([])
-  mocks.listJobs.mockResolvedValue([])
   mocks.listPostFastPostRecords.mockResolvedValue([])
   mocks.listResultRecords.mockResolvedValue([])
   mocks.listXAutomations.mockResolvedValue([])
@@ -65,7 +62,7 @@ afterEach(() => {
 })
 
 describe("GET /api/calendar", () => {
-  it("merges all four sources and lets a materialized item replace its exact projection", async () => {
+  it("merges local and remote items and lets a materialized item replace its exact projection", async () => {
     mocks.listAutomationRecords.mockResolvedValue([
       { summary: automationSummary() },
     ])
@@ -87,16 +84,6 @@ describe("GET /api/calendar", () => {
         runId: "run-1",
         createdAt: "2099-07-15T00:12:00.000Z",
       },
-    ])
-    mocks.listJobs.mockResolvedValue([
-      job({
-        id: "job-1",
-        status: "processing",
-        payload: {
-          automationId: "automation-1",
-          scheduledFor: "2099-07-15T01:00:00.000Z",
-        },
-      }),
     ])
     mocks.listPostFastPostRecords.mockResolvedValue([
       localPost({
@@ -135,15 +122,6 @@ describe("GET /api/calendar", () => {
     expect(payload.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "job:job-1",
-          status: "generating",
-          datetime: "2099-07-15T01:00:00.000Z",
-          timestamps: expect.objectContaining({
-            expectedGenerationAt: "2099-07-15T00:30:00.000Z",
-            expectedPublishedAt: "2099-07-15T01:00:00.000Z",
-          }),
-        }),
-        expect.objectContaining({
           id: "local:local-action",
           status: "needs_action",
           sourceType: "automation",
@@ -178,7 +156,7 @@ describe("GET /api/calendar", () => {
     )
   })
 
-  it("projects only live automations while retaining real jobs from paused automations", async () => {
+  it("projects only live automations", async () => {
     const live = automationSummary()
     mocks.listAutomationRecords.mockResolvedValue([
       { summary: { ...live, id: "automation-live" } },
@@ -197,16 +175,6 @@ describe("GET /api/calendar", () => {
         },
       },
     ])
-    mocks.listJobs.mockResolvedValue([
-      job({
-        id: "paused-job",
-        payload: {
-          automationId: "automation-status-paused",
-          scheduledFor: "2099-07-15T02:00:00.000Z",
-        },
-      }),
-    ])
-
     const { GET } = await import("./route")
     const response = await GET(
       new Request(
@@ -220,15 +188,6 @@ describe("GET /api/calendar", () => {
         .filter((item: { source: string }) => item.source === "projection")
         .map((item: { automationId: string }) => item.automationId)
     ).toEqual(["automation-live"])
-    expect(payload.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "job:paused-job",
-          automationId: "automation-status-paused",
-          status: "generating",
-        }),
-      ])
-    )
   })
 
   it("accepts CSV/repeated aggregate filters and returns canonical failure counts", async () => {
@@ -276,42 +235,6 @@ describe("GET /api/calendar", () => {
     expect(payload.summary).toMatchObject({ failed: 1, needsAction: 0 })
   })
 
-  it("exposes a manual retry action for failed generation jobs", async () => {
-    mocks.listAutomationRecords.mockResolvedValue([
-      { summary: automationSummary() },
-    ])
-    mocks.listJobs.mockResolvedValue([
-      job({
-        id: "job-failed",
-        status: "dead",
-        error: "Provider returned error",
-        payload: {
-          automationId: "automation-1",
-          scheduledFor: "2099-07-15T01:00:00.000Z",
-        },
-      }),
-    ])
-
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
-      )
-    )
-    const payload = await response.json()
-
-    expect(payload.items).toEqual([
-      expect.objectContaining({
-        id: "job:job-failed",
-        status: "generation_failed",
-        error: "Provider returned error",
-        links: expect.objectContaining({
-          retry: "/api/jobs/job-failed/retry",
-        }),
-      }),
-    ])
-  })
-
   it("surfaces manually published posts and dates them by publishedAt", async () => {
     mocks.listPostFastPostRecords.mockResolvedValue([
       localPost({
@@ -351,18 +274,64 @@ describe("GET /api/calendar", () => {
     ])
   })
 
-  it("rejects invalid or reversed ranges", async () => {
+  it("rejects non-ISO, reversed, and unbounded ranges before loading data", async () => {
     const { GET } = await import("./route")
     const invalid = await GET(
-      new Request("http://localhost/api/calendar?from=nope")
+      new Request("http://localhost/api/calendar?from=07%2F15%2F2099")
     )
     const reversed = await GET(
       new Request(
         "http://localhost/api/calendar?from=2099-07-16T00:00:00.000Z&to=2099-07-15T00:00:00.000Z"
       )
     )
+    const tooLarge = await GET(
+      new Request(
+        "http://localhost/api/calendar?from=2099-01-01T00:00:00.000Z&to=2101-01-01T00:00:00.000Z"
+      )
+    )
     expect(invalid.status).toBe(400)
     expect(reversed.status).toBe(400)
+    expect(tooLarge.status).toBe(400)
+    expect(mocks.listAutomationRecords).not.toHaveBeenCalled()
+  })
+
+  it("links UGC calendar content to its dedicated run viewer", async () => {
+    mocks.listAutomationRecords.mockResolvedValue([
+      {
+        summary: {
+          ...automationSummary(),
+          automationKind: "ugc",
+        },
+      },
+    ])
+    mocks.listAutomationRuns.mockResolvedValue([
+      {
+        id: "ugc-run-1",
+        automationId: "automation-1",
+        scheduledFor: "2099-07-15T01:00:00.000Z",
+        status: "succeeded",
+        createdAt: "2099-07-15T00:00:00.000Z",
+        updatedAt: "2099-07-15T00:00:00.000Z",
+        plan: { caption: "UGC result" },
+      },
+    ])
+    mocks.listPostFastPostRecords.mockResolvedValue([
+      localPost({ sourceId: "ugc-run-1", status: "ready_for_review" }),
+    ])
+
+    const { GET } = await import("./route")
+    const response = await GET(
+      new Request(
+        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
+      )
+    )
+    const payload = await response.json()
+
+    expect(payload.items).toEqual([
+      expect.objectContaining({
+        links: expect.objectContaining({ content: "/app/ugc/ugc-run-1" }),
+      }),
+    ])
   })
 
   it("keeps dedupe and paused projections stable in all read modes and shadows drift", async () => {
@@ -456,24 +425,6 @@ function automationSummary() {
         provider: "tiktok",
       },
     ],
-  }
-}
-
-function job(overrides: Record<string, unknown>) {
-  return {
-    id: "job",
-    type: "run-template",
-    status: "queued",
-    payload: {},
-    result: null,
-    error: null,
-    attempts: 0,
-    maxAttempts: 3,
-    availableAt: "2099-07-15T00:30:00.000Z",
-    createdAt: "2099-07-15T00:00:00.000Z",
-    updatedAt: "2099-07-15T00:00:00.000Z",
-    ownerId: "owner-1",
-    ...overrides,
   }
 }
 

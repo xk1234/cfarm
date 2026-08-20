@@ -1,7 +1,4 @@
 import crypto from "node:crypto"
-import { Query } from "node-appwrite"
-
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { getCurrentUser } from "@/lib/auth"
 import {
   appwritePostRepository,
@@ -9,8 +6,10 @@ import {
   type PostRepairEvent,
 } from "@/lib/post-repository-appwrite"
 import { postRepositoryWriteMode } from "@/lib/post-repository-config"
-import type { PostFastPostRecord } from "@/lib/postfast-posts"
+import type { PostFastPostRecord } from "@/lib/publication-contract"
 import { publicationRecordSummary } from "@/lib/publication-record"
+import { RecordQuery as Query } from "@/lib/record-query"
+import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 import {
   postFromPostFastRecord,
   postToPostFastRecord,
@@ -230,8 +229,7 @@ async function writeLegacyOutputPublications(
   records: PostFastPostRecord[],
   resolvedOwnerId?: string
 ): Promise<void> {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
   const ownerId = resolvedOwnerId ?? (await publicationOwnerId())
   const rows = await listOutputRows(ownerId)
   const desiredById = new Map(records.map((record) => [record.id, record]))
@@ -269,8 +267,7 @@ async function listOutputRows(
   ownerId: string,
   filters: string[] = []
 ): Promise<OutputRow[]> {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
   const rows: OutputRow[] = []
   let cursor: string | null = null
   for (;;) {
@@ -280,8 +277,8 @@ async function listOutputRows(
       Query.limit(PAGE),
     ]
     if (cursor) queries.push(Query.cursorAfter(cursor))
-    const response = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
+    const response = await aw.records.listRows(
+      RUNTIME_DATABASE_ID,
       "outputs",
       queries
     )
@@ -302,10 +299,9 @@ async function updateOutputPublications(
   row: OutputRow,
   publications: PostFastPostRecord[]
 ) {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
   const summary = publicationRecordSummary(publications)
-  await aw.tables.updateRow(APPWRITE_DATABASE_ID, "outputs", row.$id, {
+  await aw.records.updateRow(RUNTIME_DATABASE_ID, "outputs", row.$id, {
     publications: JSON.stringify(publications),
     publication_status: summary.status,
     scheduled_at: summary.scheduledAt,
@@ -320,8 +316,7 @@ async function createPublicationOutput(
   ownerId: string,
   record: PostFastPostRecord
 ): Promise<OutputRow> {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured.")
+  const aw = getRuntimeStore()
   const now = new Date().toISOString()
   const rid = `published-${record.sourceType}-${crypto
     .createHash("sha256")
@@ -340,8 +335,8 @@ async function createPublicationOutput(
     createdAt: now,
     updatedAt: now,
   }
-  const created = await aw.tables.upsertRow(
-    APPWRITE_DATABASE_ID,
+  const created = await aw.records.upsertRow(
+    RUNTIME_DATABASE_ID,
     "outputs",
     rowId,
     {

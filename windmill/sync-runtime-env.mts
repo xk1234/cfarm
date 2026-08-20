@@ -67,9 +67,7 @@ try {
   if (payload && typeof payload === "object" && !Array.isArray(payload)) {
     railwayEnvironment = Object.fromEntries(
       Object.entries(payload).flatMap(([name, value]) =>
-        typeof value === "string" && value.trim()
-          ? [[name, value.trim()]]
-          : []
+        typeof value === "string" && value.trim() ? [[name, value.trim()]] : []
       )
     )
   }
@@ -111,8 +109,10 @@ const runtimeEnvironment = Object.fromEntries(
   })
 )
 
-runtimeEnvironment.APPWRITE_PROJECT_ID ??=
-  process.env.APPWRITE_FUNCTION_PROJECT_ID?.trim()
+const legacyProjectId = process.env.APPWRITE_FUNCTION_PROJECT_ID?.trim()
+if (!runtimeEnvironment.APPWRITE_PROJECT_ID && legacyProjectId) {
+  runtimeEnvironment.APPWRITE_PROJECT_ID = legacyProjectId
+}
 // Windmill is now the sole UGC executor. Keep its native runtime enabled even
 // when a legacy Appwrite/Railway service still carries the old kill-switch.
 runtimeEnvironment.ENABLE_UGC_AUTOMATION = "true"
@@ -127,7 +127,9 @@ for (const required of [
   "OPENROUTER_API_KEY",
 ]) {
   if (!runtimeEnvironment[required]) {
-    throw new Error(`Cannot sync Windmill runtime environment: ${required} is missing`)
+    throw new Error(
+      `Cannot sync Windmill runtime environment: ${required} is missing`
+    )
   }
 }
 

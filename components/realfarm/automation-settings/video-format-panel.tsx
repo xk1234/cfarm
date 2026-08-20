@@ -20,7 +20,7 @@ import {
   videoAutomationTemplatePreset,
   videoAutomationTemplatePresets,
 } from "@/lib/video-automation-templates"
-import type { CreatedImageCollection } from "@/lib/realfarm-collections"
+import type { CreatedImageCollection } from "@/features/collections/domain/collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import { previewTextForTextItem } from "@/lib/realfarm-preview-text"
 import { randomTikTokSoundLabel } from "@/lib/slideshow-publishing-config"

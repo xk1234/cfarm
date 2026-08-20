@@ -8,7 +8,7 @@ import type { Automation } from "@/lib/realfarm-data"
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import { defaultAutomationLanguage } from "@/lib/slideshow-publishing-config"
 import { slideshowStageForRunStatus } from "@/lib/slideshow-lifecycle"
 
@@ -161,6 +161,9 @@ export function canDeleteCompletedSlideshow(run: AutomationRunApiRecord) {
 }
 
 export function runDurationSeconds(run: AutomationRunApiRecord) {
+  if (typeof run.durationSeconds === "number") {
+    return Math.max(0, run.durationSeconds)
+  }
   const slides = automationRunSlides(run)
   const durationMs = slides.reduce(
     (total, slide) => total + Math.max(0, slide.durationMs ?? 0),

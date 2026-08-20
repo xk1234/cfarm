@@ -32,8 +32,6 @@ describe("AutomationSettingsDrawer", () => {
         onCreateCollection={vi.fn()}
         onRename={vi.fn()}
         onConfigChange={vi.fn()}
-        onGenerationRunUpdate={vi.fn()}
-        onGenerationRunRemove={vi.fn()}
         onEditSocialAccounts={vi.fn()}
         onDuplicate={vi.fn(async () => undefined)}
         onDelete={vi.fn()}

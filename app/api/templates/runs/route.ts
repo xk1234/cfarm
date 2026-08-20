@@ -4,6 +4,7 @@ import { withHandler } from "@/lib/api"
 import { slideshowDeliveryLinks } from "@/lib/asset-urls"
 import { getCurrentUser } from "@/lib/auth"
 import { automationRunProgress } from "@/lib/automation-run-progress"
+import type { AutomationRunSlideView } from "@/lib/automation-run-contract"
 import {
   listAutomationRuns,
   type AutomationRunRecord,
@@ -12,61 +13,56 @@ import {
   listGeneratedVideoExports,
   type GeneratedVideoExport,
 } from "@/lib/generated-videos"
-import {
-  type PostFastAnalyticsMetric,
-  type PostFastPostRecord,
-} from "@/lib/postfast-posts"
-import {
-  listPublicationRecordsForRead,
-  readPostProjection,
-} from "@/lib/post-repository"
-import { listMetricSnapshots } from "@/lib/postfast-metric-snapshots"
-import type { Post } from "@/lib/posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 
 export const dynamic = "force-dynamic"
+const maximumRunLimit = 100
+
+type AutomationRunResponse = (
+  AutomationRunRecord | NonNullable<ReturnType<typeof generatedVideoRun>>
+) & {
+  progress?: ReturnType<typeof automationRunProgress>
+}
 
 export const GET = withHandler(async (request: Request) => {
-  const user = await getCurrentUser()
   const { searchParams } = new URL(request.url)
   const automationId = searchParams.get("templateId")?.trim()
+  const runId = searchParams.get("runId")?.trim()
+  const summaryView = searchParams.get("view") === "summary"
+  const user = summaryView ? null : await getCurrentUser()
   const limitValue = Number(searchParams.get("limit"))
-  const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : 20
+  const limit =
+    Number.isFinite(limitValue) && limitValue > 0
+      ? Math.min(Math.floor(limitValue), maximumRunLimit)
+      : 20
   const postRecordsPromise = listPublicationRecordsForRead({
     surface: "automation_runs_publications",
   }).catch(() => [])
-  const [automationRuns, videoExports, postRecords] = await Promise.all([
+  const [automationRuns, videoExports] = await Promise.all([
     listAutomationRuns({
       automationId: automationId || undefined,
+      runId: runId || undefined,
       limit,
       postRecords: postRecordsPromise,
     }),
     listGeneratedVideoExports({
+      id: runId || undefined,
       automationId: automationId || undefined,
     }),
-    postRecordsPromise,
   ])
   const videoRuns = videoExports.flatMap((item) => {
     const run = generatedVideoRun(item)
     return run ? [run] : []
   })
   const runs = [...automationRuns, ...videoRuns]
+    .filter((run) => !runId || run.id === runId || run.slideshowId === runId)
     .sort(
       (first, second) =>
         new Date(second.createdAt).getTime() -
         new Date(first.createdAt).getTime()
     )
     .slice(0, limit)
-  const viewsByRun = await readPostProjection({
-    surface: "automation_runs_analytics",
-    legacy: async () => legacyViewsByRun(runs, postRecords),
-    canonical: async (posts) =>
-      canonicalViewsByRun(
-        runs,
-        posts,
-        await listMetricSnapshots().catch(() => [])
-      ),
-  })
-  const runsWithViews = runs.map((run) => ({
+  const responseRuns = runs.map((run) => ({
     ...run,
     ...(user && run.slideshowId
       ? {
@@ -79,87 +75,81 @@ export const GET = withHandler(async (request: Request) => {
     ...(run.status === "running"
       ? { progress: automationRunProgress(run.id) }
       : {}),
-    views: viewsByRun[run.id] ?? 0,
   }))
 
-  return NextResponse.json({ runs: runsWithViews })
+  return NextResponse.json({
+    runs: summaryView ? responseRuns.map(automationRunSummary) : responseRuns,
+  })
 })
 
-function legacyViewsByRun(
-  runs: Array<Pick<AutomationRunRecord, "id" | "slideshowId">>,
-  records: PostFastPostRecord[]
-) {
-  return Object.fromEntries(
-    runs.map((run) => [
-      run.id,
-      records
-        .filter(
-          (record) =>
-            (record.sourceType === "automation" &&
-              record.sourceId === run.id) ||
-            (Boolean(run.slideshowId) &&
-              record.sourceType === "slideshow" &&
-              record.sourceId === run.slideshowId)
-        )
-        .reduce(
-          (total, record) => total + postFastViewCount(record.analytics),
-          0
-        ),
-    ])
-  )
-}
+function automationRunSummary(run: AutomationRunResponse) {
+  const persistedRun = "scheduledFor" in run ? run : undefined
+  const plan = run.plan as Partial<AutomationRunRecord["plan"]>
+  const previewSlide = persistedRun?.renderedSlides?.[0] ?? plan.slides?.[0]
 
-function canonicalViewsByRun(
-  runs: Array<Pick<AutomationRunRecord, "id" | "slideshowId">>,
-  posts: Post[],
-  snapshots: Awaited<ReturnType<typeof listMetricSnapshots>>
-) {
-  const latestViewsByPost = new Map<
-    string,
-    { capturedAt: string; views: number }
-  >()
-  for (const snapshot of snapshots) {
-    const current = latestViewsByPost.get(snapshot.postId)
-    if (
-      current &&
-      Date.parse(current.capturedAt) >= Date.parse(snapshot.capturedAt)
-    ) {
-      continue
-    }
-    latestViewsByPost.set(snapshot.postId, {
-      capturedAt: snapshot.capturedAt,
-      views: snapshot.metrics.views ?? 0,
-    })
+  return {
+    id: run.id,
+    automationId: run.automationId,
+    automationTitle: run.automationTitle,
+    ...(persistedRun?.scheduledFor
+      ? { scheduledFor: persistedRun.scheduledFor }
+      : {}),
+    ...(persistedRun?.generationSource
+      ? { generationSource: persistedRun.generationSource }
+      : {}),
+    ...(persistedRun?.requestId ? { requestId: persistedRun.requestId } : {}),
+    status: run.status,
+    ...(run.progress ? { progress: run.progress } : {}),
+    slideshowId: run.slideshowId,
+    ...(persistedRun?.socialStatuses
+      ? { socialStatuses: persistedRun.socialStatuses }
+      : {}),
+    ...(persistedRun?.manuallyPublishedAt
+      ? { manuallyPublishedAt: persistedRun.manuallyPublishedAt }
+      : {}),
+    createdAt: run.createdAt,
+    ...(persistedRun?.updatedAt ? { updatedAt: persistedRun.updatedAt } : {}),
+    error: run.error,
+    videoUrl: run.videoUrl,
+    thumbnailUrl: run.thumbnailUrl,
+    durationSeconds: automationRunDurationSeconds(persistedRun, plan),
+    ...(previewSlide
+      ? { renderedSlides: [runSummarySlide(previewSlide)] }
+      : {}),
+    plan: {
+      title: plan.title,
+      hook: plan.hook,
+      publishType: plan.publishType,
+      language: plan.language,
+    },
   }
-  return Object.fromEntries(
-    runs.map((run) => [
-      run.id,
-      posts
-        .filter((post) => postMatchesRun(post, run))
-        .reduce(
-          (total, post) => total + (latestViewsByPost.get(post.id)?.views ?? 0),
-          0
-        ),
-    ])
-  )
 }
 
-function postMatchesRun(
-  post: Post,
-  run: Pick<AutomationRunRecord, "id" | "slideshowId">
+function automationRunDurationSeconds(
+  run: AutomationRunRecord | undefined,
+  plan: Partial<AutomationRunRecord["plan"]>
 ) {
-  const sourceIds = new Set(
-    [
-      post.sourceId,
-      post.runId,
-      post.outputId,
-      ...post.sourceRefs.map((ref) => ref.id),
-    ].filter(Boolean)
+  const slides = run?.renderedSlides?.length
+    ? run.renderedSlides
+    : (plan.slides ?? [])
+  const durationMs = slides.reduce(
+    (total, slide) => total + Math.max(0, slide.durationMs ?? 0),
+    0
   )
-  return (
-    sourceIds.has(run.id) ||
-    (Boolean(run.slideshowId) && sourceIds.has(run.slideshowId))
-  )
+  return durationMs > 0 ? durationMs / 1000 : slides.length * 4
+}
+
+function runSummarySlide(slide: AutomationRunSlideView) {
+  return {
+    id: slide.id,
+    role: slide.role,
+    imageUrl: slide.imageUrl,
+    sourceImageUrl: slide.sourceImageUrl,
+    text: slide.text,
+    imageCaption: slide.imageCaption,
+    durationMs: slide.durationMs,
+    aspectRatio: slide.aspectRatio,
+  }
 }
 
 function generatedVideoRun(item: GeneratedVideoExport) {
@@ -193,16 +183,6 @@ function generatedVideoRunStatus(status: GeneratedVideoExport["status"]) {
   if (status === "ready") return "succeeded" as const
   if (status === "failed") return "failed" as const
   return "running" as const
-}
-
-function postFastViewCount(analytics: PostFastAnalyticsMetric[] | undefined) {
-  const views = analytics?.find(
-    (metric) => metric.label.trim().toLowerCase() === "views"
-  )
-  return Math.max(
-    0,
-    ...(views?.data.map((point) => Number(point.total) || 0) ?? [0])
-  )
 }
 
 function stringValue(value: unknown) {

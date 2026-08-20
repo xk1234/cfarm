@@ -1,0 +1,131 @@
+---
+title: "Access and edit Windmill workflows"
+description: "Connect to the production Railway Windmill workspace and safely inspect, version, and deploy LumenClip generation workflows."
+---
+
+# Access and edit Windmill workflows
+
+Windmill is for LumenClip generation processes that have multiple stages,
+non-deterministic AI output, and a final slideshow, post, thread, or video a
+user can review and iterate on. Scheduling, queue maintenance, polling,
+imports, delivery, and analytics synchronization remain application jobs.
+
+## Production workspace
+
+LumenClip generation workflows run in the Railway-hosted Windmill instance:
+
+| Setting             | Value                                                    |
+| ------------------- | -------------------------------------------------------- |
+| Base URL            | `https://windmill-server-production-5856.up.railway.app` |
+| Workspace ID        | `main`                                                   |
+| Committed CLI alias | `main`                                                   |
+| Workflow folder     | `f/lumenclip`                                            |
+| Checked-in bundle   | `windmill/` on the current `main` branch                 |
+
+The local CLI may also contain an `influlab` profile pointing at
+`http://127.0.0.1:8000`. That is a different Windmill instance and workspace.
+An empty `f/lumenclip` result there says nothing about production. Always check
+both the active profile and target URL before drawing conclusions or mutating a
+workflow.
+
+The LumenClip bundle contains these production paths:
+
+| Windmill path                             | Display name                              |
+| ----------------------------------------- | ----------------------------------------- |
+| `f/lumenclip/slideshow_generation`        | `lumenclip - slideshow generation`        |
+| `f/lumenclip/ugc_video_generation`        | `lumenclip - UGC video generation`        |
+| `f/lumenclip/react_reveal_generation`     | `lumenclip - React & Reveal generation`   |
+| `f/lumenclip/greenscreen_meme_generation` | `lumenclip - Greenscreen Meme generation` |
+| `f/lumenclip/template_video_generation`   | `lumenclip - template video generation`   |
+| `f/lumenclip/linkedin_generation`         | `lumenclip - LinkedIn generation`         |
+| `f/lumenclip/x_threads_generation`        | `lumenclip - X and Threads generation`    |
+
+These definitions were introduced by the Windmill migration and subsequently
+updated as native Windmill DAGs. If a checkout has no `windmill/` directory,
+inspect its branch and compare it with the current remote `main`; do not infer
+that the production workflows are absent.
+
+## Open the Windmill UI
+
+Visit `https://windmill-server-production-5856.up.railway.app`, sign in, and
+select workspace **main**. Do not use the locally forwarded InfluLab UI for
+LumenClip production work.
+
+## Configure the production CLI profile
+
+```sh
+wmill workspace add main main https://windmill-server-production-5856.up.railway.app
+wmill workspace list
+wmill flow get f/lumenclip/slideshow_generation --workspace main
+```
+
+Enter authentication only when prompted. Never put a Windmill token in shell
+history, Git, screenshots, or documentation. Confirm the active/target alias
+before every mutation. A local profile named `influlab` does not authenticate
+the production `main` workspace.
+
+## Read and run workflows
+
+Use explicit `--workspace main` arguments even when `main` is active:
+
+```sh
+wmill flow list --workspace main
+wmill flow get f/lumenclip/slideshow_generation --workspace main
+wmill flow history f/lumenclip/slideshow_generation --workspace main
+wmill flow run f/lumenclip/slideshow_generation --workspace main
+```
+
+Running a production flow can invoke paid providers and create persisted
+outputs. Prefer local previews or isolated stage runs with non-production input
+until the change is ready for end-to-end verification.
+
+## Edit and deploy
+
+Git is the source of truth. Do not leave a production workflow as a UI-only
+edit. Work from a branch that contains the current `main` Windmill bundle.
+
+```sh
+cd /root/cfarm
+git status --short
+cd windmill
+wmill lint .
+wmill sync push --dry-run --workspace main --skip-variables --skip-secrets
+```
+
+Definitions live under `windmill/f/lumenclip`. The flow YAML files are generated
+from the explicit DAG definitions and dependency catalog; update those sources
+and regenerate the flows instead of hand-editing generated YAML. Preview the
+result before deployment:
+
+```sh
+pnpm tsx generate-flows.mts
+pnpm vitest run generate-flows.test.ts
+wmill lint .
+wmill sync push --dry-run --workspace main --skip-variables --skip-secrets
+wmill sync push --yes --workspace main --skip-variables --skip-secrets \
+  --message "Explain the workflow change"
+```
+
+Run `pnpm typecheck` and `pnpm lint`, inspect the Git diff and Windmill version
+history, then commit only the intended flow, runtime, and contract changes.
+
+Creating and updating a workflow means changing its checked-in sources and
+syncing them. Deleting one means removing its definition and generator entry,
+confirming the deletion in `wmill sync push --dry-run`, and only then pushing.
+Deletion is destructive and must never be inferred from a stale checkout or a
+different workspace.
+
+Store provider and persistence credentials in Windmill secret variable
+`f/lumenclip/runtime_env_json`; commit references, never values. Manual runs use
+`f/lumenclip/default_owner_id` for their LumenClip owner.
+
+## Safe iteration loop
+
+1. Document typed input and the final LumenClip output object.
+2. Make every AI stage's prompt, model/provider, and structured output visible.
+3. Preview with non-production input and inspect intermediate output and cost.
+4. Push one flow, run it, and validate the final asset before enabling callers.
+5. Pull intentional UI changes back into the current `main`-based Git source
+   immediately.
+6. Roll back through Windmill history or committed definitions rather than an
+   undocumented manual patch.

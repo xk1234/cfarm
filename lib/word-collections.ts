@@ -4,18 +4,15 @@ import path from "node:path"
 
 import { readJsonArrayStore, withJsonArrayStore } from "@/lib/json-store"
 import { hookVariableNameFromLabel } from "@/lib/hook-variables"
+import type {
+  WordCollectionRecord,
+  WordCollectionSource,
+} from "@/lib/word-collection-contract"
 
-export type WordCollectionSource = "manual" | "ai"
-
-export type WordCollectionRecord = {
-  id: string
-  name: string
-  description?: string
-  words: string[]
-  source: WordCollectionSource
-  created_at: string
-  updated_at: string
-}
+export type {
+  WordCollectionRecord,
+  WordCollectionSource,
+} from "@/lib/word-collection-contract"
 
 const defaultRootDir = path.join(process.cwd(), "data", "word-collections")
 const fileName = "word-collections.json"

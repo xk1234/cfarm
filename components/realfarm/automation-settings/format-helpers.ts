@@ -11,7 +11,7 @@ import {
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import { previewTextForTextItem } from "@/lib/realfarm-preview-text"
 import { splitDebateHook } from "@/lib/debate-hook"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"

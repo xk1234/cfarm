@@ -16,7 +16,7 @@ import {
 import {
   legacyStoredCollectionId,
   storedCollectionId,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import {
   automationSlideshowSettings,
   type AutomationRunPlan,
@@ -107,7 +107,7 @@ import {
   downloadRemoteFileToTemp,
   persistPipelineTempFile,
 } from "@/lib/local-asset-download"
-import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
+import { deleteAsset } from "@/lib/asset-storage"
 import {
   createDomainAssetOnce,
   createOutputMediaOnce,
@@ -203,7 +203,7 @@ export function createProductionPipelineHandlers(
   ) =>
     add(id, async (input, context) => {
       const page = await context.externalCall(
-        `Appwrite ${domain} listRows`,
+        `Railway ${domain} listRows`,
         () =>
           readPipelineDomainPageOnce({
             domain,
@@ -223,7 +223,7 @@ export function createProductionPipelineHandlers(
   ) =>
     add(id, async (input, context) => {
       const document = await context.externalCall(
-        `Appwrite ${domain} getRow`,
+        `Railway ${domain} getRow`,
         () =>
           readPipelineDomainDocumentOnce({
             domain,
@@ -244,7 +244,7 @@ export function createProductionPipelineHandlers(
     add(id, async (input, context) => {
       const record = requiredRecord(input[inputKey], inputKey)
       const persisted = await context.externalCall(
-        `Appwrite ${domain} ${operation}Row`,
+        `Railway ${domain} ${operation}Row`,
         () =>
           (operation === "create"
             ? createPipelineDomainDocumentOnce
@@ -450,7 +450,7 @@ export function createProductionPipelineHandlers(
         requiredString(state[input.idKey], input.idKey)
       )
       const page = await context.externalCall(
-        "Appwrite output_media listRows",
+        "Railway output_media listRows",
         () =>
           readOutputMediaPageOnce({
             ownerId: context.ownerId,
@@ -475,7 +475,7 @@ export function createProductionPipelineHandlers(
         requiredString(state[input.idKey], input.idKey)
       )
       const created = await context.externalCall(
-        "Appwrite output_media createRow",
+        "Railway output_media createRow",
         () =>
           createOutputMediaOnce({
             ownerId: context.ownerId,
@@ -495,7 +495,7 @@ export function createProductionPipelineHandlers(
         context.ownerId,
         requiredString(state[input.idKey], input.idKey)
       )
-      await context.externalCall("Appwrite output_media deleteRow", () =>
+      await context.externalCall("Railway output_media deleteRow", () =>
         deleteOutputMediaOnce({
           ownerId: context.ownerId,
           outputRowId,
@@ -730,7 +730,7 @@ export function createProductionPipelineHandlers(
     "ugc-video-generation.inspect-one-saved-asset",
     async (input, context) => {
       const inspection = await context.externalCall(
-        "Appwrite Storage getFile",
+        "Railway object storage getFile",
         () =>
           inspectDomainAssetOnce({
             domain: "ugc",
@@ -744,7 +744,7 @@ export function createProductionPipelineHandlers(
   add("ugc-video-generation.read-one-saved-asset", async (input, context) => {
     const relativePath = requiredString(input.storagePath, "storagePath")
     const bytes = await context.externalCall(
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       () =>
         readDomainAssetOnce({
           domain: "ugc",
@@ -759,7 +759,7 @@ export function createProductionPipelineHandlers(
   add("ugc-video-generation.create-one-saved-asset", async (input, context) => {
     const localPath = requiredTempPath(input.localPath, "cfarm-ugc-")
     const bytes = await readFile(localPath)
-    await context.externalCall("Appwrite Storage createFile", () =>
+    await context.externalCall("Railway object storage createFile", () =>
       createDomainAssetOnce({
         domain: "ugc",
         ownerId: context.ownerId,
@@ -770,7 +770,7 @@ export function createProductionPipelineHandlers(
     return mergePipelineOutput(input, { savedAsset: input.storagePath })
   })
   add("ugc-video-generation.delete-one-saved-asset", async (input, context) => {
-    await context.externalCall("Appwrite Storage deleteFile", () =>
+    await context.externalCall("Railway object storage deleteFile", () =>
       deleteDomainAssetOnce({
         domain: "ugc",
         ownerId: context.ownerId,
@@ -841,7 +841,7 @@ export function createProductionPipelineHandlers(
     const request = requiredRecord(input.assetRequest, "assetRequest")
     const render = requiredRecord(input.slideshowRender, "slideshowRender")
     const staged = await context.externalCall(
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       () =>
         stageOneStoredSlideshowAsset({
           scratchDir: requiredString(
@@ -1012,7 +1012,7 @@ export function createProductionPipelineHandlers(
       const localPath = requiredSlideshowScratchFile(file.localPath)
       const relativePath = `slideshows/outputs/${requiredString(asRecord(render.record).id, "slideshow id")}/${fileName}`
       const bytes = await readFile(localPath)
-      await context.externalCall("Appwrite Storage createFile", () =>
+      await context.externalCall("Railway object storage createFile", () =>
         createDomainAssetOnce({
           domain: "slideshow",
           ownerId: context.ownerId,
@@ -1030,7 +1030,7 @@ export function createProductionPipelineHandlers(
       const render = requiredRecord(input.slideshowRender, "slideshowRender")
       const file = requiredRecord(input.outputFile, "outputFile")
       const relativePath = `slideshows/outputs/${requiredString(asRecord(render.record).id, "slideshow id")}/${path.basename(requiredString(file.fileName, "outputFile.fileName"))}`
-      await context.externalCall("Appwrite Storage deleteFile", () =>
+      await context.externalCall("Railway object storage deleteFile", () =>
         deleteDomainAssetOnce({
           domain: "slideshow",
           ownerId: context.ownerId,
@@ -1205,7 +1205,7 @@ export function createProductionPipelineHandlers(
       input.postIntent,
       "postIntent"
     ) as unknown as Post
-    const existing = await context.externalCall("Appwrite posts getRow", () =>
+    const existing = await context.externalCall("Railway posts getRow", () =>
       getCanonicalPostOnce(context.ownerId, post.id)
     )
     return mergePipelineOutput(input, { existingPostIntent: existing })
@@ -1215,7 +1215,7 @@ export function createProductionPipelineHandlers(
       ...(requiredRecord(input.postIntent, "postIntent") as unknown as Post),
       ownerId: context.ownerId,
     }
-    await context.externalCall("Appwrite posts createRow", () =>
+    await context.externalCall("Railway posts createRow", () =>
       createCanonicalPostOnce(post)
     )
     return mergePipelineOutput(input, { persistedPostIntent: post.id })
@@ -1225,7 +1225,7 @@ export function createProductionPipelineHandlers(
       ...(requiredRecord(input.postIntent, "postIntent") as unknown as Post),
       ownerId: context.ownerId,
     }
-    await context.externalCall("Appwrite posts updateRow", () =>
+    await context.externalCall("Railway posts updateRow", () =>
       updateCanonicalPostOnce(post)
     )
     return mergePipelineOutput(input, { persistedPostIntent: post.id })
@@ -1236,7 +1236,7 @@ export function createProductionPipelineHandlers(
       "postIdentityClaim"
     ) as never
     const identity = await context.externalCall(
-      "Appwrite post_identities getRow",
+      "Railway post_identities getRow",
       () => getPostIdentityOnce(claim)
     )
     if (identity && identity.ownerId !== context.ownerId)
@@ -1255,7 +1255,7 @@ export function createProductionPipelineHandlers(
         "postIdentityClaim"
       ) as never
       const identity = await context.externalCall(
-        "Appwrite post_identities createRow",
+        "Railway post_identities createRow",
         () => createPostIdentityOnce(context.ownerId, post.id, claim)
       )
       return mergePipelineOutput(input, {
@@ -1596,7 +1596,7 @@ export function createProductionPipelineHandlers(
 
     add(id("rendi-persist-output"), async (input, context) => {
       const target = rendiPersistenceTarget(workflowId, context.ownerId, input)
-      await context.externalCall("Appwrite Rendi output-file create", () =>
+      await context.externalCall("Railway Rendi output-file create", () =>
         persistPipelineTempFile({
           tempPath: requiredString(
             input.tempRendiOutputPath,
@@ -2540,7 +2540,7 @@ export function createProductionPipelineHandlers(
       throw new Error("Unsupported rendered slide URL")
     const relativePath = decodeURIComponent(pathname.slice(prefix.length))
     const bytes = await context.externalCall(
-      "Appwrite Storage getFileView",
+      "Railway object storage getFileView",
       () =>
         readDomainAssetOnce({
           domain: "slideshow",
@@ -3186,7 +3186,7 @@ export function createProductionPipelineHandlers(
         "broll",
         fileName
       )
-      await context.externalCall("Appwrite b-roll asset-file create", () =>
+      await context.externalCall("Railway b-roll asset-file create", () =>
         persistPipelineTempFile({
           tempPath: requiredString(input.tempBrollPath, "tempBrollPath"),
           outputPath,
@@ -3208,8 +3208,8 @@ export function createProductionPipelineHandlers(
       "broll",
       fileName
     )
-    await context.externalCall("Appwrite b-roll asset-file delete", () =>
-      deleteAssetFromAppwrite(outputPath)
+    await context.externalCall("Railway b-roll asset-file delete", () =>
+      deleteAsset(outputPath)
     )
     return mergePipelineOutput(input, { deletedBrollAsset: fileName })
   })
@@ -3607,7 +3607,7 @@ export function createProductionPipelineHandlers(
           outputKind: kind,
         }
       )
-      await context.externalCall(`Appwrite ${kind} asset-file create`, () =>
+      await context.externalCall(`Railway ${kind} asset-file create`, () =>
         persistPipelineTempFile({
           tempPath: requiredString(input[field], field),
           outputPath: target.outputPath,
@@ -5284,7 +5284,7 @@ export function createProductionPipelineHandlers(
     "x-threads-generation.get-generated-reminder-policy",
     async (input, context) => {
       const settings = await context.externalCall(
-        "Appwrite reminder-settings read",
+        "Railway reminder-settings read",
         () => services.getReminderSettings()
       )
       return mergePipelineOutput(input, {
@@ -5491,7 +5491,7 @@ export function createProductionPipelineHandlers(
       "images",
       fileName
     )
-    await context.externalCall("Appwrite asset-file create", () =>
+    await context.externalCall("Railway asset-file create", () =>
       persistPipelineTempFile({
         tempPath: requiredString(input.tempImagePath, "tempImagePath"),
         outputPath,
@@ -5512,8 +5512,8 @@ export function createProductionPipelineHandlers(
       "images",
       fileName
     )
-    await context.externalCall("Appwrite asset-file delete", () =>
-      deleteAssetFromAppwrite(outputPath)
+    await context.externalCall("Railway asset-file delete", () =>
+      deleteAsset(outputPath)
     )
     return mergePipelineOutput(input, { deletedImageAsset: fileName })
   })
@@ -5833,7 +5833,10 @@ async function requireNativeUgcComponentExecution(
   _input: Record<string, unknown>,
   _context: PipelineStageContext,
   _stopAfter: string
-) {
+): Promise<never> {
+  void _input
+  void _context
+  void _stopAfter
   throw new Error(
     "UGC component execution must run through the native Windmill runtime"
   )

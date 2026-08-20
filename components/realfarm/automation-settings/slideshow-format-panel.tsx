@@ -21,7 +21,7 @@ import {
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
 import {

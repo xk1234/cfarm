@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 
-import { AnalyticsView } from "@/components/realfarm/analytics/analytics-view"
+import { AnalyticsView } from "@/features/analytics/ui/analytics-view"
 import {
   analyticsPreviewPlatforms,
   buildAnalyticsPreviewData,

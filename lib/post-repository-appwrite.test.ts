@@ -101,6 +101,19 @@ vi.mock("@/lib/appwrite", () => ({
     },
   }),
 }))
+vi.mock("@/lib/runtime-store", () => ({
+  RUNTIME_DATABASE_ID: "cfarm",
+  getRuntimeStore: () => ({
+    records: {
+      getRow: mocks.getRow,
+      createRow: mocks.createRow,
+      upsertRow: mocks.upsertRow,
+      updateRow: mocks.updateRow,
+      deleteRow: mocks.deleteRow,
+      listRows: mocks.listRows,
+    },
+  }),
+}))
 
 import {
   AppwritePostRepository,

@@ -5,16 +5,10 @@ import ts from "typescript"
 import { describe, expect, it } from "vitest"
 
 import { WINDMILL_WORKFLOW_DEPENDENCIES } from "./workflow-dependencies"
-
-const flowFolders = {
-  "slideshow-generation": "slideshow_generation__flow",
-  "ugc-video-generation": "ugc_video_generation__flow",
-  "react-reveal-generation": "react_reveal_generation__flow",
-  "greenscreen-meme-generation": "greenscreen_meme_generation__flow",
-  "template-video-generation": "template_video_generation__flow",
-  "linkedin-generation": "linkedin_generation__flow",
-  "x-threads-generation": "x_threads_generation__flow",
-} as const
+import {
+  WINDMILL_FLOW_FOLDERS as flowFolders,
+  WINDMILL_WORKFLOW_MANIFEST,
+} from "./workflow-manifest"
 
 async function sourceFor(workflowId: keyof typeof flowFolders) {
   return readFile(
@@ -30,6 +24,18 @@ async function sourceFor(workflowId: keyof typeof flowFolders) {
 }
 
 describe("generated Lumenclip Windmill flows", () => {
+  it("keeps metadata and dependencies in one complete manifest", () => {
+    expect(Object.keys(WINDMILL_WORKFLOW_MANIFEST).sort()).toEqual(
+      Object.keys(flowFolders).sort()
+    )
+    for (const workflow of Object.values(WINDMILL_WORKFLOW_MANIFEST)) {
+      expect(workflow.summary).toMatch(/^lumenclip - /)
+      expect(workflow.dependencies).toBe(
+        WINDMILL_WORKFLOW_DEPENDENCIES[workflow.id]
+      )
+    }
+  })
+
   for (const workflowId of Object.keys(flowFolders) as Array<
     keyof typeof flowFolders
   >) {

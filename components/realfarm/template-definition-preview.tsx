@@ -12,8 +12,8 @@ import {
   previewSlideshowSlide,
 } from "@/components/realfarm/automation-settings/format-helpers"
 import { renderedSlideSvg } from "@/lib/slideshow-renderer"
-import type { CreatedImageCollection } from "@/lib/realfarm-collections"
-import { findCollectionByIdOrAlias } from "@/lib/realfarm-collections"
+import type { CreatedImageCollection } from "@/features/collections/domain/collections"
+import { findCollectionByIdOrAlias } from "@/features/collections/domain/collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import type { AutomationSchema, TextItem } from "@/lib/realfarm-automation"
 import type { XAutomationRecord } from "@/lib/x-automation"

@@ -1,7 +1,6 @@
 import { clean, isRecord } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
-import { Query } from "node-appwrite"
 
 import {
   countJsonArrayStore,
@@ -10,7 +9,9 @@ import {
   readJsonArrayStore,
   upsertJsonArrayRecord,
 } from "@/lib/json-store"
-import type { SlideshowSettings, SlideshowSlide } from "@/lib/slideshows"
+import { RecordQuery as Query } from "@/lib/record-query"
+import type { SlideshowSettings } from "@/lib/slideshow-contract"
+import type { SlideshowSlide } from "@/lib/slideshow-renderer"
 
 export type ResultWorkflowType = "slideshow" | "video"
 export type ResultStatus = "succeeded" | "failed"

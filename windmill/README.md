@@ -76,6 +76,12 @@ when a declared producer is missing, ordered after its consumer, or replaced
 by a generic identity artifact. Re-run the generator whenever a stage or graph
 dependency changes, then lint before importing.
 
+Run `pnpm typecheck:windmill` for the authored manifest, generator, and native
+runtime source. The main `pnpm typecheck` intentionally excludes Windmill so
+the web and workflow compiler boundaries remain explicit. Run
+`pnpm windmill:check` to regenerate the deployable bundle and fail if checked-in
+Windmill output is stale.
+
 ## Runtime boundary
 
 - UI, API, and MCP callers start Windmill flows and inspect Windmill jobs.
@@ -108,7 +114,6 @@ dependency changes, then lint before importing.
 - Stage handlers and UGC orchestration live under `windmill/runtime/` and are
   bundled into the deployed native runtime by `build-native-runtime.mts`.
 - Railway PostgreSQL and the private Railway bucket remain the durable database
-  and object store. The bundled compatibility layer pushes filters, ordering,
-  counts, and pagination into SQL. Provider APIs remain external dependencies
-  invoked by Windmill stages.
+  and object store. Provider APIs remain external dependencies invoked by
+  Windmill stages; Appwrite compatibility code is migration/rollback material.
 - Publishing remains outside generation workflows.

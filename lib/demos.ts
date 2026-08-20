@@ -1,9 +1,10 @@
 import "server-only"
 
-import { ID, Query } from "node-appwrite"
+import { ID } from "node-appwrite"
 import { InputFile } from "node-appwrite/file"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { RecordQuery as Query } from "@/lib/record-query"
+import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 
 const TABLE = "demos"
 const BUCKET = "demos"
@@ -16,9 +17,8 @@ export type DemoVideo = {
 }
 
 export async function listDemoVideos(ownerId: string): Promise<DemoVideo[]> {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured")
-  const response = await aw.tables.listRows(APPWRITE_DATABASE_ID, TABLE, [
+  const aw = getRuntimeStore()
+  const response = await aw.records.listRows(RUNTIME_DATABASE_ID, TABLE, [
     Query.equal("owner_id", [ownerId]),
     Query.limit(100),
   ])
@@ -37,17 +37,16 @@ export async function createDemoVideo(input: {
   title: string
   file: File
 }) {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured")
+  const aw = getRuntimeStore()
   const id = ID.unique()
   const bytes = Buffer.from(await input.file.arrayBuffer())
-  const stored = await aw.storage.createFile(
+  const stored = await aw.objects.createFile(
     BUCKET,
     id,
     InputFile.fromBuffer(bytes, input.file.name)
   )
   const now = new Date().toISOString()
-  await aw.tables.createRow(APPWRITE_DATABASE_ID, TABLE, id, {
+  await aw.records.createRow(RUNTIME_DATABASE_ID, TABLE, id, {
     owner_id: input.ownerId,
     title: input.title,
     file_id: stored.$id,
@@ -63,12 +62,11 @@ export async function createDemoVideo(input: {
 }
 
 export async function readDemoVideo(ownerId: string, id: string) {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured")
-  const row = await aw.tables.getRow(APPWRITE_DATABASE_ID, TABLE, id)
+  const aw = getRuntimeStore()
+  const row = await aw.records.getRow(RUNTIME_DATABASE_ID, TABLE, id)
   if (row.owner_id !== ownerId) return null
   return {
-    bytes: await aw.storage.getFileView(BUCKET, String(row.file_id)),
+    bytes: await aw.objects.getFileView(BUCKET, String(row.file_id)),
     contentType: String(row.content_type || "video/mp4"),
   }
 }

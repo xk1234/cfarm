@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["windmill/*.ts", "windmill/*.mts", "windmill/runtime/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "windmill/f/**",
+    "windmill/**/*.test.ts",
+    "windmill/**/*.test.js"
+  ]
+}

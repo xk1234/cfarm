@@ -33,8 +33,10 @@ load only after Videos is selected for the first time.
 Template definitions and examples are shared `permanent_assets` rows with
 `source_key=starter_template` and
 `source_key=starter_template_example`. Slideshow previews come from
-`automation_runs`; generated videos load lazily from owner-scoped `outputs`
-rows with `source_key=generated_video`.
+`automation_runs`. The initial request returns card-sized summaries with one
+preview image; opening a card loads the template's full run artifacts and the
+viewer on demand. Generated videos load lazily from owner-scoped `outputs` rows
+with `source_key=generated_video`.
 
 The final section, Start from a proven workflow, displays six reusable
 templates per page. Each template contains generated example covers, its name,

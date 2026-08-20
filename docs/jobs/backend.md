@@ -44,6 +44,8 @@ exhausted jobs dead. None of those queues are populated from a template cadence.
 
 - Manual run API: `app/api/templates/run/route.ts`
 - Slideshow runner: `lib/automation-runner.ts`
-- Disabled scheduler: `appwrite/functions/template-scheduler/src/main.js`
-- Worker: `appwrite/functions/job-worker/src/main.js`
+- Disabled scheduler: `services/template-scheduler.ts`
+- Worker: `services/job-worker.ts`
+- Native queue repository: `lib/railway/job-repository.ts`
+- Queue schema: `infra/railway/migrations/0004_native_job_queue.sql`
 - Output publication: `components/realfarm/automation-settings/slideshow-publication-actions.tsx`

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 
 import { StandaloneMobileNav } from "@/components/realfarm/standalone-mobile-nav"
-import { PostAnalyticsPage } from "@/components/realfarm/analytics/post-analytics-page"
+import { PostAnalyticsPage } from "@/features/analytics/ui/post-analytics-page"
 import { getAutomationRunForSlideshow } from "@/lib/automation-runner"
 import { absoluteAssetUrl } from "@/lib/asset-urls"
 import { getCurrentUser } from "@/lib/auth"
@@ -11,7 +11,7 @@ import type { PostFastSocialIntegration } from "@/lib/postfast-client"
 import { listMetricSnapshots } from "@/lib/postfast-metric-snapshots"
 import { getPostFastPostRecord } from "@/lib/postfast-posts"
 import { getPublicationRecordForRead } from "@/lib/post-repository"
-import { snapshotlessPublication } from "@/components/realfarm/analytics/analytics-selectors"
+import { snapshotlessPublication } from "@/features/analytics/ui/analytics-selectors"
 
 export const dynamic = "force-dynamic"
 

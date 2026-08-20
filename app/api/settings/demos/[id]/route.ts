@@ -10,7 +10,7 @@ export async function GET(
   const { id } = await context.params
   const demo = await readDemoVideo(user.$id, id).catch(() => null)
   if (!demo) return new Response("Not found", { status: 404 })
-  return new Response(demo.bytes, {
+  return new Response(new Uint8Array(demo.bytes), {
     headers: {
       "Content-Type": demo.contentType,
       "Cache-Control": "private, max-age=3600",

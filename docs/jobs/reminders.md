@@ -60,9 +60,8 @@ Completed slideshow messages include two signed public delivery links:
 **Preview generation** opens a login-free preview where the recipient can copy
 the title or combined description and hashtags, while **Download slides
 (.zip)** points directly to a downloadable archive of every rendered slide.
-Both links are scoped to one output, expire after one year, and use
-`SLIDESHOW_SHARE_SECRET` (falling back to the Appwrite server key if a dedicated
-share secret is not configured).
+Both links are scoped to one output, expire after one year, and require
+`SLIDESHOW_SHARE_SECRET`.
 
 Saving Telegram settings registers
 `<BASE_URL>/api/telegram/webhook` with Telegram when the public URL and webhook
@@ -78,6 +77,6 @@ actionable **Ready to post** reminder before any generation can be changed.
 - Settings UI: `components/realfarm/user-settings-modal.tsx`
 - Settings and Telegram client: `lib/reminder-settings.ts`
 - Reminder queueing: `lib/reminders.ts`
-- Worker delivery: `appwrite/functions/job-worker/src/main.js`
+- Worker delivery: `services/job-worker.ts`
 - Confirmation callback: `app/api/telegram/webhook/route.ts`
 - Posted-state update: `lib/reminder-actions.ts`

@@ -12,19 +12,18 @@ process.env.LUMENCLIP_DATA_BACKEND = "railway"
 process.env.LUMENCLIP_ASSET_BACKEND = "railway"
 
 const [
-  { APPWRITE_DATABASE_ID, getAppwrite },
+  { RUNTIME_DATABASE_ID, getRuntimeStore },
   { closeRailwayDatabase, getRailwayDatabase },
 ] = await Promise.all([
-  import("../lib/appwrite"),
+  import("../lib/runtime-store"),
   import("../lib/railway/database"),
 ])
 
-const backend = getAppwrite()
-if (!backend) throw new Error("Railway backend did not initialize.")
+const backend = getRuntimeStore()
 
 try {
-  const templates = await backend.tables.listRows(
-    APPWRITE_DATABASE_ID,
+  const templates = await backend.records.listRows(
+    RUNTIME_DATABASE_ID,
     "templates",
     []
   )
@@ -81,11 +80,11 @@ try {
   if (legacyRows[0]?.count) {
     throw new Error(`${legacyRows[0].count} legacy automation rows remain.`)
   }
-  const firstAsset = await backend.storage.getFile(
+  const firstAsset = await backend.objects.getFile(
     manifest.source_bucket_id,
     manifest.source_file_id
   )
-  const firstAssetBytes = await backend.storage.getFileView(
+  const firstAssetBytes = await backend.objects.getFileView(
     manifest.source_bucket_id,
     manifest.source_file_id
   )

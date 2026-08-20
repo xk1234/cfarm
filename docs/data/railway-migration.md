@@ -129,16 +129,17 @@ jobs as `dead` with a cutover reason when `--apply` is supplied. This preserves
 history while preventing notifications, generations, or publications from
 being replayed merely because their queue rows were migrated.
 
-## Cutover sequence
+## Completed cutover and rollback record
+
+The runtime cutover is complete. The sequence below is retained as the recovery
+record; it is not the normal development or deployment procedure.
 
 1. Apply the PostgreSQL schema and complete the initial records and object copy.
 2. Traverse every source table and bucket with cursors. Confirm every source
    row and object exists in Railway and resolve every migration failure. Railway
    may legitimately contain additional records created after its worker became
    active, so target counts can exceed Appwrite counts.
-3. Exercise the TablesDB-compatible PostgreSQL adapter and the S3-compatible
-   asset adapter behind `LUMENCLIP_DATA_BACKEND` and
-   `LUMENCLIP_ASSET_BACKEND`.
+3. Exercise the Railway record store and S3-compatible asset adapter.
 4. Import Railway users into Clerk. Confirm their Clerk external IDs match the
    existing Railway owner IDs, then exercise sign-up, sign-in, recovery, and
    sign-out.
@@ -152,8 +153,8 @@ being replayed merely because their queue rows were migrated.
    links to the Railway production domain. Keep the development scheduler and
    worker stopped.
 8. Keep Appwrite offline through the rollback window. Deployed Railway services
-   have no Appwrite credentials; source-only migration scripts can be removed
-   after the rollback window.
+   have no Appwrite credentials. Source-only migration scripts remain explicit
+   recovery tools and are never part of normal startup.
 
 ## Acceptance gates
 

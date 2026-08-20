@@ -7,8 +7,8 @@ import type {
   PostFastPostStatus,
   PostFastSourceType,
   PostFastStatsSource,
-} from "@/lib/postfast-posts"
-import type { PublicationLinkState } from "@/lib/publication-link-state"
+  PublicationLinkState,
+} from "@/lib/publication-contract"
 
 const STATUSES = [
   "awaiting_manual_post",

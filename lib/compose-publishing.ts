@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import type {
   ComposerValue,
   ConnectedComposerAccount,
-} from "@/components/realfarm/composer/composer-types"
+} from "@/features/composer/domain/composer"
 import type { PostFastMedia } from "@/lib/postfast-client"
 import {
   composeLimitErrors,

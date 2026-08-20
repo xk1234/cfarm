@@ -1,10 +1,10 @@
 import "server-only"
 
-import { Query } from "node-appwrite"
-
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { getCurrentUser } from "@/lib/auth"
 import { deterministicJobId } from "@/lib/queue"
+import { RecordQuery as Query } from "@/lib/record-query"
+import { railwayJobRepository } from "@/lib/railway/job-repository"
+import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 import { systemOwnerId } from "@/lib/system-owner-context"
 import {
   ugcStageOrder,
@@ -35,11 +35,11 @@ type StoredRun = Record<string, unknown> & { checkpoints?: UgcCheckpoints }
 export async function getUgcRunStatus(
   runId: string
 ): Promise<UgcRunStatus | null> {
-  const aw = getAppwrite()
+  const aw = getRuntimeStore()
   const ownerId = systemOwnerId() ?? (await getCurrentUser())?.$id
-  if (!aw || !ownerId) return null
-  const response = await aw.tables.listRows(
-    APPWRITE_DATABASE_ID,
+  if (!ownerId) return null
+  const response = await aw.records.listRows(
+    RUNTIME_DATABASE_ID,
     "template_runs",
     [
       Query.equal("rid", [runId]),
@@ -57,21 +57,16 @@ export async function getUgcRunStatus(
     const jobId =
       stringOrNull(record.jobId) ??
       deterministicJobId(ownerId, `ugc-auto:${automationId}:${scheduledFor}`)
-    try {
-      const job = (await aw.tables.getRow(
-        APPWRITE_DATABASE_ID,
-        "jobs",
-        jobId
-      )) as Record<string, unknown>
+    const job = await railwayJobRepository.get(jobId)
+    if (job) {
       if (
-        job.owner_id === ownerId &&
+        job.ownerId === ownerId &&
         (job.status === "failed" || job.status === "dead")
       ) {
         record.status = "failed"
         record.error = job.error
       }
-    } catch (error) {
-      if ((error as { code?: number }).code !== 404) throw error
+    } else {
       const checkpoints = record.checkpoints ?? {}
       if (ugcStageOrder.some((stage) => !checkpoints[stage])) {
         record.status = "failed"

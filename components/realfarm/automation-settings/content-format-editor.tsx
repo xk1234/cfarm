@@ -26,7 +26,7 @@ import {
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/lib/realfarm-collections"
+} from "@/features/collections/domain/collections"
 import { cn } from "@/lib/utils"
 
 import { ctaEnabled } from "./format-helpers"

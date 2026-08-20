@@ -3,11 +3,11 @@ title: Schedule
 description: Review provider drafts, scheduled posts, failures, and published content.
 ---
 
-Route: `/app?view=schedule`
+Route: `/app/schedule`
 
 ## Layout
 
-Owner: `components/realfarm/content-calendar/content-calendar-view.tsx`.
+Owner: `features/calendar/ui/content-calendar.tsx`.
 
 The page is a publication calendar. It combines locally tracked publication
 records with live PostFast drafts, schedules, failures, and published posts.

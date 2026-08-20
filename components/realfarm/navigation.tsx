@@ -22,7 +22,6 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import type { RealFarmData } from "@/lib/realfarm-data"
 import { clientSWRFetcher } from "@/lib/client-swr"
 import { cn } from "@/lib/utils"
 import {
@@ -36,6 +35,11 @@ type NavItem = {
   key: ViewKey
   label: string
   icon: React.ComponentType<{ className?: string }>
+}
+
+export type WorkspaceIdentity = {
+  name: "LumenClip"
+  owner?: string
 }
 
 const topNav: NavItem[] = [
@@ -56,7 +60,7 @@ export function Sidebar({
   onViewChange,
   onSettings,
 }: {
-  data: RealFarmData
+  data: { brand: WorkspaceIdentity }
   view: ViewKey
   onViewChange: (view: ViewKey) => void
   onSettings: () => void
