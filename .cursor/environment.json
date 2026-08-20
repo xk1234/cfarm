@@ -1,0 +1,12 @@
+{
+  "name": "LumenClip",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "web",
+      "command": "pnpm dev:web"
+    }
+  ],
+  "ports": [3000]
+}
