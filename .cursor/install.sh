@@ -37,3 +37,7 @@ if ! command -v railway >/dev/null 2>&1; then
   sudo env "PATH=$PATH" npm install --global @railway/cli
 fi
 railway --version
+
+# Install Railway's official Cursor integration, not only the CLI binary.
+railway skills install --agent cursor
+railway mcp install --agent cursor
