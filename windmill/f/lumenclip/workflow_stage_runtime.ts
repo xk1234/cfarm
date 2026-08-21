@@ -18685,12 +18685,19 @@ function assertNoLinearExecutionWindow(startAt, stopAfter) {
 function windmillFlowInput(workflowId, input) {
   const contract = WINDMILL_WORKFLOW_INPUTS[workflowId];
   const aliases = WINDMILL_WORKFLOW_INPUT_ALIASES[workflowId];
-  const accepted = /* @__PURE__ */ new Set([...contract, ...Object.keys(aliases)]);
+  const accepted = /* @__PURE__ */ new Set([
+    ...contract,
+    ...Object.keys(aliases),
+    ...workflowId === "slideshow-generation" ? SLIDESHOW_FORM_KEYS : []
+  ]);
   const unsupported = Object.keys(input).filter((key) => !accepted.has(key));
   if (unsupported.length) {
     throw new Error(
       `${workflowId} does not accept input ${unsupported.sort().join(", ")}. Accepted inputs: ${contract.join(", ")}`
     );
+  }
+  if (workflowId === "slideshow-generation") {
+    return windmillSlideshowFlowInput(input);
   }
   const normalized = {};
   for (const key of contract) {
@@ -18702,7 +18709,34 @@ function windmillFlowInput(workflowId, input) {
   }
   return normalized;
 }
-var WINDMILL_FLOW_PATHS, WINDMILL_WORKFLOW_INPUTS, WINDMILL_WORKFLOW_INPUT_ALIASES;
+function windmillSlideshowFlowInput(input) {
+  const templateInputs = isPlainRecord(input.template_inputs) ? { ...input.template_inputs } : {};
+  const automationId = firstDefined(
+    templateInputs.automation_id,
+    input.automation_id,
+    input.automationId
+  );
+  const hook = firstDefined(templateInputs.hook, input.hook);
+  if (automationId !== void 0) templateInputs.automation_id = automationId;
+  if (typeof hook === "string") {
+    if (hook.trim()) templateInputs.hook = hook;
+  } else if (hook !== void 0) {
+    templateInputs.hook = hook;
+  }
+  return {
+    template_inputs: templateInputs,
+    content_inputs: isPlainRecord(input.content_inputs) ? input.content_inputs : {},
+    collection_inputs: isPlainRecord(input.collection_inputs) ? input.collection_inputs : {},
+    slide_overrides: Array.isArray(input.slide_overrides) ? input.slide_overrides : []
+  };
+}
+function isPlainRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function firstDefined(...values) {
+  return values.find((value) => value !== void 0);
+}
+var WINDMILL_FLOW_PATHS, WINDMILL_WORKFLOW_INPUTS, SLIDESHOW_FORM_KEYS, WINDMILL_WORKFLOW_INPUT_ALIASES;
 var init_windmill_workflows = __esm({
   "lib/windmill-workflows.ts"() {
     "use strict";
@@ -18764,6 +18798,12 @@ var init_windmill_workflows = __esm({
       ],
       "x-threads-generation": ["automation_id", "topic", "source_candidate"]
     };
+    SLIDESHOW_FORM_KEYS = [
+      "template_inputs",
+      "content_inputs",
+      "collection_inputs",
+      "slide_overrides"
+    ];
     WINDMILL_WORKFLOW_INPUT_ALIASES = {
       "slideshow-generation": {
         automationId: "automation_id",

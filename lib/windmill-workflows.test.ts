@@ -34,15 +34,91 @@ describe("Windmill workflow client", () => {
       "https://windmill.example/api/w/lumenclip/jobs/run/f/f/lumenclip/slideshow_generation",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining(
-          JSON.stringify({
-            owner_id: "owner-1",
-            request_id: result.requestId,
-            automation_id: "automation-1",
-          })
-        ),
       })
     )
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual({
+      owner_id: "owner-1",
+      request_id: result.requestId,
+      template_inputs: { automation_id: "automation-1" },
+      content_inputs: {},
+      collection_inputs: {},
+      slide_overrides: [],
+    })
+  })
+
+  it("accepts nested slideshow form groups and drops operational aliases", async () => {
+    configureWindmill()
+    const fetchImpl = vi.fn(
+      async () => new Response("job-nested", { status: 201 })
+    )
+
+    await queueWindmillWorkflow({
+      workflowId: "slideshow-generation",
+      ownerId: "owner-1",
+      workflowInput: {
+        template_inputs: { automation_id: "automation-nested", hook: "saved" },
+        content_inputs: { language: "en" },
+        collection_inputs: { body_collection_id: "body-1" },
+        slide_overrides: [{ slide_number: 2, content_direction: "keep short" }],
+        generationSource: "manual",
+        scheduled_for: "2026-08-21T10:00:00.000Z",
+      },
+      fetchImpl,
+    })
+
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual({
+      owner_id: "owner-1",
+      request_id: expect.stringMatching(/^pipeline-/),
+      template_inputs: { automation_id: "automation-nested", hook: "saved" },
+      content_inputs: { language: "en" },
+      collection_inputs: { body_collection_id: "body-1" },
+      slide_overrides: [{ slide_number: 2, content_direction: "keep short" }],
+    })
+  })
+
+  it("defaults omitted slideshow collection and slide groups to empty values", async () => {
+    configureWindmill()
+    const fetchImpl = vi.fn(
+      async () => new Response("job-defaults", { status: 201 })
+    )
+
+    await queueWindmillWorkflow({
+      workflowId: "slideshow-generation",
+      ownerId: "owner-1",
+      workflowInput: {
+        automation_id: "automation-1",
+        hook: "   ",
+        collection_inputs: null,
+        slide_overrides: null,
+      },
+      fetchImpl,
+    })
+
+    expect(
+      JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))
+    ).toMatchObject({
+      template_inputs: { automation_id: "automation-1" },
+      content_inputs: {},
+      collection_inputs: {},
+      slide_overrides: [],
+    })
+  })
+
+  it("still rejects slideshow keys that are not aliases or form groups", async () => {
+    configureWindmill()
+    const fetchImpl = vi.fn()
+
+    await expect(
+      queueWindmillWorkflow({
+        workflowId: "slideshow-generation",
+        ownerId: "owner-1",
+        workflowInput: { automationId: "automation-1", unused: true },
+        fetchImpl,
+      })
+    ).rejects.toThrow(
+      "slideshow-generation does not accept input unused. Accepted inputs: automation_id, hook, scheduled_for, generation_source"
+    )
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 
   it("rejects inputs that do not affect the workflow output", async () => {
