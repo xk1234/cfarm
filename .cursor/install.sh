@@ -40,4 +40,4 @@ railway --version
 
 # Install Railway's official Cursor integration, not only the CLI binary.
 railway skills install --agent cursor
-railway mcp install --agent cursor
+railway mcp install --agent cursor --local
