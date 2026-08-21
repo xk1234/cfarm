@@ -5,6 +5,8 @@ import {
   type PostFastCreatePostType,
   type PostFastMedia,
 } from "@/lib/postfast-client"
+import { socialbuRequest } from "@/lib/socialbu-client"
+import { activePublishingProvider } from "@/lib/social/publishing-provider"
 import {
   listPostFastPostRecords,
   type PostFastPostRecord,
@@ -28,14 +30,24 @@ export async function GET(request: Request) {
   const endDate = searchParams.get("endDate") ?? undefined
 
   try {
-    const posts = await postfastRequest("/social-posts", {
-      query: {
-        from: startDate,
-        to: endDate,
-        page: searchParams.get("page") ?? 0,
-        limit: searchParams.get("limit") ?? 50,
-      },
-    })
+    const posts =
+      activePublishingProvider() === "socialbu"
+        ? await socialbuRequest("/posts", {
+            query: {
+              from: startDate,
+              to: endDate,
+              page: searchParams.get("page") ?? 0,
+              limit: searchParams.get("limit") ?? 50,
+            },
+          })
+        : await postfastRequest("/social-posts", {
+            query: {
+              from: startDate,
+              to: endDate,
+              page: searchParams.get("page") ?? 0,
+              limit: searchParams.get("limit") ?? 50,
+            },
+          })
     return NextResponse.json({
       posts: await postfastPostsResponse(posts),
       configured: true,
@@ -47,7 +59,7 @@ export async function GET(request: Request) {
         {
           posts: { posts: [] },
           configured: false,
-          error: "POSTFAST_API_KEY is not configured",
+          error: "Publishing provider is not configured",
         },
         { status: 200 }
       )

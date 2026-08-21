@@ -7,6 +7,8 @@ import {
   type PostFastMedia,
   type PostFastMediaType,
 } from "@/lib/postfast-client"
+import { uploadSocialBuBytes } from "@/lib/socialbu-media-upload"
+import { activePublishingProvider } from "@/lib/social/publishing-provider"
 
 type UploadRequest = <T = unknown>(
   path: string,
@@ -34,6 +36,22 @@ export async function uploadPostFastMediaSources(input: {
   const sources = await Promise.all(
     input.urls.map((url, index) => loadMediaSource(url, index, input.fetcher))
   )
+
+  if (activePublishingProvider() === "socialbu") {
+    const uploaded = await Promise.all(
+      sources.map((source) =>
+        uploadSocialBuBytes({
+          bytes: source.bytes,
+          contentType: source.contentType,
+          mediaType: source.mediaType,
+          sortOrder: source.index,
+          fetcher: input.fetcher,
+        })
+      )
+    )
+    return uploaded.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  }
+
   const uploaded: PostFastMedia[] = []
 
   for (const [contentType, matching] of groupByContentType(sources)) {

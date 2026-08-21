@@ -8,6 +8,8 @@ import {
   readResponseBytes,
 } from "@/lib/bounded-fetch"
 import { assertPublicHttpUrl } from "@/lib/url-guard"
+import { uploadSocialBuBytes } from "@/lib/socialbu-media-upload"
+import { activePublishingProvider } from "@/lib/social/publishing-provider"
 
 export const dynamic = "force-dynamic"
 const maxUploadBytes = 250 * 1024 * 1024
@@ -71,6 +73,20 @@ export async function POST(request: Request) {
         { error: `Unsupported media type: ${uploadContentType}` },
         { status: 400 }
       )
+    }
+
+    if (activePublishingProvider() === "socialbu") {
+      const bytes =
+        source.bytes instanceof ArrayBuffer
+          ? new Uint8Array(source.bytes)
+          : Uint8Array.from(source.bytes)
+      const upload = await uploadSocialBuBytes({
+        bytes,
+        contentType: uploadContentType,
+        mediaType,
+        fileName: fileNameFromUrl(sourceUrl) || (file ? file.name : undefined),
+      })
+      return NextResponse.json({ upload })
     }
 
     const signedUploads = await postfastRequest<unknown[]>(
@@ -157,6 +173,16 @@ async function absoluteSourceUrl(url: string, requestUrl: string) {
     throw new SourceUrlError(
       "A public http or https media source URL is required"
     )
+  }
+}
+
+function fileNameFromUrl(url: string) {
+  if (!url) return ""
+  try {
+    const pathname = new URL(url, "http://local").pathname
+    return decodeURIComponent(pathname.split("/").pop() ?? "")
+  } catch {
+    return ""
   }
 }
 
