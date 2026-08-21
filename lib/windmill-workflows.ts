@@ -270,12 +270,19 @@ function windmillFlowInput(
 ) {
   const contract = WINDMILL_WORKFLOW_INPUTS[workflowId]
   const aliases = WINDMILL_WORKFLOW_INPUT_ALIASES[workflowId]
-  const accepted = new Set<string>([...contract, ...Object.keys(aliases)])
+  const accepted = new Set<string>([
+    ...contract,
+    ...Object.keys(aliases),
+    ...(workflowId === "slideshow-generation" ? SLIDESHOW_FORM_KEYS : []),
+  ])
   const unsupported = Object.keys(input).filter((key) => !accepted.has(key))
   if (unsupported.length) {
     throw new Error(
       `${workflowId} does not accept input ${unsupported.sort().join(", ")}. Accepted inputs: ${contract.join(", ")}`
     )
+  }
+  if (workflowId === "slideshow-generation") {
+    return windmillSlideshowFlowInput(input)
   }
   const normalized: Record<string, unknown> = {}
   for (const key of contract) {
@@ -286,6 +293,45 @@ function windmillFlowInput(
     if (value !== undefined) normalized[key] = value
   }
   return normalized
+}
+
+function windmillSlideshowFlowInput(input: Record<string, unknown>) {
+  const templateInputs = isPlainRecord(input.template_inputs)
+    ? { ...input.template_inputs }
+    : {}
+  const automationId = firstDefined(
+    templateInputs.automation_id,
+    input.automation_id,
+    input.automationId
+  )
+  const hook = firstDefined(templateInputs.hook, input.hook)
+  if (automationId !== undefined) templateInputs.automation_id = automationId
+  if (typeof hook === "string") {
+    if (hook.trim()) templateInputs.hook = hook
+  } else if (hook !== undefined) {
+    templateInputs.hook = hook
+  }
+
+  return {
+    template_inputs: templateInputs,
+    content_inputs: isPlainRecord(input.content_inputs)
+      ? input.content_inputs
+      : {},
+    collection_inputs: isPlainRecord(input.collection_inputs)
+      ? input.collection_inputs
+      : {},
+    slide_overrides: Array.isArray(input.slide_overrides)
+      ? input.slide_overrides
+      : [],
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+function firstDefined(...values: unknown[]) {
+  return values.find((value) => value !== undefined)
 }
 
 const WINDMILL_WORKFLOW_INPUTS = {
@@ -335,6 +381,13 @@ const WINDMILL_WORKFLOW_INPUTS = {
   ],
   "x-threads-generation": ["automation_id", "topic", "source_candidate"],
 } as const satisfies Record<PipelineWorkflowId, readonly string[]>
+
+const SLIDESHOW_FORM_KEYS = [
+  "template_inputs",
+  "content_inputs",
+  "collection_inputs",
+  "slide_overrides",
+] as const
 
 const WINDMILL_WORKFLOW_INPUT_ALIASES = {
   "slideshow-generation": {
