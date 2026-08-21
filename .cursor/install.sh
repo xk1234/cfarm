@@ -30,3 +30,10 @@ fi
 # Project dependencies (pnpm version is pinned via package.json packageManager).
 corepack enable
 pnpm install --frozen-lockfile
+
+# Cursor agents authenticate with the project-scoped RAILWAY_TOKEN secret.
+# Install the official CLI so they can inspect logs and deploy this project.
+if ! command -v railway >/dev/null 2>&1; then
+  sudo npm install --global @railway/cli
+fi
+railway --version
