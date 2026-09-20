@@ -12,7 +12,7 @@ afterEach(() => vi.unstubAllEnvs())
 describe("Windmill workflow client", () => {
   it("queues the conventionally named flow with named top-level inputs", async () => {
     configureWindmill()
-    const fetchImpl = vi.fn(
+    const fetchImpl = vi.fn<typeof fetch>(
       async () => new Response("job-123", { status: 201 })
     )
 
@@ -48,7 +48,7 @@ describe("Windmill workflow client", () => {
 
   it("accepts nested slideshow form groups and drops operational aliases", async () => {
     configureWindmill()
-    const fetchImpl = vi.fn(
+    const fetchImpl = vi.fn<typeof fetch>(
       async () => new Response("job-nested", { status: 201 })
     )
 
@@ -78,7 +78,7 @@ describe("Windmill workflow client", () => {
 
   it("defaults omitted slideshow collection and slide groups to empty values", async () => {
     configureWindmill()
-    const fetchImpl = vi.fn(
+    const fetchImpl = vi.fn<typeof fetch>(
       async () => new Response("job-defaults", { status: 201 })
     )
 
