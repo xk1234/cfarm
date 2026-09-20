@@ -3,11 +3,14 @@ import {
   registerLangfuse,
   shutdownLangfuse,
 } from "@/lib/langfuse-node"
+import { closeRailwayDatabase } from "@/lib/railway/database"
 import jobWorker from "@/services/job-worker"
 import templateScheduler from "@/services/template-scheduler"
 
 const functionId = process.argv[2]
-const intervalMs = Number(process.argv[3])
+const once = process.argv[3] === "--once"
+const check = process.argv[3] === "--check"
+const intervalMs = once || check ? 5_000 : Number(process.argv[3])
 
 if (
   !["template-scheduler", "job-worker"].includes(functionId) ||
@@ -15,20 +18,25 @@ if (
   intervalMs < 1_000
 ) {
   throw new Error(
-    "Usage: tsx scripts/run-railway-function.mts <template-scheduler|job-worker> <interval-ms>"
+    "Usage: tsx scripts/run-railway-function.ts <template-scheduler|job-worker> <interval-ms|--once|--check>"
   )
 }
 
 process.env.LUMENCLIP_DATA_BACKEND ||= "railway"
 process.env.LUMENCLIP_ASSET_BACKEND ||= "railway"
-registerLangfuse(`lumenclip-${functionId}`)
-
 const handler = functionId === "job-worker" ? jobWorker : templateScheduler
+if (typeof handler !== "function")
+  throw new Error(`${functionId} is not callable`)
+if (check) {
+  console.log(`[${functionId}] handler imports successfully`)
+  process.exit(0)
+}
+registerLangfuse(`lumenclip-${functionId}`)
 
 let running = false
 let stopped = false
 let shuttingDown = false
-let activeTick: Promise<void> | undefined
+let activeTick: ReturnType<typeof tick> | undefined
 const tickTimeoutMs = Math.max(
   30_000,
   Number(
@@ -57,6 +65,7 @@ async function tick() {
         console.error(`[${functionId}] ${String(message)}`),
     })
     if (result?.ok === false) process.exitCode = 1
+    return result
   } catch (error) {
     console.error(
       `[${functionId}] ${error instanceof Error ? error.stack : String(error)}`
@@ -80,8 +89,38 @@ function startTick() {
   })
 }
 
-const timer = setInterval(startTick, intervalMs)
-startTick()
+let timer: ReturnType<typeof setInterval> | undefined
+
+async function runOnce() {
+  // Bound each cron invocation, including trace flushes and connection shutdown.
+  const deadline = setTimeout(() => process.exit(1), 270_000)
+  const startedAt = Date.now()
+  try {
+    for (let batch = 0; batch < 100 && !stopped; batch += 1) {
+      const pending = tick()
+      activeTick = pending
+      const result = await pending
+      if (activeTick === pending) activeTick = undefined
+      if (
+        !result?.ok ||
+        !("processed" in result) ||
+        (result.processed ?? 0) + (result.failed ?? 0) === 0
+      )
+        break
+      if (Date.now() - startedAt >= 240_000) break
+    }
+  } finally {
+    await shutdown()
+    clearTimeout(deadline)
+  }
+}
+
+if (once || functionId === "template-scheduler") {
+  void runOnce()
+} else {
+  timer = setInterval(startTick, intervalMs)
+  startTick()
+}
 
 async function shutdown() {
   if (shuttingDown) return
@@ -89,6 +128,10 @@ async function shutdown() {
   stopped = true
   clearInterval(timer)
   await activeTick?.catch(() => undefined)
+  await closeRailwayDatabase().catch(() => {
+    console.error(`[${functionId}] database shutdown failed`)
+    process.exitCode = 1
+  })
   await shutdownLangfuse().catch(() => {
     console.error(`[${functionId}] Langfuse shutdown failed`)
   })

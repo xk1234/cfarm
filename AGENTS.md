@@ -39,8 +39,11 @@ when the shared inspector and artifact renderers cover the use case.
 LumenClip runs on the Railway project `lumenclip`. Railway owns the application
 runtime and persistence; Clerk owns browser authentication and sessions.
 
-- Production consists of the Railway `web`, `worker`, and `scheduler` services,
+- Production consists of the Railway `web` service, a five-minute `worker` cron,
   Railway PostgreSQL, and the private `lumenclip-assets` S3-compatible bucket.
+  The retired template `scheduler` service stays stopped. The worker uses
+  `railway.worker.json` and exits after draining due notifications (up to 100
+  batches or four minutes); notification delivery can be delayed by several minutes.
 - PostgreSQL is the runtime source of truth. Apply checked-in migrations with
   `pnpm railway:db:migrate`; Railway injects `DATABASE_URL` into its services.
 - Runtime data and assets use `LUMENCLIP_DATA_BACKEND=railway` and
