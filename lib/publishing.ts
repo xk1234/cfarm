@@ -1,11 +1,9 @@
 import {
-  createPostFastPostPayload,
-  postfastRequest,
   type PostFastCreatePostType,
   type PostFastMedia,
   type PostFastSocialIntegration,
 } from "@/lib/postfast-client"
-import { defaultPostFastProviderControls } from "@/lib/postfast-provider-controls"
+import { resolvePublishingClient } from "@/lib/social/publishing-client"
 import { getReminderSettings } from "@/lib/reminder-settings"
 import { enqueueReminder } from "@/lib/reminders"
 import {
@@ -18,6 +16,8 @@ import type { PostOrigin } from "@/lib/posts"
 
 export {
   effectivePostingMode,
+  postFastPostIds,
+  postFastReleaseUrl,
   postFastSchedulePayload,
 } from "@/lib/publishing-core"
 
@@ -74,36 +74,6 @@ export function statusForType(
   return type === "now" ? "published" : "draft"
 }
 
-export function postFastPostIds(value: unknown): string[] {
-  const record =
-    typeof value === "object" && value !== null
-      ? (value as Record<string, unknown>)
-      : {}
-  return Array.isArray(record.postIds)
-    ? record.postIds
-        .map((id) => (typeof id === "string" ? id.trim() : ""))
-        .filter(Boolean)
-    : []
-}
-
-export function postFastReleaseUrl(value: unknown): string | undefined {
-  const record =
-    typeof value === "object" && value !== null
-      ? (value as Record<string, unknown>)
-      : {}
-  const post = Array.isArray(record.posts) ? record.posts[0] : undefined
-  const postRecord =
-    post && typeof post === "object" ? (post as Record<string, unknown>) : {}
-  const valueFromResponse =
-    record.releaseUrl ??
-    record.releaseURL ??
-    postRecord.releaseUrl ??
-    postRecord.releaseURL
-  return typeof valueFromResponse === "string" && valueFromResponse.trim()
-    ? valueFromResponse.trim()
-    : undefined
-}
-
 export async function enqueuePublishedCommentReminders(input: {
   sourceType: PostFastSourceType
   sourceId: string
@@ -138,27 +108,25 @@ export async function enqueuePublishedCommentReminders(input: {
 export async function publishPost(
   input: PublishPostInput
 ): Promise<PublishPostResult> {
-  const request = input.request ?? (postfastRequest as PublishRequest)
   const type = input.type ?? "now"
-  const controls =
-    input.controls ??
-    defaultPostFastProviderControls(input.provider, input.settings ?? {})
-  const payload = createPostFastPostPayload({
-    type,
-    date: input.date,
-    integrationId: input.integrationId,
-    provider: input.provider,
-    content: input.content,
-    media: input.media,
-    controls,
-  })
+  const client = resolvePublishingClient()
 
   try {
-    const postfastPosts = await request<unknown>("/social-posts", {
-      body: payload,
+    const created = await client.createPost({
+      type,
+      date: input.date,
+      integrationId: input.integrationId,
+      provider: input.provider,
+      content: input.content,
+      media: input.media,
+      controls: input.controls,
+      settings: input.settings,
+      request: input.request,
+      now: input.now,
     })
-    const postIds = postFastPostIds(postfastPosts)
-    const releaseUrl = postFastReleaseUrl(postfastPosts)
+    const postfastPosts = created.raw
+    const postIds = created.postIds
+    const releaseUrl = created.releaseUrl
     const record = await upsertPublicationPost({
       sourceType: input.sourceType,
       sourceId: input.sourceId,
@@ -207,7 +175,7 @@ export async function publishPost(
     return { ok: true, record, postfastPosts }
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "PostFast post creation failed"
+      error instanceof Error ? error.message : "Post creation failed"
     const record = await upsertPublicationPost({
       sourceType: input.sourceType,
       sourceId: input.sourceId,
@@ -254,7 +222,7 @@ export async function reschedulePost(input: {
   scheduledFor: string
   request?: PublishRequest
 }) {
-  const request = input.request ?? (postfastRequest as PublishRequest)
+  const client = resolvePublishingClient()
   const timestamp = Date.parse(input.scheduledFor)
   if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
     throw new Error("Choose a future time for the post")
@@ -268,26 +236,20 @@ export async function reschedulePost(input: {
     })
   }
 
-  const payload = createPostFastPostPayload({
+  const created = await client.createPost({
     type: "schedule",
     date: new Date(timestamp).toISOString(),
     integrationId: input.record.integrationId,
     provider: input.record.provider,
     content: input.record.content,
     media: input.record.media,
-    controls: defaultPostFastProviderControls(input.record.provider, {}),
+    request: input.request,
   })
-  const created = await request<unknown>("/social-posts", { body: payload })
-  const replacementId = postFastPostIds(created)[0]
+  const replacementId = created.postIds[0]
   if (!replacementId) {
-    throw new Error("PostFast did not return the replacement post id")
+    throw new Error("The provider did not return the replacement post id")
   }
-  await request(
-    `/social-posts/${encodeURIComponent(input.record.postfastPostId)}`,
-    {
-      method: "DELETE",
-    }
-  )
+  await client.deletePost(input.record.postfastPostId, input.request)
   return upsertPublicationPost({
     ...input.record,
     postId: input.record.id,
