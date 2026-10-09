@@ -1,5 +1,4 @@
-import type { JobStatus } from "@/lib/queue"
-import type { PostFastPostStatus } from "@/lib/postfast-posts"
+import type { JobStatus, PostStatus } from "@/lib/data"
 
 export type CalendarLifecycleStatus =
   | "planned"
@@ -111,7 +110,7 @@ export function dedupeCalendarItems(items: CalendarItem[]) {
 export function calendarLifecycleForJob(
   status: JobStatus | "leased"
 ): CalendarLifecycleStatus | null {
-  if (status === "queued" || status === "processing" || status === "leased") {
+  if (status === "queued" || status === "running" || status === "leased") {
     return "generating"
   }
   if (status === "failed" || status === "dead") return "generation_failed"
@@ -140,14 +139,12 @@ export function calendarTimingEntries(
 }
 
 export function calendarLifecycleForLocalPost(
-  status: PostFastPostStatus
+  status: PostStatus
 ): CalendarLifecycleStatus | null {
-  if (status === "awaiting_manual_post" || status === "ready_for_review") {
-    return "needs_action"
-  }
   if (status === "draft") return "draft"
   if (status === "failed") return "failed"
   if (status === "published") return "published"
+  if (status === "scheduled" || status === "publishing") return "scheduled"
   return null
 }
 

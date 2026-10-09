@@ -18,17 +18,15 @@ import type {
   PostFastCreatePostType,
   PostFastMedia,
 } from "@/lib/postfast-client"
-import type { SlideshowRecord } from "@/lib/slideshows"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 
-/**
- * The slideshow fields the publish dialog reads. A persisted
- * `SlideshowRecord` satisfies it directly.
- */
-export type PublishableSlideshow = Pick<
-  SlideshowRecord,
-  "id" | "title" | "caption" | "hashtags" | "output_images"
-> & {
+/** The slideshow fields the publish dialog reads. */
+export type PublishableSlideshow = {
+  id: string
+  title: string
+  caption: string
+  hashtags: string
+  output_images: string[]
   images?: Array<{ image_url?: string }>
 }
 

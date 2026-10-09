@@ -5,9 +5,7 @@ import {
   normalizeReminderSettings,
   saveReminderSettings,
 } from "@/lib/reminder-settings"
-import { deleteJsonArrayRecord } from "@/lib/json-store"
-import { withSystemOwner } from "@/lib/system-owner-context"
-import path from "node:path"
+import { createMemoryRepositories } from "@/lib/data"
 
 describe("reminder settings", () => {
   it("ignores legacy global-channel and boolean events without losing modern siblings", () => {
@@ -78,39 +76,28 @@ describe("reminder settings", () => {
     ).not.toHaveProperty("offsetsHours")
   })
 
-  it("persists one private reminder policy", async () => {
-    const ownerId = `reminder-test-${Date.now()}`.slice(0, 36)
-    const rootDir = path.join(process.cwd(), "data", "settings")
-    await withSystemOwner(ownerId, async () => {
-      try {
-        await saveReminderSettings({
-          events: {
-            generated: { channel: "none" },
-            ready_to_post: { channel: "in_app" },
-            scheduled_to_post: { channel: "none" },
-            respond_to_comments: {
-              channel: "in_app",
-              offsetsHours: [24, 72],
-            },
-            publish_failed: { channel: "none" },
-          },
-        })
-        await expect(getReminderSettings()).resolves.toMatchObject({
-          id: "reminders",
-          events: {
-            generated: { channel: "none" },
-            ready_to_post: { channel: "in_app" },
-            scheduled_to_post: { channel: "none" },
-          },
-        })
-      } finally {
-        await deleteJsonArrayRecord({
-          rootDir,
-          fileName: "reminders.json",
-          key: "settings",
-          id: "reminders",
-        })
-      }
-    })
+  it("persists one in-app switch per workspace", async () => {
+    const repos = createMemoryRepositories()
+    const defaults = await getReminderSettings("user_a", { repos })
+    expect(defaults.events.generated.channel).toBe("in_app")
+    expect(defaults.notificationDefaultsApplied).toBe(false)
+
+    const saved = await saveReminderSettings(
+      "user_a",
+      {
+        events: {
+          generated: { channel: "none" },
+          ready_to_post: { channel: "none" },
+          scheduled_to_post: { channel: "none" },
+          respond_to_comments: { channel: "none", offsetsHours: [24, 72] },
+          publish_failed: { channel: "none" },
+        },
+      },
+      { repos }
+    )
+    expect(saved.events.ready_to_post.channel).toBe("none")
+    expect(saved.notificationDefaultsApplied).toBe(true)
+    expect((await repos.settings.get("user_a")).reminders.enabled).toBe(false)
+    expect((await getReminderSettings("user_b", { repos })).events.generated.channel).toBe("in_app")
   })
 })

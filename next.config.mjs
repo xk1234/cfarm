@@ -13,7 +13,7 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/*": ["assets/fonts/**"],
   },
-  serverExternalPackages: ["canvas", "fabric"],
+  serverExternalPackages: ["canvas", "fabric", "node-appwrite", "sharp"],
   async headers() {
     return [
       {

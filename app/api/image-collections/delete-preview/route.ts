@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { providerFail, validate } from "@/lib/api"
+import { providerFail, validate, withHandler } from "@/lib/api"
 import { listImageCollections } from "@/lib/image-collections"
+import { requireWorkspaceId } from "@/lib/workspace"
 
 export const dynamic = "force-dynamic"
 
@@ -17,10 +18,11 @@ const schema = z.object({
     .min(1),
 })
 
-export async function POST(request: Request) {
+export const POST = withHandler(async (request: Request) => {
+  const workspaceId = await requireWorkspaceId()
   try {
     const input = validate(schema, await request.json().catch(() => null))
-    const collections = await listImageCollections()
+    const collections = await listImageCollections(workspaceId)
     const requested = new Set(
       input.collections.map((item) => `${item.name}::${item.created_at}`)
     )
@@ -42,4 +44,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return providerFail(error, "Failed to inspect collection dependencies", 400)
   }
-}
+})

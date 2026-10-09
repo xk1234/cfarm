@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { MediaLibraryAsset } from "./media-library"
-import { loadRealFarmData } from "./realfarm-data"
+import { loadRealFarmData, type MediaLibraryAsset } from "./realfarm-data"
 
 const avatarUrls = [
   "323e6dbd-d758-47cb-90a0-a0882c24edf8.mp4",

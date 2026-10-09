@@ -1,9 +1,7 @@
 import "server-only"
 
-import path from "node:path"
-
 import { clean } from "@/lib/guards"
-import { readJsonArrayRecord, upsertJsonArrayRecord } from "@/lib/json-store"
+import { getRepositories, type Repositories, type WorkspaceId } from "@/lib/data"
 
 export const reminderEvents = [
   "generated",
@@ -74,13 +72,6 @@ export type ReminderSettingsInput = Pick<
   "events"
 > & {
   notificationDefaultsApplied?: boolean
-}
-
-const rootDir = path.join(process.cwd(), "data", "settings")
-const store = {
-  rootDir,
-  fileName: "reminders.json",
-  key: "settings",
 }
 
 export function defaultReminderSettings(): ReminderSettings {
@@ -171,27 +162,48 @@ function normalizeOffsets(value: unknown, fallback: number[]) {
   ].sort((left, right) => left - right)
 }
 
-export async function getReminderSettings(): Promise<ReminderSettings> {
-  return (
-    (await readJsonArrayRecord<ReminderSettings>({
-      ...store,
-      id: "reminders",
-      normalize: normalizeReminderSettings,
-    })) ?? defaultReminderSettings()
-  )
+/**
+ * Reminder preferences live in `workspace_settings.reminders`
+ * ({ enabled, leadMinutes }). Delivery is in-app only, so the per-event
+ * channel map collapses to one switch: every event is `in_app` when
+ * reminders are enabled and `none` otherwise.
+ */
+function fromWorkspaceReminders(input: { enabled: boolean; updatedAt: string | null }): ReminderSettings {
+  const defaults = defaultReminderSettings()
+  const channel: ReminderChannel = input.enabled ? "in_app" : "none"
+  return {
+    ...defaults,
+    notificationDefaultsApplied: input.updatedAt !== null,
+    events: Object.fromEntries(
+      reminderEvents.map((event) => [event, { ...defaults.events[event], channel }])
+    ) as Record<ReminderEvent, ReminderEventSettings>,
+    updatedAt: input.updatedAt ?? defaults.updatedAt,
+  }
+}
+
+export async function getReminderSettings(
+  workspaceId: WorkspaceId,
+  options: { repos?: Repositories } = {}
+): Promise<ReminderSettings> {
+  const repos = options.repos ?? getRepositories()
+  const settings = await repos.settings.get(workspaceId)
+  return fromWorkspaceReminders({ enabled: settings.reminders.enabled, updatedAt: settings.updatedAt })
 }
 
 export async function saveReminderSettings(
-  input: ReminderSettingsInput
+  workspaceId: WorkspaceId,
+  input: ReminderSettingsInput,
+  options: { repos?: Repositories } = {}
 ): Promise<ReminderSettings> {
-  const settings = normalizeReminderSettings({
-    id: "reminders",
-    ...input,
-    updatedAt: new Date().toISOString(),
+  const normalized = normalizeReminderSettings({ id: "reminders", ...input })
+  if (!normalized) throw new Error("Invalid reminder settings")
+  const repos = options.repos ?? getRepositories()
+  const current = await repos.settings.get(workspaceId)
+  const enabled = reminderEvents.some((event) => normalized.events[event].channel === "in_app")
+  const saved = await repos.settings.patch(workspaceId, {
+    reminders: { ...current.reminders, enabled },
   })
-  if (!settings) throw new Error("Invalid reminder settings")
-  await upsertJsonArrayRecord({ ...store, record: settings })
-  return settings
+  return fromWorkspaceReminders({ enabled: saved.reminders.enabled, updatedAt: saved.updatedAt })
 }
 
 export function publicReminderSettings(settings: ReminderSettings) {

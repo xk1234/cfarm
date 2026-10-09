@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import {
   createMemoryRepositories,
   dataBackendFromEnv,
-  DataBackendNotImplementedError,
+  AppwriteNotConfiguredError,
   DataConflictError,
   getRepositories,
   looksLikeApiKey,
@@ -35,12 +35,12 @@ describe("getRepositories", () => {
     expect(() => dataBackendFromEnv({ LUMENCLIP_DATA_BACKEND: "railway" })).toThrow()
   })
 
-  it("keeps the Appwrite backend as an explicit stub", () => {
+  it("refuses the Appwrite backend without credentials", () => {
     setRepositoriesForTesting(null)
     const prev = process.env.LUMENCLIP_DATA_BACKEND
     process.env.LUMENCLIP_DATA_BACKEND = "appwrite"
     try {
-      expect(() => getRepositories()).toThrow(DataBackendNotImplementedError)
+      expect(() => getRepositories()).toThrow(AppwriteNotConfiguredError)
     } finally {
       process.env.LUMENCLIP_DATA_BACKEND = prev
     }

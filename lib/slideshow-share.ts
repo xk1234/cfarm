@@ -3,8 +3,21 @@ import "server-only"
 import crypto from "node:crypto"
 
 import { clean } from "@/lib/guards"
-import { listSlideshowRecords, type SlideshowRecord } from "@/lib/slideshows"
-import { withSystemOwner } from "@/lib/system-owner-context"
+import {
+  getRepositories,
+  type RenderOutputSlide,
+  type Repositories,
+} from "@/lib/data"
+
+/** What a public share link exposes: a succeeded render's slides. */
+export type SharedSlideshow = {
+  id: string
+  workspaceId: string
+  title: string
+  caption: string
+  hashtags: string
+  slides: RenderOutputSlide[]
+}
 
 type SlideshowShareClaims = {
   ownerId: string
@@ -65,16 +78,36 @@ export function verifySlideshowShareToken(
   }
 }
 
+/**
+ * Resolves a share link to the render it names. The token's owner claim is
+ * the workspace, so the render is read with normal ownership scoping.
+ */
 export async function loadSharedSlideshow(
   outputId: string,
-  token: string
-): Promise<SlideshowRecord | null> {
+  token: string,
+  repos: Repositories = getRepositories()
+): Promise<SharedSlideshow | null> {
   const claims = verifySlideshowShareToken(token, outputId)
   if (!claims) return null
-  return withSystemOwner(claims.ownerId, async () => {
-    const records = await listSlideshowRecords({ id: outputId, limit: 1 })
-    return records[0] ?? null
-  })
+  const render = await repos.renders.get(claims.ownerId, claims.outputId)
+  if (!render || render.status !== "succeeded" || !render.output) return null
+  return {
+    id: render.id,
+    workspaceId: render.workspaceId,
+    title: render.title ?? "Slideshow",
+    caption: "",
+    hashtags: "",
+    slides: [...render.output.slides].sort((a, b) => a.index - b.index),
+  }
+}
+
+/** Public URL of slide `index` (0-based) behind a share token. */
+export function publicSlideshowImageUrl(input: {
+  outputId: string
+  token: string
+  index: number
+}) {
+  return `/api/public/slideshows/${encodeURIComponent(input.outputId)}/slides/${input.index + 1}?token=${encodeURIComponent(input.token)}`
 }
 
 export function slideshowDeliveryPaths(input: {

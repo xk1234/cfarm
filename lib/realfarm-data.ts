@@ -1,10 +1,19 @@
-import { unstable_cache } from "next/cache"
-
-import {
-  listMediaLibraryAssets,
-  type MediaLibraryAsset,
-} from "@/lib/media-library"
 import type { MediaKind } from "@/lib/media-kind"
+
+/**
+ * Bundled audio/video/text assets (music, avatar videos, greenscreen memes,
+ * CTAs) belonged to the removed video workflows and have no store after the
+ * Appwrite refactor; callers may still pass them in explicitly.
+ */
+export type MediaLibraryAsset = {
+  id: string
+  name: string
+  path: string
+  url: string
+  kind: "audio" | "video" | "text"
+  collection: "music" | "ugc_avatar_videos" | "demo_videos" | "greenscreen_memes" | "ctas"
+  text?: string
+}
 
 // Bundled local assets are never images; derive from the canonical MediaKind.
 type LocalAssetKind = Exclude<MediaKind, "image">
@@ -43,17 +52,10 @@ export type LoadRealFarmDataOptions = {
   mediaAssets?: MediaLibraryAsset[]
 }
 
-const listCachedMediaLibraryAssets = unstable_cache(
-  listMediaLibraryAssets,
-  ["media-library-assets"],
-  { revalidate: 300 }
-)
-
 export async function loadRealFarmData(
   options: LoadRealFarmDataOptions = {}
 ): Promise<RealFarmData> {
-  const mediaAssets =
-    options.mediaAssets ?? (await listCachedMediaLibraryAssets())
+  const mediaAssets = options.mediaAssets ?? []
 
   return {
     brand: BRAND,

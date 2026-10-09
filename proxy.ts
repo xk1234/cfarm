@@ -10,7 +10,10 @@ const PUBLIC_API_PATHS = [
 function isPublicApi(pathname: string) {
   return (
     PUBLIC_API_PATHS.includes(pathname as (typeof PUBLIC_API_PATHS)[number]) ||
-    pathname.startsWith("/api/public/")
+    pathname.startsWith("/api/public/") ||
+    // Authorises per request (signed token, API key or Clerk session) and
+    // checks file ownership itself; see lib/files/serve.ts.
+    pathname.startsWith("/api/files/")
   )
 }
 
