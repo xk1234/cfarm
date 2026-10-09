@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "name": "Quote carousel",
+  "canvas": {
+    "preset": "4:5",
+    "background": {
+      "slot": "bg"
+    }
+  },
+  "fonts": [
+    {
+      "family": "Hertical Serif Regular"
+    },
+    {
+      "family": "Inter"
+    }
+  ],
+  "theme": {
+    "colors": {
+      "ink": "#1B1A17",
+      "muted": "#6B665E"
+    },
+    "textStyles": {
+      "quote": {
+        "fontFamily": "Hertical Serif Regular",
+        "fontWeight": 400,
+        "fontSize": {
+          "min": 48,
+          "max": 84
+        },
+        "color": "$colors.ink",
+        "align": "left",
+        "verticalAlign": "middle",
+        "lineHeight": 1.2,
+        "letterSpacing": -0.5,
+        "maxLines": 8,
+        "overflow": "shrink"
+      },
+      "attribution": {
+        "fontFamily": "Inter",
+        "fontWeight": 600,
+        "fontSize": 30,
+        "color": "$colors.muted",
+        "letterSpacing": 2,
+        "textTransform": "uppercase"
+      }
+    }
+  },
+  "slots": {
+    "bg": {
+      "type": "color",
+      "label": "Background",
+      "default": "#F4EFE6"
+    },
+    "author": {
+      "type": "text",
+      "label": "Author",
+      "required": true,
+      "maxLength": 60
+    },
+    "quotes": {
+      "type": "list",
+      "minItems": 1,
+      "maxItems": 10,
+      "item": {
+        "text": {
+          "type": "text",
+          "required": true,
+          "maxLength": 280,
+          "multiline": true
+        }
+      }
+    }
+  },
+  "slides": [
+    {
+      "repeat": {
+        "slot": "quotes",
+        "as": "q"
+      },
+      "slide": {
+        "id": "quote-{{index1}}",
+        "layers": [
+          {
+            "id": "mark",
+            "type": "text",
+            "text": "“",
+            "style": {
+              "fontFamily": "Hertical Serif Regular",
+              "fontSize": 260,
+              "color": "$colors.ink",
+              "lineHeight": 1
+            },
+            "opacity": 0.12,
+            "frame": {
+              "x": "6%",
+              "y": "4%",
+              "width": "auto"
+            }
+          },
+          {
+            "id": "quote",
+            "type": "text",
+            "text": "{{q.text}}",
+            "markup": "emphasis",
+            "style": "quote",
+            "emphasisStyle": {
+              "fontStyle": "italic",
+              "underline": true
+            },
+            "frame": {
+              "inset": [
+                "16%",
+                "10%",
+                "22%",
+                "10%"
+              ]
+            }
+          },
+          {
+            "id": "rule",
+            "type": "shape",
+            "shape": "rect",
+            "fill": "$colors.ink",
+            "frame": {
+              "x": "10%",
+              "y": "84%",
+              "width": 64,
+              "height": 4
+            }
+          },
+          {
+            "id": "author",
+            "type": "text",
+            "text": "— {{author}}",
+            "style": "attribution",
+            "frame": {
+              "x": "10%",
+              "y": "87%",
+              "width": "60%"
+            }
+          },
+          {
+            "id": "pager",
+            "type": "text",
+            "text": "{{slideIndex1}} / {{slideCount}}",
+            "style": [
+              "attribution",
+              {
+                "align": "right",
+                "letterSpacing": 0
+              }
+            ],
+            "frame": {
+              "x": "90%",
+              "y": "87%",
+              "width": "auto",
+              "anchor": "top-right"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "name": "2x2 collage",
+  "canvas": {
+    "preset": "1:1",
+    "background": "#FFFFFF"
+  },
+  "fonts": [
+    {
+      "family": "Inter"
+    }
+  ],
+  "slots": {
+    "photos": {
+      "type": "list",
+      "minItems": 4,
+      "maxItems": 4,
+      "item": {
+        "image": {
+          "type": "image",
+          "required": true
+        }
+      }
+    },
+    "label": {
+      "type": "text",
+      "required": true,
+      "maxLength": 40
+    }
+  },
+  "slides": [
+    {
+      "id": "collage",
+      "layers": [
+        {
+          "id": "grid",
+          "type": "group",
+          "frame": {
+            "inset": 24
+          },
+          "layout": {
+            "type": "grid",
+            "columns": 2,
+            "rows": 2,
+            "gap": 12
+          },
+          "children": [
+            {
+              "repeat": {
+                "slot": "photos",
+                "as": "p"
+              },
+              "layer": {
+                "id": "cell",
+                "type": "image",
+                "src": {
+                  "slot": "p.image"
+                },
+                "fit": "cover",
+                "cornerRadius": 20
+              }
+            }
+          ]
+        },
+        {
+          "id": "label",
+          "type": "text",
+          "text": "{{label}}",
+          "style": {
+            "fontFamily": "Inter",
+            "fontWeight": 800,
+            "fontSize": {
+              "min": 40,
+              "max": 64
+            },
+            "color": "#111111",
+            "align": "center",
+            "maxLines": 2,
+            "textTransform": "uppercase",
+            "background": {
+              "mode": "block",
+              "color": "#FFFFFF",
+              "paddingX": 36,
+              "paddingY": 18,
+              "radius": 999
+            }
+          },
+          "shadow": {
+            "color": "rgba(0,0,0,0.25)",
+            "blur": 24,
+            "offsetY": 8
+          },
+          "frame": {
+            "x": "50%",
+            "y": "50%",
+            "width": "auto",
+            "anchor": "center"
+          }
+        }
+      ]
+    }
+  ]
+}

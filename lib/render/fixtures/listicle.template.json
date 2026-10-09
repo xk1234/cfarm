@@ -1,0 +1,331 @@
+{
+  "$schema": "https://lumenclip.app/schemas/slideshow-spec-v1.json",
+  "version": 1,
+  "name": "Listicle: full-bleed photo + captions",
+  "canvas": {
+    "preset": "9:16",
+    "background": "#111111"
+  },
+  "fonts": [
+    {
+      "family": "Inter"
+    }
+  ],
+  "theme": {
+    "colors": {
+      "accent": "#FFF176",
+      "ink": "#111111",
+      "paper": "#FFFFFF"
+    },
+    "textStyles": {
+      "hook": {
+        "fontFamily": "Inter",
+        "fontWeight": 800,
+        "fontSize": {
+          "min": 56,
+          "max": 92
+        },
+        "color": "$colors.paper",
+        "align": "center",
+        "lineHeight": 1.12,
+        "stroke": {
+          "color": "rgba(0,0,0,0.88)",
+          "width": 12,
+          "join": "round"
+        },
+        "maxLines": 4,
+        "overflow": "shrink"
+      },
+      "itemTitle": {
+        "fontFamily": "Inter",
+        "fontWeight": 800,
+        "fontSize": {
+          "min": 44,
+          "max": 64
+        },
+        "color": "$colors.ink",
+        "align": "left",
+        "lineHeight": 1.15,
+        "background": {
+          "mode": "lines",
+          "color": "$colors.paper",
+          "opacity": 1,
+          "paddingX": 16,
+          "paddingY": 6,
+          "radius": 6
+        },
+        "maxLines": 3,
+        "overflow": "shrink"
+      },
+      "itemBody": {
+        "fontFamily": "Inter",
+        "fontWeight": 600,
+        "fontSize": {
+          "min": 32,
+          "max": 40
+        },
+        "color": "$colors.paper",
+        "align": "left",
+        "lineHeight": 1.25,
+        "background": {
+          "mode": "block",
+          "color": "#000000",
+          "opacity": 0.56,
+          "paddingX": 20,
+          "paddingY": 14,
+          "radius": 12
+        },
+        "maxLines": 5,
+        "overflow": "ellipsis"
+      }
+    }
+  },
+  "slots": {
+    "hook": {
+      "type": "text",
+      "label": "Hook",
+      "required": true,
+      "maxLength": 140
+    },
+    "hookImage": {
+      "type": "image",
+      "label": "Hook photo",
+      "required": true,
+      "minWidth": 720
+    },
+    "items": {
+      "type": "list",
+      "label": "List items",
+      "minItems": 1,
+      "maxItems": 8,
+      "item": {
+        "title": {
+          "type": "text",
+          "required": true,
+          "maxLength": 70
+        },
+        "body": {
+          "type": "text",
+          "maxLength": 180
+        },
+        "image": {
+          "type": "image",
+          "required": true
+        }
+      }
+    },
+    "cta": {
+      "type": "text",
+      "label": "Closing line",
+      "default": "Save this for later"
+    },
+    "ctaImage": {
+      "type": "image",
+      "label": "Closing photo"
+    }
+  },
+  "slides": [
+    {
+      "id": "hook",
+      "layers": [
+        {
+          "id": "photo",
+          "type": "image",
+          "src": {
+            "slot": "hookImage"
+          },
+          "frame": {
+            "inset": 0
+          },
+          "fit": "cover"
+        },
+        {
+          "id": "scrim",
+          "type": "shape",
+          "shape": "rect",
+          "frame": {
+            "inset": 0
+          },
+          "fill": "#000000",
+          "opacity": 0.2
+        },
+        {
+          "id": "hook-text",
+          "type": "text",
+          "text": "{{hook}}",
+          "markup": "emphasis",
+          "style": "hook",
+          "emphasisStyle": {
+            "color": "$colors.accent"
+          },
+          "frame": {
+            "x": "50%",
+            "y": "14%",
+            "width": "84%",
+            "anchor": "top"
+          }
+        }
+      ]
+    },
+    {
+      "repeat": {
+        "slot": "items",
+        "as": "item"
+      },
+      "slide": {
+        "id": "item-{{index1}}",
+        "layers": [
+          {
+            "id": "photo",
+            "type": "image",
+            "src": {
+              "slot": "item.image"
+            },
+            "frame": {
+              "inset": 0
+            },
+            "fit": "cover"
+          },
+          {
+            "id": "scrim",
+            "type": "shape",
+            "shape": "rect",
+            "frame": {
+              "x": 0,
+              "y": "100%",
+              "width": "100%",
+              "height": "45%",
+              "anchor": "bottom-left"
+            },
+            "fill": {
+              "type": "linear",
+              "angle": 90,
+              "stops": [
+                {
+                  "offset": 0,
+                  "color": "rgba(0,0,0,0)"
+                },
+                {
+                  "offset": 1,
+                  "color": "rgba(0,0,0,0.65)"
+                }
+              ]
+            }
+          },
+          {
+            "id": "copy",
+            "type": "group",
+            "frame": {
+              "x": "8%",
+              "y": "92%",
+              "width": "84%",
+              "height": "auto",
+              "anchor": "bottom-left"
+            },
+            "layout": {
+              "type": "stack",
+              "direction": "vertical",
+              "gap": 20,
+              "align": "start"
+            },
+            "children": [
+              {
+                "id": "badge",
+                "type": "text",
+                "text": "{{index1}}",
+                "style": [
+                  "itemTitle",
+                  {
+                    "fontSize": 40,
+                    "align": "center",
+                    "background": {
+                      "mode": "block",
+                      "color": "$colors.accent",
+                      "paddingX": 18,
+                      "paddingY": 8,
+                      "radius": 999
+                    }
+                  }
+                ],
+                "frame": {
+                  "width": "auto"
+                }
+              },
+              {
+                "id": "title",
+                "type": "text",
+                "text": "{{item.title}}",
+                "style": "itemTitle"
+              },
+              {
+                "id": "body",
+                "type": "text",
+                "text": "{{item.body}}",
+                "style": "itemBody",
+                "if": {
+                  "slot": "item.body"
+                }
+              }
+            ]
+          },
+          {
+            "id": "pager",
+            "type": "text",
+            "text": "{{slideIndex1}}/{{slideCount}}",
+            "style": {
+              "fontFamily": "Inter",
+              "fontWeight": 700,
+              "fontSize": 28,
+              "color": "rgba(255,255,255,0.8)",
+              "align": "right"
+            },
+            "frame": {
+              "x": "94%",
+              "y": "4%",
+              "width": "auto",
+              "anchor": "top-right"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cta",
+      "if": {
+        "slot": "cta"
+      },
+      "background": "#111111",
+      "layers": [
+        {
+          "id": "photo",
+          "type": "image",
+          "if": {
+            "slot": "ctaImage"
+          },
+          "src": {
+            "slot": "ctaImage"
+          },
+          "frame": {
+            "inset": 0
+          },
+          "fit": "cover",
+          "filters": {
+            "brightness": -0.25
+          }
+        },
+        {
+          "id": "cta-text",
+          "type": "text",
+          "text": "{{cta}}",
+          "style": "hook",
+          "frame": {
+            "x": "50%",
+            "y": "50%",
+            "width": "80%",
+            "anchor": "center"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -5,15 +5,12 @@ import { vi } from "vitest"
 if (existsSync(".env")) loadEnvFile(".env")
 if (existsSync(".env.local")) loadEnvFile(".env.local")
 
-const databaseUrl = process.env.DATABASE_URL?.trim()
-if (
-  !databaseUrl ||
-  !/localhost|127\.0\.0\.1/.test(databaseUrl)
-) {
-  throw new Error(
-    "Tests require a disposable local PostgreSQL DATABASE_URL. Refusing to clear a remote database."
-  )
-}
+// Unit tests never touch Postgres or Appwrite Cloud. `getRepositories()` in
+// `@/lib/data` selects the in-memory adapter when LUMENCLIP_DATA_BACKEND is
+// "memory", which is forced here regardless of local env files.
+process.env.LUMENCLIP_DATA_BACKEND = "memory"
+delete process.env.DATABASE_URL
+delete process.env.APPWRITE_API_KEY
 
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: async () => ({
