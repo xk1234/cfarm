@@ -1,15 +1,17 @@
-import path from "node:path"
-
 import JSZip from "jszip"
 
-import { readAssetBytes } from "@/lib/asset-storage"
-import { dataRoot } from "@/lib/store-identity"
-import { slideshowOutputAssetPath } from "@/lib/public-slideshow-assets"
+import { getRepositories } from "@/lib/data"
 import { loadSharedSlideshow } from "@/lib/slideshow-share"
 import { slideshowExportSlug } from "@/lib/slideshow-export"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
+
+const EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+}
 
 export async function GET(
   request: Request,
@@ -17,38 +19,24 @@ export async function GET(
 ) {
   const { id } = await params
   const token = new URL(request.url).searchParams.get("token") ?? ""
-  const slideshow = token ? await loadSharedSlideshow(id, token) : null
+  const repos = getRepositories()
+  const slideshow = token ? await loadSharedSlideshow(id, token, repos) : null
   if (!slideshow) return new Response("Not found", { status: 404 })
-  if (slideshow.output_images.length === 0) {
-    return new Response("This slideshow has no rendered images.", {
-      status: 409,
-    })
+  if (slideshow.slides.length === 0) {
+    return new Response("This slideshow has no rendered images.", { status: 409 })
   }
 
   const zip = new JSZip()
-  const digits = Math.max(2, String(slideshow.output_images.length).length)
-  const images = await Promise.all(
-    slideshow.output_images.map(async (url, index) => {
-      const relativePath = slideshowOutputAssetPath(url)
-      if (!relativePath)
-        throw new Error(`Slide ${index + 1} has an invalid asset path.`)
-      return {
-        index,
-        bytes: await readAssetBytes(path.join(dataRoot(), relativePath)),
-      }
-    })
+  const digits = Math.max(2, String(slideshow.slides.length).length)
+  const blobs = await Promise.all(
+    slideshow.slides.map((slide) => repos.blobs.get(slideshow.workspaceId, "renders", slide.fileId))
   )
-  for (const image of images) {
-    zip.file(
-      `slide-${String(image.index + 1).padStart(digits, "0")}.png`,
-      image.bytes
-    )
+  for (const [index, blob] of blobs.entries()) {
+    if (!blob) return new Response(`Slide ${index + 1} is missing.`, { status: 409 })
+    zip.file(`slide-${String(index + 1).padStart(digits, "0")}.${EXT[blob.mime] ?? "png"}`, blob.bytes)
   }
   const archive = await zip.generateAsync({ type: "uint8array" })
-  const body = archive.buffer.slice(
-    archive.byteOffset,
-    archive.byteOffset + archive.byteLength
-  ) as ArrayBuffer
+  const body = archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength) as ArrayBuffer
   return new Response(body, {
     headers: {
       "content-type": "application/zip",

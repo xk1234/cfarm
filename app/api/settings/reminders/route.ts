@@ -30,7 +30,7 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const settings = await getReminderSettings()
+  const settings = await getReminderSettings(user.$id)
   return NextResponse.json({
     settings: publicReminderSettings(settings),
     eventMetadata: reminderEventMetadata,
@@ -50,7 +50,7 @@ export async function PUT(request: Request) {
       { status: 400 }
     )
   }
-  const settings = await saveReminderSettings(parsed.data)
+  const settings = await saveReminderSettings(user.$id, parsed.data)
   return NextResponse.json({
     settings: publicReminderSettings(settings),
     eventMetadata: reminderEventMetadata,

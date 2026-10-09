@@ -1,83 +1,42 @@
 import "server-only"
 
-import { and, eq, inArray } from "drizzle-orm"
-
 import { getCurrentUser } from "@/lib/auth"
-import { readPostProjection } from "@/lib/post-repository"
-import { getRailwayOrm } from "@/lib/railway/database"
-import { domainRecords, jobs } from "@/lib/railway/schema"
-import { listDomainRecords } from "@/lib/railway/domain-record-store"
+import { getRepositories, type Repositories, type WorkspaceId } from "@/lib/data"
 
 export type CalendarAlertSummary = {
+  /** Draft posts waiting for the user to schedule or publish them. */
   needsAction: number
+  /** Failed posts and failed renders in the summary window. */
   failed: number
 }
 
-type OutputPayload = {
-  publications?: unknown
+const WINDOW_BACK_MS = 30 * 24 * 3600 * 1000
+const WINDOW_AHEAD_MS = 90 * 24 * 3600 * 1000
+
+export async function calendarAlertSummaryFor(
+  workspaceId: WorkspaceId,
+  options: { repos?: Repositories; now?: Date } = {}
+): Promise<CalendarAlertSummary> {
+  const repos = options.repos ?? getRepositories()
+  const now = options.now ?? new Date()
+  const [posts, failedRenders] = await Promise.all([
+    repos.posts.listRange(workspaceId, {
+      from: new Date(now.getTime() - WINDOW_BACK_MS).toISOString(),
+      to: new Date(now.getTime() + WINDOW_AHEAD_MS).toISOString(),
+    }),
+    repos.renders.list(workspaceId, { status: "failed", limit: 100 }),
+  ])
+  const recentFailedRenders = failedRenders.items.filter(
+    (render) => Date.parse(render.createdAt) >= now.getTime() - WINDOW_BACK_MS
+  ).length
+  return {
+    needsAction: posts.filter((post) => post.status === "draft").length,
+    failed: posts.filter((post) => post.status === "failed").length + recentFailedRenders,
+  }
 }
 
 export async function calendarAlertSummary(): Promise<CalendarAlertSummary> {
   const user = await getCurrentUser()
   if (!user) return { needsAction: 0, failed: 0 }
-
-  const failedJobs = await getRailwayOrm()
-    .select({ id: jobs.id })
-    .from(jobs)
-    .where(
-      and(
-        eq(jobs.ownerId, user.$id),
-        inArray(jobs.status, ["failed", "dead"])
-      )
-    )
-
-  const publicationSummary = await readPostProjection({
-    surface: "calendar_alert_summary",
-    legacy: async () => {
-      const outputRows = await listDomainRecords({
-        table: "outputs",
-        ownerIds: [user.$id],
-        limit: 10_000,
-        order: "none",
-      })
-      let needsAction = 0
-      let failed = 0
-      for (const row of outputRows) {
-        const publications = (row.payload as OutputPayload).publications
-        if (!Array.isArray(publications)) continue
-        const statuses = publications.flatMap((publication) => {
-          const status =
-            publication && typeof publication === "object"
-              ? (publication as Record<string, unknown>).status
-              : null
-          return typeof status === "string" ? [status] : []
-        })
-        if (
-          statuses.includes("awaiting_manual_post") ||
-          statuses.includes("ready_for_review")
-        ) {
-          needsAction += 1
-        }
-        if (statuses.includes("failed")) failed += 1
-      }
-      return { needsAction, failed }
-    },
-    canonical: (posts) => ({
-      needsAction: posts.filter(
-        (post) =>
-          post.lifecycleStatus === "ready" &&
-          (post.publishMode === "manual" || post.publishMode === "review")
-      ).length,
-      failed: posts.filter((post) => post.lifecycleStatus === "failed")
-        .length,
-    }),
-  })
-
-  return {
-    needsAction: publicationSummary.needsAction,
-    failed: failedJobs.length + publicationSummary.failed,
-  }
+  return calendarAlertSummaryFor(user.$id)
 }
-
-// Keep the domain table import adjacent to the ORM usage for future count pushdown.
-void domainRecords

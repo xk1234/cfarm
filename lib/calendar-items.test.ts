@@ -13,17 +13,15 @@ import {
 } from "@/lib/calendar-items"
 
 describe("calendar lifecycle mapping", () => {
-  it("maps queue, local post, and PostFast states to the canonical lifecycle", () => {
+  it("maps job, post, and remote states to the canonical lifecycle", () => {
     expect(calendarLifecycleForJob("queued")).toBe("generating")
-    expect(calendarLifecycleForJob("processing")).toBe("generating")
+    expect(calendarLifecycleForJob("running")).toBe("generating")
     expect(calendarLifecycleForJob("dead")).toBe("generation_failed")
-    expect(calendarLifecycleForJob("completed")).toBeNull()
-    expect(calendarLifecycleForLocalPost("awaiting_manual_post")).toBe(
-      "needs_action"
-    )
+    expect(calendarLifecycleForJob("succeeded")).toBeNull()
     expect(calendarLifecycleForLocalPost("draft")).toBe("draft")
     expect(calendarLifecycleForLocalPost("failed")).toBe("failed")
-    expect(calendarLifecycleForLocalPost("scheduled")).toBeNull()
+    expect(calendarLifecycleForLocalPost("scheduled")).toBe("scheduled")
+    expect(calendarLifecycleForLocalPost("canceled")).toBeNull()
     expect(calendarLifecycleForPostFast("SCHEDULED")).toBe("scheduled")
     expect(calendarLifecycleForPostFast("PUBLISHED")).toBe("published")
     expect(calendarLifecycleForPostFast("FAILED")).toBeNull()

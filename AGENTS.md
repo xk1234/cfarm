@@ -31,32 +31,46 @@ inspector layout applies. These general rules remain:
 - At 360px, keep the same region order, stack header details and actions, and
   avoid page-level horizontal scroll.
 
-# Railway backend and Clerk authentication
+# Railway hosting + Appwrite Cloud data
 
-LumenClip runs on the Railway project `lumenclip`. Railway owns the application
-runtime and persistence; Clerk owns browser authentication and sessions.
+LumenClip runs its web app and worker on the Railway project `lumenclip`; data
+and files live in Appwrite Cloud; Clerk owns browser authentication.
 
-- Production consists of the Railway `web` service, a five-minute `worker` cron,
-  Railway PostgreSQL, and the private `lumenclip-assets` S3-compatible bucket.
-  The retired template `scheduler` service stays stopped. The worker uses
-  `railway.worker.json` and exits after draining due notifications (up to 100
-  batches or four minutes); notification delivery can be delayed by several minutes.
-- PostgreSQL is the runtime source of truth. Apply checked-in migrations with
-  `pnpm railway:db:migrate`; Railway injects `DATABASE_URL` into its services.
-- Runtime data and assets use `LUMENCLIP_DATA_BACKEND=railway` and
-  `LUMENCLIP_ASSET_BACKEND=railway`. Bucket access uses the `RAILWAY_BUCKET_*`
-  variables. Buckets remain private; application routes and short-lived signed
-  downloads are the public media boundary.
-- Clerk is the only browser auth/session boundary. Use
-  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`; do not recreate
-  password, verification, recovery, or application-session APIs.
-- For local web work, use `pnpm dev:web` with a Railway-compatible PostgreSQL
-  and bucket configuration.
-- Do not add Railway SDKs, credentials, runtime reads/writes, local harnesses,
-  or Railway Function deployments.
-- Production changes must deploy and verify all affected Railway services.
-- Never print Railway variable JSON, bucket credential JSON, Clerk secrets, or
-  database URLs. Keep local secrets in ignored environment files.
+- Railway services: `web` (Next.js, `railway.json`) and `worker`
+  (`railway.worker.json`, `pnpm worker`: a long-running lease-based job loop
+  plus in-process sweeps). There is no scheduler service, no Railway
+  PostgreSQL or bucket in the runtime, and no Appwrite Function.
+- Appwrite TablesDB (database `lumenclip`) is the runtime source of truth;
+  private Storage buckets `media` and `renders` hold all binaries. Use TablesDB
+  rows, not Databases/documents.
+- The schema is declared in `lib/data/appwrite/schema.mjs` and applied with
+  `pnpm appwrite:provision` (idempotent; `--dry-run`, `--check`, `--prune`).
+  `pnpm appwrite:check` must pass. Never create tables, columns, indexes or
+  buckets by hand in the console.
+- Only `lib/data/appwrite/*` and `scripts/appwrite-provision.mjs` may import
+  `node-appwrite` (eslint enforces it). Feature code uses `getRepositories()`
+  from `@/lib/data` and passes the workspace id explicitly
+  (`workspace_id` = Clerk user id; single-user, no teams).
+- Tests use the in-memory repositories (`vitest.setup.ts` forces
+  `LUMENCLIP_DATA_BACKEND=memory`) and never touch Appwrite Cloud.
+- Tables and buckets have no Appwrite permissions; only the server API key can
+  access them. Ownership is enforced by the repositories. Buckets stay
+  private: `/api/files/[bucket]/[id]` (ownership-checked, or a short-lived
+  signed token) and HMAC-signed share links are the only public media
+  boundary.
+- Background work goes through the `jobs` table: enqueue with
+  `repos.jobs.enqueue`, register handlers in `lib/jobs/handlers.ts`, and keep
+  handlers idempotent.
+- Clerk is the only auth/session boundary (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
+  `CLERK_SECRET_KEY`); do not use Appwrite Auth or Appwrite client SDKs, and do
+  not recreate password, verification, recovery, or application-session APIs.
+- Do not reintroduce Postgres, drizzle, pg-boss, S3 clients, Railway buckets,
+  or Railway SDKs/credentials in code.
+- Production changes must deploy and verify every affected Railway service and
+  run `pnpm appwrite:check` against production
+  (`railway run --service web -- pnpm appwrite:check`).
+- Never print Appwrite API keys, Railway variable JSON, Clerk secrets, or env
+  values. Keep local secrets in ignored environment files.
 
 # GitHub publishing in the shared workspace
 

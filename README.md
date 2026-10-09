@@ -8,7 +8,7 @@ LumenClip is a content-production and automation workspace for social slideshows
 | --------- | --------------------------------------------------------------------------------- |
 | Framework | Next.js 16.2.6 (App Router)                                                       |
 | UI        | React 19.2.4 · TypeScript · Tailwind CSS v4 · shadcn · Radix · AG Grid · Recharts |
-| Backend   | Railway PostgreSQL · Railway S3-compatible assets · Clerk authentication          |
+| Backend   | Appwrite Cloud (TablesDB + Storage) · Railway web + worker · Clerk authentication |
 | Runtime   | Node 22 functions · pnpm 10                                                       |
 | Testing   | vitest 4                                                                          |
 | Tooling   | prettier · eslint · Geist Mono / Inter (see `DESIGN.md`)                          |
@@ -17,7 +17,7 @@ LumenClip is a content-production and automation workspace for social slideshows
 
 ```bash
 pnpm install
-cp .env.example .env   # fill in DATABASE_URL, bucket keys, and providers you use
+cp .env.example .env.local   # fill in APPWRITE_*, Clerk keys, and providers you use
 pnpm dev:web           # starts the Next.js development server
 ```
 
@@ -28,7 +28,9 @@ pnpm dev:web           # starts the Next.js development server
 | `pnpm env:check`                       | Verify required environment variables are present                     |
 | `pnpm dev`                             | Run environment checks and start the Next.js development server       |
 | `pnpm dev:web`                         | Start only Next.js without environment checks                         |
-| `pnpm railway:db:migrate`              | Apply checked-in PostgreSQL migrations                                |
+| `pnpm appwrite:provision`              | Create/verify the Appwrite tables, indexes and buckets (idempotent)   |
+| `pnpm appwrite:check`                  | Fail (exit 2) when Appwrite drifts from `lib/data/appwrite/schema.mjs` |
+| `pnpm worker`                          | Run the background job worker (long-running)                          |
 | `pnpm build`                           | Production build                                                      |
 | `pnpm start`                           | Start the production server                                           |
 | `pnpm lint`                            | Run eslint                                                            |
@@ -38,7 +40,7 @@ pnpm dev:web           # starts the Next.js development server
 
 ### Environment
 
-Required to run: `DATABASE_URL`, Railway bucket credentials, Clerk keys, and `OPENROUTER_API_KEY` (slideshow/text generation). See `.env.example` for the full list — KIE, Rendi, PostFast, Pexels, DeepL, Apify, DataForSEO, OpenAI, and FAL keys are optional providers wired only when their features are used.
+Required to run: `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY` and the Clerk keys. See `.env.example` for the full list; SocialBu, Pexels and Apify keys are optional and only enable their features.
 
 ## Project structure
 
@@ -53,26 +55,29 @@ docs/                    Feature and architecture docs
 scripts/                 Provisioning, import, and maintenance tools
 ```
 
-## Backend — Railway
+## Backend — Appwrite Cloud data, Railway compute
 
-Railway owns application persistence and private object storage. Clerk owns
-browser identity and sessions.
+Appwrite Cloud holds all data and files; Railway runs the web app and the
+worker; Clerk owns browser identity and sessions.
 
-- **PostgreSQL** stores owned application data, consolidated permanent assets,
-  generated outputs, output media, jobs, and operational records.
-- **Private bucket** holds source media and generated assets. Asset identities
-  remain deterministic so existing public routes continue to work.
-- **Persistence layer** — `lib/json-store.ts` reads and writes PostgreSQL
-  through the Railway domain-record store. There is no mutable filesystem
-  fallback.
-- **Queue** — `jobs` is a leased PostgreSQL queue. The local instrumentation
-  worker handles enabled maintenance jobs; Railway services own production
-  scheduling and execution.
+- **Data** — TablesDB database `lumenclip` (`specs`, `renders`, `collections`,
+  `media`, `posts`, `workspace_settings`, `notifications`, `api_keys`, `jobs`,
+  `job_leases`). The schema lives in `lib/data/appwrite/schema.mjs`; apply it
+  with `pnpm appwrite:provision`. Feature code uses `getRepositories()` from
+  `@/lib/data` with an explicit workspace id (the Clerk user id).
+- **Files** — private buckets `media` (uploads, collection images) and
+  `renders` (rendered slides). Files are served only by the ownership-checked
+  `/api/files/[bucket]/[id]` route, by short-lived signed URLs from
+  `repos.blobs.signedUrl`, or through HMAC share links.
+- **Worker** — `pnpm worker` (Railway `worker` service, `railway.worker.json`)
+  claims jobs from the `jobs` table with atomic lease rows, renews leases while
+  handlers run, and sweeps due notifications and scheduled posts. Handlers are
+  registered in `lib/jobs/handlers.ts`.
+- **Tests** run on in-memory repositories and never contact Appwrite.
 
-Local `data/` files are limited to bundled seeds and working files for filesystem-dependent code (ffmpeg, sharp, directory scans); slideshow intermediate frames (SVG/PNG) stay local by design.
-
-**Local development.** `pnpm dev` checks required environment variables and
-starts Next.js. Apply migrations with `pnpm railway:db:migrate`.
+**Local development.** Point `APPWRITE_*` at the shared local stack
+(`http://localhost:9080/v1`) or a dev project, run `pnpm appwrite:provision`,
+then `pnpm dev:web` and, for background jobs, `pnpm worker`.
 
 ## Further documentation
 

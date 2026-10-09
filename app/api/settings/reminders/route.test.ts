@@ -60,7 +60,7 @@ describe("reminder settings route", () => {
     }
     const response = await PUT(jsonRequest("PUT", { events }))
     expect(response.status).toBe(200)
-    expect(mocks.saveReminderSettings).toHaveBeenCalledWith({ events })
+    expect(mocks.saveReminderSettings).toHaveBeenCalledWith("user-1", { events })
   })
 
   it("rejects external delivery channels", async () => {

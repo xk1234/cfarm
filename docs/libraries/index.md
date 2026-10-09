@@ -74,17 +74,11 @@ third-party SDK dependencies.
 
 | Library                         | Declared version | Role in LumenClip                                                                                                                                | Representative usage                                                             |
 | ------------------------------- | ---------------: | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `postgres`                      |         `^3.4.9` | Railway PostgreSQL migrations, resumable imports, and the new server-side persistence adapter.                                                   | `lib/railway/`, `scripts/railway-migrate.mts`, Railway import tooling           |
-| `drizzle-orm`                   |        `^0.45.2` | Typed Railway table schema and query builder over the existing `postgres` connection.                                                           | `lib/railway/schema.ts`, `lib/railway/database.ts`                               |
-| `pg-boss`                       |       `^12.27.0` | Railway-native durable queue adapter staged separately from the active Railway worker.                                                          | `lib/railway/job-queue.ts`                                                       |
-| `@aws-sdk/client-s3`            |      `^3.1103.0` | Reads and writes Railway's private S3-compatible object bucket.                                                                                  | `lib/railway/object-storage.ts`, asset importer, local-asset response            |
-| `@aws-sdk/s3-request-presigner` |      `^3.1103.0` | Produces short-lived direct download URLs for private Railway objects.                                                                           | `lib/railway/object-storage.ts`                                                  |
-| `node-railway`                 |        `^26.2.0` | Temporary source adapter for TablesDB rows, Storage files, and one-time migration reads. Authentication and user preferences are owned by Clerk. | `lib/railway.ts`, `lib/json-store.ts`, `railway/functions/`, migration scripts |
+| `node-appwrite`                 |         `30.0.0` | Appwrite Cloud TablesDB rows and Storage files: the runtime data layer and the provisioning script. Only `lib/data/appwrite/*` and `scripts/appwrite-provision.mjs` may import it. | `lib/data/appwrite/`, `scripts/appwrite-provision.mjs` |
+| `tsx`                           |         `4.23.1` | Runs the TypeScript worker (`scripts/worker.mts`) and MCP stdio server in production.                                                             | `pnpm worker`, `pnpm mcp`                                                        |
 
-Railway remains the runtime default until the backend moves to Appwrite. Local
-Railway behavior is
-documented in [Local Railway](/docs/data/local-railway) and remains available
-until the cutover is complete.
+Unit tests use the in-memory repositories in `lib/data/memory.ts`; nothing in
+the test suite talks to Appwrite.
 
 ## Calendar, tables, and charts
 

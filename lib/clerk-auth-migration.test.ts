@@ -38,15 +38,4 @@ describe("Clerk auth migration", () => {
       /createEmailPasswordSession|createRecovery|createEmailVerification/
     )
   })
-
-  it("keeps a one-time user and preference importer for the cutover", () => {
-    const migration = path.join(
-      root,
-      "scripts/migrate-appwrite-users-to-clerk.mts"
-    )
-    expect(existsSync(migration)).toBe(true)
-    const source = readFileSync(migration, "utf8")
-    expect(source).toContain("external_id: sourceUser.$id")
-    expect(source).toContain("lumenclipPreferences: sourceUser.prefs")
-  })
 })

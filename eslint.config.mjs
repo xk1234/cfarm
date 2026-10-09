@@ -17,6 +17,23 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Only the Appwrite adapter and the provisioning script talk to Appwrite;
+  // feature code goes through `@/lib/data` repositories.
+  {
+    files: ["**/*.{ts,tsx,mts,mjs,js}"],
+    ignores: ["lib/data/appwrite/**", "scripts/appwrite-provision.mjs"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "node-appwrite", message: "Use the repositories from @/lib/data." },
+            { name: "node-appwrite/file", message: "Use the repositories from @/lib/data." },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

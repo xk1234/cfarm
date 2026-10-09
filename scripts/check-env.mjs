@@ -11,7 +11,9 @@ const root = process.cwd()
 const verbose = process.argv.includes("--verbose")
 const pruneUnused = process.argv.includes("--prune-unused")
 const requiredLocal = new Set([
-  "DATABASE_URL",
+  "APPWRITE_ENDPOINT",
+  "APPWRITE_PROJECT_ID",
+  "APPWRITE_API_KEY",
 ])
 const runtimeProvided = new Set([
   "NODE_ENV",
@@ -20,8 +22,6 @@ const runtimeProvided = new Set([
   "BATCH",
   "LEASE_MS",
   "LOOKBACK_MINUTES",
-  "TELEGRAM_BOT_TOKEN",
-  "TELEGRAM_CHAT_ID",
   "BASE_URL",
   "SLIDESHOW_SHARE_SECRET",
   "X_EVAL_GENERATIONS",

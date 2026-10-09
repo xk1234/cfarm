@@ -1,97 +1,71 @@
 import { NextResponse } from "next/server"
 
-import { postfastRequest } from "@/lib/postfast-client"
-import { getPostFastPostRecord } from "@/lib/postfast-posts"
-import {
-  deletePost,
-  getPublicationRecordForRead,
-} from "@/lib/post-repository"
-import { postfastRouteError } from "@/lib/postfast-route"
-import { reschedulePost } from "@/lib/publishing"
+import { withHandler } from "@/lib/api"
+import { getRepositories } from "@/lib/data"
+import { requireWorkspaceId } from "@/lib/workspace"
 
 export const dynamic = "force-dynamic"
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params
-  if (id.startsWith("postfast:")) {
-    return NextResponse.json(
-      { error: "Only posts created by this app can be rescheduled" },
-      { status: 409 }
-    )
-  }
+type Context = { params: Promise<{ id: string }> }
 
-  let scheduledAt = ""
+function postIdFrom(raw: string) {
+  const id = decodeURIComponent(raw).trim()
+  return id.startsWith("post:") ? id.slice(5) : id
+}
+
+/**
+ * Reschedules a post that is still only scheduled locally. Posts already
+ * handed to SocialBu (`providerPostId`) are changed by the publishing flow.
+ */
+export const PATCH = withHandler<Context>(async (request, context) => {
+  const workspaceId = await requireWorkspaceId()
+  const id = postIdFrom((await context.params).id)
+  let publishAt = ""
   try {
     const body = (await request.json()) as { scheduledAt?: unknown }
-    scheduledAt =
-      typeof body.scheduledAt === "string" ? body.scheduledAt.trim() : ""
+    publishAt = typeof body.scheduledAt === "string" ? body.scheduledAt.trim() : ""
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
-
-  const timestamp = Date.parse(scheduledAt)
+  const timestamp = Date.parse(publishAt)
   if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
-    return NextResponse.json(
-      { error: "Choose a valid future time for the post" },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: "Choose a valid future time for the post" }, { status: 400 })
   }
 
-  const record = await getPublicationRecordForRead({
-    surface: "calendar_reschedule_lookup",
-    id,
-    legacy: () => getPostFastPostRecord(id),
+  const repos = getRepositories()
+  const post = await repos.posts.get(workspaceId, id)
+  if (!post || post.status !== "scheduled") {
+    return NextResponse.json({ error: "Scheduled post not found" }, { status: 404 })
+  }
+  if (post.providerPostId) {
+    return NextResponse.json(
+      { error: "This post is already scheduled with SocialBu; change it from the publishing dialog." },
+      { status: 409 }
+    )
+  }
+  await repos.notifications.cancelForPost(workspaceId, post.id)
+  const updated = await repos.posts.update(workspaceId, post.id, {
+    publishAt: new Date(timestamp).toISOString(),
   })
-  if (!record || record.status !== "scheduled" || !record.postfastPostId) {
+  return NextResponse.json({ record: updated })
+})
+
+/** Cancels a locally scheduled post (and its pending reminders). */
+export const DELETE = withHandler<Context>(async (_request, context) => {
+  const workspaceId = await requireWorkspaceId()
+  const id = postIdFrom((await context.params).id)
+  const repos = getRepositories()
+  const post = await repos.posts.get(workspaceId, id)
+  if (!post || (post.status !== "scheduled" && post.status !== "draft")) {
+    return NextResponse.json({ error: "Scheduled post not found" }, { status: 404 })
+  }
+  if (post.providerPostId) {
     return NextResponse.json(
-      { error: "Scheduled PostFast post not found" },
-      { status: 404 }
+      { error: "This post is already scheduled with SocialBu; cancel it from the publishing dialog." },
+      { status: 409 }
     )
   }
-
-  try {
-    const updated = await reschedulePost({
-      record,
-      scheduledFor: new Date(timestamp).toISOString(),
-    })
-    return NextResponse.json({ record: updated })
-  } catch (error) {
-    return postfastRouteError(error)
-  }
-}
-
-export async function DELETE(
-  _request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params
-  const remoteOnlyId = id.startsWith("postfast:") ? id.slice(9) : ""
-  const record = remoteOnlyId
-    ? null
-    : await getPublicationRecordForRead({
-        surface: "calendar_cancel_lookup",
-        id,
-        legacy: () => getPostFastPostRecord(id),
-      })
-  const postfastPostId = remoteOnlyId || record?.postfastPostId
-  if (!postfastPostId) {
-    return NextResponse.json(
-      { error: "Scheduled PostFast post not found" },
-      { status: 404 }
-    )
-  }
-
-  try {
-    await postfastRequest(
-      `/social-posts/${encodeURIComponent(postfastPostId)}`,
-      { method: "DELETE" }
-    )
-    if (record) await deletePost(record.id)
-    return NextResponse.json({ deleted: true })
-  } catch (error) {
-    return postfastRouteError(error)
-  }
-}
+  await repos.notifications.cancelForPost(workspaceId, post.id)
+  await repos.posts.cancel(workspaceId, post.id)
+  return NextResponse.json({ deleted: true })
+})

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { validate, providerFail } from "@/lib/api"
+import { validate, providerFail, withHandler } from "@/lib/api"
 import {
   deleteImageCollections,
   listImageCollections,
   restoreImageCollections,
   upsertImageCollection,
 } from "@/lib/image-collections"
+import { requireWorkspaceId } from "@/lib/workspace"
 
 export const dynamic = "force-dynamic"
 
@@ -15,6 +16,7 @@ const collectionSchema = z.object({
   name: z.string().trim().min(1, "name is required"),
   created_at: z.string(),
   pinned: z.boolean().optional().default(false),
+  mediaType: z.enum(["image", "video"]).optional(),
   images: z
     .array(
       z.object({
@@ -35,34 +37,37 @@ const deleteSchema = z.object({
 
 const restoreSchema = deleteSchema.extend({ action: z.literal("restore") })
 
-export async function GET() {
-  return NextResponse.json({ collections: await listImageCollections() })
-}
+export const GET = withHandler(async () => {
+  const workspaceId = await requireWorkspaceId()
+  return NextResponse.json({ collections: await listImageCollections(workspaceId) })
+})
 
-export async function POST(request: Request) {
+export const POST = withHandler(async (request: Request) => {
+  const workspaceId = await requireWorkspaceId()
   try {
     const payload = await request.json().catch(() => null)
     if (payload?.action === "restore") {
       const { collections } = validate(restoreSchema, payload)
-      return NextResponse.json(await restoreImageCollections(collections))
+      return NextResponse.json(await restoreImageCollections(workspaceId, collections))
     }
     const collection = validate(collectionSchema, payload)
-    const saved = await upsertImageCollection(collection)
+    const saved = await upsertImageCollection(workspaceId, collection)
     return NextResponse.json({ collection: saved }, { status: 201 })
   } catch (error) {
     return providerFail(error, "Failed to save image collection", 400)
   }
-}
+})
 
-export async function DELETE(request: Request) {
+export const DELETE = withHandler(async (request: Request) => {
+  const workspaceId = await requireWorkspaceId()
   try {
     const { collections } = validate(
       deleteSchema,
       await request.json().catch(() => ({}))
     )
-    const result = await deleteImageCollections(collections)
+    const result = await deleteImageCollections(workspaceId, collections)
     return NextResponse.json(result)
   } catch (error) {
     return providerFail(error, "Failed to delete image collections", 400)
   }
-}
+})

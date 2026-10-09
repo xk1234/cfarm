@@ -29,9 +29,9 @@ const worker = createWorker({
 })
 
 if (args.has("--once")) {
-  const swept = await worker.sweep(true)
+  const forcedSweep = await worker.sweep(true)
   const result = await worker.tick()
-  console.log(JSON.stringify({ level: "info", message: "worker once", backend: repos.backend, swept, ...result }))
+  console.log(JSON.stringify({ level: "info", message: "worker once", backend: repos.backend, forcedSweep, ...result }))
   process.exit(0)
 }
 
