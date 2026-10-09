@@ -14,6 +14,7 @@ import {
 } from "@/lib/realfarm-collections"
 import type { RealFarmData } from "@/lib/realfarm-data"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { apiRoutes } from "@/components/realfarm/api-client"
 
 export function useCollectionsData({
   assets,
@@ -40,7 +41,7 @@ export function useCollectionsData({
     if (!enabled || collectionsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ collections?: StoredImageCollection[] }>(
-      "/api/image-collections"
+      apiRoutes.imageCollections
     )
       .then((payload) => {
         if (active && payload.collections?.length) {
@@ -58,7 +59,7 @@ export function useCollectionsData({
 
   async function persistCollection(collection: CreatedImageCollection) {
     if (collection.virtual) return
-    await fetchJsonWithTimeout("/api/image-collections", {
+    await fetchJsonWithTimeout(apiRoutes.imageCollections, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(collectionToStored(collection)),
@@ -119,7 +120,7 @@ export function useCollectionsData({
     if (persisted.length === 0) return
     const storedCollections = persisted.map(collectionToStored)
     try {
-      await fetchJsonWithTimeout("/api/image-collections", {
+      await fetchJsonWithTimeout(apiRoutes.imageCollections, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         toastOnError: false,
@@ -132,7 +133,7 @@ export function useCollectionsData({
           action: {
             label: "Undo",
             onClick: () => {
-              void fetchJsonWithTimeout("/api/image-collections", {
+              void fetchJsonWithTimeout(apiRoutes.imageCollections, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 toastOnError: false,

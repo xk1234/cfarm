@@ -8,15 +8,28 @@ import {
   type ViewKey,
 } from "@/components/realfarm/navigation"
 import {
+  renderHref,
   workspaceLocationFromUrl,
   workspaceViewHref,
 } from "@/components/realfarm/workspace-navigation"
+import type { WorkspaceSettingsTab } from "@/components/realfarm/user-settings-modal"
 import type { RealFarmData } from "@/lib/realfarm-data"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import { useCollectionsData } from "@/components/realfarm/collections/use-collections-data"
+import { apiRoutes } from "@/components/realfarm/api-client"
 
-const HomeView = dynamic(() =>
-  import("@/components/realfarm/home-view").then((module) => module.HomeView)
+const RendersView = dynamic(() =>
+  import("@/components/render/renders-view").then((module) => module.RendersView)
+)
+const NewRenderView = dynamic(() =>
+  import("@/components/render/new-render-view").then(
+    (module) => module.NewRenderView
+  )
+)
+const RenderDetailView = dynamic(() =>
+  import("@/components/render/render-detail-view").then(
+    (module) => module.RenderDetailView
+  )
 )
 const ContentCalendarView = dynamic(() =>
   import("@/components/realfarm/content-calendar/content-calendar-view").then(
@@ -47,13 +60,23 @@ export function RealFarmWorkspace({
   initialNavigation?: {
     view?: ViewKey
     collectionId?: string
+    renderId?: string
   }
 }) {
-  const [view, setView] = useState<ViewKey>(initialNavigation?.view ?? "home")
+  const [view, setView] = useState<ViewKey>(
+    initialNavigation?.view === "render" && !initialNavigation.renderId
+      ? "home"
+      : (initialNavigation?.view ?? "home")
+  )
   const [selectedCollectionId, setSelectedCollectionId] = useState(
     initialNavigation?.collectionId ?? null
   )
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [selectedRenderId, setSelectedRenderId] = useState(
+    initialNavigation?.renderId ?? null
+  )
+  const [settingsTab, setSettingsTab] = useState<WorkspaceSettingsTab | null>(
+    null
+  )
   const [workspaceAssets, setWorkspaceAssets] = useState(data.assets)
   const [workspaceAssetsLoaded, setWorkspaceAssetsLoaded] = useState(
     Object.values(data.assets).some((assets) => assets.length > 0)
@@ -81,6 +104,7 @@ export function RealFarmWorkspace({
       )
       setView(location.view)
       setSelectedCollectionId(location.collectionId ?? null)
+      setSelectedRenderId(location.renderId ?? null)
     }
 
     window.addEventListener("popstate", restoreWorkspaceLocation)
@@ -92,7 +116,7 @@ export function RealFarmWorkspace({
     if (view !== "collections" || workspaceAssetsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ assets?: RealFarmData["assets"] }>(
-      "/api/media-library"
+      apiRoutes.mediaLibrary
     )
       .then((payload) => {
         if (active && payload.assets) setWorkspaceAssets(payload.assets)
@@ -112,6 +136,12 @@ export function RealFarmWorkspace({
     pushWorkspaceUrl(workspaceViewHref(nextView))
   }
 
+  function showRender(renderId: string) {
+    setSelectedRenderId(renderId)
+    setView("render")
+    pushWorkspaceUrl(renderHref(renderId))
+  }
+
   function showCollection(collectionId: string | null) {
     setSelectedCollectionId(collectionId)
     setView("collections")
@@ -122,8 +152,8 @@ export function RealFarmWorkspace({
     )
   }
 
-  function openSettings() {
-    setSettingsOpen(true)
+  function openSettings(tab: WorkspaceSettingsTab = "api-keys") {
+    setSettingsTab(tab)
   }
 
   return (
@@ -133,21 +163,34 @@ export function RealFarmWorkspace({
           data={data}
           view={view}
           onViewChange={changeView}
-          onSettings={openSettings}
+          onSettings={() => openSettings()}
+          onOpenRender={showRender}
         />
         <MobileNavigation
           view={view}
           onViewChange={changeView}
-          onSettings={openSettings}
+          onSettings={() => openSettings()}
+          onOpenRender={showRender}
         />
         <section className="min-w-0 flex-1 overflow-y-auto px-4 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7">
           {view === "home" && (
-            <HomeView
-              onOpenSchedule={() => changeView("schedule")}
-              onOpenCollections={() => changeView("collections")}
+            <RendersView
+              onNewRender={() => changeView("new")}
+              onOpenRender={showRender}
             />
           )}
-          {view === "schedule" && <ContentCalendarView />}
+          {view === "new" && <NewRenderView onRendered={showRender} />}
+          {view === "render" && selectedRenderId ? (
+            <RenderDetailView
+              key={selectedRenderId}
+              renderId={selectedRenderId}
+              onBack={() => changeView("home")}
+              onOpenSettings={() => openSettings("socialbu")}
+            />
+          ) : null}
+          {view === "schedule" && (
+            <ContentCalendarView onOpenRender={showRender} />
+          )}
           {view === "collections" &&
             (selectedCollection ? (
               <CollectionDetailView
@@ -224,8 +267,11 @@ export function RealFarmWorkspace({
             ))}
         </section>
       </div>
-      {settingsOpen ? (
-        <UserSettingsModal onClose={() => setSettingsOpen(false)} />
+      {settingsTab ? (
+        <UserSettingsModal
+          initialTab={settingsTab}
+          onClose={() => setSettingsTab(null)}
+        />
       ) : null}
     </main>
   )

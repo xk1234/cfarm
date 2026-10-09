@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  renderHref,
   workspaceLocationFromUrl,
   workspaceViewHref,
 } from "./workspace-navigation"
@@ -8,15 +9,21 @@ import {
 describe("workspace navigation", () => {
   it.each([
     ["home", "/app"],
+    ["new", "/app/new"],
     ["schedule", "/app?view=schedule"],
     ["collections", "/app/collections"],
   ] as const)("maps %s to its shareable URL", (view, href) => {
     expect(workspaceViewHref(view)).toBe(href)
   })
 
-  it("restores tabs and collection details from browser history URLs", () => {
+  it("restores tabs, render details and collection details from browser history URLs", () => {
     expect(workspaceLocationFromUrl("/app", "?view=schedule")).toEqual({
       view: "schedule",
+    })
+    expect(workspaceLocationFromUrl("/app/new")).toEqual({ view: "new" })
+    expect(workspaceLocationFromUrl(renderHref("rnd 1"))).toEqual({
+      view: "render",
+      renderId: "rnd 1",
     })
     expect(workspaceLocationFromUrl("/app/collections")).toEqual({
       view: "collections",
@@ -34,6 +41,9 @@ describe("workspace navigation", () => {
       view: "home",
     })
     expect(workspaceLocationFromUrl("/app", "?view=templates")).toEqual({
+      view: "home",
+    })
+    expect(workspaceLocationFromUrl("/app", "?view=render")).toEqual({
       view: "home",
     })
     expect(workspaceLocationFromUrl("/app/analytics")).toEqual({

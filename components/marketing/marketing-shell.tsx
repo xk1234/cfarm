@@ -83,8 +83,8 @@ export function MarketingFooter() {
             LumenClip
           </div>
           <p className="mt-4 max-w-[38ch] text-sm leading-6 text-brand-muted">
-            The private creator operations workspace for turning source material
-            into content that ships.
+            The JSON-driven carousel rendering engine for TikTok and Instagram
+            slideshows.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-x-12 gap-y-3 text-sm font-medium text-brand-text-soft sm:grid-cols-3">

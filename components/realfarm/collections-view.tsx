@@ -40,6 +40,7 @@ import {
 } from "@/lib/realfarm-collections"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
+import { apiRoutes } from "@/components/realfarm/api-client"
 
 const COLLECTION_PAGE_SIZE = 28
 
@@ -289,7 +290,7 @@ export function CollectionsView({
     setDeletePreviewLoading(true)
     try {
       const preview = await fetchJsonWithTimeout<CollectionDeletePreview>(
-        "/api/image-collections/delete-preview",
+        apiRoutes.imageCollectionsDeletePreview,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
