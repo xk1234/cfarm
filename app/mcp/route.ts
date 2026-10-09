@@ -1,6 +1,11 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
+import { publicOrigin } from "@/lib/http/public-origin"
 
-import { authenticateApiKey, createDefaultRateLimiter, parseBearerToken } from "@/lib/api-keys"
+import {
+  authenticateApiKey,
+  createDefaultRateLimiter,
+  parseBearerToken,
+} from "@/lib/api-keys"
 import { getRepositories } from "@/lib/data"
 import { createLumenClipMcpServer } from "@/lib/mcp/lumenclip-server"
 import { getDisabledMcpToolNames } from "@/lib/mcp/tool-access"
@@ -21,8 +26,14 @@ async function handle(request: Request) {
   if (!principal) {
     return withCors(
       Response.json(
-        { error: "Authentication required: send a workspace API key as a Bearer token." },
-        { status: 401, headers: { "www-authenticate": 'Bearer realm="lumenclip"' } }
+        {
+          error:
+            "Authentication required: send a workspace API key as a Bearer token.",
+        },
+        {
+          status: 401,
+          headers: { "www-authenticate": 'Bearer realm="lumenclip"' },
+        }
       )
     )
   }
@@ -31,7 +42,10 @@ async function handle(request: Request) {
     return withCors(
       Response.json(
         { error: "Rate limit exceeded." },
-        { status: 429, headers: { "retry-after": String(decision.retryAfterSeconds) } }
+        {
+          status: 429,
+          headers: { "retry-after": String(decision.retryAfterSeconds) },
+        }
       )
     )
   }
@@ -41,11 +55,16 @@ async function handle(request: Request) {
   })
   const server = createLumenClipMcpServer(
     principal.workspaceId,
-    { apiBaseUrl: () => `${new URL(request.url).origin}/api/v1` },
+    {
+      apiBaseUrl: () => `${publicOrigin(request.url, request.headers)}/api/v1`,
+    },
     {
       apiKeyId: principal.apiKeyId,
-    scopes: principal.scopes,
-      disabledToolNames: await getDisabledMcpToolNames(principal.workspaceId, repos),
+      scopes: principal.scopes,
+      disabledToolNames: await getDisabledMcpToolNames(
+        principal.workspaceId,
+        repos
+      ),
     }
   )
   await server.connect(transport)

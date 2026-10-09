@@ -127,7 +127,8 @@ export function parseRenderRequest(input: unknown): RenderRequest {
 }
 
 export function renderHashFor(resolved: ResolvedSpec, output: { format: string; scale: number; quality?: number }) {
-  return "sha256:" + sha256Hex(canonicalJson({ spec: resolved, engine: ENGINE_VERSION, output }))
+  // Bare hex digest: the Appwrite render_hash column is varchar(64).
+  return sha256Hex(canonicalJson({ spec: resolved, engine: ENGINE_VERSION, output }))
 }
 
 /** Resolves a render request (template + slot values, or a spec) to a frozen ResolvedSpec. */
