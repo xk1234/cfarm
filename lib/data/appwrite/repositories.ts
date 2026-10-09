@@ -37,6 +37,7 @@ import {
 import {
   API_KEY_SCOPES,
   DEFAULT_JOB_MAX_ATTEMPTS,
+  JOB_LEASE_EXHAUSTED_ERROR,
   DEFAULT_PAGE_SIZE,
   DEFAULT_WORKSPACE_SETTINGS,
   JobPayloadSchemas,
@@ -1079,6 +1080,14 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
       const row = await getRow(L, leaseRowId(jobId, attempt))
       return row ? toLease(row) : null
     },
+    async release(jobId, attempt) {
+      try {
+        await tables.deleteRow({ databaseId, tableId: L, rowId: leaseRowId(jobId, attempt) })
+      } catch (error) {
+        if (isNotFound(error)) return
+        throw toDataError(error)
+      }
+    },
     async purgeOlderThan(before) {
       let total = 0
       for (let i = 0; i < 100; i++) {
@@ -1179,6 +1188,17 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
         const attempt = Number(row.attempt) + 1
         const expires = new Date(new Date(at).getTime() + opts.leaseMs).toISOString()
         if (!(await leasesRepo.acquire(row.$id, attempt, workerId, expires))) continue
+        if (row.status === "running" && Number(row.attempt) >= Number(row.max_attempts)) {
+          // The worker holding the last allowed attempt died before fail(): stop the crash loop.
+          await updateRow(J, row.$id, {
+            status: "dead",
+            error: JOB_LEASE_EXHAUSTED_ERROR,
+            worker_id: null,
+            lease_expires_at: null,
+            completed_at: at,
+          })
+          continue
+        }
         const updated = await updateRow(J, row.$id, {
           status: "running",
           attempt,

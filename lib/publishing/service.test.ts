@@ -13,6 +13,9 @@ import {
   retryPost,
   runPublishPostJob,
   setAccountDisabled,
+  submissionLockId,
+  SUBMISSION_INTERRUPTED_ERROR,
+  submitPost,
   type PublishingDeps,
 } from "./service"
 import { SocialBuPublisher } from "./socialbu"
@@ -220,6 +223,51 @@ describe("publishing service", () => {
     const result = await runPublishPostJob(retry as never, deps)
     expect(result).toMatchObject({ status: "publishing" })
     expect((await repos.posts.get(WS, posts[0]!.id))!.providerPostId).toBe("9001")
+  })
+
+  it("creates one SocialBu post when submissions race (jobs, postbacks, duplicate requests)", async () => {
+    const render = await seedRender(2)
+    mock.fail({ method: "POST", path: "/posts", status: 429, times: 4 })
+    const { posts } = await publishRender(
+      WS,
+      { renderId: render.id, accountIds: ["202"], caption: "c", createdBy: WS },
+      deps
+    )
+    expect(posts[0]).toMatchObject({ providerPostId: null })
+    expect(mock.posts.size).toBe(0)
+
+    clock = new Date("2026-10-09T12:01:00.000Z")
+    const job = { workspaceId: WS, payload: { postId: posts[0]!.id } }
+    await Promise.all([
+      runPublishPostJob(job as never, deps),
+      runPublishPostJob(job as never, deps),
+      submitPost(WS, posts[0]!.id, deps),
+    ])
+    expect(mock.posts.size).toBe(1)
+    expect((await repos.posts.get(WS, posts[0]!.id))!.providerPostId).toBe("9001")
+    // The lock is released afterwards.
+    expect(await repos.leases.get(submissionLockId(posts[0]!.id), 1)).toBeNull()
+  })
+
+  it("never resubmits blindly after a submission was interrupted mid-flight", async () => {
+    const render = await seedRender(1)
+    mock.fail({ method: "POST", path: "/posts", status: 429, times: 4 })
+    const { posts } = await publishRender(
+      WS,
+      { renderId: render.id, accountIds: ["202"], caption: "c", createdBy: WS },
+      deps
+    )
+    const postId = posts[0]!.id
+    // A worker took the lock and crashed before recording the outcome.
+    await repos.leases.acquire(submissionLockId(postId), 1, "dead-worker", "2026-10-09T12:05:00.000Z")
+    clock = new Date("2026-10-09T12:30:00.000Z")
+    const result = await runPublishPostJob({ workspaceId: WS, payload: { postId } } as never, deps)
+    expect(result).toMatchObject({ status: "failed" })
+    expect(mock.posts.size).toBe(0)
+    expect((await repos.posts.get(WS, postId))!.error).toBe(SUBMISSION_INTERRUPTED_ERROR)
+    // Retrying is an explicit user decision and works again.
+    const retried = await retryPost(WS, postId, deps)
+    expect(retried.providerPostId).toBe("9001")
   })
 
   it("syncs status from SocialBu and notifies when published", async () => {

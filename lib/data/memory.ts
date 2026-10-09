@@ -31,6 +31,7 @@ import {
 } from "./repositories"
 import {
   DEFAULT_JOB_MAX_ATTEMPTS,
+  JOB_LEASE_EXHAUSTED_ERROR,
   DEFAULT_PAGE_SIZE,
   DEFAULT_WORKSPACE_SETTINGS,
   MAX_PAGE_SIZE,
@@ -660,6 +661,9 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
       const l = leases.get(leaseId(jobId, attempt))
       return l ? clone(l) : null
     },
+    async release(jobId, attempt) {
+      leases.delete(leaseId(jobId, attempt))
+    },
     async purgeOlderThan(before) {
       let n = 0
       for (const [id, l] of leases) {
@@ -730,6 +734,15 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
         if (claimed.length >= opts.limit) break
         const expires = new Date(new Date(at).getTime() + opts.leaseMs).toISOString()
         if (!(await leasesRepo.acquire(job.id, job.attempt + 1, workerId, expires))) continue
+        if (job.status === "running" && job.attempt >= job.maxAttempts) {
+          // The worker holding the last allowed attempt died before fail(): stop the crash loop.
+          job.status = "dead"
+          job.error = JOB_LEASE_EXHAUSTED_ERROR
+          job.workerId = null
+          job.leaseExpiresAt = null
+          job.completedAt = job.updatedAt = at
+          continue
+        }
         job.status = "running"
         job.attempt += 1
         job.workerId = workerId

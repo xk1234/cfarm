@@ -298,12 +298,21 @@ export function issuesForRenderError(error: unknown): SpecIssue[] {
   return [{ code: "schema.custom", path: "", message: renderErrorMessage(error) }]
 }
 
-/** Enqueues the worker job for an async render (deduped per render). */
-export async function enqueueRenderJob(repos: Repositories, workspaceId: WorkspaceId, renderId: string) {
+/**
+ * Enqueues the worker job for an async render (deduped per render). The
+ * requested encoder quality travels in the payload so the worker encodes what
+ * `renderHash` describes.
+ */
+export async function enqueueRenderJob(
+  repos: Repositories,
+  workspaceId: WorkspaceId,
+  renderId: string,
+  options: { quality?: number } = {}
+) {
   const { value } = await repos.jobs.enqueue({
     workspaceId,
     type: "render-slideshow",
-    payload: { renderId },
+    payload: options.quality === undefined ? { renderId } : { renderId, quality: options.quality },
     dedupeKey: `render:${renderId}`,
   })
   return value
@@ -429,6 +438,6 @@ export async function submitRender(
     const { render, error } = await executeRender(deps, workspaceId, created.render.id, { quality: created.quality })
     return { mode: "sync", render, error, jobId: null }
   }
-  const job = await enqueueRenderJob(deps.repos, workspaceId, created.render.id)
+  const job = await enqueueRenderJob(deps.repos, workspaceId, created.render.id, { quality: created.quality })
   return { mode: "async", render: { ...created.render, jobId: job.id }, error: null, jobId: job.id }
 }

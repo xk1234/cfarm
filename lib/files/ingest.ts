@@ -2,10 +2,11 @@
  * Media ingestion: bytes → private `media` bucket + `media` row
  * (docs/refactor/03-appwrite-data-layer.md §3.4).
  *
- * - Only raster images and the three video containers are accepted (no SVG:
- *   it can carry script and the bucket refuses it anyway).
- * - Images are sniffed with sharp: the real format wins over the declared
- *   MIME type, and width/height are recorded for slot fitting.
+ * - Only raster images are accepted (v1 renders still slides; no video). No
+ *   SVG: it can carry script and the bucket refuses it anyway.
+ * - Every file is sniffed with sharp regardless of the declared MIME type: the
+ *   real format wins, anything sharp cannot decode is rejected, and
+ *   width/height are recorded for slot fitting.
  * - The same bytes are stored once per workspace: a file with an equal sha256
  *   is reused, and a collection never holds the same image twice.
  */
@@ -21,7 +22,6 @@ import {
 } from "@/lib/data"
 
 export const IMAGE_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif", "image/heic"] as const
-export const VIDEO_MIME_TYPES = ["video/mp4", "video/quicktime", "video/webm"] as const
 export const MAX_MEDIA_BYTES = 25 * 1024 * 1024
 
 export class MediaRejectedError extends Error {
@@ -57,17 +57,14 @@ export type IngestMediaInput = {
 
 type Probe = { kind: MediaKind; mime: string; width: number | null; height: number | null }
 
-async function probe(bytes: Uint8Array, declared: string): Promise<Probe> {
-  const mime = declared.split(";")[0].trim().toLowerCase()
-  if ((VIDEO_MIME_TYPES as readonly string[]).includes(mime)) {
-    return { kind: "video", mime, width: null, height: null }
-  }
+/** The declared MIME type is advisory only; the bytes decide (images only). */
+async function probe(bytes: Uint8Array): Promise<Probe> {
   const sharp = (await import("sharp")).default
   let metadata: { format?: string; width?: number; height?: number }
   try {
     metadata = await sharp(bytes, { failOn: "error", animated: true }).metadata()
   } catch {
-    throw new MediaRejectedError("The file is not a supported image or video.")
+    throw new MediaRejectedError("The file is not a supported image.")
   }
   const sniffed = metadata.format ? FORMAT_MIME[metadata.format] : undefined
   if (!sniffed) throw new MediaRejectedError(`Unsupported image format${metadata.format ? ` (${metadata.format})` : ""}.`)
@@ -83,7 +80,7 @@ export async function ingestMedia(
   if (input.bytes.byteLength > MAX_MEDIA_BYTES) {
     throw new MediaRejectedError(`Files must be ${MAX_MEDIA_BYTES / 1024 / 1024} MB or smaller.`)
   }
-  const info = await probe(input.bytes, input.mime)
+  const info = await probe(input.bytes)
   const sha256 = sha256Hex(input.bytes)
   const collectionId = input.collectionId ?? null
 

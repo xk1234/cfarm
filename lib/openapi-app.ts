@@ -687,12 +687,28 @@ const ROUTE_SCOPES: { method: string; pattern: RegExp; scope: ApiKeyScope }[] = 
   { method: "POST", pattern: /^\/posts/, scope: "posts:write" },
 ]
 
-function requiredScope(method: string, path: string): ApiKeyScope | null {
-  return ROUTE_SCOPES.find((r) => r.method === method && r.pattern.test(path))?.scope ?? null
+/** Authenticated routes that need a principal but no particular scope. */
+const SCOPE_FREE_ROUTES: { method: string; path: string }[] = [{ method: "POST", path: "/specs/validate" }]
+
+/**
+ * The scope an API key needs for `method path`. `undefined` means the route is
+ * not in the table: callers must refuse API keys for it (fail closed) so an
+ * unlisted or oddly spelled path never skips the check.
+ */
+export function requiredScope(method: string, path: string): ApiKeyScope | null | undefined {
+  const rule = ROUTE_SCOPES.find((r) => r.method === method && r.pattern.test(path))
+  if (rule) return rule.scope
+  if (SCOPE_FREE_ROUTES.some((r) => r.method === method && r.path === path)) return null
+  return undefined
 }
 
+/**
+ * The path below `/api/v1` exactly as Hono routes it: `c.req.path` is decoded
+ * the same way the router decodes it, so `%72enders` is checked as `renders`.
+ * Duplicate slashes are collapsed so `//renders` cannot dodge the table either.
+ */
 function apiPath(c: Context): string {
-  const path = new URL(c.req.url).pathname
+  const path = c.req.path.replace(/\/{2,}/g, "/")
   return path.replace(/^\/api\/v1/, "") || "/"
 }
 
@@ -780,6 +796,9 @@ export function createOpenApiApp(overrides: Partial<ApiAppDeps> = {}) {
       return errorJson(c, 401, "Authentication required: send a workspace API key as a Bearer token.", "auth.required")
     }
     const scope = requiredScope(c.req.method, path)
+    if (scope === undefined && principal.kind === "api_key") {
+      return errorJson(c, 403, "This API key cannot call this route.", "auth.scope")
+    }
     if (scope && !hasScope(principal, scope)) {
       return errorJson(c, 403, `This API key lacks the "${scope}" scope.`, "auth.scope")
     }

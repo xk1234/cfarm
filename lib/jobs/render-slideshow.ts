@@ -34,7 +34,7 @@ export async function runRenderSlideshowJob(job: Job<"render-slideshow">, deps: 
     { repos: deps.repos, renderSpec: deps.renderSpec ?? engineRenderSpec, assetLoader: deps.assetLoader },
     job.workspaceId,
     payload.renderId,
-    { jobId: job.id }
+    { jobId: job.id, quality: payload.quality }
   )
   if (error) {
     // A remote image may come back; everything else (bad spec, overflow,

@@ -388,12 +388,13 @@ export const JOB_STATUSES = ["queued", "running", "succeeded", "failed", "dead"]
 export type JobStatus = (typeof JOB_STATUSES)[number]
 
 export type JobPayloads = {
-  "render-slideshow": { renderId: string }
+  /** `quality` is the requested JPEG/WebP quality (0–1); absent means the default. */
+  "render-slideshow": { renderId: string; quality?: number }
   "publish-post": { postId: string }
   notify: { notificationId: string }
 }
 export const JobPayloadSchemas: { [K in JobType]: z.ZodType<JobPayloads[K]> } = {
-  "render-slideshow": z.object({ renderId: z.string().min(1) }),
+  "render-slideshow": z.object({ renderId: z.string().min(1), quality: z.number().min(0).max(1).optional() }),
   "publish-post": z.object({ postId: z.string().min(1) }),
   notify: z.object({ notificationId: z.string().min(1) }),
 }
@@ -440,6 +441,8 @@ export type JobLease = {
 }
 
 export const DEFAULT_JOB_MAX_ATTEMPTS = 5
+/** Error recorded when a job's lease expired on its final allowed attempt. */
+export const JOB_LEASE_EXHAUSTED_ERROR = "Lease expired too many times; the worker likely crashed while running this job."
 
 // ─────────────────────────────── blob storage ───────────────────────────────
 

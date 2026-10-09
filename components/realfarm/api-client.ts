@@ -298,12 +298,19 @@ export type RenderListItem = {
 
 export type CreateRenderResponse = RenderView & { jobId?: string | null }
 
-/** `POST /api/v1/renders`: 201 when complete, 202 with a queued/rendering status. */
-export function createRender(request: RenderRequest): Promise<CreateRenderResponse> {
-  return requestJson<CreateRenderResponse>(apiRoutes.renders, {
-    method: "POST",
-    json: request,
-  })
+/**
+ * `POST /api/v1/renders`: 201 `{ render }` when complete, 202 `{ render, jobId }`
+ * when queued for the worker, 200 `{ render }` on an idempotent replay.
+ */
+export async function createRender(request: RenderRequest): Promise<CreateRenderResponse> {
+  const body = await requestJson<{ render?: RenderView; jobId?: string | null } | RenderView>(
+    apiRoutes.renders,
+    { method: "POST", json: request }
+  )
+  if ("render" in body && body.render && typeof body.render === "object") {
+    return { ...normalizeRender(body.render), jobId: body.jobId ?? null }
+  }
+  return { ...normalizeRender(body as RenderView), jobId: null }
 }
 
 export async function getRender(id: string): Promise<RenderView> {
@@ -583,41 +590,51 @@ export function markAllNotificationsRead(): Promise<unknown> {
 /** API key metadata; the hash never leaves the server. */
 export type ApiKeyView = Omit<ApiKey, "keyHash" | "workspaceId">
 
+/** `GET /api/settings/api-keys` returns `{ apiKeys, scopes }`. */
 export async function listApiKeys(): Promise<ApiKeyView[]> {
-  const body = await requestJson<{ keys?: ApiKeyView[]; items?: ApiKeyView[] } | ApiKeyView[]>(
-    apiRoutes.apiKeys
-  )
-  return Array.isArray(body) ? body : (body.keys ?? body.items ?? [])
+  const body = await requestJson<{ apiKeys?: ApiKeyView[] }>(apiRoutes.apiKeys)
+  return body.apiKeys ?? []
 }
 
-/** The plaintext `secret` is returned exactly once. */
-export function createApiKey(input: {
+/** `POST /api/settings/api-keys` returns `{ apiKey, secret }`; the plaintext `secret` is shown exactly once. */
+export async function createApiKey(input: {
   name: string
   scopes: ApiKeyScope[]
 }): Promise<{ key: ApiKeyView; secret: string }> {
-  return requestJson(apiRoutes.apiKeys, { method: "POST", json: input })
+  const body = await requestJson<{ apiKey: ApiKeyView; secret: string }>(apiRoutes.apiKeys, {
+    method: "POST",
+    json: input,
+  })
+  return { key: body.apiKey, secret: body.secret }
 }
 
 export function revokeApiKey(id: string): Promise<unknown> {
   return requestJson(apiRoutes.apiKey(id), { method: "DELETE" })
 }
 
-export async function getReminderSettings(): Promise<ReminderSettings> {
-  const body = await requestJson<{ reminders?: ReminderSettings } | ReminderSettings>(
-    apiRoutes.reminders
-  )
-  if ("reminders" in body && body.reminders) return body.reminders
-  const direct = body as ReminderSettings
+/** The route's `{ settings: { channel, leadMinutes, … } }` body. */
+type ReminderSettingsBody = {
+  settings?: { channel?: "in_app" | "none"; leadMinutes?: number[] }
+}
+
+function reminderSettingsFromBody(body: ReminderSettingsBody, fallback: ReminderSettings): ReminderSettings {
+  const settings = body.settings
+  if (!settings) return fallback
   return {
-    enabled: typeof direct.enabled === "boolean" ? direct.enabled : true,
-    leadMinutes: Array.isArray(direct.leadMinutes) ? direct.leadMinutes : [60],
+    enabled: settings.channel ? settings.channel === "in_app" : fallback.enabled,
+    leadMinutes: Array.isArray(settings.leadMinutes) ? settings.leadMinutes : fallback.leadMinutes,
   }
 }
 
+export async function getReminderSettings(): Promise<ReminderSettings> {
+  const body = await requestJson<ReminderSettingsBody>(apiRoutes.reminders)
+  return reminderSettingsFromBody(body, { enabled: true, leadMinutes: [60] })
+}
+
 export async function saveReminderSettings(reminders: ReminderSettings): Promise<ReminderSettings> {
-  const body = await requestJson<{ reminders?: ReminderSettings } | ReminderSettings>(
-    apiRoutes.reminders,
-    { method: "PUT", json: { reminders } }
-  )
-  return "reminders" in body && body.reminders ? body.reminders : reminders
+  const body = await requestJson<ReminderSettingsBody>(apiRoutes.reminders, {
+    method: "PUT",
+    json: { channel: reminders.enabled ? "in_app" : "none", leadMinutes: reminders.leadMinutes },
+  })
+  return reminderSettingsFromBody(body, reminders)
 }

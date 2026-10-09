@@ -33,9 +33,6 @@ const SAFE_INLINE = new Set([
   "image/gif",
   "image/avif",
   "image/heic",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
 ])
 
 export function isBucketId(value: string): value is BucketId {

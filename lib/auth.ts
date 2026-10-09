@@ -4,6 +4,8 @@ import { cache } from "react"
 
 import { auth, clerkClient } from "@clerk/nextjs/server"
 
+import { isUserAllowed } from "@/lib/owner-access"
+
 export type AuthUser = {
   $id: string
   email: string
@@ -47,6 +49,8 @@ function ownerIdFor(user: {
 export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
   const { userId } = await auth()
   if (!userId) return null
+  // Single-user instance: other Clerk users get no workspace (lib/owner-access.ts).
+  if (!isUserAllowed(userId)) return null
 
   const client = await clerkClient()
   const user = await client.users.getUser(userId)

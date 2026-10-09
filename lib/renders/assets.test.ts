@@ -36,6 +36,16 @@ describe("fetchRemoteImage", () => {
     expect((error as AssetLoadError).code).toBe("asset.too_large")
   })
 
+  it("uses the DNS-pinned fetch by default, so a pre-check that passes cannot reach a private host", async () => {
+    // A guard that approves everything stands in for a pre-check fooled by DNS rebinding.
+    const error = await fetchRemoteImage("http://127.0.0.1:9/latest", {
+      guard: async () => undefined,
+    }).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(AssetLoadError)
+    expect((error as AssetLoadError).code).toBe("asset.fetch_failed")
+    expect((error as AssetLoadError).message).toMatch(/blocked address/)
+  })
+
   it("rejects non-images", async () => {
     const error = await fetchRemoteImage("https://cdn.example/page", {
       guard: publicOnly,

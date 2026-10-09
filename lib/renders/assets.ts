@@ -4,12 +4,14 @@
  * - `{media}` sources are read from the private `media` bucket after an
  *   ownership check (the media row must belong to the workspace).
  * - `{url}` sources go through the SSRF guard (public http/https hosts only,
- *   re-checked on every redirect) and a streamed size cap.
+ *   re-checked on every redirect) and a streamed size cap. Requests use
+ *   `guardedFetch`, which pins each connection to the address the policy
+ *   approved, so DNS rebinding cannot redirect the socket after the check.
  */
 import { AssetLoadError, type AssetLoader, type LoadedAsset } from "@/lib/render/engine"
 import type { ResolvedImageSource } from "@/lib/render/spec"
 import type { Repositories, WorkspaceId } from "@/lib/data"
-import { assertPublicHttpUrl } from "@/lib/url-guard"
+import { assertPublicHttpUrl, BlockedUrlError, guardedFetch } from "@/lib/url-guard"
 
 export const REMOTE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
 export const REMOTE_IMAGE_TIMEOUT_MS = 15_000
@@ -24,6 +26,7 @@ export const SUPPORTED_IMAGE_MIMES = [
 ] as const
 
 export type RemoteFetchOptions = {
+  /** Single-hop fetch (redirects returned, not followed). Default: the DNS-pinned `guardedFetch`. */
   fetch?: (input: string, init?: RequestInit) => Promise<Response>
   maxBytes?: number
   timeoutMs?: number
@@ -125,7 +128,7 @@ async function readCapped(response: Response, maxBytes: number): Promise<Uint8Ar
 
 /** Fetches a public image with the SSRF guard, redirect re-checks and a size cap. */
 export async function fetchRemoteImage(url: string, options: RemoteFetchOptions = {}): Promise<LoadedAsset> {
-  const doFetch = options.fetch ?? ((input: string, init?: RequestInit) => fetch(input, init))
+  const doFetch = options.fetch ?? ((input: string, init?: RequestInit) => guardedFetch(input, init))
   const guard = options.guard ?? assertPublicHttpUrl
   const maxBytes = options.maxBytes ?? REMOTE_IMAGE_MAX_BYTES
   let current = url
@@ -146,10 +149,8 @@ export async function fetchRemoteImage(url: string, options: RemoteFetchOptions 
         headers: { accept: SUPPORTED_IMAGE_MIMES.join(",") },
       })
     } catch (error) {
-      throw new AssetLoadError(
-        "asset.fetch_failed",
-        `Could not fetch ${current}: ${error instanceof Error ? error.message : "network error"}`
-      )
+      const reason = error instanceof BlockedUrlError ? "blocked address" : error instanceof Error ? error.message : "network error"
+      throw new AssetLoadError("asset.fetch_failed", `Could not fetch ${current}: ${reason}`)
     }
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location")

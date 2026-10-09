@@ -220,6 +220,8 @@ export interface JobLeasesRepository {
   /** Atomic mutex: false when `<jobId>.<attempt>` already exists. */
   acquire(jobId: string, attempt: number, workerId: string, expiresAt: IsoDateTime): Promise<boolean>
   get(jobId: string, attempt: number): Promise<JobLease | null>
+  /** Deletes `<jobId>.<attempt>` so it can be acquired again (no-op when absent). */
+  release(jobId: string, attempt: number): Promise<void>
   /** Deletes leases created before `before`; returns how many. */
   purgeOlderThan(before: IsoDateTime): Promise<number>
 }

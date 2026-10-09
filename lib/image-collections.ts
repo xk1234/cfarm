@@ -43,7 +43,7 @@ export type ImageCollectionDeleteInput = Pick<StoredImageCollection, "name" | "c
 export type CollectionWriteOptions = {
   repos?: Repositories
   createdBy?: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>
   /** SSRF check override (tests only). */
   assertUrl?: (url: string) => Promise<unknown>
 }

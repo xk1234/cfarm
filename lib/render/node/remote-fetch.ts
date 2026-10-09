@@ -16,11 +16,13 @@ import http from "node:http"
 import https from "node:https"
 import net from "node:net"
 
+import { isBlockedAddress, parseIpv6 } from "@/lib/url-guard"
+
 import { ASSET_LIMITS, checkImageBytes } from "../assets"
 import { AssetLoadError, type LoadedAsset } from "../engine"
 
-export type LookupAddress = { address: string; family: number }
-export type LookupFn = (hostname: string) => Promise<LookupAddress[]>
+import type { LookupAddress, LookupFn } from "@/lib/url-guard"
+export type { LookupAddress, LookupFn }
 
 export type RemoteFetchOptions = {
   maxBytes?: number
@@ -41,84 +43,8 @@ const DEFAULTS = {
 
 // ───────────────────────────── address policy ─────────────────────────────
 
-function parseIpv4(ip: string): number[] | null {
-  const parts = ip.split(".")
-  if (parts.length !== 4) return null
-  const out = parts.map((p) => (/^\d{1,3}$/.test(p) ? Number(p) : NaN))
-  return out.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) ? out : null
-}
-
-/** Parses an IPv6 address into 8 16-bit groups (accepts `::` and an embedded dotted IPv4 tail). */
-export function parseIpv6(input: string): number[] | null {
-  let ip = input.toLowerCase()
-  const zone = ip.indexOf("%")
-  if (zone >= 0) ip = ip.slice(0, zone)
-  let tail: number[] = []
-  if (ip.includes(".")) {
-    const lastColon = ip.lastIndexOf(":")
-    const v4 = parseIpv4(ip.slice(lastColon + 1))
-    if (!v4) return null
-    tail = [(v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]]
-    ip = ip.slice(0, lastColon + 1)
-    if (!ip.endsWith("::")) {
-      if (!ip.endsWith(":")) return null
-      ip = ip.slice(0, -1)
-    }
-  }
-  const halves = ip.split("::")
-  if (halves.length > 2) return null
-  const parse = (s: string) => (s === "" ? [] : s.split(":"))
-  const head = parse(halves[0])
-  const rest = halves.length === 2 ? parse(halves[1]) : []
-  const groups = [...head, ...rest]
-  if (groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null
-  const total = groups.length + tail.length
-  if (halves.length === 1 && total !== 8) return null
-  if (halves.length === 2 && total > 7) return null
-  const zeros = new Array(8 - total).fill(0)
-  return [...head.map((g) => parseInt(g, 16)), ...(halves.length === 2 ? zeros : []), ...rest.map((g) => parseInt(g, 16)), ...tail]
-}
-
-function blockedIpv4([a, b, c]: number[]): boolean {
-  return (
-    a === 0 || // "this" network
-    a === 10 ||
-    (a === 100 && b >= 64 && b <= 127) || // CGNAT (incl. 100.100.100.200 metadata)
-    a === 127 ||
-    (a === 169 && b === 254) || // link-local, cloud metadata
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
-    (a === 192 && b === 88 && c === 99) ||
-    (a === 192 && b === 168) ||
-    (a === 198 && (b === 18 || b === 19)) ||
-    (a === 198 && b === 51 && c === 100) ||
-    (a === 203 && b === 0 && c === 113) ||
-    a >= 224 // multicast, reserved, broadcast
-  )
-}
-
-/** True for any address a server-side fetch must never reach. Unparseable input is blocked. */
-export function isBlockedAddress(ip: string): boolean {
-  const clean = ip.trim().replace(/^\[|\]$/g, "")
-  const v4 = parseIpv4(clean)
-  if (v4) return blockedIpv4(v4)
-  const g = parseIpv6(clean)
-  if (!g) return true
-  const embedded = (hi: number, lo: number) => [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff]
-  if (g.slice(0, 7).every((x) => x === 0)) return true // :: and ::1
-  if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) return blockedIpv4(embedded(g[6], g[7])) // ::ffff:a.b.c.d
-  if (g.slice(0, 6).every((x) => x === 0)) return blockedIpv4(embedded(g[6], g[7])) // ::a.b.c.d (deprecated)
-  if (g[0] === 0x64 && g[1] === 0xff9b) return blockedIpv4(embedded(g[6], g[7])) // NAT64
-  if (g[0] === 0x2002) return blockedIpv4(embedded(g[1], g[2])) // 6to4
-  if ((g[0] & 0xfe00) === 0xfc00) return true // unique local (incl. fd00:ec2::254)
-  if ((g[0] & 0xffc0) === 0xfe80) return true // link-local
-  if ((g[0] & 0xffc0) === 0xfec0) return true // site-local
-  if ((g[0] & 0xff00) === 0xff00) return true // multicast
-  if (g[0] === 0x2001 && g[1] === 0x0db8) return true // documentation
-  if (g[0] === 0x0100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true // discard
-  if (g[0] === 0x2001 && g[1] === 0) return true // Teredo
-  return false
-}
+// One policy for every server-side fetch: see lib/url-guard.ts.
+export { isBlockedAddress, parseIpv6 }
 
 // ───────────────────────────── fetch ─────────────────────────────
 

@@ -1,175 +1,316 @@
+/**
+ * The one SSRF policy for every server-side fetch of a user-supplied URL
+ * (render `{url}` images, URL imports, collection imports, the image proxy).
+ *
+ * - `isBlockedAddress` is the address policy: private, loopback, link-local
+ *   (incl. cloud metadata), CGNAT, multicast, reserved, documentation ranges,
+ *   and the IPv6 forms that embed them (IPv4-mapped, `::a.b.c.d`, NAT64, 6to4,
+ *   Teredo, site-local, unique-local).
+ * - `guardedFetch` is the enforcement point. It is a single-hop `fetch`
+ *   (redirects come back as 3xx for the caller to re-submit) whose socket
+ *   lookup runs the policy and connects to exactly the address it checked, so
+ *   there is no DNS-rebinding window between "check" and "connect".
+ * - `assertPublicHttpUrl` is an early, friendlier pre-check only; it must
+ *   never be the sole guard in front of a plain `fetch`.
+ */
 import dns from "node:dns"
+import http from "node:http"
+import https from "node:https"
 import net from "node:net"
+import { Readable } from "node:stream"
 
-export async function assertPublicHttpUrl(url: string) {
-  const parsed = new URL(url)
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("URL must use http or https")
+export class BlockedUrlError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "BlockedUrlError"
   }
-
-  const hostname = cleanHostname(parsed.hostname)
-  if (net.isIP(hostname) && isPrivateAddress(hostname)) {
-    throw new Error("URL hostname resolves to a private or reserved address")
-  }
-
-  const addresses = await dns.promises.lookup(hostname, { all: true })
-  if (addresses.length === 0) {
-    throw new Error("URL hostname could not be resolved")
-  }
-
-  for (const address of addresses) {
-    if (isPrivateAddress(address.address)) {
-      throw new Error("URL hostname resolves to a private or reserved address")
-    }
-  }
-
-  return parsed
 }
 
-export function isPrivateAddress(ip: string) {
-  const cleanIp = cleanHostname(ip)
-  const ipv4 = parseIpv4(cleanIp)
-  if (ipv4) {
-    return isPrivateIpv4(ipv4)
-  }
+// ───────────────────────────── address policy ─────────────────────────────
 
-  const ipv6 = parseIpv6(cleanIp)
-  if (!ipv6) {
-    return false
-  }
-
-  const mappedIpv4 = ipv4FromMappedIpv6(ipv6)
-  if (mappedIpv4) {
-    return isPrivateIpv4(mappedIpv4)
-  }
-
-  const isUnspecified = ipv6.every((part) => part === 0)
-  const isLoopback =
-    ipv6.slice(0, 7).every((part) => part === 0) && ipv6[7] === 1
-  const isUniqueLocal = (ipv6[0] & 0xfe00) === 0xfc00
-  const isLinkLocal = (ipv6[0] & 0xffc0) === 0xfe80
-
-  return isUnspecified || isLoopback || isUniqueLocal || isLinkLocal
-}
-
-function cleanHostname(value: string) {
-  return value.trim().replace(/^\[|\]$/g, "").split("%")[0].toLowerCase()
-}
-
-function parseIpv4(value: string) {
-  const parts = value.split(".")
-  if (parts.length !== 4) {
-    return null
-  }
-
-  const octets = parts.map((part) => {
-    if (!/^\d+$/.test(part)) {
-      return NaN
-    }
-    const value = Number(part)
-    return value >= 0 && value <= 255 ? value : NaN
-  })
-
-  return octets.every(Number.isFinite)
-    ? (octets as [number, number, number, number])
+function parseIpv4(ip: string): number[] | null {
+  const parts = ip.split(".")
+  if (parts.length !== 4) return null
+  const out = parts.map((p) => (/^\d{1,3}$/.test(p) ? Number(p) : NaN))
+  return out.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
+    ? out
     : null
 }
 
-function isPrivateIpv4([first, second, third]: [
-  number,
-  number,
-  number,
-  number,
-]) {
+/** Parses an IPv6 address into 8 16-bit groups (accepts `::` and an embedded dotted IPv4 tail). */
+export function parseIpv6(input: string): number[] | null {
+  let ip = input.toLowerCase()
+  const zone = ip.indexOf("%")
+  if (zone >= 0) ip = ip.slice(0, zone)
+  let tail: number[] = []
+  if (ip.includes(".")) {
+    const lastColon = ip.lastIndexOf(":")
+    const v4 = parseIpv4(ip.slice(lastColon + 1))
+    if (!v4) return null
+    tail = [(v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]]
+    ip = ip.slice(0, lastColon + 1)
+    if (!ip.endsWith("::")) {
+      if (!ip.endsWith(":")) return null
+      ip = ip.slice(0, -1)
+    }
+  }
+  const halves = ip.split("::")
+  if (halves.length > 2) return null
+  const parse = (s: string) => (s === "" ? [] : s.split(":"))
+  const head = parse(halves[0])
+  const rest = halves.length === 2 ? parse(halves[1]) : []
+  const groups = [...head, ...rest]
+  if (groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null
+  const total = groups.length + tail.length
+  if (halves.length === 1 && total !== 8) return null
+  if (halves.length === 2 && total > 7) return null
+  const zeros = new Array(8 - total).fill(0)
+  return [
+    ...head.map((g) => parseInt(g, 16)),
+    ...(halves.length === 2 ? zeros : []),
+    ...rest.map((g) => parseInt(g, 16)),
+    ...tail,
+  ]
+}
+
+function blockedIpv4([a, b, c]: number[]): boolean {
   return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168) ||
-    (first === 100 && second >= 64 && second <= 127) ||
-    (first === 192 && second === 0) ||
-    (first === 198 && (second === 18 || second === 19)) ||
-    (first === 192 && second === 0 && third === 2) ||
-    (first === 198 && second === 51 && third === 100) ||
-    (first === 203 && second === 0 && third === 113) ||
-    first >= 224
+    a === 0 || // "this" network
+    a === 10 ||
+    (a === 100 && b >= 64 && b <= 127) || // CGNAT (incl. 100.100.100.200 metadata)
+    a === 127 ||
+    (a === 169 && b === 254) || // link-local, cloud metadata
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
+    (a === 192 && b === 88 && c === 99) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    a >= 224 // multicast, reserved, broadcast
   )
 }
 
-function parseIpv6(value: string) {
-  let input = value
-  if (input.includes(".")) {
-    const lastColon = input.lastIndexOf(":")
-    const ipv4 = parseIpv4(input.slice(lastColon + 1))
-    if (lastColon < 0 || !ipv4) {
-      return null
-    }
-    input = `${input.slice(0, lastColon)}:${toHexWord(
-      ipv4[0],
-      ipv4[1]
-    )}:${toHexWord(ipv4[2], ipv4[3])}`
-  }
-
-  if (!/^[0-9a-f:]+$/i.test(input)) {
-    return null
-  }
-
-  const halves = input.split("::")
-  if (halves.length > 2) {
-    return null
-  }
-
-  const left = parseIpv6Words(halves[0])
-  const right = halves.length === 2 ? parseIpv6Words(halves[1]) : []
-  if (!left || !right) {
-    return null
-  }
-
-  const missing = 8 - left.length - right.length
-  if (halves.length === 1) {
-    return missing === 0 ? left : null
-  }
-  if (missing < 1) {
-    return null
-  }
-
-  return [...left, ...Array(missing).fill(0), ...right]
+/** True for any address a server-side fetch must never reach. Unparseable input is blocked. */
+export function isBlockedAddress(ip: string): boolean {
+  const clean = ip.trim().replace(/^\[|\]$/g, "")
+  const v4 = parseIpv4(clean)
+  if (v4) return blockedIpv4(v4)
+  const g = parseIpv6(clean)
+  if (!g) return true
+  const embedded = (hi: number, lo: number) => [
+    hi >> 8,
+    hi & 0xff,
+    lo >> 8,
+    lo & 0xff,
+  ]
+  if (g.slice(0, 7).every((x) => x === 0)) return true // :: and ::1
+  if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff)
+    return blockedIpv4(embedded(g[6], g[7])) // ::ffff:a.b.c.d
+  if (g.slice(0, 6).every((x) => x === 0))
+    return blockedIpv4(embedded(g[6], g[7])) // ::a.b.c.d (deprecated)
+  if (g[0] === 0x64 && g[1] === 0xff9b) return blockedIpv4(embedded(g[6], g[7])) // NAT64
+  if (g[0] === 0x2002) return blockedIpv4(embedded(g[1], g[2])) // 6to4
+  if ((g[0] & 0xfe00) === 0xfc00) return true // unique local (incl. fd00:ec2::254, Railway fd..)
+  if ((g[0] & 0xffc0) === 0xfe80) return true // link-local
+  if ((g[0] & 0xffc0) === 0xfec0) return true // site-local
+  if ((g[0] & 0xff00) === 0xff00) return true // multicast
+  if (g[0] === 0x2001 && g[1] === 0x0db8) return true // documentation
+  if (g[0] === 0x0100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true // discard
+  if (g[0] === 0x2001 && g[1] === 0) return true // Teredo
+  return false
 }
 
-function parseIpv6Words(value: string) {
-  if (!value) {
-    return []
+/** Alias of `isBlockedAddress` for IP strings (kept for existing callers). */
+export function isPrivateAddress(ip: string): boolean {
+  return isBlockedAddress(ip)
+}
+
+function cleanHostname(value: string) {
+  return value
+    .trim()
+    .replace(/^\[|\]$/g, "")
+    .split("%")[0]
+    .toLowerCase()
+}
+
+// ───────────────────────────── pre-check ─────────────────────────────
+
+/**
+ * Early validation: http(s), no credentials, and the host currently resolves
+ * to public addresses. Not sufficient on its own (DNS can change between this
+ * check and a later connect); `guardedFetch` re-checks at connect time.
+ */
+export async function assertPublicHttpUrl(url: string) {
+  const parsed = new URL(url)
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new BlockedUrlError("URL must use http or https")
+  }
+  if (parsed.username || parsed.password)
+    throw new BlockedUrlError("URL may not contain credentials")
+
+  const hostname = cleanHostname(parsed.hostname)
+  if (net.isIP(hostname)) {
+    if (isBlockedAddress(hostname))
+      throw new BlockedUrlError(
+        "URL hostname resolves to a private or reserved address"
+      )
+    return parsed
   }
 
-  const words = value.split(":").map((part) => {
-    if (!/^[0-9a-f]{1,4}$/i.test(part)) {
-      return NaN
+  const addresses = await dns.promises.lookup(hostname, { all: true })
+  if (addresses.length === 0)
+    throw new BlockedUrlError("URL hostname could not be resolved")
+  for (const address of addresses) {
+    if (isBlockedAddress(address.address)) {
+      throw new BlockedUrlError(
+        "URL hostname resolves to a private or reserved address"
+      )
     }
-    return Number.parseInt(part, 16)
+  }
+  return parsed
+}
+
+// ───────────────────────────── pinned fetch ─────────────────────────────
+
+export type LookupAddress = { address: string; family: number }
+export type LookupFn = (hostname: string) => Promise<LookupAddress[]>
+
+export type GuardedFetchInit = {
+  /** GET (default) or HEAD; anything else is refused. */
+  method?: string
+  headers?: HeadersInit
+  signal?: AbortSignal | null
+  /** Ignored: redirects are always returned to the caller (manual), who must re-submit each hop. */
+  redirect?: RequestRedirect
+  /** DNS resolution (tests inject fakes). Default: `dns.promises.lookup(host, {all: true})`. */
+  lookup?: LookupFn
+  /** Address policy. Default: reject `isBlockedAddress`. */
+  isAllowedAddress?: (ip: string) => boolean
+}
+
+const defaultLookup: LookupFn = (hostname) =>
+  dns.promises.lookup(hostname, { all: true, verbatim: true })
+
+/** A `lookup` for http(s).request that only ever yields allowed addresses. */
+export function guardedLookup(
+  lookup: LookupFn,
+  isAllowed: (ip: string) => boolean
+) {
+  return (
+    hostname: string,
+    options: { all?: boolean } | number | undefined,
+    callback: (
+      err: Error | null,
+      address: string | LookupAddress[],
+      family?: number
+    ) => void
+  ) => {
+    lookup(hostname)
+      .then((addresses) => {
+        if (addresses.length === 0)
+          throw new BlockedUrlError(`Host "${hostname}" did not resolve.`)
+        if (addresses.some((a) => !isAllowed(a.address))) {
+          throw new BlockedUrlError(
+            `Host "${hostname}" resolves to a private or reserved address.`
+          )
+        }
+        if (typeof options === "object" && options?.all)
+          callback(null, addresses)
+        else callback(null, addresses[0].address, addresses[0].family)
+      })
+      .catch((err: Error) => callback(err, ""))
+  }
+}
+
+const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304])
+
+function toHeaders(raw: http.IncomingHttpHeaders): Headers {
+  const headers = new Headers()
+  for (const [key, value] of Object.entries(raw)) {
+    if (value === undefined || key === "set-cookie") continue
+    headers.set(key, Array.isArray(value) ? value.join(", ") : value)
+  }
+  return headers
+}
+
+function unwrapBlocked(error: unknown): unknown {
+  const cause = (error as { cause?: unknown })?.cause
+  return cause instanceof BlockedUrlError ? cause : error
+}
+
+/**
+ * One SSRF-safe HTTP request with a `fetch`-compatible shape. The connection is
+ * pinned to the address the policy approved; redirects are not followed.
+ * Throws `BlockedUrlError` for disallowed URLs/addresses.
+ */
+export async function guardedFetch(
+  input: string | URL,
+  init: GuardedFetchInit = {}
+): Promise<Response> {
+  let url: URL
+  try {
+    url = new URL(String(input))
+  } catch {
+    throw new BlockedUrlError("URL is not a valid absolute URL")
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:")
+    throw new BlockedUrlError("URL must use http or https")
+  if (url.username || url.password)
+    throw new BlockedUrlError("URL may not contain credentials")
+  const isAllowed =
+    init.isAllowedAddress ?? ((ip: string) => !isBlockedAddress(ip))
+  const host = cleanHostname(url.hostname)
+  if (net.isIP(host) && !isAllowed(host)) {
+    throw new BlockedUrlError("URL points to a private or reserved address")
+  }
+  const method = (init.method ?? "GET").toUpperCase()
+  if (method !== "GET" && method !== "HEAD") {
+    throw new BlockedUrlError("Only GET and HEAD requests are allowed")
+  }
+  const headers: Record<string, string> = {}
+  new Headers(init.headers).forEach((value, key) => {
+    headers[key] = value
   })
-
-  return words.every(Number.isFinite) ? words : null
-}
-
-function toHexWord(first: number, second: number) {
-  return ((first << 8) + second).toString(16)
-}
-
-function ipv4FromMappedIpv6(words: number[]) {
-  if (
-    words.length !== 8 ||
-    !words.slice(0, 5).every((part) => part === 0) ||
-    words[5] !== 0xffff
-  ) {
-    return null
-  }
-
-  return [
-    words[6] >> 8,
-    words[6] & 0xff,
-    words[7] >> 8,
-    words[7] & 0xff,
-  ] as [number, number, number, number]
+  const transport = url.protocol === "https:" ? https : http
+  const signal = init.signal ?? undefined
+  return new Promise<Response>((resolve, reject) => {
+    const req = transport.request(
+      url,
+      {
+        method,
+        lookup: guardedLookup(init.lookup ?? defaultLookup, isAllowed) as never,
+        headers,
+        signal,
+        agent: false,
+      },
+      (res) => {
+        const status = res.statusCode ?? 0
+        const nullBody =
+          NULL_BODY_STATUSES.has(status) || method === "HEAD"
+        if (nullBody) res.resume()
+        try {
+          resolve(
+            new Response(
+              nullBody
+                ? null
+                : (Readable.toWeb(
+                    res
+                  ) as unknown as ReadableStream<Uint8Array>),
+              {
+                status,
+                statusText: res.statusMessage,
+                headers: toHeaders(res.headers),
+              }
+            )
+          )
+        } catch (error) {
+          res.destroy()
+          reject(error)
+        }
+      }
+    )
+    req.on("error", (error) => reject(unwrapBlocked(error)))
+    req.end()
+  })
 }

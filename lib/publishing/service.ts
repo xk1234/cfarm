@@ -12,6 +12,7 @@
  */
 import {
   getRepositories,
+  newId,
   sha256Hex,
   type Job,
   type Post,
@@ -281,20 +282,65 @@ async function submitPostSafely(workspaceId: WorkspaceId, post: Post, deps: Reso
   }
 }
 
+/** How long one submission (uploads + create) may hold the per-post lock. */
+export const SUBMIT_LOCK_MS = 10 * 60_000
+export const SUBMISSION_INTERRUPTED_ERROR =
+  "A previous submission to SocialBu was interrupted. Check SocialBu for this post before retrying."
+
+/** Lease-row key of the per-post submission mutex (fits the 36-char job_id column). */
+export function submissionLockId(postId: string): string {
+  return "ps" + sha256Hex(`post-submit:${postId}`).slice(0, 34)
+}
+
+function isSubmitted(post: Post): boolean {
+  return Boolean(post.providerPostId) || post.status === "canceled" || post.status === "published"
+}
+
 /**
  * Uploads the render's slides and creates the SocialBu post. Idempotent: a
  * row that already has a SocialBu post id (or was canceled) is returned as is.
- * Throws SocialBu errors to the caller.
+ * Concurrent callers (worker jobs, postbacks, duplicate requests) are
+ * serialized by a lease-row mutex per post, so only one creates the SocialBu
+ * post. Throws SocialBu errors to the caller.
  */
 export async function submitPost(workspaceId: WorkspaceId, postId: string, deps: PublishingDeps = {}): Promise<Post> {
   const resolved = resolve(deps)
-  const { repos, publisher, now, env } = resolved
+  const { repos, publisher, now } = resolved
   assertPublisher(publisher)
 
-  const post = await repos.posts.get(workspaceId, postId)
-  if (!post) throw new PublishingInputError("Post not found.", 404)
-  if (post.providerPostId || post.status === "canceled" || post.status === "published") return post
+  const before = await repos.posts.get(workspaceId, postId)
+  if (!before) throw new PublishingInputError("Post not found.", 404)
+  if (isSubmitted(before)) return before
 
+  const lockId = submissionLockId(postId)
+  const expiresAt = new Date(now().getTime() + SUBMIT_LOCK_MS).toISOString()
+  if (!(await repos.leases.acquire(lockId, 1, `submit-${newId()}`, expiresAt))) {
+    const lease = await repos.leases.get(lockId, 1)
+    if (lease && Date.parse(lease.expiresAt) <= now().getTime()) {
+      // The holder died mid-submission; SocialBu may already have the post, so
+      // never resubmit blindly. The user can check SocialBu and retry.
+      const failed = await markFailed(workspaceId, postId, SUBMISSION_INTERRUPTED_ERROR, resolved)
+      await repos.leases.release(lockId, 1)
+      return failed
+    }
+    // Another submission is in flight; it records the outcome.
+    return (await repos.posts.get(workspaceId, postId)) ?? before
+  }
+  try {
+    // Re-read under the lock: a submission that finished just before we
+    // acquired it has stored its SocialBu post id by now.
+    const post = await repos.posts.get(workspaceId, postId)
+    if (!post) throw new PublishingInputError("Post not found.", 404)
+    if (isSubmitted(post)) return post
+    return await submitLocked(workspaceId, post, resolved)
+  } finally {
+    await repos.leases.release(lockId, 1)
+  }
+}
+
+async function submitLocked(workspaceId: WorkspaceId, post: Post, resolved: Resolved): Promise<Post> {
+  const { repos, publisher, now, env } = resolved
+  assertPublisher(publisher)
   const render = await repos.renders.get(workspaceId, post.renderId)
   if (!render) throw new PublishingInputError("The render for this post was deleted.", 404)
   const slides = publishableSlides(render)

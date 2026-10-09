@@ -48,6 +48,9 @@ import {
   type RenderEngine,
 } from "@/lib/renders/service"
 import { getStarterTemplate, listStarterTemplates, templateShape } from "@/lib/renders/starters"
+import type { ApiKeyScope } from "@/lib/data/types"
+
+import { mcpToolNamesOutsideScopes } from "./tool-registry"
 
 export type LumenClipMcpServices = {
   now: () => Date
@@ -64,6 +67,11 @@ export type LumenClipMcpOptions = {
   disabledToolNames?: Iterable<string>
   /** API key id the session authenticated with (recorded on renders). */
   apiKeyId?: string | null
+  /**
+   * Scopes of the authenticating API key. Tools needing a scope the key lacks
+   * are disabled (not listed, calls refused). Omit only for trusted in-process use.
+   */
+  scopes?: readonly ApiKeyScope[]
 }
 
 function defaultApiBaseUrl() {
@@ -94,7 +102,10 @@ export function createLumenClipMcpServer(
 ) {
   const services: LumenClipMcpServices = { ...defaultServices, ...overrides }
   const server = new McpServer({ name: "lumenclip", version: "4.0.0" })
-  const disabledToolNames = new Set(options.disabledToolNames)
+  const disabledToolNames = new Set<string>(options.disabledToolNames)
+  if (options.scopes) {
+    for (const name of mcpToolNamesOutsideScopes(options.scopes)) disabledToolNames.add(name)
+  }
   const registerTool = server.registerTool.bind(server)
   server.registerTool = ((name: string, ...args: unknown[]) => {
     const tool = (registerTool as (...input: unknown[]) => ReturnType<typeof registerTool>)(name, ...args)

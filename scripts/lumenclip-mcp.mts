@@ -31,6 +31,7 @@ const server = createLumenClipMcpServer(
   {},
   {
     apiKeyId: principal.apiKeyId,
+    scopes: principal.scopes,
     disabledToolNames: await getDisabledMcpToolNames(principal.workspaceId, repos),
   }
 )

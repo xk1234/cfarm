@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { createMemoryRepositories, type Repositories } from "@/lib/data"
 import { getJobHandler, isPermanentJobError } from "@/lib/jobs/handlers"
 import { AssetLoadError, RenderError } from "@/lib/render/engine"
-import { createRender, enqueueRenderJob } from "@/lib/renders/service"
+import { createRender, enqueueRenderJob, submitRender } from "@/lib/renders/service"
 import { createFakeRenderSpec } from "@/lib/renders/test-fakes"
 
 const WS = "user_jobs"
@@ -50,6 +50,23 @@ describe("render-slideshow job", () => {
       skipped: true,
     })
     expect(fake.calls).toHaveLength(1)
+  })
+
+  it("encodes async renders at the requested output quality", async () => {
+    const fake = createFakeRenderSpec()
+    const submitted = await submitRender({ repos, renderSpec: fake.renderSpec }, WS, {
+      spec,
+      wait: false,
+      output: { format: "jpeg", quality: 0.4 },
+    }, { source: "api", createdBy: WS })
+    expect(submitted.mode).toBe("async")
+    expect(fake.calls).toHaveLength(0)
+    const [job] = await repos.jobs.claim("worker-1", { limit: 1, leaseMs: 60_000 })
+    expect(job.payload).toEqual({ renderId: submitted.render.id, quality: 0.4 })
+    const handler = getJobHandler("render-slideshow")!
+    await handler(job as Parameters<typeof handler>[0], { repos, workerId: "worker-1", renderSpec: fake.renderSpec })
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].options).toMatchObject({ format: "jpeg", quality: 0.4 })
   })
 
   it("fails permanently on render errors", async () => {

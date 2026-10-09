@@ -132,6 +132,27 @@ describe("/api/v1 auth", () => {
     expect(denied.status).toBe(403)
   })
 
+  it("enforces key scopes on percent-encoded and doubled-slash paths", async () => {
+    const key = await newKey(WS, ["templates:read"])
+    const app = makeApp()
+    expect((await call(app, "/renders", { key })).status).toBe(403)
+    for (const path of ["/%72enders", "/%6dedia", "/%70osts", "//renders", "/renders/"]) {
+      const response = await call(app, path, { key })
+      expect(response.status, path).toBe(403)
+    }
+    const post = await call(app, "/%70osts", { key, method: "POST", json: {} })
+    expect(post.status).toBe(403)
+    const render = await call(app, "/%72enders", { key, method: "POST", json: { spec: simpleSpec() } })
+    expect(render.status).toBe(403)
+  })
+
+  it("still lets a scoped key validate specs", async () => {
+    const key = await newKey(WS, ["templates:read"])
+    const app = makeApp()
+    const response = await call(app, "/specs/validate", { key, method: "POST", json: { spec: simpleSpec() } })
+    expect(response.status).not.toBe(403)
+  })
+
   it("rate limits per key with a token bucket", async () => {
     const key = await newKey()
     let t = 0

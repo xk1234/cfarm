@@ -64,6 +64,10 @@ and files live in Appwrite Cloud; Clerk owns browser authentication.
 - Clerk is the only auth/session boundary (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
   `CLERK_SECRET_KEY`); do not use Appwrite Auth or Appwrite client SDKs, and do
   not recreate password, verification, recovery, or application-session APIs.
+- The instance is single-user: SocialBu, Pexels and Apify credentials are
+  process-wide. `LUMENCLIP_ALLOWED_USER_IDS` (Clerk `user_…` ids) gates
+  `proxy.ts` and `getCurrentUser()` (`lib/owner-access.ts`); production denies
+  everyone when it is unset. Also restrict sign-ups in the Clerk dashboard.
 - Do not reintroduce Postgres, drizzle, pg-boss, S3 clients, Railway buckets,
   or Railway SDKs/credentials in code.
 - Production changes must deploy and verify every affected Railway service and

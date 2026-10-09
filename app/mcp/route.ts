@@ -44,6 +44,7 @@ async function handle(request: Request) {
     { apiBaseUrl: () => `${new URL(request.url).origin}/api/v1` },
     {
       apiKeyId: principal.apiKeyId,
+    scopes: principal.scopes,
       disabledToolNames: await getDisabledMcpToolNames(principal.workspaceId, repos),
     }
   )

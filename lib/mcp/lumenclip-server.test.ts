@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createMemoryRepositories, type Repositories } from "@/lib/data"
 import { createLumenClipMcpServer, type LumenClipMcpServices } from "@/lib/mcp/lumenclip-server"
+import type { ApiKeyScope } from "@/lib/data/types"
 import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
 import { NotConfiguredPublisher } from "@/lib/publishing/publisher"
 import { TINY_PNG, createFakePublisher, createFakeRenderSpec } from "@/lib/renders/test-fakes"
@@ -27,7 +28,11 @@ afterEach(async () => {
   ])
 })
 
-async function connect(overrides: Partial<LumenClipMcpServices> = {}, disabledToolNames: string[] = []) {
+async function connect(
+  overrides: Partial<LumenClipMcpServices> = {},
+  disabledToolNames: string[] = [],
+  scopes?: ApiKeyScope[]
+) {
   const server = createLumenClipMcpServer(
     WS,
     {
@@ -38,7 +43,7 @@ async function connect(overrides: Partial<LumenClipMcpServices> = {}, disabledTo
       now: () => new Date("2026-10-09T08:00:00Z"),
       ...overrides,
     },
-    { disabledToolNames, apiKeyId: "key-1" }
+    { disabledToolNames, apiKeyId: "key-1", scopes }
   )
   const client = new Client({ name: "test", version: "1.0.0" })
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -78,6 +83,27 @@ describe("LumenClip MCP server", () => {
     const client = await connect({}, ["lumenclip_output_delete"])
     const names = (await client.listTools()).tools.map((tool) => tool.name)
     expect(names).not.toContain("lumenclip_output_delete")
+  })
+
+  it("disables tools the API key's scopes do not cover", async () => {
+    const client = await connect({}, [], ["renders:read"])
+    const names = (await client.listTools()).tools.map((tool) => tool.name)
+    expect(names).toContain("lumenclip_render_get")
+    expect(names).toContain("lumenclip_outputs_list")
+    expect(names).toContain("lumenclip_spec_validate")
+    for (const denied of [
+      "lumenclip_output_publish",
+      "lumenclip_output_delete",
+      "lumenclip_collection_delete",
+      "lumenclip_collection_add_assets",
+      "lumenclip_slideshow_render",
+      "lumenclip_templates_list",
+      "lumenclip_accounts_list",
+    ]) {
+      expect(names, denied).not.toContain(denied)
+    }
+    const refused = await callTool(client, "lumenclip_output_publish", { outputId: "r1", accountIds: ["1"] })
+    expect(refused.isError).toBe(true)
   })
 
   it("serves the spec schema, fonts and starter templates", async () => {

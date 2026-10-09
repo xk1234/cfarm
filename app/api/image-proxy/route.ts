@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 
-import { assertPublicHttpUrl } from "@/lib/url-guard"
+import { assertPublicHttpUrl, guardedFetch } from "@/lib/url-guard"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 const allowedContentTypes = new Set([
   "image/avif",
@@ -45,8 +46,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Remote image is too large" }, { status: 413 })
     }
 
-    const body = Buffer.from(await response.arrayBuffer())
-    if (body.byteLength > maxImageBytes) {
+    const body = await readCapped(response, maxImageBytes)
+    if (!body) {
       return NextResponse.json({ error: "Remote image is too large" }, { status: 413 })
     }
 
@@ -63,8 +64,10 @@ export async function GET(request: Request) {
 }
 
 async function fetchRemoteImage(url: string, redirectCount = 0): Promise<Response> {
-  const response = await fetch(url, {
+  // guardedFetch pins the socket to the address the SSRF policy approved.
+  const response = await guardedFetch(url, {
     redirect: "manual",
+    signal: AbortSignal.timeout(15_000),
     headers: {
       Accept: "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5",
       "User-Agent": "Mozilla/5.0 RealFarm image proxy",
@@ -87,6 +90,31 @@ async function fetchRemoteImage(url: string, redirectCount = 0): Promise<Respons
   const nextUrl = new URL(location, url).toString()
   await assertPublicHttpUrl(nextUrl)
   return fetchRemoteImage(nextUrl, redirectCount + 1)
+}
+
+/** Streams the body, stopping as soon as it exceeds `maxBytes` (null). */
+async function readCapped(response: Response, maxBytes: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!response.body) return new Uint8Array(0)
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      return null
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return out
 }
 
 function isRedirect(status: number) {

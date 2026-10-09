@@ -212,6 +212,28 @@ describe.each(backends)("repositories: %s", (_name, make) => {
     expect(await repos.leases.purgeOlderThan(new Date(c.now().getTime() - 7 * 24 * 3600_000).toISOString())).toBe(2)
   })
 
+  it("marks a job dead when its lease expires on the final attempt", async () => {
+    const c = clock()
+    const repos = make(c.now)
+    const { value: job } = await repos.jobs.enqueue({
+      workspaceId: WS,
+      type: "notify",
+      payload: { notificationId: "n1" },
+      maxAttempts: 2,
+    })
+    expect(await repos.jobs.claim("w1", { limit: 1, leaseMs: 1_000 })).toHaveLength(1)
+    c.advance(5_000)
+    expect(await repos.jobs.claim("w2", { limit: 1, leaseMs: 1_000 })).toMatchObject([{ attempt: 2 }])
+    c.advance(5_000)
+    // Both lease holders "crashed": the third claim must not restart the job.
+    expect(await repos.jobs.claim("w3", { limit: 1, leaseMs: 1_000 })).toEqual([])
+    const dead = await repos.jobs.get(WS, job.id)
+    expect(dead).toMatchObject({ status: "dead", attempt: 2, workerId: null, leaseExpiresAt: null })
+    expect(dead?.error).toMatch(/lease expired/i)
+    c.advance(5_000)
+    expect(await repos.jobs.claim("w4", { limit: 1, leaseMs: 1_000 })).toEqual([])
+  })
+
   it("schedules posts and delivers in-app notifications", async () => {
     const repos = make()
     const intent = { renderId: "r1", provider: "tiktok", accountId: "42", caption: "hi", intentKey: "r1:42", createdBy: WS }

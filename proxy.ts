@@ -1,6 +1,8 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
 import { NextResponse, type NextRequest } from "next/server"
 
+import { ACCESS_DENIED_MESSAGE, isUserAllowed } from "@/lib/owner-access"
+
 const PUBLIC_API_PATHS = [
   "/api/search",
   "/api/v1/health",
@@ -47,6 +49,20 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   }
 
   const { userId } = await auth()
+
+  if (userId && !isUserAllowed(userId)) {
+    // Signed in, but not this instance's owner: no app, no API (lib/owner-access.ts).
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: ACCESS_DENIED_MESSAGE }, { status: 403 })
+    }
+    if (isProtectedPage(pathname)) {
+      return new NextResponse(ACCESS_DENIED_MESSAGE, {
+        status: 403,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      })
+    }
+    return NextResponse.next()
+  }
 
   if (userId) {
     if (isAuthPage(pathname)) {
