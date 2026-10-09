@@ -6,10 +6,8 @@ import {
   updateUserPreferences,
 } from "@/lib/auth"
 import { clean, isRecord } from "@/lib/guards"
-import { listAutomationRecords, patchAutomationRecord } from "@/lib/automations"
 import { listVisiblePostFastIntegrationPayload } from "@/lib/postfast-integrations"
 import { postfastRouteError } from "@/lib/postfast-route"
-import { listXAutomations, upsertXAutomation } from "@/lib/x-automation-store"
 
 export const dynamic = "force-dynamic"
 
@@ -52,11 +50,9 @@ export async function DELETE(request: Request) {
     await updateUserPreferences(user.$id, {
       postfastDisconnectedIntegrationIds: [...disconnectedIds],
     })
-    const removedFromAutomations = await removeIntegrationFromAutomations(id)
     return NextResponse.json({
       disconnected: true,
       integrationId: id,
-      removedFromAutomations,
     })
   } catch (error) {
     return postfastRouteError(error)
@@ -95,36 +91,4 @@ function disconnectedIntegrationIds(value: unknown) {
   return Array.isArray(value.postfastDisconnectedIntegrationIds)
     ? value.postfastDisconnectedIntegrationIds.map(clean).filter(Boolean)
     : []
-}
-
-async function removeIntegrationFromAutomations(integrationId: string) {
-  let removed = 0
-  for (const automation of await listAutomationRecords()) {
-    const integrations = automation.schema.social_integrations.filter(
-      (integration) => integration.integration_id !== integrationId
-    )
-    if (integrations.length === automation.schema.social_integrations.length) {
-      continue
-    }
-    await patchAutomationRecord({
-      id: automation.id,
-      schema: { ...automation.schema, social_integrations: integrations },
-    })
-    removed += 1
-  }
-  for (const automation of await listXAutomations()) {
-    const integrations = automation.publishing.integrations.filter(
-      (integration) => integration.integration_id !== integrationId
-    )
-    if (integrations.length === automation.publishing.integrations.length) {
-      continue
-    }
-    await upsertXAutomation({
-      ...automation,
-      publishing: { ...automation.publishing, integrations },
-      updatedAt: new Date().toISOString(),
-    })
-    removed += 1
-  }
-  return removed
 }

@@ -22,10 +22,10 @@ beforeEach(() => {
   mocks.getCurrentUser.mockResolvedValue({ $id: "user-1" })
   mocks.getUserPreferences.mockResolvedValue({ disabledMcpToolNames: [] })
   mocks.mcpToolSettings.mockReturnValue([
-    { name: "lumenclip_workflow_fork", category: "workflows", enabled: true },
+    { name: "lumenclip_output_delete", category: "outputs", enabled: true },
   ])
   mocks.setMcpToolEnabled.mockResolvedValue([
-    { name: "lumenclip_workflow_fork", category: "workflows", enabled: false },
+    { name: "lumenclip_output_delete", category: "outputs", enabled: false },
   ])
 })
 
@@ -38,8 +38,8 @@ describe("MCP settings API", () => {
     expect(await response.json()).toEqual({
       tools: [
         {
-          name: "lumenclip_workflow_fork",
-          category: "workflows",
+          name: "lumenclip_output_delete",
+          category: "outputs",
           enabled: true,
         },
       ],
@@ -53,7 +53,7 @@ describe("MCP settings API", () => {
       new Request("http://localhost/api/settings/mcp", {
         method: "PATCH",
         body: JSON.stringify({
-          toolName: "lumenclip_workflow_fork",
+          toolName: "lumenclip_output_delete",
           enabled: false,
         }),
       })
@@ -62,7 +62,7 @@ describe("MCP settings API", () => {
     expect(response.status).toBe(200)
     expect(mocks.setMcpToolEnabled).toHaveBeenCalledWith(
       "user-1",
-      "lumenclip_workflow_fork",
+      "lumenclip_output_delete",
       false
     )
   })

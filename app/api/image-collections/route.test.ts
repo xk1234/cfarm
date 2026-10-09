@@ -12,7 +12,7 @@ import { writeJsonArrayStore } from "@/lib/json-store"
 let tempRoot: string
 
 
-const clearAll = () => clearTestTables("image_collections", "usage_ledger")
+const clearAll = () => clearTestTables("image_collections")
 
 beforeEach(async () => {
   await clearAll()
@@ -32,7 +32,7 @@ afterEach(async () => {
 afterAll(clearAll)
 
 describe("GET /api/image-collections", () => {
-  it("includes per-image last-used dates from the usage ledger", async () => {
+  it("lists stored collections with their images", async () => {
     await writeJsonArrayStore({
       rootDir: path.join(tempRoot, "data"),
       fileName: "image-collections.json",
@@ -51,21 +51,6 @@ describe("GET /api/image-collections", () => {
         },
       ],
     })
-    const { appendUsageRecords } = await import("@/lib/usage-ledger")
-    await appendUsageRecords({
-      rootDir: path.join(tempRoot, "data"),
-      records: [
-        {
-          automation_id: "automation-a",
-          kind: "image",
-          key: "hash-used",
-          run_id: "run-used",
-          used_at: "2026-07-07T10:00:00.000Z",
-        },
-      ],
-      now: new Date("2026-07-07T10:00:00.000Z"),
-    })
-
     const { GET } = await import("./route")
     const response = await GET()
     const payload = await response.json()
@@ -73,7 +58,6 @@ describe("GET /api/image-collections", () => {
     expect(payload.collections[0].images[0]).toMatchObject({
       image_link: "/api/local-assets/image-collections/files/used.jpg",
       hash: "hash-used",
-      last_used_at: "2026-07-07T10:00:00.000Z",
     })
   })
 })
