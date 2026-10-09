@@ -1,0 +1,24 @@
+{
+  "hook": "5 sleep habits that *actually* worked for me",
+  "hookImage": {
+    "media": "6650f1c2000a1b2c3d4e"
+  },
+  "items": [
+    {
+      "title": "No screens after 10pm",
+      "body": "Phone charges in the kitchen. Kindle only.",
+      "image": {
+        "url": "https://images.pexels.com/photos/1/pexels-photo-1.jpeg"
+      }
+    },
+    {
+      "title": "Same wake time, even Sundays",
+      "image": {
+        "collection": "bedroom-aesthetic",
+        "pick": "random",
+        "seed": "2026-10-09"
+      }
+    }
+  ],
+  "cta": "Save this for tonight"
+}

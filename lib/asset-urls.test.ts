@@ -69,20 +69,13 @@ describe("slideshowDeliveryLinks", () => {
     expect(delivery?.downloadUrl).toMatch(
       /^https:\/\/studio\.example\.com\/api\/public\/slideshows\/slideshow-1\/download\?token=/
     )
-    expect(delivery?.workflowUrl).toMatch(
-      /^https:\/\/studio\.example\.com\/share\/workflows\/slideshow-1\?token=/
-    )
     const previewToken = new URL(delivery?.previewUrl ?? "").searchParams.get(
       "token"
     )
     const downloadToken = new URL(delivery?.downloadUrl ?? "").searchParams.get(
       "token"
     )
-    const workflowToken = new URL(delivery?.workflowUrl ?? "").searchParams.get(
-      "token"
-    )
     expect(downloadToken).toBe(previewToken)
-    expect(workflowToken).toBe(previewToken)
     expect(
       verifySlideshowShareToken(downloadToken ?? "", "slideshow-1")
     ).toMatchObject({
@@ -103,9 +96,6 @@ describe("slideshowDeliveryLinks", () => {
     ).toMatchObject({
       previewUrl: expect.stringMatching(
         /^\/share\/slideshows\/slideshow-1\?token=/
-      ),
-      workflowUrl: expect.stringMatching(
-        /^\/share\/workflows\/slideshow-1\?token=/
       ),
       downloadUrl: expect.stringMatching(
         /^\/api\/public\/slideshows\/slideshow-1\/download\?token=/

@@ -1,0 +1,13 @@
+{
+  "slides": [
+    {
+      "background": {
+        "media": "sample-bg-1"
+      },
+      "card": {
+        "media": "sample-card-1"
+      },
+      "caption": "The *one* view worth the 5am alarm"
+    }
+  ]
+}

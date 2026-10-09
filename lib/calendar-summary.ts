@@ -1,59 +1,36 @@
-import { getCurrentUser } from "@/lib/auth"
-import { readPostProjection } from "@/lib/post-repository"
-import { railwayJobRepository } from "@/lib/railway/job-repository"
-import { RecordQuery as Query } from "@/lib/record-query"
-import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
+/**
+ * Home-screen alert counts: failed posts and posts scheduled in the next week.
+ */
+import "server-only"
+
+import { getRepositories, type Repositories, type WorkspaceId } from "@/lib/data"
 
 export type CalendarAlertSummary = {
+  /** Kept for the home view; nothing needs manual action with SocialBu. */
   needsAction: number
+  /** Failed posts in the last 30 days. */
   failed: number
+  /** Posts scheduled in the next 7 days. */
+  upcoming: number
 }
 
-export async function calendarAlertSummary(): Promise<CalendarAlertSummary> {
-  const aw = getRuntimeStore()
-  const user = await getCurrentUser()
-  if (!user) return { needsAction: 0, failed: 0 }
+const DAY_MS = 24 * 60 * 60 * 1000
 
-  const [jobStats, publicationSummary] = await Promise.all([
-    railwayJobRepository.stats(user.$id),
-    readPostProjection({
-      surface: "calendar_alert_summary",
-      legacy: async () => {
-        const [needsActionOutputs, failedOutputs] = await Promise.all([
-          aw.records.listRows(RUNTIME_DATABASE_ID, "outputs", [
-            Query.equal("owner_id", [user.$id]),
-            Query.equal("publication_status", [
-              "awaiting_manual_post",
-              "ready_for_review",
-            ]),
-            Query.limit(1),
-          ]),
-          aw.records.listRows(RUNTIME_DATABASE_ID, "outputs", [
-            Query.equal("owner_id", [user.$id]),
-            Query.equal("publication_status", ["failed"]),
-            Query.limit(1),
-          ]),
-        ])
-        return {
-          needsAction: needsActionOutputs.total,
-          failed: failedOutputs.total,
-        }
-      },
-      canonical: (posts) => ({
-        needsAction: posts.filter(
-          (post) =>
-            post.lifecycleStatus === "ready" &&
-            (post.publishMode === "manual" || post.publishMode === "review")
-        ).length,
-        failed: posts.filter((post) => post.lifecycleStatus === "failed")
-          .length,
-      }),
-    }),
-  ])
-
+export async function calendarAlertSummary(
+  workspaceId: WorkspaceId,
+  deps: { repos?: Repositories; now?: () => Date } = {}
+): Promise<CalendarAlertSummary> {
+  const repos = deps.repos ?? getRepositories()
+  const now = (deps.now ?? (() => new Date()))().getTime()
+  const posts = await repos.posts.listRange(workspaceId, {
+    from: new Date(now - 30 * DAY_MS).toISOString(),
+    to: new Date(now + 7 * DAY_MS).toISOString(),
+  })
   return {
-    needsAction: publicationSummary.needsAction,
-    failed:
-      (jobStats.failed ?? 0) + (jobStats.dead ?? 0) + publicationSummary.failed,
+    needsAction: 0,
+    failed: posts.filter((post) => post.status === "failed").length,
+    upcoming: posts.filter(
+      (post) => post.status === "scheduled" && !!post.publishAt && Date.parse(post.publishAt) >= now
+    ).length,
   }
 }

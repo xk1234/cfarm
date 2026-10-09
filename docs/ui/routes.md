@@ -1,6 +1,6 @@
 ---
 title: Browser routes
-description: Look up every browser page and the access boundary that guards it.
+description: Current browser pages and the access boundary for each route.
 ---
 
 ## Public product pages
@@ -8,20 +8,17 @@ description: Look up every browser page and the access boundary that guards it.
 | Route        | Source                   | Access | Purpose              |
 | ------------ | ------------------------ | ------ | -------------------- |
 | `/`          | `app/page.tsx`           | Public | Marketing home       |
-| `/product`   | `app/product/page.tsx`   | Public | Product overview     |
-| `/solutions` | `app/solutions/page.tsx` | Public | Use cases            |
-| `/pricing`   | `app/pricing/page.tsx`   | Public | Pricing presentation |
-| `/careers`   | `app/careers/page.tsx`   | Public | Careers page         |
 | `/privacy`   | `app/privacy/page.tsx`   | Public | Privacy policy       |
 | `/terms`     | `app/terms/page.tsx`     | Public | Terms                |
 
 ## Account flows
 
-| Route          | Source                     | Access | Purpose                    |
-| -------------- | -------------------------- | ------ | -------------------------- |
-| `/team-invite` | `app/team-invite/page.tsx` | Public | Team invitation acceptance |
+| Route          | Source                                | Access | Purpose                    |
+| -------------- | ------------------------------------- | ------ | -------------------------- |
+| `/login/**`    | `app/login/[[...login]]/page.tsx`     | Public | Clerk sign-in and recovery |
+| `/sign-up/**`  | `app/sign-up/[[...sign-up]]/page.tsx` | Public | Clerk account creation     |
 
-Sign-in and sign-up use Clerk modals and do not have standalone routes.
+An authenticated visitor to `/login` or `/sign-up` is redirected to `/app`.
 
 ## Signed generation previews
 
@@ -45,29 +42,12 @@ contents, breadcrumbs, and next and previous links.
 
 ## Authenticated application
 
-| Route                       | Source                                  | Access            | Purpose                            |
-| --------------------------- | --------------------------------------- | ----------------- | ---------------------------------- |
-| `/app`                      | `app/app/page.tsx`                      | Workspace session | Main tabbed workspace              |
-| `/app/compose`              | `app/app/compose/page.tsx`              | Workspace session | Direct Compose workspace entry     |
-| `/app/analytics`            | `app/app/analytics/page.tsx`            | Workspace session | Direct Analytics workspace entry   |
-| `/app/analytics/posts/[id]` | `app/app/analytics/posts/[id]/page.tsx` | Workspace session | Stored post analytics              |
-| `/app/collections`          | `app/app/collections/page.tsx`          | Workspace session | Direct Collections workspace entry |
-| `/app/collections/[id]`     | `app/app/collections/[id]/page.tsx`     | Workspace session | Collection detail                  |
-| `/app/ugc/[id]`             | `app/app/ugc/[id]/page.tsx`             | Workspace session | UGC run status                     |
-| `/app/social-templates`     | `app/app/social-templates/page.tsx`     | Workspace session | X and Threads template studio      |
+| Route                       | Source                                  | Access            | Purpose                                 |
+| --------------------------- | --------------------------------------- | ----------------- | --------------------------------------- |
+| `/app`                      | `app/app/page.tsx`                      | Workspace session | Main tabbed workspace                   |
+| `/app/collections`          | `app/app/collections/page.tsx`          | Workspace session | Direct Collections workspace entry      |
+| `/app/collections/[id]`     | `app/app/collections/[id]/page.tsx`     | Workspace session | Collection detail                       |
 
 The canonical workspace destinations use `/app?view=<key>`, with `home`,
-`compose`, `schedule`, `analytics`, `collections`, or `templates` as the key.
-The direct Compose, Analytics, and Collections pages are route entries
-that initialize the same workspace surfaces. Template deep links add
-`template=<id>` or `run=<id>` to the `/app?view=templates` query. Template
-query parameters open the selected template directly.
-
-## Internal pages
-
-| Route                           | Source                                      | Access        | Purpose                             |
-| ------------------------------- | ------------------------------------------- | ------------- | ----------------------------------- |
-| `/analytics-preview/[platform]` | `app/analytics-preview/[platform]/page.tsx` | Internal flag | Static analytics reference previews |
-
-Internal pages are not stable product contracts. When internal tools are
-disabled, these routes return not found.
+`schedule`, or `collections` as the key. The direct Collections pages are route
+entries that initialize the same workspace surface.

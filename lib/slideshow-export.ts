@@ -1,5 +1,7 @@
 import JSZip from "jszip"
 
+import { exportSlug } from "@/lib/render/output/zip"
+
 export type ExportableSlideshowSlide = {
   imageUrl: string
 }
@@ -25,12 +27,7 @@ export async function exportSlideshowAsPngZip(input: {
 }
 
 export function slideshowExportSlug(title: string) {
-  const slug = title
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-  return slug || "lumenclip-slideshow"
+  return exportSlug(title)
 }
 
 async function slideImageAsPng(imageUrl: string) {

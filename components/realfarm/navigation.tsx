@@ -1,28 +1,32 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
+import { UserButton } from "@clerk/nextjs"
 import Image from "next/image"
 import Link from "next/link"
-import useSWR from "swr"
-import { useClerk } from "@clerk/nextjs"
 
 import {
   IconBook,
-  IconChartHistogram,
   IconCalendar,
-  IconHome,
-  IconLogout,
+  IconLayoutGrid,
   IconMenu2,
   IconPhoto,
-  IconPencilPlus,
+  IconPlus,
   IconSettings,
-  IconTemplate,
   IconX,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import { clientSWRFetcher } from "@/lib/client-swr"
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { NotificationBell } from "@/components/realfarm/notification-bell"
+import type { RealFarmData } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
 import {
   workspaceViewHref,
@@ -37,48 +41,40 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>
 }
 
-export type WorkspaceIdentity = {
-  name: "LumenClip"
-  owner?: string
-}
-
-const topNav: NavItem[] = [
-  { key: "home", label: "Home", icon: IconHome },
-  { key: "compose", label: "Compose", icon: IconPencilPlus },
+const navItems: NavItem[] = [
+  { key: "home", label: "Renders", icon: IconLayoutGrid },
+  { key: "new", label: "New render", icon: IconPlus },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
-  { key: "analytics", label: "Analytics", icon: IconChartHistogram },
-]
-
-const creationNav: NavItem[] = [
-  { key: "templates", label: "Templates", icon: IconTemplate },
   { key: "collections", label: "Collections", icon: IconPhoto },
 ]
+
+/** The nav item that is current for a view (render details live under Renders). */
+export function activeNavKey(view: ViewKey): ViewKey {
+  return view === "render" ? "home" : view
+}
 
 export function Sidebar({
   data,
   view,
   onViewChange,
   onSettings,
+  onOpenRender,
 }: {
-  data: { brand: WorkspaceIdentity }
+  data: RealFarmData
   view: ViewKey
   onViewChange: (view: ViewKey) => void
   onSettings: () => void
+  onOpenRender?: (renderId: string) => void
 }) {
-  const { signOut } = useClerk()
-  const { data: calendarStatus } = useSWR<{
-    summary: { needsAction: number; failed: number }
-  }>("/api/calendar/summary", clientSWRFetcher, {
-    refreshInterval: 10 * 60_000,
-    refreshWhenHidden: false,
-    refreshWhenOffline: false,
-  })
-  const scheduleBadge = calendarStatus
-    ? calendarStatus.summary.needsAction + calendarStatus.summary.failed
-    : 0
+  const current = activeNavKey(view)
   return (
-    <aside className="hidden h-dvh w-56 shrink-0 overflow-y-auto border-r border-app-panel-border bg-[#fbfbfd] px-3 py-5 md:flex md:flex-col">
-      <button className="lc-focus-ring mb-6 flex items-center gap-2.5 rounded-lg px-2 text-left text-[15px] font-semibold tracking-[-0.025em] text-app-text">
+    <aside className="hidden h-svh w-56 shrink-0 overflow-y-auto border-r border-app-panel-border bg-[#fbfbfd] px-3 py-5 md:flex md:flex-col">
+      <div className="mb-6 flex items-center justify-between gap-2">
+      <Link
+        href="/app"
+        aria-label="LumenClip home"
+        className="lc-focus-ring flex min-w-0 items-center gap-2.5 rounded-lg px-2 text-left text-[15px] font-semibold tracking-[-0.025em] text-app-text"
+      >
         <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
           <Image
             src="/brand/lumenclip-mark.png"
@@ -88,34 +84,16 @@ export function Sidebar({
             className="size-7 object-contain"
           />
         </span>
-        {data.brand.name}
-      </button>
+        <span className="truncate">{data.brand.name}</span>
+      </Link>
+      <NotificationBell onOpenRender={onOpenRender} />
+      </div>
       <nav className="space-y-1">
-        {topNav.map((item) => (
+        {navItems.map((item) => (
           <SidebarButton
             key={item.key}
             item={item}
-            active={
-              (view === "home" && item.label === "Home") ||
-              (view === "compose" && item.label === "Compose") ||
-              (view === "schedule" && item.label === "Schedule") ||
-              (view === "analytics" && item.label === "Analytics")
-            }
-            onClick={() => onViewChange(item.key)}
-            href={workspaceViewHref(item.key)}
-            badge={item.key === "schedule" ? scheduleBadge : 0}
-          />
-        ))}
-      </nav>
-      <div className="mt-5 px-3 text-[11px] font-medium text-[#91909d]">
-        Create and ship
-      </div>
-      <nav className="mt-1 space-y-1">
-        {creationNav.map((item) => (
-          <SidebarButton
-            key={item.label}
-            item={item}
-            active={item.key === view}
+            active={item.key === current}
             onClick={() => onViewChange(item.key)}
             href={workspaceViewHref(item.key)}
           />
@@ -136,15 +114,10 @@ export function Sidebar({
           <IconSettings className="size-4" />
           <span className="truncate">{data.brand.owner}</span>
         </button>
-        <button
-          className="lc-focus-ring mt-1 flex h-9 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-xs font-medium text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
-          onClick={async () => {
-            await signOut({ redirectUrl: "/" })
-          }}
-        >
-          <IconLogout className="size-4" />
-          Log out
-        </button>
+        <div className="mt-2 flex items-center gap-2.5 px-3 text-xs font-medium text-app-muted-text">
+          <UserButton />
+          Account
+        </div>
       </div>
     </aside>
   )
@@ -154,17 +127,17 @@ export function Sidebar({
  * Standard mobile pattern: a branded top bar with a hamburger that opens a
  * full-screen menu.
  *
- * This replaced a fixed bottom tab bar. The bar had to squeeze seven
- * destinations into one row, so every label truncated to ~10px and adding an
- * eighth would have broken the layout. A full-screen menu scales with the nav
- * instead of fighting it, and matches what people expect on a mobile site.
+ * A full-screen menu scales with the nav instead of fighting a bottom tab bar,
+ * and matches what people expect on a mobile site.
  */
 export function MobileNavigation({
   view,
   onViewChange,
   onSettings,
+  onOpenRender,
 }: {
   view: ViewKey
+  onOpenRender?: (renderId: string) => void
   /**
    * Omit on pages outside the workspace shell: each item then behaves as a
    * plain link, which is what those pages need -- they have no view state.
@@ -173,29 +146,10 @@ export function MobileNavigation({
   onSettings?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const items = [...topNav, ...creationNav]
-
-  // Close on route change and lock the page behind the drawer.
-  useEffect(() => {
-    if (!open) return
-    const previous = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false)
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [open])
+  const items = navItems
 
   return (
-    <>
+    <Sheet open={open} onOpenChange={setOpen}>
       <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-app-panel-border bg-white/95 px-4 backdrop-blur md:hidden">
         <Link
           href="/app"
@@ -215,111 +169,115 @@ export function MobileNavigation({
             LumenClip
           </span>
         </Link>
-        <button
-          type="button"
-          aria-label="Open menu"
-          aria-expanded={open}
-          aria-controls="mobile-nav-menu"
-          onClick={() => setOpen(true)}
-          className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
-        >
-          <IconMenu2 className="size-5" />
-        </button>
+        <div className="flex items-center gap-1">
+        {onViewChange ? <NotificationBell onOpenRender={onOpenRender} /> : null}
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            aria-label="Open menu"
+            className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
+          >
+            <IconMenu2 className="size-5" />
+          </button>
+        </SheetTrigger>
+        </div>
       </header>
 
-      {open ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Mobile navigation"
-          className="fixed inset-0 z-50 bg-white md:hidden"
+      <SheetContent
+        side="full"
+        className="z-50 bg-white p-0 md:hidden"
+        overlayClassName="md:hidden"
+      >
+        <SheetTitle className="sr-only">Mobile navigation</SheetTitle>
+        <nav
+          id="mobile-nav-menu"
+          aria-label="Primary navigation"
+          className="flex h-svh w-full flex-col overflow-y-auto bg-white"
         >
-          <nav
-            id="mobile-nav-menu"
-            aria-label="Primary navigation"
-            className="flex h-dvh w-full flex-col overflow-y-auto bg-white"
-          >
-            <div className="flex h-14 shrink-0 items-center justify-between border-b border-app-panel-border px-4">
-              <Link
-                href="/app"
-                onClick={() => setOpen(false)}
-                className="lc-focus-ring flex items-center gap-2 rounded-[10px]"
-                aria-label="LumenClip home"
-              >
-                <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
-                  <Image
-                    src="/brand/lumenclip-mark.png"
-                    alt=""
-                    width={28}
-                    height={28}
-                    className="size-7"
-                  />
-                </span>
-                <span className="text-[14px] font-semibold tracking-[-0.02em] text-app-text">
-                  LumenClip
-                </span>
-              </Link>
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-app-panel-border px-4">
+            <Link
+              href="/app"
+              onClick={() => setOpen(false)}
+              className="lc-focus-ring flex items-center gap-2 rounded-[10px]"
+              aria-label="LumenClip home"
+            >
+              <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
+                <Image
+                  src="/brand/lumenclip-mark.png"
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="size-7"
+                />
+              </span>
+              <span className="text-[14px] font-semibold tracking-[-0.02em] text-app-text">
+                LumenClip
+              </span>
+            </Link>
+            <SheetClose asChild>
               <button
                 type="button"
                 aria-label="Close menu"
-                autoFocus
-                onClick={() => setOpen(false)}
                 className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
               >
                 <IconX className="size-5" />
               </button>
-            </div>
+            </SheetClose>
+          </div>
 
-            <div className="flex flex-col gap-1 p-3">
-              {items.map((item) => {
-                const Icon = item.icon
-                const current = view === item.key
-                return (
-                  <Link
-                    key={item.key}
-                    href={workspaceViewHref(item.key)}
-                    prefetch={false}
-                    aria-current={current ? "page" : undefined}
-                    className={cn(
-                      "lc-focus-ring flex min-h-12 items-center gap-3 rounded-[10px] px-3 text-[14px] font-medium",
-                      current
-                        ? "bg-app-strong text-white"
-                        : "text-app-text active:bg-app-control-hover"
-                    )}
-                    onClick={(event) => {
-                      setOpen(false)
-                      if (!onViewChange) return
-                      if (!isPlainNavigationClick(event)) return
-                      event.preventDefault()
-                      onViewChange(item.key)
-                    }}
-                  >
-                    <Icon className="size-5" />
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </div>
-
-            {onSettings ? (
-              <div className="mt-auto flex flex-col gap-2 border-t border-app-panel-border p-3">
-                <Button
-                  variant="softControl"
-                  size="appDefault"
-                  onClick={() => {
+          <div className="flex flex-col gap-1 p-3">
+            {items.map((item) => {
+              const Icon = item.icon
+              const current = activeNavKey(view) === item.key
+              return (
+                <Link
+                  key={item.key}
+                  href={workspaceViewHref(item.key)}
+                  prefetch={false}
+                  aria-current={current ? "page" : undefined}
+                  className={cn(
+                    "lc-focus-ring flex min-h-12 items-center gap-3 rounded-[10px] px-3 text-[14px] font-medium",
+                    current
+                      ? "bg-app-strong text-white"
+                      : "text-app-text active:bg-app-control-hover"
+                  )}
+                  onClick={(event) => {
                     setOpen(false)
-                    onSettings()
+                    if (!onViewChange) return
+                    if (!isPlainNavigationClick(event)) return
+                    event.preventDefault()
+                    onViewChange(item.key)
                   }}
                 >
-                  <IconSettings className="size-5" />
-                  Settings
-                </Button>
-              </div>
+                  <Icon className="size-5" />
+                  {item.label}
+                </Link>
+              )
+            })}
+          </div>
+
+          <div className="mt-auto flex flex-col gap-2 border-t border-app-panel-border p-3">
+            {onSettings ? (
+              <Button
+                variant="softControl"
+                size="appDefault"
+                onClick={() => {
+                  setOpen(false)
+                  onSettings()
+                }}
+              >
+                <IconSettings className="size-5" />
+                Settings
+              </Button>
             ) : null}
-          </nav>
-        </div>
-      ) : null}
-    </>
+            <div className="flex min-h-10 items-center gap-3 px-3 text-sm font-medium text-app-muted-text">
+              <UserButton />
+              Account
+            </div>
+          </div>
+        </nav>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -328,13 +286,11 @@ function SidebarButton({
   active,
   onClick,
   href,
-  badge = 0,
 }: {
   item: NavItem
   active: boolean
   onClick: () => void
   href?: string
-  badge?: number
 }) {
   const Icon = item.icon
   const className = cn(
@@ -347,16 +303,6 @@ function SidebarButton({
     <>
       <Icon className="size-4" />
       <span className="truncate">{item.label}</span>
-      {badge > 0 ? (
-        <span
-          className={cn(
-            "ml-auto grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold tabular-nums",
-            active ? "bg-white/15 text-white" : "bg-[#fde9e5] text-[#9b342a]"
-          )}
-        >
-          {badge > 99 ? "99+" : badge}
-        </span>
-      ) : null}
     </>
   )
   return href ? (

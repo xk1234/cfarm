@@ -1,13 +1,9 @@
 ---
 title: Navigation
-description: Move between the LumenClip workspace destinations on desktop and mobile.
+description: Desktop and mobile access to the six CFarm workspace destinations.
 ---
 
 Route: `/app?view=<destination>`
-
-![Desktop dashboard navigation](../assets/screenshots/desktop-dashboard.png)
-
-![Mobile dashboard navigation](../assets/screenshots/mobile-dashboard.png)
 
 ## Layout
 
@@ -15,13 +11,13 @@ Owner: `components/realfarm/navigation.tsx`.
 
 Desktop places Home, Compose, Schedule, and Analytics below the New template
 action. Templates and Collections follow under the Create and ship label.
-Documentation, the signed-in account settings action, and Log out remain at the
-bottom of the sidebar. The Schedule row can show the combined number of
+Documentation, the signed-in account settings action, and Clerk's account
+button remain at the bottom of the sidebar. The Schedule row can show the combined number of
 calendar items that need action or have failed, with counts above 99 displayed
 as `99+`.
 
 Mobile replaces the sidebar with a fixed LumenClip header and an icon-only menu
-button. The menu occupies the full viewport and presents the same workspace
+button. The menu occupies the full viewport and presents the same six workspace
 destinations in one vertical list. New template and Settings appear at the
 bottom when the containing surface supplies those actions. Separately routed
 post analytics, UGC, and X and Threads surfaces reuse this mobile navigation,
@@ -30,7 +26,7 @@ the workspace view state.
 
 ## Interactions
 
-The active destination is visually selected and exposed with
+The current destination is visually selected and exposed with
 `aria-current="page"`. A plain desktop or mobile click updates the workspace in
 place; modified clicks retain normal link behavior. The LumenClip mark in the
 mobile header links to `/app`.

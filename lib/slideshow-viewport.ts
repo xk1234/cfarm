@@ -1,4 +1,4 @@
-export const MIN_SLIDE_ZOOM = 0.5
+export const MIN_SLIDE_ZOOM = 1
 export const MAX_SLIDE_ZOOM = 5
 
 export type SlideViewportSize = {
@@ -47,11 +47,12 @@ export function clampSlideZoom(zoom: number) {
 
 export function clampSlideTransform(
   transform: SlideViewportTransform,
-  stage: SlideViewportSize
+  stage: SlideViewportSize,
+  viewport: SlideViewportSize = stage
 ): SlideViewportTransform {
   const zoom = clampSlideZoom(transform.zoom)
-  const maxX = Math.max(0, (stage.width * (zoom - 1)) / 2)
-  const maxY = Math.max(0, (stage.height * (zoom - 1)) / 2)
+  const maxX = Math.abs(viewport.width - stage.width * zoom) / 2
+  const maxY = Math.abs(viewport.height - stage.height * zoom) / 2
 
   return {
     zoom,
@@ -64,7 +65,8 @@ export function zoomSlideAroundPoint(
   transform: SlideViewportTransform,
   nextZoom: number,
   point: SlideViewportPoint,
-  stage: SlideViewportSize
+  stage: SlideViewportSize,
+  viewport: SlideViewportSize = stage
 ): SlideViewportTransform {
   const zoom = clampSlideZoom(nextZoom)
   const ratio = zoom / transform.zoom
@@ -75,6 +77,7 @@ export function zoomSlideAroundPoint(
       x: point.x - (point.x - transform.x) * ratio,
       y: point.y - (point.y - transform.y) * ratio,
     },
-    stage
+    stage,
+    viewport
   )
 }

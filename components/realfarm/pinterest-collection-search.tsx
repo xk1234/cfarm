@@ -15,18 +15,18 @@ import {
 } from "@/components/ui/modal"
 import { thumbTone } from "@/components/realfarm/shared-media"
 import {
-  collectionToStored,
   storedToCollection,
   type CreatedImageCollection,
   type PinterestCollectionCreatePayload,
   type StoredImageCollection,
-} from "@/features/collections/domain/collections"
+} from "@/lib/realfarm-collections"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
   isPinterestBoardUrl,
   type PinterestSearchResult,
 } from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
+import { apiRoutes } from "@/components/realfarm/api-client"
 
 export function PinterestCollectionSearch({
   onCancel,
@@ -50,7 +50,6 @@ export function PinterestCollectionSearch({
     "idle" | "searching" | "loadingMore"
   >("idle")
   const [creatingCollection, setCreatingCollection] = useState(false)
-  const [autoCaption, setAutoCaption] = useState(true)
   const [showImageLabels, setShowImageLabels] = useState(true)
   const [recentSearches, setRecentSearches] = useState<string[]>(() =>
     readRecentPinterestSearches()
@@ -60,7 +59,7 @@ export function PinterestCollectionSearch({
   function cancel() {
     createControllerRef.current?.abort()
     createControllerRef.current = null
-    toast.dismiss("pinterest-auto-caption")
+    toast.dismiss("pinterest-import")
     onCancel()
   }
 
@@ -80,7 +79,7 @@ export function PinterestCollectionSearch({
       const payload = await fetchJsonWithTimeout<{
         source?: "pinterest" | "pexels" | "fallback" | "pexels-fallback"
         results?: PinterestSearchResult[]
-      }>(`/api/${searchSource}/search?limit=${nextLimit}`, {
+      }>(apiRoutes.stockSearch(searchSource, nextLimit), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -173,16 +172,12 @@ export function PinterestCollectionSearch({
         .filter(Boolean),
       user_id: "103073708745629128582",
       collection_name: collectionName,
-      auto_caption: autoCaption,
     }
 
     try {
-      toast.loading(
-        autoCaption
-          ? `Importing and captioning ${selectedResults.length} images...`
-          : `Importing ${selectedResults.length} images...`,
-        { id: "pinterest-auto-caption" }
-      )
+      toast.loading(`Importing ${selectedResults.length} images...`, {
+        id: "pinterest-import",
+      })
       const collection = await importSelectedImages({
         collectionName,
         collectionCreatedAt: createdAt,
@@ -192,28 +187,12 @@ export function PinterestCollectionSearch({
         signal: controller.signal,
       })
       if (controller.signal.aborted) return
-      onCreateCollection(
-        autoCaption
-          ? await captionCollection(collection, controller.signal)
-          : collection
-      )
+      onCreateCollection(collection)
+      toast.success("Image collection imported", { id: "pinterest-import" })
+    } catch (importError) {
       if (controller.signal.aborted) return
-      if (autoCaption) {
-        toast.success("Image captions ready", { id: "pinterest-auto-caption" })
-      } else {
-        toast.success("Image collection imported", {
-          id: "pinterest-auto-caption",
-        })
-      }
-    } catch (captionError) {
-      if (controller.signal.aborted) return
-      toast.dismiss("pinterest-auto-caption")
-      toast.error(
-        getApiErrorMessage(
-          captionError,
-          autoCaption ? "Auto-caption failed" : "Image import failed"
-        )
-      )
+      toast.dismiss("pinterest-import")
+      toast.error(getApiErrorMessage(importError, "Image import failed"))
     } finally {
       if (createControllerRef.current === controller) {
         createControllerRef.current = null
@@ -226,7 +205,7 @@ export function PinterestCollectionSearch({
     <AppModal className="bg-[#24251f]/50 p-0 sm:p-4" onClose={cancel}>
       <AppModalPanel
         accessibleTitle="Search for collection images"
-        className="relative flex h-dvh max-w-none flex-col rounded-none sm:h-auto sm:max-h-[78dvh] sm:max-w-[640px] sm:rounded-[10px]"
+        className="relative flex h-dvh max-w-none flex-col rounded-none sm:h-auto sm:max-h-[78vh] sm:max-w-[640px] sm:rounded-[10px]"
       >
         <AppModalCloseButton
           className="absolute top-3 right-3 z-10"
@@ -403,14 +382,6 @@ export function PinterestCollectionSearch({
             >
               Clear
             </Button>
-            <label className="flex items-center gap-2 text-app-muted-text">
-              <SwitchPillButton
-                enabled={autoCaption}
-                onClick={() => setAutoCaption((current) => !current)}
-                aria-label="Toggle auto caption"
-              />
-              Auto-caption
-            </label>
           </div>
           {results.length > 0 ? (
             <div className="flex w-full items-center gap-3 sm:w-auto">
@@ -422,9 +393,7 @@ export function PinterestCollectionSearch({
                 onClick={() => void createCollection()}
               >
                 {creatingCollection
-                  ? autoCaption
-                    ? "Captioning..."
-                    : "Adding..."
+                  ? "Adding..."
                   : `Add ${selectedResults.length} images`}
               </Button>
             </div>
@@ -557,37 +526,6 @@ function readRecentPinterestSearches() {
   }
 }
 
-async function captionCollection(
-  collection: CreatedImageCollection,
-  signal?: AbortSignal
-) {
-  const payload = await fetchJsonWithTimeout<{
-    collection?: StoredImageCollection
-  }>("/api/image-collections/captions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(collectionToStored(collection)),
-    timeoutMs: 180_000,
-    toastOnError: false,
-    signal,
-  })
-  if (!payload.collection) {
-    throw new Error("Auto-caption failed")
-  }
-
-  const captioned = storedToCollection(payload.collection)
-  return {
-    ...collection,
-    title: captioned.title,
-    createdAt: captioned.createdAt,
-    images: collection.images.map((image, index) => ({
-      ...image,
-      description:
-        payload.collection?.images[index]?.caption ?? image.description,
-    })),
-  }
-}
-
 async function importSelectedImages(input: {
   collectionName: string
   collectionCreatedAt: string
@@ -598,7 +536,7 @@ async function importSelectedImages(input: {
 }) {
   const payload = await fetchJsonWithTimeout<{
     collection?: StoredImageCollection
-  }>("/api/image-collections/import", {
+  }>(apiRoutes.imageCollectionsImport, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import {
-  fetchJsonWithTimeout,
-  getApiErrorMessage,
-  queueWorkflowAndWait,
-} from "@/lib/client-api"
+import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { toast } from "sonner"
 
 vi.mock("sonner", () => ({
@@ -20,14 +16,14 @@ afterEach(() => {
 })
 
 describe("client API helpers", () => {
-  it("includes the Appwrite session cookie on API requests", async () => {
+  it("includes the Clerk session cookie on same-origin API requests", async () => {
     const fetchMock = vi.fn(async () => Response.json({ ok: true }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await fetchJsonWithTimeout("/api/templates/run", { method: "POST" })
+    await fetchJsonWithTimeout("/api/slideshows", { method: "POST" })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/templates/run",
+      "/api/slideshows",
       expect.objectContaining({
         credentials: "same-origin",
         method: "POST",
@@ -39,18 +35,18 @@ describe("client API helpers", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        Response.json({ error: "Image generation timed out" }, { status: 504 })
+        Response.json({ error: "Slideshow render timed out" }, { status: 504 })
       )
     )
 
     await expect(
-      fetchJsonWithTimeout("/api/image-collections/captions")
+      fetchJsonWithTimeout("/api/image-collections")
     ).rejects.toMatchObject({
-      message: "Image generation timed out",
+      message: "Slideshow render timed out",
       status: 504,
       timedOut: false,
     })
-    expect(toast.error).toHaveBeenCalledWith("Image generation timed out")
+    expect(toast.error).toHaveBeenCalledWith("Slideshow render timed out")
   })
 
   it("allows callers with managed loading toasts to suppress the default alert", async () => {
@@ -102,34 +98,5 @@ describe("client API helpers", () => {
     expect(getApiErrorMessage(new Error("Specific failure"), "Fallback")).toBe(
       "Specific failure"
     )
-  })
-
-  it("releases the launch request and polls a persisted workflow run", async () => {
-    vi.useFakeTimers()
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json(
-          { status: "queued", pollUrl: "/api/workflow-runs/job-1" },
-          { status: 202 }
-        )
-      )
-      .mockResolvedValueOnce(
-        Response.json({ status: "running", retryAfterMs: 1_000 })
-      )
-      .mockResolvedValueOnce(
-        Response.json({ status: "succeeded", value: { id: "output-1" } })
-      )
-    vi.stubGlobal("fetch", fetchMock)
-
-    const result = queueWorkflowAndWait<{ id: string }>("/api/templates/run", {
-      method: "POST",
-      timeoutMs: 30_000,
-    })
-    await vi.advanceTimersByTimeAsync(1_000)
-
-    await expect(result).resolves.toEqual({ id: "output-1" })
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/workflow-runs/job-1")
   })
 })

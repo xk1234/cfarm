@@ -1,0 +1,22 @@
+{
+  "slides": [
+    {
+      "image": {
+        "media": "sample-photo-1"
+      },
+      "caption": "POV: you finally fixed your *sleep schedule*"
+    },
+    {
+      "image": {
+        "media": "sample-photo-2"
+      },
+      "caption": "No screens after 10pm"
+    },
+    {
+      "image": {
+        "media": "sample-photo-3"
+      }
+    }
+  ],
+  "darken": true
+}

@@ -1,3 +1,7 @@
+/**
+ * Local stdio MCP server: `LUMENCLIP_API_KEY=lc_… pnpm mcp`.
+ * The API key selects the workspace, exactly like the HTTP `/mcp` route.
+ */
 import path from "node:path"
 import { existsSync, readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
@@ -10,30 +14,29 @@ const cloud = readEnv(path.join(root, ".env"))
 const local = readEnv(path.join(root, ".env.local"))
 Object.assign(process.env, cloud, local)
 
-const ownerId = resolveOwnerId()
+const apiKey = process.env.LUMENCLIP_API_KEY?.trim()
+if (!apiKey) throw new Error("LUMENCLIP_API_KEY is required (create one in Settings → API keys)")
 
+const { authenticateApiKey } = await import("../lib/api-keys")
+const { getRepositories } = await import("../lib/data")
 const { createLumenClipMcpServer } = await import("../lib/mcp/lumenclip-server")
-const server = createLumenClipMcpServer(ownerId)
+const { getDisabledMcpToolNames } = await import("../lib/mcp/tool-access")
+
+const repos = getRepositories()
+const principal = await authenticateApiKey(repos, apiKey)
+if (!principal) throw new Error("LUMENCLIP_API_KEY is unknown, revoked or expired")
+
+const server = createLumenClipMcpServer(
+  principal.workspaceId,
+  {},
+  {
+    apiKeyId: principal.apiKeyId,
+    scopes: principal.scopes,
+    disabledToolNames: await getDisabledMcpToolNames(principal.workspaceId, repos),
+  }
+)
 await server.connect(new StdioServerTransport())
 
 function readEnv(file: string) {
   return existsSync(file) ? parseEnv(readFileSync(file, "utf8")) : {}
-}
-
-function resolveOwnerId() {
-  const explicit = process.env.LUMENCLIP_MCP_OWNER_ID?.trim()
-  if (explicit) return explicit
-
-  const endpoint = process.env.APPWRITE_ENDPOINT?.trim() || ""
-  const localAppwrite =
-    /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(endpoint)
-  if (localAppwrite) {
-    throw new Error(
-      "LUMENCLIP_MCP_OWNER_ID is required for local Appwrite. Set it to the local user id that owns the automation rows; the cloud LUMENCLIP_SYSTEM_OWNER_ID is intentionally not used locally."
-    )
-  }
-
-  const systemOwner = process.env.LUMENCLIP_SYSTEM_OWNER_ID?.trim()
-  if (systemOwner) return systemOwner
-  throw new Error("LUMENCLIP_MCP_OWNER_ID is required")
 }

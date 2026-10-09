@@ -1,6 +1,6 @@
 ---
 title: UI primitives
-description: Compose shared domain-neutral controls, feedback, data, loading, upload, and media building blocks.
+description: Shared domain-neutral controls, feedback, data, loading, upload, and media building blocks.
 ---
 
 Route: Shared across application routes.

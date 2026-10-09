@@ -1,5 +1,3 @@
-import type { PostFastSocialProvider } from "@/lib/postfast-client"
-
 export const slideshowSocialProviders = [
   "tiktok",
   "youtube",
@@ -12,7 +10,7 @@ export const slideshowSocialProviders = [
   "threads",
   "telegram",
   "bluesky",
-] as const satisfies readonly PostFastSocialProvider[]
+] as const
 
 export type SlideshowSocialProvider = (typeof slideshowSocialProviders)[number]
 
@@ -26,21 +24,21 @@ export const slideshowVideoPublishProviders = [
   "pinterest",
   "threads",
   "telegram",
-] as const satisfies readonly PostFastSocialProvider[]
+] as const
 
-const slideshowSocialProviderSet = new Set<PostFastSocialProvider>(
+const slideshowSocialProviderSet = new Set<string>(
   slideshowSocialProviders
 )
-const slideshowVideoPublishProviderSet = new Set<PostFastSocialProvider>(
+const slideshowVideoPublishProviderSet = new Set<string>(
   slideshowVideoPublishProviders
 )
 
 export function isSlideshowSocialProvider(
   provider: string
 ): provider is SlideshowSocialProvider {
-  return slideshowSocialProviderSet.has(provider as PostFastSocialProvider)
+  return slideshowSocialProviderSet.has(provider)
 }
 
 export function canPublishSlideshowAsVideo(provider: string) {
-  return slideshowVideoPublishProviderSet.has(provider as PostFastSocialProvider)
+  return slideshowVideoPublishProviderSet.has(provider)
 }

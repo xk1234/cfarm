@@ -1,476 +1,57 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const mocks = vi.hoisted(() => ({
-  listAutomationRecords: vi.fn(),
-  listAutomationRuns: vi.fn(),
-  listPostFastPostRecords: vi.fn(),
-  listResultRecords: vi.fn(),
-  listXAutomations: vi.fn(),
-  listXAutomationRuns: vi.fn(),
-  postfastRequest: vi.fn(),
-  canonicalList: vi.fn(),
-}))
+import { resetMemoryRepositories, type Repositories } from "@/lib/data"
 
-vi.mock("@/lib/automations", () => ({
-  listAutomationRecords: mocks.listAutomationRecords,
-  automationRecordToSummary: (record: { summary: unknown }) => record.summary,
-}))
-vi.mock("@/lib/automation-runner", () => ({
-  listAutomationRuns: mocks.listAutomationRuns,
-}))
-vi.mock("@/lib/postfast-posts", () => ({
-  listPostFastPostRecords: mocks.listPostFastPostRecords,
-}))
-vi.mock("@/lib/postfast-client", () => ({
-  postfastRequest: mocks.postfastRequest,
-}))
-vi.mock("@/lib/output-publications", () => ({
-  outputPublicationsOwnerId: vi.fn(async () => "owner-1"),
-  writeCanonicalPostWithLegacyProjection: vi.fn(),
-}))
-vi.mock("@/lib/post-repository-appwrite", () => ({
-  appwritePostRepository: {
-    listPosts: mocks.canonicalList,
-  },
-}))
-vi.mock("@/lib/results", () => ({
-  listResultRecords: mocks.listResultRecords,
-}))
-vi.mock("@/lib/x-automation-store", () => ({
-  listXAutomations: mocks.listXAutomations,
-  listXAutomationRuns: mocks.listXAutomationRuns,
-}))
-vi.mock("@/lib/x-automation", () => ({
-  xAutomationToAutomation: (automation: unknown) => automation,
-}))
+import { GET as getSummary } from "./summary/route"
+import { GET } from "./route"
+
+const WS = "vitest-user"
+let repos: Repositories
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  delete process.env.POST_REPOSITORY_READ_MODE
-  mocks.listAutomationRecords.mockResolvedValue([])
-  mocks.listAutomationRuns.mockResolvedValue([])
-  mocks.listPostFastPostRecords.mockResolvedValue([])
-  mocks.listResultRecords.mockResolvedValue([])
-  mocks.listXAutomations.mockResolvedValue([])
-  mocks.listXAutomationRuns.mockResolvedValue([])
-  mocks.postfastRequest.mockResolvedValue({ data: [] })
-  mocks.canonicalList.mockResolvedValue([])
+  repos = resetMemoryRepositories()
+  vi.stubEnv("SOCIALBU_API_TOKEN", "")
 })
 
 afterEach(() => {
-  delete process.env.POST_REPOSITORY_READ_MODE
+  vi.unstubAllEnvs()
 })
 
-describe("GET /api/calendar", () => {
-  it("merges local and remote items and lets a materialized item replace its exact projection", async () => {
-    mocks.listAutomationRecords.mockResolvedValue([
-      { summary: automationSummary() },
-    ])
-    mocks.listAutomationRuns.mockResolvedValue([
-      {
-        id: "run-1",
-        automationId: "automation-1",
-        automationTitle: "Morning posts",
-        scheduledFor: "2099-07-15T01:00:00.000Z",
-        status: "succeeded",
-        createdAt: "2099-07-14T23:00:00.000Z",
-        updatedAt: "2099-07-15T00:00:00.000Z",
-        plan: { caption: "A useful caption" },
-      },
-    ])
-    mocks.listResultRecords.mockResolvedValue([
-      {
-        id: "result-1",
-        runId: "run-1",
-        createdAt: "2099-07-15T00:12:00.000Z",
-      },
-    ])
-    mocks.listPostFastPostRecords.mockResolvedValue([
-      localPost({
-        id: "local-action",
-        sourceId: "run-1",
-        status: "awaiting_manual_post",
-      }),
-      localPost({
-        id: "local-scheduled",
-        sourceId: "run-1",
-        status: "scheduled",
-        postfastPostId: "remote-1",
-      }),
-    ])
-    mocks.postfastRequest.mockResolvedValue({
-      data: [
-        {
-          id: "remote-1",
-          status: "SCHEDULED",
-          scheduledAt: "2099-07-15T01:00:00.000Z",
-          content: "A useful caption",
-          socialMediaId: "account-1",
-        },
-      ],
-    })
+async function calendar(query: string) {
+  return GET(new Request(`http://localhost/api/calendar${query}`), undefined)
+}
 
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
-      )
-    )
-    const payload = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(payload.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "local:local-action",
-          status: "needs_action",
-          sourceType: "automation",
-        }),
-        expect.objectContaining({
-          id: "postfast:remote-1",
-          status: "scheduled",
-          targets: [
-            expect.objectContaining({
-              integrationId: "account-1",
-              provider: "tiktok",
-            }),
-          ],
-          links: expect.objectContaining({
-            cancel: "/api/calendar/items/local-scheduled",
-            reschedule: "/api/calendar/items/local-scheduled",
-          }),
-          timestamps: expect.objectContaining({
-            generatedAt: "2099-07-15T00:12:00.000Z",
-            expectedPublishedAt: "2099-07-15T01:00:00.000Z",
-          }),
-        }),
-      ])
-    )
-    expect(payload.items).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          source: "projection",
-          slot: "2099-07-15T01:00:00.000Z",
-        }),
-      ])
-    )
+describe("/api/calendar", () => {
+  it("validates the range", async () => {
+    expect((await calendar("?from=nope")).status).toBe(400)
+    expect((await calendar("?from=2026-10-10T00:00:00Z&to=2026-10-01T00:00:00Z")).status).toBe(400)
+    expect((await calendar("?from=2026-01-01T00:00:00Z&to=2026-12-01T00:00:00Z")).status).toBe(400)
   })
 
-  it("projects only live automations", async () => {
-    const live = automationSummary()
-    mocks.listAutomationRecords.mockResolvedValue([
-      { summary: { ...live, id: "automation-live" } },
-      {
-        summary: {
-          ...live,
-          id: "automation-status-paused",
-          status: "paused",
-        },
-      },
-      {
-        summary: {
-          ...live,
-          id: "automation-schedule-paused",
-          schedule: { ...live.schedule, paused: true },
-        },
-      },
-    ])
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
-      )
-    )
-    const payload = await response.json()
-
-    expect(
-      payload.items
-        .filter((item: { source: string }) => item.source === "projection")
-        .map((item: { automationId: string }) => item.automationId)
-    ).toEqual(["automation-live"])
-  })
-
-  it("accepts CSV/repeated aggregate filters and returns canonical failure counts", async () => {
-    mocks.listAutomationRuns.mockResolvedValue([
-      {
-        id: "run-failed",
-        automationId: "automation-1",
-        scheduledFor: "2099-07-15T01:00:00.000Z",
-        status: "failed",
-        createdAt: "2099-07-15T00:00:00.000Z",
-        updatedAt: "2099-07-15T00:00:00.000Z",
-      },
-    ])
-    mocks.listPostFastPostRecords.mockResolvedValue([
-      localPost({
-        id: "failed-1",
-        sourceId: "run-failed",
-        status: "failed",
-        error: "Provider rejected the post",
-      }),
-      localPost({
-        id: "other-draft",
-        sourceId: "manual-1",
-        status: "draft",
-        integrationId: "account-2",
-        provider: "instagram",
-      }),
-    ])
-
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z&accounts=account-1,account-3&platforms=tiktok&statuses=failed&automations=automation-1&sourceType=automation"
-      )
-    )
-    const payload = await response.json()
-
-    expect(payload.items).toEqual([
-      expect.objectContaining({
-        id: "local:failed-1",
-        status: "failed",
-        error: "Provider rejected the post",
-      }),
-    ])
-    expect(payload.summary).toMatchObject({ failed: 1, needsAction: 0 })
-  })
-
-  it("surfaces manually published posts and dates them by publishedAt", async () => {
-    mocks.listPostFastPostRecords.mockResolvedValue([
-      localPost({
-        id: "published-manual",
-        status: "published",
-        publishedAt: "2099-07-15T02:30:00.000Z",
-        releaseUrl: "https://tiktok.com/@creator/video/1",
-      }),
-      // Backed by a PostFast id -> comes back via the remote feed, so the
-      // local record must not double-count it.
-      localPost({
-        id: "published-remote",
-        status: "published",
-        postfastPostId: "remote-9",
-        publishedAt: "2099-07-15T03:00:00.000Z",
-      }),
-    ])
-
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
-      )
-    )
-    const payload = await response.json()
-
-    expect(payload.items).toEqual([
-      expect.objectContaining({
-        id: "local:published-manual",
-        status: "published",
-        datetime: "2099-07-15T02:30:00.000Z",
-        title: "Published post",
-        links: expect.objectContaining({
-          live: "https://tiktok.com/@creator/video/1",
-        }),
-      }),
-    ])
-  })
-
-  it("rejects non-ISO, reversed, and unbounded ranges before loading data", async () => {
-    const { GET } = await import("./route")
-    const invalid = await GET(
-      new Request("http://localhost/api/calendar?from=07%2F15%2F2099")
-    )
-    const reversed = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-07-16T00:00:00.000Z&to=2099-07-15T00:00:00.000Z"
-      )
-    )
-    const tooLarge = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-01-01T00:00:00.000Z&to=2101-01-01T00:00:00.000Z"
-      )
-    )
-    expect(invalid.status).toBe(400)
-    expect(reversed.status).toBe(400)
-    expect(tooLarge.status).toBe(400)
-    expect(mocks.listAutomationRecords).not.toHaveBeenCalled()
-  })
-
-  it("links UGC calendar content to its dedicated run viewer", async () => {
-    mocks.listAutomationRecords.mockResolvedValue([
-      {
-        summary: {
-          ...automationSummary(),
-          automationKind: "ugc",
-        },
-      },
-    ])
-    mocks.listAutomationRuns.mockResolvedValue([
-      {
-        id: "ugc-run-1",
-        automationId: "automation-1",
-        scheduledFor: "2099-07-15T01:00:00.000Z",
-        status: "succeeded",
-        createdAt: "2099-07-15T00:00:00.000Z",
-        updatedAt: "2099-07-15T00:00:00.000Z",
-        plan: { caption: "UGC result" },
-      },
-    ])
-    mocks.listPostFastPostRecords.mockResolvedValue([
-      localPost({ sourceId: "ugc-run-1", status: "ready_for_review" }),
-    ])
-
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
-      )
-    )
-    const payload = await response.json()
-
-    expect(payload.items).toEqual([
-      expect.objectContaining({
-        links: expect.objectContaining({ content: "/app/ugc/ugc-run-1" }),
-      }),
-    ])
-  })
-
-  it("keeps dedupe and paused projections stable in all read modes and shadows drift", async () => {
-    const publication = localPost({
-      id: "published-local",
-      status: "published",
-      scheduledAt: undefined,
-      publishedAt: "2099-07-15T02:30:00.000Z",
-      releaseUrl: "https://tiktok.com/@creator/video/1",
-      postfastPostId: "remote-1",
-      linkState: "postfast_published",
-      statsSources: [],
-    })
-    const paused = automationSummary()
-    mocks.listAutomationRecords.mockResolvedValue([
-      {
-        summary: {
-          ...paused,
-          status: "paused",
-        },
-      },
-    ])
-    mocks.listPostFastPostRecords.mockResolvedValue([publication])
-    mocks.postfastRequest.mockResolvedValue({
-      data: [
-        {
-          id: "remote-1",
-          status: "PUBLISHED",
-          publishedAt: "2099-07-15T02:30:00.000Z",
-          socialMediaId: "account-1",
-        },
-      ],
-    })
-    const canonical = canonicalCalendarPost(publication)
-    mocks.canonicalList.mockResolvedValue([canonical])
-
-    const payloads = []
-    for (const mode of ["legacy", "canonical", "union-shadow"] as const) {
-      process.env.POST_REPOSITORY_READ_MODE = mode
-      const { GET } = await import("./route")
-      const response = await GET(
-        new Request(
-          "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
-        )
-      )
-      payloads.push(await response.json())
-    }
-    expect(payloads[1]).toEqual(payloads[0])
-    expect(payloads[2]).toEqual(payloads[0])
-    expect(payloads[0].items).toHaveLength(1)
-    expect(payloads[0].items[0].id).toBe("postfast:remote-1")
-
-    mocks.canonicalList.mockResolvedValue([
-      { ...canonical, content: "Canonical drift" },
-    ])
-    process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request(
-        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
-      )
-    )
-    expect(await response.json()).toEqual(payloads[0])
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('"surface":"calendar"')
-    )
-    warn.mockRestore()
-  })
-})
-
-function automationSummary() {
-  return {
-    id: "automation-1",
-    name: "Morning posts",
-    status: "live",
-    account: "Creator",
-    handle: "@creator",
-    times: [],
-    timezone: "Asia/Singapore",
-    schedule: {
-      timezone: "Asia/Singapore",
-      posting_times: [{ time: "9:00 AM", days: [] }],
-    },
-    favorite: false,
-    theme: "ugc",
-    socialIntegrations: [
-      {
-        integration_id: "account-1",
-        name: "Creator",
+  it("returns posts in the range for this workspace only", async () => {
+    for (const [ws, key, publishAt] of [
+      [WS, "a", "2026-10-05T09:00:00.000Z"],
+      [WS, "b", "2026-12-05T09:00:00.000Z"],
+      ["other", "c", "2026-10-06T09:00:00.000Z"],
+    ] as const) {
+      await repos.posts.upsertIntent(ws, {
+        renderId: "render-1",
         provider: "tiktok",
-      },
-    ],
-  }
-}
+        accountId: "101",
+        status: "scheduled",
+        publishAt,
+        caption: "Hello",
+        intentKey: key,
+        createdBy: ws,
+      })
+    }
+    const response = await calendar("?from=2026-10-01T00:00:00Z&to=2026-11-01T00:00:00Z")
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as { items: Array<{ datetime: string; status: string }>; summary: unknown }
+    expect(payload.items.map((item) => [item.datetime, item.status])).toEqual([["2026-10-05T09:00:00.000Z", "scheduled"]])
+    expect(payload.summary).toEqual({ needsAction: 0, failed: 0, planned: 1 })
 
-function localPost(overrides: Record<string, unknown>) {
-  return {
-    id: "local",
-    sourceType: "automation",
-    sourceId: "run-1",
-    integrationId: "account-1",
-    provider: "tiktok",
-    status: "draft",
-    scheduledAt: "2099-07-15T01:00:00.000Z",
-    content: "A useful caption",
-    media: [],
-    createdAt: "2099-07-15T00:00:00.000Z",
-    updatedAt: "2099-07-15T00:00:00.000Z",
-    ...overrides,
-  }
-}
-
-function canonicalCalendarPost(publication: Record<string, unknown>) {
-  return {
-    schemaVersion: 1 as const,
-    id: String(publication.id),
-    intentId: `legacy:${publication.id}`,
-    ownerId: "owner-1",
-    origin: "manual_link" as const,
-    sourceType: "automation" as const,
-    sourceId: String(publication.sourceId),
-    sourceRefs: [{ kind: "run" as const, id: String(publication.sourceId) }],
-    lifecycleStatus: "published" as const,
-    linkState: "externally_linked" as const,
-    linkMethod: "manual_url" as const,
-    integrationId: String(publication.integrationId),
-    provider: "tiktok" as const,
-    postfastPostId:
-      typeof publication.postfastPostId === "string"
-        ? publication.postfastPostId
-        : undefined,
-    releaseUrl: String(publication.releaseUrl),
-    statsSources: [],
-    content: String(publication.content),
-    hashtags: [],
-    media: [],
-    publishedAt: String(publication.publishedAt),
-    createdAt: String(publication.createdAt),
-    updatedAt: String(publication.updatedAt),
-  }
-}
+    const summary = await getSummary(new Request("http://localhost/api/calendar/summary"), undefined)
+    expect(await summary.json()).toMatchObject({ summary: { needsAction: 0, failed: 0 } })
+  })
+})

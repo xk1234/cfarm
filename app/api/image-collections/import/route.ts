@@ -1,22 +1,16 @@
 import { NextResponse } from "next/server"
 
-import { providerFail } from "@/lib/api"
-
+import { providerFail, withHandler } from "@/lib/api"
 import { importRemoteImagesToCollection } from "@/lib/image-collections"
+import { requireWorkspaceId } from "@/lib/workspace"
 
 export const dynamic = "force-dynamic"
 
-export async function POST(request: Request) {
+export const POST = withHandler(async (request: Request) => {
+  const workspaceId = await requireWorkspaceId()
   try {
-    const contentLength = Number(request.headers.get("content-length") ?? 0)
-    if (Number.isFinite(contentLength) && contentLength > 2 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "Import request is too large" },
-        { status: 413 }
-      )
-    }
     const payload = await request.json()
-    const result = await importRemoteImagesToCollection({
+    const result = await importRemoteImagesToCollection(workspaceId, {
       collectionName: payload?.collectionName,
       collectionCreatedAt: payload?.collectionCreatedAt,
       mediaType: payload?.mediaType,
@@ -26,4 +20,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return providerFail(error, "Failed to import images", 400)
   }
-}
+})

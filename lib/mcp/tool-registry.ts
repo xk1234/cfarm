@@ -1,92 +1,50 @@
-export const LUMENCLIP_MCP_TOOLS = [
-  { name: "lumenclip_pipeline_catalog", category: "workflows" },
-  { name: "lumenclip_pipeline_run", category: "workflows" },
-  { name: "lumenclip_templates_list", category: "templates" },
-  { name: "lumenclip_template_create", category: "templates" },
-  { name: "lumenclip_template_clone", category: "templates" },
-  { name: "lumenclip_template_get", category: "templates" },
-  {
-    name: "lumenclip_template_variable_bindings_get",
-    category: "templates",
-  },
-  {
-    name: "lumenclip_template_experiment_dimensions",
-    category: "templates",
-  },
-  {
-    name: "lumenclip_template_experiment_run",
-    category: "templates",
-  },
-  { name: "lumenclip_template_schema_update", category: "templates" },
-  {
-    name: "lumenclip_template_slide_design_update",
-    category: "templates",
-  },
-  {
-    name: "lumenclip_template_slide_text_item_update",
-    category: "templates",
-  },
-  { name: "lumenclip_template_delete", category: "templates" },
-  { name: "lumenclip_template_hooks_get", category: "templates" },
-  { name: "lumenclip_template_hooks_update", category: "templates" },
-  { name: "lumenclip_template_hook_upsert", category: "templates" },
-  {
-    name: "lumenclip_template_hook_set_enabled",
-    category: "templates",
-  },
-  { name: "lumenclip_template_hook_delete", category: "templates" },
-  { name: "lumenclip_hook_performance", category: "analytics" },
-  { name: "lumenclip_hook_variants_generate", category: "templates" },
-  { name: "lumenclip_hook_variant_select", category: "templates" },
-  { name: "lumenclip_run_plan_get", category: "templates" },
-  { name: "lumenclip_template_run", category: "templates" },
-  { name: "lumenclip_slideshow_generate", category: "slideshows" },
-  { name: "lumenclip_slideshow_analyze", category: "slideshows" },
-  { name: "lumenclip_ugc_estimate", category: "videos" },
-  { name: "lumenclip_ugc_generate", category: "videos" },
-  { name: "lumenclip_template_update", category: "templates" },
-  { name: "lumenclip_collections_list", category: "collections" },
-  { name: "lumenclip_product_collection_get", category: "collections" },
-  { name: "lumenclip_assets_list", category: "collections" },
-  { name: "lumenclip_variable_get", category: "collections" },
-  { name: "lumenclip_variable_save", category: "collections" },
-  { name: "lumenclip_variable_delete", category: "collections" },
-  { name: "lumenclip_collection_save", category: "collections" },
-  { name: "lumenclip_collection_add_assets", category: "collections" },
-  { name: "lumenclip_collection_delete", category: "collections" },
-  { name: "lumenclip_outputs_list", category: "outputs" },
-  { name: "lumenclip_output_get", category: "outputs" },
-  { name: "lumenclip_workflow_trace_get", category: "workflows" },
-  { name: "lumenclip_workflow_stage_get", category: "workflows" },
-  { name: "lumenclip_output_validate", category: "outputs" },
-  { name: "lumenclip_output_slide_text_update", category: "outputs" },
-  { name: "lumenclip_output_delete", category: "outputs" },
-  { name: "lumenclip_operations_list", category: "outputs" },
-  { name: "lumenclip_operation_get", category: "outputs" },
-  { name: "lumenclip_accounts_list", category: "publishing" },
-  { name: "lumenclip_workspace_members_list", category: "publishing" },
-  { name: "lumenclip_output_publish", category: "publishing" },
-  { name: "lumenclip_output_mark_published", category: "publishing" },
-  { name: "lumenclip_analytics_report", category: "analytics" },
-  {
-    name: "lumenclip_tiktok_studio_analytics_import_start",
-    category: "analytics",
-  },
-  {
-    name: "lumenclip_tiktok_studio_analytics_report",
-    category: "analytics",
-  },
-  {
-    name: "lumenclip_tiktok_studio_analytics_batch_start",
-    category: "analytics",
-  },
-  { name: "lumenclip_tiktok_comments_collect_start", category: "publishing" },
-  { name: "lumenclip_tiktok_comments_list", category: "publishing" },
-  { name: "lumenclip_tiktok_comment_replies_draft", category: "publishing" },
-  { name: "lumenclip_tiktok_comment_replies_approve", category: "publishing" },
-  { name: "lumenclip_tiktok_comment_replies_send", category: "publishing" },
+import type { ApiKeyScope } from "@/lib/data/types"
+
+export const LUMENCLIP_MCP_TOOL_CATEGORIES = [
+  "slideshows",
+  "collections",
+  "outputs",
+  "publishing",
+  "scheduling",
 ] as const
 
-export const LUMENCLIP_MCP_TOOL_NAMES = LUMENCLIP_MCP_TOOLS.map(
-  (tool) => tool.name
-)
+export type LumenClipMcpToolCategory = (typeof LUMENCLIP_MCP_TOOL_CATEGORIES)[number]
+
+export const LUMENCLIP_MCP_TOOLS = [
+  { name: "lumenclip_spec_schema_get", category: "slideshows", scope: null },
+  { name: "lumenclip_spec_validate", category: "slideshows", scope: null },
+  { name: "lumenclip_fonts_list", category: "slideshows", scope: null },
+  { name: "lumenclip_templates_list", category: "slideshows", scope: "templates:read" },
+  { name: "lumenclip_slideshow_render", category: "slideshows", scope: "renders:write" },
+  { name: "lumenclip_render_get", category: "slideshows", scope: "renders:read" },
+  { name: "lumenclip_collections_list", category: "collections", scope: "media:read" },
+  { name: "lumenclip_assets_list", category: "collections", scope: "media:read" },
+  { name: "lumenclip_collection_save", category: "collections", scope: "media:write" },
+  { name: "lumenclip_collection_add_assets", category: "collections", scope: "media:write" },
+  { name: "lumenclip_collection_delete", category: "collections", scope: "media:write" },
+  { name: "lumenclip_outputs_list", category: "outputs", scope: "renders:read" },
+  { name: "lumenclip_output_get", category: "outputs", scope: "renders:read" },
+  { name: "lumenclip_output_delete", category: "outputs", scope: "renders:write" },
+  { name: "lumenclip_operations_list", category: "outputs", scope: "renders:read" },
+  { name: "lumenclip_operation_get", category: "outputs", scope: "renders:read" },
+  { name: "lumenclip_accounts_list", category: "publishing", scope: "posts:read" },
+  { name: "lumenclip_output_publish", category: "publishing", scope: "posts:write" },
+  { name: "lumenclip_output_mark_published", category: "publishing", scope: "posts:write" },
+  { name: "lumenclip_schedule_get", category: "scheduling", scope: "posts:read" },
+] as const satisfies readonly {
+  name: string
+  category: LumenClipMcpToolCategory
+  /** API key scope a session needs to call the tool; null = any authenticated key. */
+  scope: ApiKeyScope | null
+}[]
+
+export type LumenClipMcpToolName = (typeof LUMENCLIP_MCP_TOOLS)[number]["name"]
+
+export const LUMENCLIP_MCP_TOOL_NAMES: LumenClipMcpToolName[] = LUMENCLIP_MCP_TOOLS.map((tool) => tool.name)
+
+/** Tool names an API key holding `scopes` may not call (mirrors the /api/v1 route scopes). */
+export function mcpToolNamesOutsideScopes(scopes: readonly ApiKeyScope[]): LumenClipMcpToolName[] {
+  return LUMENCLIP_MCP_TOOLS.filter((tool) => tool.scope !== null && !scopes.includes(tool.scope)).map(
+    (tool) => tool.name
+  )
+}

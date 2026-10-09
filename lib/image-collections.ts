@@ -1,584 +1,346 @@
+/**
+ * Image/video collections on the Appwrite data layer: a `collections` row per
+ * collection and one `media` row per item, with bytes in the private `media`
+ * bucket. Remote picks (Pinterest, Pexels, URL imports) are copied into
+ * storage at pick time so renders stay reproducible.
+ *
+ * `StoredImageCollection` is the wire shape the collections UI and MCP tools
+ * already use; it is now a view assembled from the rows.
+ */
 import { clean } from "@/lib/guards"
-import { createHash, randomUUID } from "node:crypto"
-import path from "node:path"
-
-import { deleteAsset, persistAsset, readAssetBytes } from "@/lib/asset-storage"
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  DataConflictError,
+  getRepositories,
+  type Collection,
+  type Media,
+  type Repositories,
+  type WorkspaceId,
+} from "@/lib/data"
+import { fetchRemoteMedia } from "@/lib/files/remote-fetch"
+import { ingestMedia, mediaFileIdFromUrl, mediaFileUrl } from "@/lib/files/ingest"
 
 export type StoredImageCollection = {
+  /** Collection row id (absent on input that has not been saved yet). */
   id?: string
-  externalId?: string
-  ownerId?: string
   name: string
   created_at: string
   pinned?: boolean
   mediaType?: "image" | "video"
   deletedAt?: string
   deletedUntil?: string
-  source?: "lumenclip" | "influlab"
-  readOnly?: boolean
   images: {
     image_link: string
     caption: string
     hash?: string
+    /** Media row id. */
+    media_id?: string
     last_used_at?: string
   }[]
 }
 
-export type ImageCollectionDeleteInput = Pick<
-  StoredImageCollection,
-  "name" | "created_at"
->
+export type ImageCollectionDeleteInput = Pick<StoredImageCollection, "name" | "created_at">
 
-const IMAGE_COLLECTIONS_DB_PATH = path.join(
-  process.cwd(),
-  "data",
-  "image-collections.json"
-)
-const IMAGE_COLLECTION_FILES_DIR = path.join(
-  process.cwd(),
-  "data",
-  "image-collections",
-  "files"
-)
-const IMAGE_COLLECTION_PUBLIC_PREFIX =
-  "/api/local-assets/image-collections/files"
+export type CollectionWriteOptions = {
+  repos?: Repositories
+  createdBy?: string
+  fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>
+  /** SSRF check override (tests only). */
+  assertUrl?: (url: string) => Promise<unknown>
+}
+
 const MAX_IMPORT_IMAGES = 80
 const MAX_IMPORT_IMAGE_BYTES = 16 * 1024 * 1024
 
-export async function listImageCollections(
-  options: { includeDeleted?: boolean } = {}
-) {
-  const collections = await purgeExpiredImageCollections(
-    await readImageCollectionsFile()
-  )
-  return collectionsWithLastUsedAt(
-    options.includeDeleted
-      ? collections
-      : collections.filter((collection) => !collection.deletedAt)
-  )
+async function allMedia(repos: Repositories, workspaceId: WorkspaceId, collectionId: string): Promise<Media[]> {
+  const out: Media[] = []
+  let cursor: string | null = null
+  do {
+    const page = await repos.media.list(workspaceId, { collectionId, limit: 100, cursor })
+    out.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor)
+  return out
 }
 
-async function purgeExpiredImageCollections(
-  collections: StoredImageCollection[],
-  now = Date.now()
-) {
-  const expired = collections.filter(
-    (collection) =>
-      Boolean(collection.deletedAt) &&
-      Boolean(collection.deletedUntil) &&
-      Date.parse(collection.deletedUntil!) <= now
-  )
-  if (expired.length === 0) return collections
-  const remaining = collections.filter(
-    (collection) => !expired.includes(collection)
-  )
-  await writeImageCollectionsFile(remaining)
-  await deleteUnusedLocalCollectionFiles(expired, remaining)
-  return remaining
+async function allCollections(repos: Repositories, workspaceId: WorkspaceId, includeDeleted: boolean) {
+  const out: Collection[] = []
+  let cursor: string | null = null
+  do {
+    const page = await repos.collections.list(workspaceId, { includeDeleted, limit: 100, cursor })
+    out.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor)
+  return out
 }
 
-export async function upsertImageCollection(collection: StoredImageCollection) {
-  const current = await purgeExpiredImageCollections(
-    await readImageCollectionsFile()
-  )
-  const nextCollection = normalizeCollection(
-    await collectionWithLocalImageHashes(collection)
-  )
-  const existingIndex = current.findIndex(
-    (item) => collectionNameKey(item) === collectionNameKey(nextCollection)
-  )
-  const next = [
-    nextCollection,
-    ...current.filter(
-      (item) => collectionNameKey(item) !== collectionNameKey(nextCollection)
-    ),
-  ]
-
-  await writeImageCollectionsFile(next)
-  if (existingIndex >= 0) {
-    await deleteUnusedLocalCollectionFiles([current[existingIndex]], next)
+function toStored(collection: Collection, media: Media[]): StoredImageCollection {
+  return {
+    id: collection.id,
+    name: collection.name,
+    created_at: collection.createdAt,
+    pinned: collection.pinned,
+    ...(collection.mediaKind === "video" ? { mediaType: "video" as const } : {}),
+    ...(collection.deletedAt ? { deletedAt: collection.deletedAt } : {}),
+    ...(collection.purgeAfter ? { deletedUntil: collection.purgeAfter } : {}),
+    images: media.map((m) => ({
+      image_link: mediaFileUrl(m),
+      caption: m.caption ?? "",
+      hash: m.sha256,
+      media_id: m.id,
+    })),
   }
-  return nextCollection
 }
 
-export async function updateImageCollectionCaptions(
-  collection: StoredImageCollection
+async function storedView(repos: Repositories, workspaceId: WorkspaceId, collection: Collection) {
+  return toStored(collection, await allMedia(repos, workspaceId, collection.id))
+}
+
+export async function listImageCollections(
+  workspaceId: WorkspaceId,
+  options: { includeDeleted?: boolean; repos?: Repositories } = {}
+): Promise<StoredImageCollection[]> {
+  const repos = options.repos ?? getRepositories()
+  const collections = await allCollections(repos, workspaceId, options.includeDeleted === true)
+  return Promise.all(collections.map((c) => storedView(repos, workspaceId, c)))
+}
+
+async function findOrCreateCollection(
+  repos: Repositories,
+  workspaceId: WorkspaceId,
+  name: string,
+  mediaKind: "image" | "video",
+  createdBy: string
+): Promise<Collection> {
+  const existing = await repos.collections.getByName(workspaceId, name)
+  if (existing) {
+    return existing.deletedAt ? repos.collections.restore(workspaceId, existing.id) : existing
+  }
+  try {
+    return await repos.collections.create(workspaceId, { name, mediaKind, createdBy })
+  } catch (error) {
+    // Lost a race with a concurrent create of the same name.
+    if (error instanceof DataConflictError) {
+      const raced = await repos.collections.getByName(workspaceId, name)
+      if (raced) return raced
+    }
+    throw error
+  }
+}
+
+async function ingestRemote(
+  repos: Repositories,
+  workspaceId: WorkspaceId,
+  input: {
+    url: string
+    collectionId: string
+    mediaType: "image" | "video"
+    caption?: string
+    sourceUrl?: string
+    createdBy: string
+  },
+  options: CollectionWriteOptions
 ) {
-  return upsertImageCollection(collection)
+  const remote = await fetchRemoteMedia(input.url, {
+    kind: input.mediaType,
+    maxBytes: MAX_IMPORT_IMAGE_BYTES,
+    referer: safeHttpUrl(input.sourceUrl ?? "") || undefined,
+    fetchImpl: options.fetchImpl,
+    assertUrl: options.assertUrl,
+  })
+  return ingestMedia(repos, workspaceId, {
+    bytes: remote.bytes,
+    mime: remote.mime,
+    source: sourceForUrl(input.sourceUrl || input.url),
+    collectionId: input.collectionId,
+    caption: clean(input.caption) || null,
+    sourceUrl: safeHttpUrl(input.sourceUrl ?? "") || remote.finalUrl,
+    createdBy: input.createdBy,
+  })
+}
+
+/**
+ * Saves a collection by name: creates or restores it, applies `pinned`, and
+ * makes its items match `images` (in order). Stored files are referenced by
+ * `/api/files/media/<id>` links; remote http(s) links are downloaded.
+ */
+export async function upsertImageCollection(
+  workspaceId: WorkspaceId,
+  collection: StoredImageCollection,
+  options: CollectionWriteOptions = {}
+): Promise<StoredImageCollection> {
+  const repos = options.repos ?? getRepositories()
+  const createdBy = options.createdBy ?? workspaceId
+  const name = clean(collection.name) || "Untitled collection"
+  const mediaType = collection.mediaType === "video" ? "video" : "image"
+  let row = await findOrCreateCollection(repos, workspaceId, name, mediaType, createdBy)
+  if (row.pinned !== (collection.pinned === true)) {
+    row = await repos.collections.setPinned(workspaceId, row.id, collection.pinned === true)
+  }
+
+  const current = await allMedia(repos, workspaceId, row.id)
+  const byFile = new Map(current.map((m) => [m.fileId, m]))
+  const bySha = new Map(current.map((m) => [m.sha256, m]))
+  const desired: string[] = []
+  for (const image of Array.isArray(collection.images) ? collection.images : []) {
+    const link = clean(image.image_link)
+    if (!link) continue
+    const hash = clean(image.hash)
+    const fileId = mediaFileIdFromUrl(link)
+    let media: Media | undefined = (fileId ? byFile.get(fileId) : undefined) ?? (hash ? bySha.get(hash) : undefined)
+    if (!media && fileId) {
+      const blob = await repos.blobs.get(workspaceId, "media", fileId)
+      if (!blob) continue
+      media = (
+        await ingestMedia(repos, workspaceId, {
+          bytes: blob.bytes,
+          mime: blob.mime,
+          source: "upload",
+          collectionId: row.id,
+          caption: clean(image.caption) || null,
+          createdBy,
+        })
+      ).value
+    } else if (!media && safeHttpUrl(link)) {
+      media = (
+        await ingestRemote(
+          repos,
+          workspaceId,
+          { url: link, collectionId: row.id, mediaType, caption: image.caption, createdBy },
+          options
+        )
+      ).value
+    }
+    if (!media || desired.includes(media.id)) continue
+    byFile.set(media.fileId, media)
+    bySha.set(media.sha256, media)
+    desired.push(media.id)
+  }
+
+  const keep = new Set(desired)
+  for (const m of current) {
+    if (!keep.has(m.id)) await repos.media.softDelete(workspaceId, m.id)
+  }
+  const positions = new Map(current.map((m) => [m.id, m.position]))
+  for (const [index, id] of desired.entries()) {
+    if (positions.get(id) !== index) await repos.media.move(workspaceId, id, row.id, index)
+  }
+  const refreshed = (await repos.collections.get(workspaceId, row.id)) ?? row
+  return storedView(repos, workspaceId, refreshed)
+}
+
+/** Kept for the captions route signature; captions are part of the item set. */
+export async function updateImageCollectionCaptions(
+  workspaceId: WorkspaceId,
+  collection: StoredImageCollection,
+  options: CollectionWriteOptions = {}
+) {
+  return upsertImageCollection(workspaceId, collection, options)
 }
 
 export async function deleteImageCollections(
-  collections: ImageCollectionDeleteInput[]
+  workspaceId: WorkspaceId,
+  collections: ImageCollectionDeleteInput[],
+  options: { repos?: Repositories } = {}
 ) {
-  const requestedKeys = new Set(
-    collections
-      .map((collection) =>
-        collectionKey({
-          name: clean(collection.name),
-          created_at: clean(collection.created_at),
-          images: [],
-        })
-      )
-      .filter((key) => key !== "::")
-  )
-  if (requestedKeys.size === 0) {
-    throw new Error("No image collections selected")
+  const repos = options.repos ?? getRepositories()
+  const names = [...new Set(collections.map((c) => clean(c.name)).filter(Boolean))]
+  if (names.length === 0) throw new Error("No image collections selected")
+  const deleted: StoredImageCollection[] = []
+  for (const name of names) {
+    const row = await repos.collections.getByName(workspaceId, name)
+    if (!row || row.deletedAt) continue
+    await repos.collections.softDelete(workspaceId, row.id)
+    const after = await repos.collections.get(workspaceId, row.id)
+    if (after) deleted.push(await storedView(repos, workspaceId, after))
   }
-
-  const current = await readImageCollectionsFile()
-  const deleted = current.filter((collection) =>
-    requestedKeys.has(collectionKey(collection))
-  )
-  const deletedAt = new Date().toISOString()
-  const deletedUntil = new Date(
-    Date.parse(deletedAt) + 30 * 24 * 60 * 60 * 1000
-  ).toISOString()
-  const next = current.map((collection) =>
-    requestedKeys.has(collectionKey(collection))
-      ? { ...collection, deletedAt, deletedUntil }
-      : collection
-  )
-
-  await writeImageCollectionsFile(next)
-
   return {
     deleted: deleted.length,
     deletedFiles: 0,
-    deletedAt,
-    deletedUntil,
+    deletedAt: deleted[0]?.deletedAt ?? new Date().toISOString(),
+    deletedUntil: deleted[0]?.deletedUntil ?? new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
     collections: deleted,
   }
 }
 
 export async function restoreImageCollections(
-  collections: ImageCollectionDeleteInput[]
+  workspaceId: WorkspaceId,
+  collections: ImageCollectionDeleteInput[],
+  options: { repos?: Repositories } = {}
 ) {
-  const requestedKeys = new Set(
-    collections.map((collection) =>
-      collectionKey({ ...collection, images: [] })
-    )
-  )
-  const current = await purgeExpiredImageCollections(
-    await readImageCollectionsFile()
-  )
+  const repos = options.repos ?? getRepositories()
   let restored = 0
-  const next = current.map((collection) => {
-    if (
-      !requestedKeys.has(collectionKey(collection)) ||
-      !collection.deletedAt
-    ) {
-      return collection
-    }
+  for (const name of new Set(collections.map((c) => clean(c.name)).filter(Boolean))) {
+    const row = await repos.collections.getByName(workspaceId, name)
+    if (!row?.deletedAt) continue
+    await repos.collections.restore(workspaceId, row.id)
     restored += 1
-    const active = { ...collection }
-    delete active.deletedAt
-    delete active.deletedUntil
-    return active
-  })
-  await writeImageCollectionsFile(next)
+  }
   return { restored }
 }
 
-export async function importRemoteImagesToCollection(input: {
-  collectionName?: string
-  collectionCreatedAt?: string
-  mediaType?: "image" | "video"
-  images?: { url?: string; caption?: string; sourceUrl?: string }[]
-  fetchImpl?: typeof fetch
-}) {
+export async function importRemoteImagesToCollection(
+  workspaceId: WorkspaceId,
+  input: {
+    collectionName?: string
+    collectionCreatedAt?: string
+    mediaType?: "image" | "video"
+    images?: { url?: string; caption?: string; sourceUrl?: string }[]
+  },
+  options: CollectionWriteOptions = {}
+) {
+  const repos = options.repos ?? getRepositories()
+  const createdBy = options.createdBy ?? workspaceId
   const mediaType = input.mediaType === "video" ? "video" : "image"
-  const imageInputs = Array.isArray(input.images) ? input.images : []
-  const uniqueImages = dedupeImportImages(imageInputs).slice(
-    0,
-    MAX_IMPORT_IMAGES
-  )
-  if (uniqueImages.length === 0) {
-    throw new Error("No images to import")
-  }
+  const images = dedupeImportImages(Array.isArray(input.images) ? input.images : []).slice(0, MAX_IMPORT_IMAGES)
+  if (images.length === 0) throw new Error("No images to import")
 
-  const current = await readImageCollectionsFile()
-  const requestedName = clean(input.collectionName) || "Tumblr import"
-  const requestedCreatedAt = clean(input.collectionCreatedAt)
-  const existing =
-    current.find(
-      (collection) =>
-        collectionNameKey(collection) ===
-        collectionNameKey({ name: requestedName })
-    ) ?? null
-  const baseCollection: StoredImageCollection = existing ?? {
-    name: requestedName,
-    created_at: requestedCreatedAt || new Date().toISOString(),
-    ...(mediaType === "video" ? { mediaType: "video" as const } : {}),
-    images: [],
-  }
-
-  const importedImages = []
-  for (const [index, image] of uniqueImages.entries()) {
-    const saved = await downloadImageToCollectionFile({
-      url: image.url,
-      sourceUrl: image.sourceUrl,
-      index,
-      mediaType,
-      fetchImpl: input.fetchImpl,
-    })
-    importedImages.push({
-      image_link: saved.publicUrl,
-      caption: clean(image.caption),
-      hash: saved.hash,
-    })
-  }
-
-  const existingLinks = new Set(
-    baseCollection.images.map((image) => image.image_link)
-  )
-  const existingHashes = new Set(
-    baseCollection.images.map((image) => clean(image.hash)).filter(Boolean)
-  )
-  const nextCollection = normalizeCollection({
-    ...baseCollection,
-    images: [
-      ...importedImages.filter(
-        (image) =>
-          !existingLinks.has(image.image_link) &&
-          (!image.hash || !existingHashes.has(image.hash))
-      ),
-      ...baseCollection.images,
-    ],
-  })
-  const next = [
-    nextCollection,
-    ...current.filter(
-      (collection) =>
-        collectionNameKey(collection) !== collectionNameKey(nextCollection)
-    ),
-  ]
-
-  await writeImageCollectionsFile(next)
-  return {
-    collection: nextCollection,
-    imported: importedImages.length,
-  }
-}
-
-function collectionKey(collection: StoredImageCollection) {
-  return `${collection.name}::${collection.created_at}`
-}
-
-function collectionNameKey(collection: Pick<StoredImageCollection, "name">) {
-  return clean(collection.name).toLowerCase()
-}
-
-function normalizeCollection(
-  collection: StoredImageCollection
-): StoredImageCollection {
-  return {
-    name: clean(collection.name) || "Untitled collection",
-    created_at: clean(collection.created_at) || new Date().toISOString(),
-    pinned: collection.pinned === true,
-    ...(collection.mediaType === "video"
-      ? { mediaType: "video" as const }
-      : {}),
-    ...(clean(collection.deletedAt)
-      ? { deletedAt: clean(collection.deletedAt) }
-      : {}),
-    ...(clean(collection.deletedUntil)
-      ? { deletedUntil: clean(collection.deletedUntil) }
-      : {}),
-    images: Array.isArray(collection.images)
-      ? collection.images.flatMap((image) => {
-          const imageLink = clean(image.image_link)
-          if (!imageLink) {
-            return []
-          }
-          const hash = clean(image.hash)
-          return [
-            {
-              image_link: imageLink,
-              caption: clean(image.caption),
-              ...(hash ? { hash } : {}),
-            },
-          ]
-        })
-      : [],
-  }
-}
-
-async function collectionWithLocalImageHashes(
-  collection: StoredImageCollection
-): Promise<StoredImageCollection> {
-  if (!Array.isArray(collection.images)) {
-    return collection
-  }
-
-  const images = await Promise.all(
-    collection.images.map(async (image) => {
-      if (clean(image.hash)) {
-        return image
-      }
-      const filePath = localCollectionFilePath(clean(image.image_link))
-      if (!filePath) {
-        return image
-      }
-      try {
-        const bytes = await readAssetBytes(filePath)
-        return {
-          ...image,
-          hash: createHash("sha256").update(bytes).digest("hex"),
-        }
-      } catch {
-        return image
-      }
-    })
-  )
-
-  return {
-    ...collection,
-    images,
-  }
-}
-
-async function deleteUnusedLocalCollectionFiles(
-  deletedCollections: StoredImageCollection[],
-  remainingCollections: StoredImageCollection[]
-) {
-  const remainingLocalLinks = new Set(
-    remainingCollections.flatMap((collection) =>
-      collection.images
-        .map((image) => clean(image.image_link))
-        .filter((imageLink) => localCollectionFilePath(imageLink))
-    )
-  )
-  const filesToDelete = new Map<string, string>()
-
-  for (const collection of deletedCollections) {
-    for (const image of collection.images) {
-      const imageLink = clean(image.image_link)
-      if (remainingLocalLinks.has(imageLink)) {
-        continue
-      }
-      const filePath = localCollectionFilePath(imageLink)
-      if (filePath) {
-        filesToDelete.set(filePath, imageLink)
-      }
+  const name = clean(input.collectionName) || "Imported images"
+  const row = await findOrCreateCollection(repos, workspaceId, name, mediaType, createdBy)
+  let imported = 0
+  for (const [index, image] of images.entries()) {
+    try {
+      const { created } = await ingestRemote(
+        repos,
+        workspaceId,
+        { url: image.url, collectionId: row.id, mediaType, caption: image.caption, sourceUrl: image.sourceUrl, createdBy },
+        options
+      )
+      if (created) imported += 1
+    } catch (error) {
+      throw new Error(`Failed to import image ${index + 1}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-
-  for (const filePath of filesToDelete.keys()) {
-    await deleteAsset(filePath)
-  }
-
-  return filesToDelete.size
+  const refreshed = (await repos.collections.get(workspaceId, row.id)) ?? row
+  return { collection: await storedView(repos, workspaceId, refreshed), imported }
 }
 
-function localCollectionFilePath(imageLink: string) {
-  if (!imageLink.startsWith(`${IMAGE_COLLECTION_PUBLIC_PREFIX}/`)) {
-    return null
-  }
-
-  const encodedFileName = imageLink
-    .slice(`${IMAGE_COLLECTION_PUBLIC_PREFIX}/`.length)
-    .split(/[?#]/)[0]
-  let fileName = ""
-  try {
-    fileName = decodeURIComponent(encodedFileName)
-  } catch {
-    return null
-  }
-
-  if (!fileName || fileName.includes("/") || fileName.includes("\\")) {
-    return null
-  }
-
-  const root = path.resolve(IMAGE_COLLECTION_FILES_DIR)
-  const filePath = path.resolve(root, fileName)
-  return filePath.startsWith(`${root}${path.sep}`) ? filePath : null
-}
-
-async function readImageCollectionsFile(): Promise<StoredImageCollection[]> {
-  return readJsonArrayStore({
-    rootDir: path.dirname(IMAGE_COLLECTIONS_DB_PATH),
-    fileName: path.basename(IMAGE_COLLECTIONS_DB_PATH),
-    key: "collections",
-    normalize: normalizeCollection,
-  })
-}
-
-async function collectionsWithLastUsedAt(
-  collections: StoredImageCollection[]
-): Promise<StoredImageCollection[]> {
-  const lastUsedByKey = await readImageLastUsedDates()
-  if (lastUsedByKey.size === 0) {
-    return collections
-  }
-
-  return collections.map((collection) => ({
-    ...collection,
-    images: collection.images.map((image) => {
-      const lastUsedAt =
-        (image.hash ? lastUsedByKey.get(image.hash) : undefined) ??
-        lastUsedByKey.get(image.image_link)
-      return lastUsedAt ? { ...image, last_used_at: lastUsedAt } : image
-    }),
-  }))
-}
-
-async function readImageLastUsedDates() {
-  const records = await readJsonArrayStore<{
-    kind?: string
-    key?: string
-    used_at?: string
-  }>({
-    rootDir: path.dirname(IMAGE_COLLECTIONS_DB_PATH),
-    fileName: "usage-ledger.json",
-    key: "usage",
-    normalize: (record) => {
-      const key = clean(record.key)
-      const usedAt = clean(record.used_at)
-      return record.kind === "image" && key && usedAt
-        ? { kind: "image", key, used_at: usedAt }
-        : null
-    },
-  })
-  const lastUsedByKey = new Map<string, string>()
-  for (const record of records) {
-    const previous = lastUsedByKey.get(record.key!)
-    if (!previous || Date.parse(record.used_at!) > Date.parse(previous)) {
-      lastUsedByKey.set(record.key!, record.used_at!)
-    }
-  }
-  return lastUsedByKey
-}
-
-async function writeImageCollectionsFile(collections: StoredImageCollection[]) {
-  await writeJsonArrayStore({
-    rootDir: path.dirname(IMAGE_COLLECTIONS_DB_PATH),
-    fileName: path.basename(IMAGE_COLLECTIONS_DB_PATH),
-    key: "collections",
-    records: collections,
-  })
-}
-
-function dedupeImportImages(
-  images: { url?: string; caption?: string; sourceUrl?: string }[]
-) {
+function dedupeImportImages(images: { url?: string; caption?: string; sourceUrl?: string }[]) {
   const seen = new Set<string>()
-  const next = []
+  const next: { url: string; caption: string; sourceUrl: string }[] = []
   for (const image of images) {
     const url = clean(image.url)
-    if (!safeHttpUrl(url) || seen.has(url)) {
-      continue
-    }
+    if (!safeHttpUrl(url) || seen.has(url)) continue
     seen.add(url)
-    next.push({
-      url,
-      caption: clean(image.caption),
-      sourceUrl: clean(image.sourceUrl),
-    })
+    next.push({ url, caption: clean(image.caption), sourceUrl: clean(image.sourceUrl) })
   }
   return next
 }
 
-async function downloadImageToCollectionFile(input: {
-  url: string
-  sourceUrl?: string
-  index: number
-  mediaType?: "image" | "video"
-  fetchImpl?: typeof fetch
-}) {
-  const response = await (input.fetchImpl ?? fetch)(input.url, {
-    headers: {
-      Accept:
-        "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-      Referer:
-        safeHttpUrl(input.sourceUrl || "") || "https://www.pinterest.com/",
-      "User-Agent":
-        "Mozilla/5.0 (compatible; cfarm-image-collection-import/1.0)",
-    },
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to download image ${input.index + 1}`)
-  }
-
-  const contentType =
-    response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ||
-    ""
-  const expectedPrefix = input.mediaType === "video" ? "video/" : "image/"
-  if (!contentType.startsWith(expectedPrefix)) {
-    throw new Error(
-      `Imported URL ${input.index + 1} was not ${input.mediaType === "video" ? "a video" : "an image"}`
-    )
-  }
-
-  const bytes = Buffer.from(await response.arrayBuffer())
-  if (bytes.byteLength > MAX_IMPORT_IMAGE_BYTES) {
-    throw new Error(`Image ${input.index + 1} is too large to import`)
-  }
-  const hash = createHash("sha256").update(bytes).digest("hex")
-
-  const extension =
-    input.mediaType === "video"
-      ? extensionForVideo(input.url, contentType)
-      : extensionForImage(input.url, contentType)
-  const fileName = `${Date.now()}-${randomUUID()}${extension}`
-  await persistAsset(path.join(IMAGE_COLLECTION_FILES_DIR, fileName), bytes)
-
-  return {
-    fileName,
-    hash,
-    publicUrl: `${IMAGE_COLLECTION_PUBLIC_PREFIX}/${encodeURIComponent(fileName)}`,
-  }
-}
-
-function extensionForVideo(url: string, contentType: string) {
-  const byType: Record<string, string> = {
-    "video/mp4": ".mp4",
-    "video/quicktime": ".mov",
-    "video/webm": ".webm",
-  }
-  if (byType[contentType]) {
-    return byType[contentType]
-  }
+function sourceForUrl(url: string) {
   try {
-    const extension = path.extname(new URL(url).pathname).toLowerCase()
-    return [".mp4", ".mov", ".webm"].includes(extension) ? extension : ".mp4"
+    const host = new URL(url).hostname
+    if (/(^|\.)pinimg\.com$|(^|\.)pinterest\.[a-z.]+$/.test(host)) return "pinterest" as const
+    if (/(^|\.)pexels\.com$/.test(host)) return "pexels" as const
   } catch {
-    return ".mp4"
+    // fall through
   }
-}
-
-function extensionForImage(url: string, contentType: string) {
-  const byType: Record<string, string> = {
-    "image/avif": ".avif",
-    "image/gif": ".gif",
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/svg+xml": ".svg",
-    "image/webp": ".webp",
-  }
-  if (byType[contentType]) {
-    return byType[contentType]
-  }
-
-  try {
-    const extension = path.extname(new URL(url).pathname).toLowerCase()
-    return [".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(
-      extension
-    )
-      ? extension
-      : ".jpg"
-  } catch {
-    return ".jpg"
-  }
+  return "url" as const
 }
 
 function safeHttpUrl(rawUrl: string) {
   try {
     const url = new URL(rawUrl)
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return ""
-    }
-    return url.toString()
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : ""
   } catch {
     return ""
   }

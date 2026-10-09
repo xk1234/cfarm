@@ -1,51 +1,35 @@
 ---
-title: "Template generation jobs"
-description: "Manual template runs, worker execution, and the publishing boundary."
+title: "Backend scheduling"
+description: "How background jobs, scheduled posts and reminders run on the Railway worker and the Appwrite jobs table."
 ---
 
-Templates no longer have recurring generation schedules. The
-`template-scheduler` entrypoint is intentionally disabled and returns a zero-job
-result without reading the templates table. Keeping the entrypoint temporarily
-allows deployed scheduler configuration to be removed without an unsafe gap or
-an old binary continuing to enqueue work.
+Background work runs on one long-running Railway `worker` service that polls
+the Appwrite `jobs` table. There is no scheduler service and no Appwrite
+Function. Recurring automations were removed with the rendering-engine
+refactor; nothing generates content on a timer.
 
-## Generation lifecycle
+## Job types
+
+| Type | Enqueued by | What it does |
+| --- | --- | --- |
+| `render-slideshow` | API/MCP renders too large to render inline | Renders the frozen resolved spec and writes `<renderId>-NN` files to the `renders` bucket. |
+| `publish-post` | The worker's minute sweep, for due scheduled posts not yet handed to SocialBu | Uploads the render to SocialBu and creates the post. |
+| `notify` | The worker's minute sweep, for pending in-app notifications that are due | Marks the notification delivered so it appears in the inbox. |
+
+## Lifecycle
 
 ```text
-Generate button / MCP / POST /api/templates/run
-  -> claim one manual run
-  -> fixed template count + text agent plans design sequence
-  -> generate text and choose media
-  -> render and store draft
-  -> preview + ZIP + Telegram generation-complete notification
+enqueue (deterministic id when deduped)
+  -> jobs: queued, run_at
+  -> worker claim: job_leases/<jobId>.<attempt> (409 = another worker won)
+  -> jobs: running, lease renewed while the handler works
+  -> succeeded | queued again with backoff | dead after max_attempts
 ```
 
-Every template run is manual and immediate. Its completed output is unpublished
-and has no automatic publication date. The runner ignores legacy template
-account bindings, forces `publishMode: manual`, and does not upload draft media
-to PostFast.
+Handlers are idempotent: a job can run again after a crash or an expired
+lease. Scheduled posts keep their own `publish_at`; SocialBu publishes at that
+time once the post is created there, so the worker only needs minute-level
+precision.
 
-## Publishing is post-processing
-
-Publishing and scheduling a completed output remain supported from the output
-viewer and output publication API. That flow selects accounts and an optional
-future provider time after the generation exists. Those publication records can
-appear on the workspace Schedule page, but they do not cause another template
-generation.
-
-## Queue and worker
-
-The durable `jobs` table still supports explicit asynchronous jobs such as UGC
-generation and provider publication. The worker claims queued jobs by priority
-and availability, retries transient failures with bounded backoff, and marks
-exhausted jobs dead. None of those queues are populated from a template cadence.
-
-## Source map
-
-- Manual run API: `app/api/templates/run/route.ts`
-- Slideshow runner: `lib/automation-runner.ts`
-- Disabled scheduler: `services/template-scheduler.ts`
-- Worker: `services/job-worker.ts`
-- Native queue repository: `lib/railway/job-repository.ts`
-- Queue schema: `infra/railway/migrations/0004_native_job_queue.sql`
-- Output publication: `components/realfarm/automation-settings/slideshow-publication-actions.tsx`
+See [Railway worker](../reference/railway-worker-operations.md) for operating
+the service.

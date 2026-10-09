@@ -1,157 +1,122 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
-import { toast } from "sonner"
 import {
-  mergeAutomationSchema,
-  type AutomationSchedule,
-  type AutomationSchema,
-  type AutomationSocialIntegration,
-  type AutomationStatus,
-  type RuntimeAutomationTemplate,
-} from "@/lib/realfarm-automation"
-import type { Automation, RealFarmData } from "@/lib/realfarm-data"
+  MobileNavigation,
+  Sidebar,
+  type ViewKey,
+} from "@/components/realfarm/navigation"
 import {
-  xAutomationToAutomation,
-  type XAutomationRecord,
-  type XAutomationRun,
-} from "@/lib/x-automation"
-import type { AutomationRecord } from "@/lib/automations"
-import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
-import { useCollectionsData } from "@/features/collections/ui/use-collections-data"
-import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
-import { AppModal, AppModalPanel } from "@/components/ui/modal"
-import type { InitialTemplateData } from "@/features/templates/domain/templates"
-import { WorkspaceShell } from "@/features/workspace/ui/workspace-shell"
+  renderHref,
+  workspaceLocationFromUrl,
+  workspaceViewHref,
+} from "@/components/realfarm/workspace-navigation"
+import type { WorkspaceSettingsTab } from "@/components/realfarm/user-settings-modal"
+import type { RealFarmData } from "@/lib/realfarm-data"
+import { fetchJsonWithTimeout } from "@/lib/client-api"
+import { useCollectionsData } from "@/components/realfarm/collections/use-collections-data"
+import { apiRoutes } from "@/components/realfarm/api-client"
 
-const TemplatesView = dynamic(() =>
-  import("@/components/realfarm/automations-view").then(
-    (module) => module.TemplatesView
+const RendersView = dynamic(() =>
+  import("@/components/render/renders-view").then((module) => module.RendersView)
+)
+const NewRenderView = dynamic(() =>
+  import("@/components/render/new-render-view").then(
+    (module) => module.NewRenderView
   )
 )
-const AutomationSettingsDrawer = dynamic(() =>
-  import("@/components/realfarm/automation-settings").then(
-    (module) => module.AutomationSettingsDrawer
+const RenderDetailView = dynamic(() =>
+  import("@/components/render/render-detail-view").then(
+    (module) => module.RenderDetailView
   )
 )
-const XAutomationStudio = dynamic(() =>
-  import("@/components/x-automation-studio").then(
-    (module) => module.XAutomationStudio
+const ContentCalendarView = dynamic(() =>
+  import("@/components/realfarm/content-calendar/content-calendar-view").then(
+    (module) => module.ContentCalendarView
   )
 )
-const SocialAccountPickerModal = dynamic(() =>
-  import("@/components/realfarm/social-account-picker").then(
-    (module) => module.SocialAccountPickerModal
+const CollectionsView = dynamic(() =>
+  import("@/components/realfarm/collections-view").then(
+    (module) => module.CollectionsView
   )
 )
-const emptyInitialTemplateData: InitialTemplateData = {
-  previewImages: {},
-}
+const CollectionDetailView = dynamic(() =>
+  import("@/components/realfarm/collections-view").then(
+    (module) => module.CollectionDetailView
+  )
+)
+const UserSettingsModal = dynamic(() =>
+  import("@/components/realfarm/user-settings-modal").then(
+    (module) => module.UserSettingsModal
+  )
+)
 
 export function RealFarmWorkspace({
   data,
-  initialTemplateData = emptyInitialTemplateData,
   initialNavigation,
 }: {
   data: RealFarmData
-  initialTemplateData?: InitialTemplateData
   initialNavigation?: {
-    automationId?: string
-    runId?: string
+    view?: ViewKey
+    collectionId?: string
+    renderId?: string
   }
 }) {
-  const [selectedSoundId] = useState("")
+  const [view, setView] = useState<ViewKey>(
+    initialNavigation?.view === "render" && !initialNavigation.renderId
+      ? "home"
+      : (initialNavigation?.view ?? "home")
+  )
+  const [selectedCollectionId, setSelectedCollectionId] = useState(
+    initialNavigation?.collectionId ?? null
+  )
+  const [selectedRenderId, setSelectedRenderId] = useState(
+    initialNavigation?.renderId ?? null
+  )
+  const [settingsTab, setSettingsTab] = useState<WorkspaceSettingsTab | null>(
+    null
+  )
   const [workspaceAssets, setWorkspaceAssets] = useState(data.assets)
   const [workspaceAssetsLoaded, setWorkspaceAssetsLoaded] = useState(
     Object.values(data.assets).some((assets) => assets.length > 0)
   )
-  const [createdAutomations, setCreatedAutomations] = useState<Automation[]>([])
-  const [persistedAutomations, setPersistedAutomations] = useState<
-    Automation[]
-  >([])
-  const [persistedAutomationsLoaded, setPersistedAutomationsLoaded] =
-    useState(false)
-  const [xAutomations, setXAutomations] = useState<XAutomationRecord[]>([])
-  const [xAutomationsLoaded, setXAutomationsLoaded] = useState(false)
-  const [xAutomationRuns, setXAutomationRuns] = useState<XAutomationRun[]>([])
-  const [xAutomationRunsLoaded, setXAutomationRunsLoaded] = useState(false)
-  const [automationNameEdits, setAutomationNameEdits] = useState<
-    Record<string, string>
-  >({})
-  const [automationFavoriteEdits, setAutomationFavoriteEdits] = useState<
-    Record<string, boolean>
-  >({})
-  const [automationFavoriteRanks, setAutomationFavoriteRanks] = useState<
-    Record<string, number>
-  >({})
-  const [automationConfigEdits, setAutomationConfigEdits] = useState<
-    Record<string, AutomationSchema>
-  >({})
-  const [editingAutomation, setEditingAutomation] = useState<Automation | null>(
-    null
-  )
-  const linkedAutomationId = initialNavigation?.automationId?.trim() ?? ""
-  const linkedAutomationRunId = initialNavigation?.runId?.trim() ?? ""
-  const [socialAccountAutomation, setSocialAccountAutomation] =
-    useState<Automation | null>(null)
-
-  const automations = useMemo(
-    () =>
-      [
-        ...createdAutomations,
-        ...persistedAutomations,
-        ...xAutomations.map(xAutomationToAutomation),
-      ]
-        .map((automation, index) => ({
-          automation: {
-            ...automation,
-            name: automationNameEdits[automation.id] ?? automation.name,
-            favorite:
-              automationFavoriteEdits[automation.id] ?? automation.favorite,
-          },
-          index,
-          favoriteRank: automationFavoriteRanks[automation.id] ?? 0,
-        }))
-        .sort(
-          (a, b) =>
-            Number(b.automation.favorite) - Number(a.automation.favorite) ||
-            b.favoriteRank - a.favoriteRank ||
-            a.index - b.index
-        )
-        .map(({ automation }) => automation),
-    [
-      automationFavoriteEdits,
-      automationFavoriteRanks,
-      automationNameEdits,
-      createdAutomations,
-      persistedAutomations,
-      xAutomations,
-    ]
-  )
-  const { collections, visibleCollections, commitCollection } =
-    useCollectionsData({
-      assets: workspaceAssets,
-      enabled: true,
-    })
-  const selectedSound =
-    workspaceAssets.music.find((sound) => sound.id === selectedSoundId) ?? null
-  const xTemplatesByAutomationId = useMemo(
-    () =>
-      Object.fromEntries(
-        xAutomations.map((template) => [template.id, template])
-      ),
-    [xAutomations]
-  )
+  const {
+    visibleCollections,
+    collectionsLoaded,
+    commitCollection,
+    deleteCollections,
+    toggleCollectionPin,
+  } = useCollectionsData({
+    assets: workspaceAssets,
+    enabled: view === "collections",
+  })
+  const selectedCollection =
+    visibleCollections.find(
+      (collection) => collection.id === selectedCollectionId
+    ) ?? null
 
   useEffect(() => {
-    const needsAssets =
-      Boolean(editingAutomation?.id) &&
-      editingAutomation?.automationKind !== "x_threads"
-    if (!needsAssets || workspaceAssetsLoaded) return
+    function restoreWorkspaceLocation() {
+      const location = workspaceLocationFromUrl(
+        window.location.pathname,
+        window.location.search
+      )
+      setView(location.view)
+      setSelectedCollectionId(location.collectionId ?? null)
+      setSelectedRenderId(location.renderId ?? null)
+    }
+
+    window.addEventListener("popstate", restoreWorkspaceLocation)
+    return () =>
+      window.removeEventListener("popstate", restoreWorkspaceLocation)
+  }, [])
+
+  useEffect(() => {
+    if (view !== "collections" || workspaceAssetsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ assets?: RealFarmData["assets"] }>(
-      "/api/media-library"
+      apiRoutes.mediaLibrary
     )
       .then((payload) => {
         if (active && payload.assets) setWorkspaceAssets(payload.assets)
@@ -163,636 +128,156 @@ export function RealFarmWorkspace({
     return () => {
       active = false
     }
-  }, [
-    editingAutomation?.automationKind,
-    editingAutomation?.id,
-    workspaceAssetsLoaded,
-  ])
+  }, [view, workspaceAssetsLoaded])
 
-  useEffect(() => {
-    if (xAutomationsLoaded) return
-    let active = true
-    void fetchJsonWithTimeout<{ templates?: XAutomationRecord[] }>(
-      "/api/social-templates"
-    )
-      .then((automationPayload) => {
-        if (!active) return
-        const loadedAutomations = automationPayload.templates ?? []
-        setXAutomations(loadedAutomations)
-        const linked = loadedAutomations
-          .map(xAutomationToAutomation)
-          .find((automation) => automation.id === linkedAutomationId)
-        if (linked) setEditingAutomation(linked)
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setXAutomationsLoaded(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [linkedAutomationId, xAutomationsLoaded])
-
-  useEffect(() => {
-    if (xAutomationRunsLoaded) return
-    let active = true
-    void fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
-      "/api/social-templates/generate"
-    )
-      .then((payload) => {
-        if (active) setXAutomationRuns(payload.runs ?? [])
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setXAutomationRunsLoaded(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [xAutomationRunsLoaded])
-
-  useEffect(() => {
-    let active = true
-    void fetchJsonWithTimeout<{
-      templates?: Automation[]
-      records?: AutomationRecord[]
-    }>("/api/templates")
-      .then((payload) => {
-        if (!active || !payload?.templates) {
-          return
-        }
-        setPersistedAutomations(payload.templates)
-        const linked = payload.templates.find(
-          (automation) => automation.id === linkedAutomationId
-        )
-        if (linked) setEditingAutomation(linked)
-        setAutomationConfigEdits((current) => ({
-          ...Object.fromEntries(
-            (payload.records ?? []).map((record) => [
-              record.id,
-              reviveAutomationSchema(record.schema),
-            ])
-          ),
-          ...current,
-        }))
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setPersistedAutomationsLoaded(true)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [linkedAutomationId])
-
-  function persistAutomationPatch(
-    id: string,
-    patch: {
-      name?: string
-      hidden?: boolean
-      favorite?: boolean
-      status?: AutomationStatus
-      schema?: AutomationSchema
-    }
-  ) {
-    void fetchJsonWithTimeout<{
-      record: AutomationRecord
-      template: Automation
-    }>("/api/templates", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, ...patch }),
-      toastOnError: false,
-    })
-      .then(({ template }) => {
-        const mergeSummary = (item: Automation) =>
-          item.id === template.id ? { ...item, ...template } : item
-        setPersistedAutomations((current) => current.map(mergeSummary))
-        setCreatedAutomations((current) => current.map(mergeSummary))
-        setEditingAutomation((current) =>
-          current?.id === template.id ? { ...current, ...template } : current
-        )
-      })
-      .catch((error) => {
-        toast.error(getApiErrorMessage(error, "Failed to update template"))
-      })
+  function changeView(nextView: ViewKey) {
+    if (nextView === "collections") setSelectedCollectionId(null)
+    setView(nextView)
+    pushWorkspaceUrl(workspaceViewHref(nextView))
   }
 
-  function deleteAutomation(id: string) {
-    const deletedPersisted = persistedAutomations.find(
-      (automation) => automation.id === id
-    )
-    const deletedCreated = createdAutomations.find(
-      (automation) => automation.id === id
-    )
-    const deletedConfig = automationConfigEdits[id]
-
-    setPersistedAutomations((current) =>
-      current.filter((automation) => automation.id !== id)
-    )
-    setCreatedAutomations((current) =>
-      current.filter((automation) => automation.id !== id)
-    )
-    setAutomationConfigEdits((current) => {
-      const next = { ...current }
-      delete next[id]
-      return next
-    })
-    setEditingAutomation(null)
-
-    void fetchJsonWithTimeout(`/api/templates/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      timeoutMs: 15_000,
-      toastOnError: false,
-    }).catch((error) => {
-      if (deletedPersisted) {
-        setPersistedAutomations((current) => [deletedPersisted, ...current])
-      }
-      if (deletedCreated) {
-        setCreatedAutomations((current) => [deletedCreated, ...current])
-      }
-      if (deletedConfig) {
-        setAutomationConfigEdits((current) => ({
-          ...current,
-          [id]: deletedConfig,
-        }))
-      }
-      toast.error(getApiErrorMessage(error, "Failed to delete template"))
-    })
+  function showRender(renderId: string) {
+    setSelectedRenderId(renderId)
+    setView("render")
+    pushWorkspaceUrl(renderHref(renderId))
   }
 
-  function applyAutomationRecord(
-    record: AutomationRecord,
-    automation: Automation
-  ) {
-    setPersistedAutomations((current) => [
-      automation,
-      ...current.filter((item) => item.id !== automation.id),
-    ])
-    setCreatedAutomations((current) =>
-      current.filter((item) => item.id !== automation.id)
-    )
-    setAutomationConfigEdits((current) => ({
-      ...current,
-      [automation.id]: reviveAutomationSchema(record.schema),
-    }))
-    return automation
-  }
-
-  function onSocialIntegrationsChange(
-    automation: Automation,
-    socialIntegrations: AutomationSocialIntegration[]
-  ) {
-    const slideshowSocialIntegrations = socialIntegrations.filter(
-      (integration) => isSlideshowSocialProvider(integration.provider)
-    )
-    const currentConfig = mergeAutomationSchema(
-      automation,
-      automationConfigEdits[automation.id]
-    )
-    const nextConfig = {
-      ...currentConfig,
-      social_integrations: slideshowSocialIntegrations,
-    }
-    const nextAutomation = withSocialIntegrationSummary(
-      automation,
-      slideshowSocialIntegrations
-    )
-
-    setAutomationConfigEdits((current) => ({
-      ...current,
-      [automation.id]: nextConfig,
-    }))
-    setPersistedAutomations((current) =>
-      current.map((item) => (item.id === automation.id ? nextAutomation : item))
-    )
-    setCreatedAutomations((current) =>
-      current.map((item) => (item.id === automation.id ? nextAutomation : item))
-    )
-    setEditingAutomation((current) =>
-      current?.id === automation.id ? nextAutomation : current
-    )
-    setSocialAccountAutomation((current) =>
-      current?.id === automation.id ? nextAutomation : current
-    )
-    persistAutomationPatch(automation.id, { schema: nextConfig })
-  }
-
-  function onSocialAccountDisconnected(integrationId: string) {
-    const withoutDisconnected = (
-      integrations: AutomationSocialIntegration[] | undefined
-    ) =>
-      (integrations ?? []).filter(
-        (integration) => integration.integration_id !== integrationId
-      )
-    setAutomationConfigEdits((current) =>
-      Object.fromEntries(
-        Object.entries(current).map(([id, config]) => [
-          id,
-          {
-            ...config,
-            social_integrations: withoutDisconnected(
-              config.social_integrations
-            ),
-          },
-        ])
-      )
-    )
-    const updateSummary = (automation: Automation) =>
-      withSocialIntegrationSummary(
-        automation,
-        withoutDisconnected(automation.socialIntegrations)
-      )
-    setPersistedAutomations((current) => current.map(updateSummary))
-    setCreatedAutomations((current) => current.map(updateSummary))
-    setEditingAutomation((current) =>
-      current ? updateSummary(current) : current
-    )
-    setSocialAccountAutomation((current) =>
-      current ? updateSummary(current) : current
+  function showCollection(collectionId: string | null) {
+    setSelectedCollectionId(collectionId)
+    setView("collections")
+    pushWorkspaceUrl(
+      collectionId
+        ? `/app/collections/${encodeURIComponent(collectionId)}`
+        : workspaceViewHref("collections")
     )
   }
 
-  async function createLocalAutomation(
-    input: {
-      name?: string
-      automationKind?: Automation["automationKind"]
-      schema?: AutomationSchema
-      template?: RuntimeAutomationTemplate
-      overrides?: {
-        status?: AutomationStatus
-        social_integrations?: AutomationSocialIntegration[]
-        schedule?: AutomationSchedule
-      }
-    } = {}
-  ) {
-    const payload = await fetchJsonWithTimeout<{
-      template?: Automation
-      record?: AutomationRecord
-    }>("/api/templates", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: input.name,
-        kind: input.automationKind,
-        schema: input.schema,
-        template: input.template,
-        overrides: {
-          ...input.overrides,
-          status: input.overrides?.status ?? "paused",
-        },
-      }),
-    })
-
-    if (!payload.template || !payload.record) {
-      throw new Error("Failed to create template")
-    }
-
-    return applyAutomationRecord(payload.record, payload.template)
+  function openSettings(tab: WorkspaceSettingsTab = "api-keys") {
+    setSettingsTab(tab)
   }
-
-  const renderTemplatesView = () => (
-    <TemplatesView
-      automations={automations}
-      automationsLoading={!persistedAutomationsLoaded || !xAutomationsLoaded}
-      schemasByAutomationId={automationConfigEdits}
-      previewImagesByAutomationId={initialTemplateData.previewImages}
-      collections={visibleCollections}
-      demoVideos={workspaceAssets.demoVideos}
-      xTemplatesByAutomationId={xTemplatesByAutomationId}
-      onCreateFromTone={async (fields) => {
-        const automation = await createLocalAutomation({
-          name: "Matched TikTok slideshow",
-          schema: fields as AutomationSchema,
-        })
-        setEditingAutomation(automation)
-      }}
-      onRename={(automation, name) => {
-        setAutomationNameEdits((current) => ({
-          ...current,
-          [automation.id]: name,
-        }))
-        setPersistedAutomations((current) =>
-          current.map((item) =>
-            item.id === automation.id ? { ...item, name } : item
-          )
-        )
-        setCreatedAutomations((current) =>
-          current.map((item) =>
-            item.id === automation.id ? { ...item, name } : item
-          )
-        )
-        persistAutomationPatch(automation.id, { name })
-      }}
-      onToggleFavorite={(automation) => {
-        const nextFavorite = !(
-          automationFavoriteEdits[automation.id] ?? automation.favorite
-        )
-        setAutomationFavoriteEdits((current) => ({
-          ...current,
-          [automation.id]: nextFavorite,
-        }))
-        setAutomationFavoriteRanks((current) => ({
-          ...current,
-          [automation.id]: nextFavorite ? Date.now() : 0,
-        }))
-        setPersistedAutomations((current) =>
-          current.map((item) =>
-            item.id === automation.id
-              ? { ...item, favorite: nextFavorite }
-              : item
-          )
-        )
-        setCreatedAutomations((current) =>
-          current.map((item) =>
-            item.id === automation.id
-              ? { ...item, favorite: nextFavorite }
-              : item
-          )
-        )
-        persistAutomationPatch(automation.id, {
-          favorite: nextFavorite,
-        })
-      }}
-      onToggleHidden={(automation) => {
-        const hidden = !automation.hidden
-        if (automation.automationKind === "x_threads") {
-          const template = xAutomations.find(
-            (item) => item.id === automation.id
-          )
-          if (!template) return
-          const optimistic = { ...template, hidden }
-          setXAutomations((current) =>
-            current.map((item) => (item.id === template.id ? optimistic : item))
-          )
-          void fetchJsonWithTimeout<{ template: XAutomationRecord }>(
-            "/api/social-templates",
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ template: optimistic }),
-              toastOnError: false,
-            }
-          )
-            .then(({ template: saved }) => {
-              setXAutomations((current) =>
-                current.map((item) => (item.id === saved.id ? saved : item))
-              )
-            })
-            .catch((error) => {
-              setXAutomations((current) =>
-                current.map((item) =>
-                  item.id === template.id ? template : item
-                )
-              )
-              toast.error(
-                getApiErrorMessage(error, "Failed to update template")
-              )
-            })
-          return
-        }
-        setPersistedAutomations((current) =>
-          current.map((item) =>
-            item.id === automation.id ? { ...item, hidden } : item
-          )
-        )
-        setCreatedAutomations((current) =>
-          current.map((item) =>
-            item.id === automation.id ? { ...item, hidden } : item
-          )
-        )
-        persistAutomationPatch(automation.id, { hidden })
-      }}
-      onEdit={setEditingAutomation}
-    />
-  )
 
   return (
-    <WorkspaceShell
-      view="templates"
-      ownerName={data.brand.owner ?? "LumenClip"}
-      onSocialAccountDisconnected={onSocialAccountDisconnected}
-    >
-      {renderTemplatesView()}
-      {editingAutomation ? (
-        <AppModal
-          className="p-2 sm:p-4"
-          onClose={() => setEditingAutomation(null)}
-        >
-          <AppModalPanel
-            accessibleTitle={`${editingAutomation.name} template editor`}
-            className="h-[calc(100svh-1rem)] max-h-[900px] max-w-[1320px] overflow-hidden rounded-[12px] sm:h-[calc(100svh-2rem)]"
-          >
-            {editingAutomation.automationKind === "x_threads" ? (
-              <XAutomationStudio
-                key={editingAutomation.id}
-                initialAutomations={xAutomations.filter(
-                  (item) => item.id === editingAutomation.id
-                )}
-                initialRuns={xAutomationRuns.filter(
-                  (run) => run.automationId === editingAutomation.id
-                )}
-                embedded
-                modal
-                onClose={() => {
-                  setEditingAutomation(null)
-                  void Promise.all([
-                    fetchJsonWithTimeout<{
-                      templates?: XAutomationRecord[]
-                    }>("/api/social-templates"),
-                    fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
-                      "/api/social-templates/generate"
+    <main className="relative h-svh overflow-hidden bg-[#f7f7fa] text-app-text">
+      <div className="flex h-svh">
+        <Sidebar
+          data={data}
+          view={view}
+          onViewChange={changeView}
+          onSettings={() => openSettings()}
+          onOpenRender={showRender}
+        />
+        <MobileNavigation
+          view={view}
+          onViewChange={changeView}
+          onSettings={() => openSettings()}
+          onOpenRender={showRender}
+        />
+        <section className="min-w-0 flex-1 overflow-y-auto px-4 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7">
+          {view === "home" && (
+            <RendersView
+              onNewRender={() => changeView("new")}
+              onOpenRender={showRender}
+            />
+          )}
+          {view === "new" && <NewRenderView onRendered={showRender} />}
+          {view === "render" && selectedRenderId ? (
+            <RenderDetailView
+              key={selectedRenderId}
+              renderId={selectedRenderId}
+              onBack={() => changeView("home")}
+              onOpenSettings={() => openSettings("socialbu")}
+            />
+          ) : null}
+          {view === "schedule" && (
+            <ContentCalendarView onOpenRender={showRender} />
+          )}
+          {view === "collections" &&
+            (selectedCollection ? (
+              <CollectionDetailView
+                collection={selectedCollection}
+                readonly={selectedCollection.virtual}
+                onBack={() => showCollection(null)}
+                onAddImages={(images) => {
+                  if (selectedCollection.virtual) {
+                    return
+                  }
+                  const nextCollection = {
+                    ...selectedCollection,
+                    images: [...images, ...selectedCollection.images],
+                  }
+                  return commitCollection(
+                    selectedCollection,
+                    nextCollection,
+                    "Failed to add images to the collection"
+                  )
+                }}
+                onRemoveImages={(keys) => {
+                  if (selectedCollection.virtual) {
+                    return
+                  }
+                  const nextCollection = {
+                    ...selectedCollection,
+                    images: selectedCollection.images.filter(
+                      (image) => !keys.includes(image.id || image.imageUrl)
                     ),
-                  ])
-                    .then(([automationPayload, runPayload]) => {
-                      setXAutomations(automationPayload.templates ?? [])
-                      setXAutomationRuns(runPayload.runs ?? [])
-                    })
-                    .catch(() => undefined)
+                  }
+                  void commitCollection(
+                    selectedCollection,
+                    nextCollection,
+                    "Failed to remove images from the collection"
+                  )
+                }}
+                onUpdateCollection={(nextCollection) => {
+                  if (selectedCollection.virtual) {
+                    return
+                  }
+                  void commitCollection(
+                    selectedCollection,
+                    nextCollection,
+                    "Failed to update the collection"
+                  )
+                }}
+                onRename={(title) => {
+                  if (selectedCollection.virtual) {
+                    return
+                  }
+                  const nextCollection = { ...selectedCollection, title }
+                  void commitCollection(
+                    selectedCollection,
+                    nextCollection,
+                    "Failed to rename the collection"
+                  )
                 }}
               />
             ) : (
-              <AutomationSettingsDrawer
-                key={editingAutomation.id}
-                modal
-                automation={editingAutomation}
-                initialRunId={linkedAutomationRunId || undefined}
-                config={mergeAutomationSchema(
-                  editingAutomation,
-                  automationConfigEdits[editingAutomation.id]
-                )}
+              <CollectionsView
                 collections={visibleCollections}
-                selectedSound={selectedSound}
-                music={workspaceAssets.music}
-                demoVideos={workspaceAssets.demoVideos}
+                loading={!collectionsLoaded}
                 onCreateCollection={(collection) => {
                   void commitCollection(
-                    collections.find((item) => item.id === collection.id) ??
-                      null,
+                    null,
                     collection,
-                    "Failed to save the collection"
+                    "Failed to create the collection"
                   )
                 }}
-                onRename={(name) => {
-                  setAutomationNameEdits((current) => ({
-                    ...current,
-                    [editingAutomation.id]: name,
-                  }))
-                  setAutomationConfigEdits((current) => {
-                    const nextConfig = mergeAutomationSchema(
-                      editingAutomation,
-                      current[editingAutomation.id]
-                    )
-                    persistAutomationPatch(editingAutomation.id, {
-                      name,
-                      schema: nextConfig,
-                    })
-                    return {
-                      ...current,
-                      [editingAutomation.id]: nextConfig,
-                    }
-                  })
-                  setPersistedAutomations((current) =>
-                    current.map((automation) =>
-                      automation.id === editingAutomation.id
-                        ? { ...automation, name }
-                        : automation
-                    )
-                  )
-                  setCreatedAutomations((current) =>
-                    current.map((automation) =>
-                      automation.id === editingAutomation.id
-                        ? { ...automation, name }
-                        : automation
-                    )
-                  )
-                  setEditingAutomation((current) =>
-                    current ? { ...current, name } : current
-                  )
-                }}
-                onConfigChange={(config) => {
-                  setAutomationConfigEdits((current) => ({
-                    ...current,
-                    [editingAutomation.id]: config,
-                  }))
-                }}
-                onEditSocialAccounts={() =>
-                  setSocialAccountAutomation(editingAutomation)
-                }
-                onDuplicate={async () => {
-                  const sourceConfig = mergeAutomationSchema(
-                    editingAutomation,
-                    automationConfigEdits[editingAutomation.id]
-                  )
-                  const duplicated = await createLocalAutomation({
-                    name: `${editingAutomation.name} Copy`,
-                    automationKind: editingAutomation.automationKind,
-                    schema: sourceConfig,
-                  })
-                  setEditingAutomation(duplicated)
-                }}
-                onDelete={() => deleteAutomation(editingAutomation.id)}
-                onClose={() => {
-                  setEditingAutomation(null)
-                }}
+                onDeleteCollections={deleteCollections}
+                onOpenCollection={(id) => showCollection(id)}
+                onToggleCollectionPin={toggleCollectionPin}
               />
-            )}
-          </AppModalPanel>
-        </AppModal>
-      ) : null}
-      {socialAccountAutomation && (
-        <SocialAccountPickerModal
-          selectedIntegrations={
-            mergeAutomationSchema(
-              socialAccountAutomation,
-              automationConfigEdits[socialAccountAutomation.id]
-            ).social_integrations
-          }
-          onSelect={(integrations) =>
-            onSocialIntegrationsChange(socialAccountAutomation, integrations)
-          }
-          onClose={() => setSocialAccountAutomation(null)}
+            ))}
+        </section>
+      </div>
+      {settingsTab ? (
+        <UserSettingsModal
+          initialTab={settingsTab}
+          onClose={() => setSettingsTab(null)}
         />
-      )}
-    </WorkspaceShell>
+      ) : null}
+    </main>
   )
 }
 
-function reviveAutomationSchema(schema: AutomationSchema): AutomationSchema {
-  return {
-    ...schema,
-    created_at: schema.created_at ? new Date(schema.created_at) : new Date(),
-  }
-}
-
-function withSocialIntegrationSummary(
-  automation: Automation,
-  socialIntegrations: AutomationSocialIntegration[]
-): Automation {
-  const activeIntegrations = socialIntegrations.filter(
-    (integration) =>
-      !integration.disabled && isSlideshowSocialProvider(integration.provider)
-  )
-  const first = activeIntegrations[0]
-
-  if (!first) {
-    return {
-      ...automation,
-      account: "No social account",
-      handle: "Click to add account",
-      socialIntegrations,
-    }
-  }
-
-  const extraCount = activeIntegrations.length - 1
-  const provider = socialProviderLabel(first.provider)
-  const account = extraCount > 0 ? `${first.name} +${extraCount}` : first.name
-  const profile = first.profile
-    ? `@${first.profile.replace(/^@/, "")}`
-    : provider
-
-  return {
-    ...automation,
-    account,
-    handle: `${provider} · ${profile}`,
-    socialIntegrations,
-  }
-}
-
-function socialProviderLabel(
-  provider: AutomationSocialIntegration["provider"]
-) {
-  switch (provider) {
-    case "youtube":
-      return "YouTube"
-    case "instagram":
-      return "Instagram"
-    case "tiktok":
-      return "TikTok"
-    case "tiktok-creative":
-      return "TikTok Creative"
-    case "tiktok-seller":
-      return "TikTok Seller"
-    case "facebook":
-      return "Facebook"
-    case "x":
-      return "X"
-    case "twitter":
-      return "Twitter"
-    case "linkedin":
-      return "LinkedIn"
-    case "threads":
-      return "Threads"
-    case "pinterest":
-      return "Pinterest"
-    case "bluesky":
-      return "Bluesky"
-    case "telegram":
-      return "Telegram"
-    case "google":
-      return "Google"
-    case "google-business-profile":
-      return "Google Business Profile"
-  }
+function pushWorkspaceUrl(href: string) {
+  const current = `${window.location.pathname}${window.location.search}`
+  if (current !== href) window.history.pushState(null, "", href)
 }

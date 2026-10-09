@@ -1,0 +1,125 @@
+{
+  "$schema": "https://lumenclip.app/schemas/slideshow-spec-v1.json",
+  "version": 1,
+  "id": "starter-grid-1x3",
+  "name": "Three-photo strip",
+  "description": "Three tall photos in a row (1×3) with a centred label pill.",
+  "canvas": {
+    "preset": "9:16",
+    "background": {
+      "slot": "bg"
+    }
+  },
+  "fonts": [
+    {
+      "family": "Inter",
+      "weights": [
+        800
+      ]
+    }
+  ],
+  "meta": {
+    "starter": true,
+    "category": "grid"
+  },
+  "slots": {
+    "photos": {
+      "type": "list",
+      "label": "Photos",
+      "minItems": 3,
+      "maxItems": 3,
+      "item": {
+        "image": {
+          "type": "image",
+          "label": "Photo",
+          "required": true
+        }
+      }
+    },
+    "label": {
+      "type": "text",
+      "label": "Label",
+      "maxLength": 40
+    },
+    "bg": {
+      "type": "color",
+      "label": "Background",
+      "default": "#FFFFFF"
+    }
+  },
+  "slides": [
+    {
+      "id": "grid",
+      "layers": [
+        {
+          "id": "grid",
+          "type": "group",
+          "frame": {
+            "inset": 24
+          },
+          "layout": {
+            "type": "grid",
+            "columns": 3,
+            "rows": 1,
+            "gap": 12
+          },
+          "children": [
+            {
+              "repeat": {
+                "slot": "photos",
+                "as": "p"
+              },
+              "layer": {
+                "id": "cell",
+                "type": "image",
+                "src": {
+                  "slot": "p.image"
+                },
+                "fit": "cover",
+                "cornerRadius": 20
+              }
+            }
+          ]
+        },
+        {
+          "id": "label",
+          "type": "text",
+          "if": {
+            "slot": "label"
+          },
+          "text": "{{label}}",
+          "style": {
+            "fontFamily": "Inter",
+            "fontWeight": 800,
+            "fontSize": {
+              "min": 36,
+              "max": 60
+            },
+            "color": "#111111",
+            "align": "center",
+            "maxLines": 2,
+            "textTransform": "uppercase",
+            "background": {
+              "mode": "block",
+              "color": "#FFFFFF",
+              "paddingX": 34,
+              "paddingY": 16,
+              "radius": 999
+            }
+          },
+          "shadow": {
+            "color": "rgba(0,0,0,0.25)",
+            "blur": 24,
+            "offsetY": 8
+          },
+          "frame": {
+            "x": "50%",
+            "y": "50%",
+            "width": "auto",
+            "anchor": "center"
+          }
+        }
+      ]
+    }
+  ]
+}

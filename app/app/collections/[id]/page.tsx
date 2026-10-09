@@ -1,24 +1,14 @@
-import { CollectionsRoute } from "@/features/collections/ui/collections-route"
-import { loadCollectionsRouteData } from "@/features/collections/server/load-collections-route"
-import { getCurrentUser } from "@/lib/auth"
+import { WorkspaceRoute } from "@/components/realfarm/routes/workspace-route"
 
 export default async function CollectionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const [{ id }, user, data] = await Promise.all([
-    params,
-    getCurrentUser(),
-    loadCollectionsRouteData(),
-  ])
+  const { id } = await params
   return (
-    <CollectionsRoute
-      assets={data.assets}
-      collectionId={id}
-      initialCollections={data.collections}
-      initialProductCollections={data.productCollections}
-      ownerName={user?.name ?? "LumenClip user"}
+    <WorkspaceRoute
+      navigation={{ view: "collections", collectionId: id }}
     />
   )
 }

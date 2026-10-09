@@ -97,7 +97,7 @@ export function MediaCardPreview({
       {...props}
     >
       {imageSrc ? (
-        // Media URLs are user/Appwrite supplied and are not restricted to configured Next hosts.
+        // Media URLs are user/Railway supplied and are not restricted to configured Next hosts.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           alt={alt ?? ""}

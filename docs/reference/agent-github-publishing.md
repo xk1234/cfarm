@@ -1,6 +1,6 @@
 ---
 title: "Agent GitHub publishing"
-description: "Safe commit, pull request, merge, and Railway deployment workflow for agents sharing the LumenClip checkout."
+description: "Safe commit, pull request, merge, and Vercel deployment workflow for agents sharing the LumenClip checkout."
 ---
 
 # Agent GitHub publishing
@@ -20,8 +20,8 @@ that the exact merged revision reached production.
 4. Inspect the index in a separate command immediately before committing.
 5. If unrelated files are staged, stop. Do not commit them and do not silently
    unstage them, because another agent may be preparing a commit.
-6. Never expose GitHub or deployment-platform tokens in commands, remote URLs,
-   logs, or documentation.
+6. Never expose GitHub or Vercel tokens in commands, remote URLs, logs, or
+   documentation.
 7. Merge only after checks pass for the exact current PR head SHA.
 8. Do not report deployment success until the production deployment for the
    merge commit is `READY`.
@@ -192,43 +192,42 @@ gh pr checks PR_NUMBER --watch
 Do not merge a pending or stale head merely because an earlier deployment
 passed.
 
-## 7. Verify Railway production
+## 7. Verify Vercel production
 
-Railway is the only application runtime and deployment target.
+Git integration creates a preview for the PR branch and a production
+deployment after the merge reaches `main`.
 
 Required sequence:
 
-1. Deploy the PR head to the Railway `development` web service.
-2. Run the focused smoke tests against the development Railway URL.
-3. Merge the PR only after checks pass for the exact head SHA.
-4. Deploy the merge commit to Railway production `web`, `worker`, and
-   `scheduler` as required by the change.
-5. Confirm each required service reaches `SUCCESS`, then inspect recent Railway
-   error logs and run production web, MCP, data, and asset smoke tests.
+1. Wait for the final PR-head preview to become `READY`.
+2. Merge the PR.
+3. Find the production deployment whose Git SHA equals the merge commit.
+4. Wait until that deployment's target is `production` and state is `READY`.
+5. Check recent production runtime errors.
 
 Record:
 
 - PR URL and merge commit;
-- Railway deployment IDs and production URL;
+- production deployment ID and URL;
 - deployment state;
 - framework;
 - validation results;
 - production runtime-error scan.
 
-## 8. Worker and scheduler changes
+A `READY` preview URL is not proof that production was updated.
 
-The worker and scheduler use native TypeScript entrypoints under `services/`.
-Validate them, then deploy the affected Railway services:
+## 8. Railway function changes
+
+Vercel deploys only the Next.js application. When a change touches Railway
+Functions or their synchronized shared modules:
 
 ```bash
-pnpm typecheck
-railway up --environment production --service worker
-railway up --environment production --service scheduler
+pnpm railway:check-shared
+node railway/functions/deploy.mjs
 ```
 
-`node appwrite/functions/deploy.mjs` is rollback-only and must not be run during
-a normal release. Do not claim a complete release if required Railway services
-were not deployed and verified.
+Follow the deployment order in [Deployment](deployment.md). Do not claim a
+complete release if required function changes were not deployed.
 
 ## Handoff checklist
 
@@ -239,6 +238,6 @@ were not deployed and verified.
 - [ ] Remote branch contains the intended content.
 - [ ] PR checks passed on the final head SHA.
 - [ ] PR merged with an expected head SHA.
-- [ ] Railway production services contain the merge commit and are successful.
+- [ ] Production deployment matches the merge commit and is `READY`.
 - [ ] Recent production runtime errors checked.
 - [ ] Unrelated local work called out in the handoff.

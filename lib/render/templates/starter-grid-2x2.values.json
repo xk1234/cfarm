@@ -1,0 +1,25 @@
+{
+  "photos": [
+    {
+      "image": {
+        "media": "sample-grid-1"
+      }
+    },
+    {
+      "image": {
+        "media": "sample-grid-2"
+      }
+    },
+    {
+      "image": {
+        "media": "sample-grid-3"
+      }
+    },
+    {
+      "image": {
+        "media": "sample-grid-4"
+      }
+    }
+  ],
+  "label": "Morning routine"
+}

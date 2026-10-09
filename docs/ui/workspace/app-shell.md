@@ -1,13 +1,9 @@
 ---
 title: Application shell
-description: Frame the authenticated workspace with persistent chrome and a responsive content region.
+description: Authenticated workspace chrome and responsive content framing for CFarm.
 ---
 
 Route: `/app?view=home`
-
-![Desktop dashboard](../assets/screenshots/desktop-dashboard.png)
-
-![Mobile dashboard](../assets/screenshots/mobile-dashboard.png)
 
 ## Layout
 
@@ -15,8 +11,8 @@ Owner: `components/realfarm/routes/workspace-route.tsx` loads the authenticated
 workspace, and `components/realfarm-workspace.tsx` owns the chrome and active
 surface.
 
-`WorkspaceRoute` sends a signed-out visitor to the global Clerk modal, then
-loads the initial workspace data, content templates, connected compose accounts, and
+`WorkspaceRoute` redirects a signed-out visitor to `/login`, then loads the
+initial workspace data, template records, connected compose accounts, and
 published-post dates before rendering the client workspace. The root layout
 supplies the application theme, the Fumadocs provider used by documentation,
 and one global top-right toaster.
@@ -25,13 +21,13 @@ The workspace fills the viewport and prevents the document itself from
 scrolling. On desktop, a persistent 224px sidebar sits beside a content region
 that scrolls vertically. On mobile, the sidebar is hidden, a fixed 56px branded
 header occupies the top edge, and the content region adds enough top padding to
-clear it. An open template editor can use the full content region without the
+clear it. A template editor can use the full content region without the
 standard page padding.
 
 The active destination is initialized from the `view` query parameter. Home,
-Compose, Schedule, Analytics, Collections, and Templates render inside the same
-shell. A template or run deep link adds `template=<id>` or `run=<id>` to the
-Templates workspace address.
+Compose, Schedule, Analytics, Collections, and Templates render inside the
+same shell. A template or run deep link adds `template=<id>` or `run=<id>`
+to the Templates workspace address.
 
 ## Interactions
 
@@ -40,8 +36,9 @@ addressable workspace location. Browser back and forward events restore the
 destination and any selected collection represented by the current URL.
 
 New template opens the template browser over the current workspace, and the
-account row opens workspace settings without changing the selected
-destination. Log out ends the Clerk session and sends the browser to `/`.
+account row opens workspace settings without changing the selected destination.
+The Clerk `<UserButton>` opens account management and performs sign-out; Clerk
+also owns verification and any required session tasks.
 
 ## MCP coverage
 

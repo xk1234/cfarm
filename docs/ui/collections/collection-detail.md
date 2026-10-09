@@ -1,6 +1,6 @@
 ---
 title: Collection detail
-description: Review and maintain the media inside one image or video collection.
+description: Media review and maintenance inside one image or video collection.
 ---
 
 Route: `/app/collections/[id]`
@@ -11,7 +11,7 @@ Route: `/app/collections/[id]`
 
 ## Layout
 
-Owner: `features/collections/ui/collection-detail-view.tsx`.
+Owner: `components/realfarm/collections/collection-detail-view.tsx`.
 
 The collection name and back action lead the page. Editable collections add
 rename, caption generation, view, and Add controls above an image upload

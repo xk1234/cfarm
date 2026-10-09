@@ -4,7 +4,7 @@ description: "Field-by-field reference for persisted LumenClip records and API v
 ---
 
 This is the canonical human-readable data dictionary for LumenClip. It is
-derived from the TypeScript domain types, normalization code, Appwrite store
+derived from the TypeScript domain types, normalization code, Railway store
 routing, and provisioning scripts. The linked source file remains the
 executable source of truth.
 
@@ -16,15 +16,12 @@ executable source of truth.
   as `Asia/Singapore`.
 - Values shown as backticked alternatives are the complete accepted enum.
 - `Free string` means the application does not enforce a closed enum.
-- Appwrite `$id`, `$createdAt`, `$updatedAt`, permissions, database ID, and
+- Railway `$id`, `$createdAt`, `$updatedAt`, permissions, database ID, and
   table ID are platform metadata and are not repeated in every physical table.
 - Domain fields use `camelCase` unless the compatibility contract intentionally
-  uses `snake_case`. Appwrite projections use `snake_case`.
+  uses `snake_case`. Railway projections use `snake_case`.
 
-## Physical domain tables
-
-Production stores these rows in Railway PostgreSQL. Local development exposes
-the same logical tables through the Appwrite-compatible adapter.
+## Physical Railway tables
 
 The `data` column stores the complete serialized domain object. Other columns
 are query projections and may be absent when they do not apply to that row's
@@ -33,8 +30,8 @@ are query projections and may be absent when they do not apply to that row's
 ### `permanent_assets`
 
 Reusable inputs and reference material. Current `source_key` values are
-`image_collection`, `uploaded_asset`, `starter_template`,
-`starter_template_example`, `word_collection`,
+`image_collection`, `uploaded_asset`, `automation_template`,
+`automation_template_example`, `word_collection`,
 `tiktok_studio_analytics_import`, `tiktok_studio_analytics_batch`,
 `tiktok_comment_collection`, `tiktok_captured_comment`,
 `tiktok_comment_reply_draft`, `tiktok_comment_reply_approval`,
@@ -44,7 +41,7 @@ Reusable inputs and reference material. Current `source_key` values are
 | Field              | Storage type  | Required | Allowed values / format                      | Meaning                                 |
 | ------------------ | ------------- | -------- | -------------------------------------------- | --------------------------------------- |
 | `rid`              | string (1024) | No       | Domain identifier                            | Stable logical record ID.               |
-| `owner_id`         | string (36)   | No       | Appwrite user ID                             | Omitted only for public reference rows. |
+| `owner_id`         | string (36)   | No       | Railway user ID                             | Omitted only for public reference rows. |
 | `source_key`       | string (255)  | No       | Values listed above                          | Polymorphic record discriminator.       |
 | `name`             | string (2048) | No       | Free string                                  | Projected label/title.                  |
 | `status`           | string (255)  | No       | Depends on `source_key`                      | Projected lifecycle state.              |
@@ -58,8 +55,8 @@ Reusable inputs and reference material. Current `source_key` values are
 | `description`      | medium text   | No       | Free string                                  | Projected description.                  |
 | `text`             | medium text   | No       | Free string                                  | Searchable body text.                   |
 | `tags`             | long text     | No       | JSON string array                            | Search/filter tags.                     |
-| `storage_bucket`   | string (255)  | No       | Appwrite bucket ID                           | Stored file bucket.                     |
-| `storage_file_id`  | string (255)  | No       | Appwrite file ID                             | Stored file identifier.                 |
+| `storage_bucket`   | string (255)  | No       | Railway bucket ID                           | Stored file bucket.                     |
+| `storage_file_id`  | string (255)  | No       | Railway file ID                             | Stored file identifier.                 |
 | `storage_path`     | medium text   | No       | Data-relative path                           | Compatibility asset path.               |
 | `url`              | medium text   | No       | URL/path                                     | Application-facing media URL.           |
 | `mime_type`        | string (255)  | No       | MIME type                                    | Stored media content type.              |
@@ -76,42 +73,42 @@ Reusable inputs and reference material. Current `source_key` values are
 ### `outputs`
 
 Generated content. Current `source_key` values are `result`,
-`generated_video`, `social_template_run`, and `publication_wrapper`.
+`generated_video`, `x_automation_run`, and `publication_wrapper`.
 
-| Field                  | Storage type  | Required | Allowed values / format                                                   | Meaning                               |
-| ---------------------- | ------------- | -------- | ------------------------------------------------------------------------- | ------------------------------------- |
-| `rid`                  | string (1024) | No       | Domain identifier                                                         | Stable logical output ID.             |
-| `owner_id`             | string (36)   | No       | Appwrite user ID                                                          | Output owner.                         |
-| `source_key`           | string (255)  | No       | `result`, `generated_video`, `social_template_run`, `publication_wrapper` | Output discriminator.                 |
-| `name`                 | string (2048) | No       | Free string                                                               | Projected output name.                |
-| `status`               | string (255)  | No       | Depends on `source_key`                                                   | Generation/content lifecycle.         |
-| `created_raw`          | string (64)   | No       | ISO datetime                                                              | Domain creation time.                 |
-| `data`                 | long text     | No       | JSON object string                                                        | Complete output object.               |
-| `ord`                  | integer       | No       | Zero-based integer                                                        | Stable order.                         |
-| `kind`                 | string (255)  | No       | Domain-specific                                                           | Broad content/media kind.             |
-| `subtype`              | string (255)  | No       | Domain-specific                                                           | More specific output class.           |
-| `storage_class`        | string (64)   | No       | Domain-specific                                                           | Storage policy/category.              |
-| `origin`               | string (64)   | No       | Domain-specific                                                           | How the output was created.           |
-| `title`                | string (2048) | No       | Free string                                                               | Display title.                        |
-| `hook`                 | medium text   | No       | Free string                                                               | Generated hook.                       |
-| `caption`              | medium text   | No       | Free string                                                               | Generated/social caption.             |
-| `hashtags`             | long text     | No       | String or JSON string array                                               | Hashtag payload.                      |
-| `text`                 | medium text   | No       | Free string                                                               | Primary generated text.               |
-| `text_data`            | long text     | No       | JSON string                                                               | Structured generated text.            |
-| `source_automation_id` | string (255)  | No       | Domain ID                                                                 | Originating automation.               |
-| `source_run_id`        | string (255)  | No       | Domain ID                                                                 | Originating run.                      |
-| `source_entity_id`     | string (255)  | No       | Domain ID                                                                 | Originating slideshow/content entity. |
-| `has_video`            | boolean       | No       | `true` or `false`                                                         | Fast video-output filter.             |
-| `publication_status`   | string (64)   | No       | Post status values below                                                  | Projected primary publication state.  |
-| `scheduled_at`         | string (64)   | No       | ISO datetime                                                              | Projected scheduled time.             |
-| `published_at`         | string (64)   | No       | ISO datetime                                                              | Projected publication time.           |
-| `primary_post_id`      | string (255)  | No       | Provider post ID                                                          | Primary remote post.                  |
-| `primary_release_url`  | medium text   | No       | URL                                                                       | Primary published URL.                |
-| `publications`         | long text     | No       | JSON `PostFastPostRecord[]`                                               | All publication attempts/records.     |
-| `evaluation`           | long text     | No       | JSON object string                                                        | Quality/evaluation payload.           |
-| `error`                | medium text   | No       | Free string                                                               | Output-level failure detail.          |
-| `updated_at`           | string (64)   | No       | ISO datetime                                                              | Domain update time.                   |
-| `migration_source`     | string (255)  | No       | Free string                                                               | Legacy migration provenance.          |
+| Field                  | Storage type  | Required | Allowed values / format                                                | Meaning                               |
+| ---------------------- | ------------- | -------- | ---------------------------------------------------------------------- | ------------------------------------- |
+| `rid`                  | string (1024) | No       | Domain identifier                                                      | Stable logical output ID.             |
+| `owner_id`             | string (36)   | No       | Railway user ID                                                       | Output owner.                         |
+| `source_key`           | string (255)  | No       | `result`, `generated_video`, `x_automation_run`, `publication_wrapper` | Output discriminator.                 |
+| `name`                 | string (2048) | No       | Free string                                                            | Projected output name.                |
+| `status`               | string (255)  | No       | Depends on `source_key`                                                | Generation/content lifecycle.         |
+| `created_raw`          | string (64)   | No       | ISO datetime                                                           | Domain creation time.                 |
+| `data`                 | long text     | No       | JSON object string                                                     | Complete output object.               |
+| `ord`                  | integer       | No       | Zero-based integer                                                     | Stable order.                         |
+| `kind`                 | string (255)  | No       | Domain-specific                                                        | Broad content/media kind.             |
+| `subtype`              | string (255)  | No       | Domain-specific                                                        | More specific output class.           |
+| `storage_class`        | string (64)   | No       | Domain-specific                                                        | Storage policy/category.              |
+| `origin`               | string (64)   | No       | Domain-specific                                                        | How the output was created.           |
+| `title`                | string (2048) | No       | Free string                                                            | Display title.                        |
+| `hook`                 | medium text   | No       | Free string                                                            | Generated hook.                       |
+| `caption`              | medium text   | No       | Free string                                                            | Generated/social caption.             |
+| `hashtags`             | long text     | No       | String or JSON string array                                            | Hashtag payload.                      |
+| `text`                 | medium text   | No       | Free string                                                            | Primary generated text.               |
+| `text_data`            | long text     | No       | JSON string                                                            | Structured generated text.            |
+| `source_automation_id` | string (255)  | No       | Domain ID                                                              | Originating automation.               |
+| `source_run_id`        | string (255)  | No       | Domain ID                                                              | Originating run.                      |
+| `source_entity_id`     | string (255)  | No       | Domain ID                                                              | Originating slideshow/content entity. |
+| `has_video`            | boolean       | No       | `true` or `false`                                                      | Fast video-output filter.             |
+| `publication_status`   | string (64)   | No       | Post status values below                                               | Projected primary publication state.  |
+| `scheduled_at`         | string (64)   | No       | ISO datetime                                                           | Projected scheduled time.             |
+| `published_at`         | string (64)   | No       | ISO datetime                                                           | Projected publication time.           |
+| `primary_post_id`      | string (255)  | No       | Provider post ID                                                       | Primary remote post.                  |
+| `primary_release_url`  | medium text   | No       | URL                                                                    | Primary published URL.                |
+| `publications`         | long text     | No       | JSON `PostFastPostRecord[]`                                            | All publication attempts/records.     |
+| `evaluation`           | long text     | No       | JSON object string                                                     | Quality/evaluation payload.           |
+| `error`                | medium text   | No       | Free string                                                            | Output-level failure detail.          |
+| `updated_at`           | string (64)   | No       | ISO datetime                                                           | Domain update time.                   |
+| `migration_source`     | string (255)  | No       | Free string                                                            | Legacy migration provenance.          |
 
 ### `output_media`
 
@@ -119,14 +116,14 @@ Normalized media children of an `outputs` row.
 
 | Field                | Storage type | Required | Allowed values / format           | Meaning                                |
 | -------------------- | ------------ | -------- | --------------------------------- | -------------------------------------- |
-| `output_id`          | string (36)  | No       | Appwrite output row ID            | Parent output.                         |
-| `owner_id`           | string (36)  | No       | Appwrite user ID                  | Parent owner.                          |
-| `permanent_asset_id` | string (36)  | No       | Appwrite row ID                   | Reused permanent asset, if any.        |
+| `output_id`          | string (36)  | No       | Railway output row ID            | Parent output.                         |
+| `owner_id`           | string (36)  | No       | Railway user ID                  | Parent owner.                          |
+| `permanent_asset_id` | string (36)  | No       | Railway row ID                   | Reused permanent asset, if any.        |
 | `kind`               | string (64)  | No       | `image`, `video`, `audio`, `text` | Media kind.                            |
 | `role`               | string (255) | No       | Domain-specific                   | Thumbnail, source, result, slide, etc. |
 | `position`           | integer      | No       | Zero-based integer                | Order within the output.               |
-| `storage_bucket`     | string (255) | No       | Appwrite bucket ID                | Stored file bucket.                    |
-| `storage_file_id`    | string (255) | No       | Appwrite file ID                  | Stored file identifier.                |
+| `storage_bucket`     | string (255) | No       | Railway bucket ID                | Stored file bucket.                    |
+| `storage_file_id`    | string (255) | No       | Railway file ID                  | Stored file identifier.                |
 | `storage_path`       | medium text  | No       | Data-relative path                | Compatibility path.                    |
 | `url`                | medium text  | No       | URL/path                          | Application-facing media URL.          |
 | `mime_type`          | string (255) | No       | MIME type                         | Content type.                          |
@@ -140,7 +137,7 @@ Normalized media children of an `outputs` row.
 
 ### Dedicated JSON-store row
 
-`templates`, `template_runs`, `social_templates`, `usage_ledger`,
+`automations`, `automation_runs`, `x_automations`, `usage_ledger`,
 `postfast_metric_snapshots`, and `account_follower_snapshots` use the same
 generic row projection. Their serialized `data` shape is documented under the
 matching domain object below.
@@ -148,7 +145,7 @@ matching domain object below.
 | Field         | Storage type   | Required                        | Allowed values / format | Meaning                  |
 | ------------- | -------------- | ------------------------------- | ----------------------- | ------------------------ |
 | `rid`         | string         | No                              | Domain identifier       | Logical record ID.       |
-| `owner_id`    | string         | No                              | Appwrite user ID        | Record owner.            |
+| `owner_id`    | string         | No                              | Railway user ID        | Record owner.            |
 | `name`        | string         | No                              | Free string             | Projected label.         |
 | `status`      | string         | No                              | Domain lifecycle enum   | Projected status.        |
 | `created_raw` | string         | No                              | ISO datetime            | Projected creation time. |
@@ -172,7 +169,7 @@ matching domain object below.
 | `result`       | long text    | No       | JSON                                                  | Completed output/receipt.              |
 | `error`        | string       | No       | Free string                                           | Last failure.                          |
 | `dedupe_key`   | string       | No       | Owner-scoped stable key                               | Duplicate-enqueue boundary.            |
-| `owner_id`     | string       | No       | Appwrite user ID                                      | Job owner.                             |
+| `owner_id`     | string       | No       | Railway user ID                                      | Job owner.                             |
 | `created_at`   | string       | No       | ISO datetime                                          | Enqueue time.                          |
 | `updated_at`   | string       | No       | ISO datetime                                          | Last state transition.                 |
 
@@ -180,22 +177,22 @@ matching domain object below.
 
 | Field            | Storage type | Required | Allowed values / format | Meaning                   |
 | ---------------- | ------------ | -------- | ----------------------- | ------------------------- |
-| `owner_id`       | string       | Yes      | Appwrite user ID        | Workspace owner.          |
+| `owner_id`       | string       | Yes      | Railway user ID        | Workspace owner.          |
 | `owner_name`     | string       | Yes      | Free string             | Owner display name.       |
 | `email`          | string       | Yes      | Normalized email        | Invited member.           |
-| `member_user_id` | string       | No       | Appwrite user ID        | Set after acceptance.     |
+| `member_user_id` | string       | No       | Railway user ID        | Set after acceptance.     |
 | `status`         | string       | Yes      | `pending`, `accepted`   | Invitation lifecycle.     |
-| `team_id`        | string       | Yes      | Appwrite Team ID        | Workspace team.           |
-| `membership_id`  | string       | Yes      | Appwrite membership ID  | Team membership.          |
+| `team_id`        | string       | Yes      | Railway Team ID        | Workspace team.           |
+| `membership_id`  | string       | Yes      | Railway membership ID  | Team membership.          |
 | `created_at`     | string       | Yes      | ISO datetime            | Invitation creation time. |
 
 ### `demos`
 
 | Field          | Storage type | Required | Allowed values / format         | Meaning                     |
 | -------------- | ------------ | -------- | ------------------------------- | --------------------------- |
-| `owner_id`     | string       | Yes      | Appwrite user ID                | Demo owner.                 |
+| `owner_id`     | string       | Yes      | Railway user ID                | Demo owner.                 |
 | `title`        | string       | Yes      | Free string                     | Display title.              |
-| `file_id`      | string       | Yes      | Appwrite file ID                | File in the `demos` bucket. |
+| `file_id`      | string       | Yes      | Railway file ID                | File in the `demos` bucket. |
 | `content_type` | string       | Yes      | MIME type; fallback `video/mp4` | Response content type.      |
 | `created_at`   | string       | Yes      | ISO datetime                    | Creation time.              |
 
@@ -240,91 +237,66 @@ Persistence: `permanent_assets`, `source_key=media_library_asset`.
 | `collection` | string enum | Yes      | `music`, `ugc_avatar_videos`, `demo_videos`, `greenscreen_memes`, `ctas` | Catalog partition.   |
 | `text`       | string      | No       | Free string                                                              | Text asset contents. |
 
-## Template definition
+## Automation definition
 
 ### `AutomationRecord`
 
-Persistence: `templates`. The TypeScript domain type remains
-`AutomationRecord`; stored IDs are intentionally unchanged so historical joins
-continue to resolve.
+Persistence: `automations`.
 
-| Field                | Type               | Required | Allowed values / format     | Meaning                                                 |
-| -------------------- | ------------------ | -------- | --------------------------- | ------------------------------------------------------- |
-| `ownerId`            | string             | No       | Appwrite user ID            | Injected record owner.                                  |
-| `id`                 | string             | Yes      | Stable domain ID            | Template ID.                                            |
-| `sourceAutomationId` | string             | No       | External ID                 | Imported automation identity.                           |
-| `sourceUrl`          | string             | No       | URL                         | Import source.                                          |
-| `name`               | string             | Yes      | Free string                 | Display name.                                           |
-| `hidden`             | boolean            | Yes      | `true`, `false`             | Hidden-tab membership; starter seeds default to `true`. |
-| `status`             | string enum        | Yes      | `live`, `paused`, `unknown` | Lifecycle state; `unknown` covers old records.          |
-| `favorite`           | boolean            | Yes      | `true`, `false`             | UI favorite state.                                      |
-| `theme`              | string             | Yes      | Free string                 | UI theme label.                                         |
-| `createdAt`          | ISO datetime       | Yes      | ISO 8601                    | Record creation time.                                   |
-| `importedAt`         | ISO datetime       | No       | ISO 8601                    | Import time.                                            |
-| `updatedAt`          | ISO datetime       | Yes      | ISO 8601                    | Last update.                                            |
-| `schema`             | `AutomationSchema` | Yes      | See below                   | Editable/runtime definition.                            |
-| `raw`                | object             | No       | JSON object                 | Preserved external source payload.                      |
+| Field                | Type               | Required | Allowed values / format     | Meaning                                        |
+| -------------------- | ------------------ | -------- | --------------------------- | ---------------------------------------------- |
+| `ownerId`            | string             | No       | Railway user ID            | Injected record owner.                         |
+| `id`                 | string             | Yes      | Stable domain ID            | Automation ID.                                 |
+| `sourceAutomationId` | string             | No       | External ID                 | Imported automation identity.                  |
+| `sourceUrl`          | string             | No       | URL                         | Import source.                                 |
+| `name`               | string             | Yes      | Free string                 | Display name.                                  |
+| `status`             | string enum        | Yes      | `live`, `paused`, `unknown` | Lifecycle state; `unknown` covers old records. |
+| `favorite`           | boolean            | Yes      | `true`, `false`             | UI favorite state.                             |
+| `theme`              | string             | Yes      | Free string                 | UI theme label.                                |
+| `importedAt`         | ISO datetime       | No       | ISO 8601                    | Import time.                                   |
+| `updatedAt`          | ISO datetime       | Yes      | ISO 8601                    | Last update.                                   |
+| `schema`             | `AutomationSchema` | Yes      | See below                   | Editable/runtime definition.                   |
+| `raw`                | object             | No       | JSON object                 | Preserved external source payload.             |
 
 ### `AutomationSchema`
 
-| Field                     | Type                          | Required | Allowed values / format            | Meaning                                       |
-| ------------------------- | ----------------------------- | -------- | ---------------------------------- | --------------------------------------------- |
-| `automationKind`          | string enum                   | Yes      | `slideshow`, `video`, `ugc`        | Generation family.                            |
-| `aspect_ratio`            | string enum                   | Yes      | `9:16`, `4:5`, `3:4`, `3:2`, `1:1` | Global output aspect ratio.                   |
-| `font`                    | string                        | Yes      | Registered/font-family string      | Global font.                                  |
-| `image_fit`               | string enum                   | Yes      | `cover`, `contain`, `fit`          | Image fit policy.                             |
-| `language`                | string                        | Yes      | Language label/code                | Generation language.                          |
-| `created_at`              | Date/ISO on serialization     | Yes      | Valid datetime                     | Definition creation time.                     |
-| `social_integrations`     | `PostFastSocialIntegration[]` | Yes      | Compatibility array                | Legacy only; template runs ignore it.         |
-| `prompt_formatting`       | `PromptFormatting`            | Yes      | See below                          | Text-generation direction.                    |
-| `hooks`                   | `AutomationHookItem[]`        | Yes      | Array                              | Optional canonical hook catalog.              |
-| `image_collection_ids`    | `ImageCollectionConfig`       | Yes      | See below                          | Media source selection.                       |
-| `tone`                    | `AutomationToneSection`       | Yes      | See below                          | Tone selection/custom direction.              |
-| `formatting`              | `AutomationFormatSection[]`   | Yes      | IDs `hook`, `body`, `cta`          | Legacy migration source.                      |
-| `slide_designs`           | `AutomationSlideDesign[]`     | Yes      | Non-empty ordered array            | Agent-selectable slide layouts.               |
-| `tiktok_post_settings`    | object                        | Yes      | See `TikTokPostSettings`           | Compatibility publishing policy.              |
-| `social_post_settings`    | object                        | Yes      | Compatibility object               | Legacy only; publication is post-processing.  |
-| `social_publish_as`       | object                        | Yes      | Compatibility object               | Legacy only; publication is post-processing.  |
-| `schedule`                | `AutomationSchedule`          | Yes      | Compatibility object               | Ignored; no timed template generation.        |
-| `posting_mode`            | string enum                   | No       | Normalized to `manual`             | Compatibility field.                          |
-| `generation_lead_minutes` | number                        | No       | Compatibility number               | Ignored by template generation.               |
-| `hook_slots`              | object                        | No       | `{ token: collectionId }`          | Explicit variable-collection overrides.       |
-| `hook_no_duplicate_slots` | boolean                       | No       | `true`, `false`                    | Avoid duplicate hook slot selections.         |
-| `distinct_variable_draws` | boolean                       | No       | `true`, `false`                    | Draw different values for repeated variables. |
-| `web_search_enabled`      | boolean                       | No       | `true`, `false`                    | Allow provider web-search generation.         |
-| `reuse_policy`            | `AutomationReusePolicy`       | No       | See below                          | Recent-content exclusion settings.            |
-| `content_strategy`        | `AutomationContentStrategy`   | No       | See below                          | Route-based content strategy.                 |
-| `video_format`            | `AutomationVideoFormat`       | No       | Required by video flows            | Segment/template configuration.               |
-| `ugc`                     | `AutomationUgcConfig`         | No       | Required by UGC flows              | UGC actor/voice/caption configuration.        |
+| Field                     | Type                          | Required | Allowed values / format                      | Meaning                                       |
+| ------------------------- | ----------------------------- | -------- | -------------------------------------------- | --------------------------------------------- |
+| `automationKind`          | string enum                   | Yes      | `slideshow`, `video`, `ugc`                  | Generation family.                            |
+| `aspect_ratio`            | string enum                   | Yes      | `9:16`, `4:5`, `3:4`, `3:2`, `1:1`           | Global output aspect ratio.                   |
+| `font`                    | string                        | Yes      | Registered/font-family string                | Global font.                                  |
+| `image_fit`               | string enum                   | Yes      | `cover`, `contain`, `fit`                    | Image fit policy.                             |
+| `language`                | string                        | Yes      | Language label/code                          | Generation language.                          |
+| `created_at`              | Date/ISO on serialization     | Yes      | Valid datetime                               | Definition creation time.                     |
+| `social_integrations`     | `PostFastSocialIntegration[]` | Yes      | Array                                        | Publication targets.                          |
+| `prompt_formatting`       | `PromptFormatting`            | Yes      | See below                                    | Text-generation direction.                    |
+| `hooks`                   | `AutomationHookItem[]`        | Yes      | Array                                        | Canonical hook catalog.                       |
+| `image_collection_ids`    | `ImageCollectionConfig`       | Yes      | See below                                    | Media source selection.                       |
+| `tone`                    | `AutomationToneSection`       | Yes      | See below                                    | Tone selection/custom direction.              |
+| `formatting`              | `AutomationFormatSection[]`   | Yes      | IDs `hook`, `body`, `cta`                    | Slide/text layout.                            |
+| `tiktok_post_settings`    | object                        | Yes      | See `TikTokPostSettings`                     | Compatibility publishing policy.              |
+| `social_post_settings`    | object                        | Yes      | Provider-keyed controls                      | Provider-specific PostFast controls.          |
+| `social_publish_as`       | object                        | Yes      | Provider keys; values `slideshow` or `video` | Per-provider media mode.                      |
+| `schedule`                | `AutomationSchedule`          | Yes      | See below                                    | Posting schedule.                             |
+| `posting_mode`            | string enum                   | No       | `manual`, `review`, `auto`                   | Publication workflow.                         |
+| `generation_lead_minutes` | number                        | No       | Non-negative number                          | Generate before scheduled publication.        |
+| `hook_slots`              | object                        | No       | `{ token: collectionId }`                    | Explicit variable-collection overrides.       |
+| `hook_no_duplicate_slots` | boolean                       | No       | `true`, `false`                              | Avoid duplicate hook slot selections.         |
+| `distinct_variable_draws` | boolean                       | No       | `true`, `false`                              | Draw different values for repeated variables. |
+| `web_search_enabled`      | boolean                       | No       | `true`, `false`                              | Allow provider web-search generation.         |
+| `reuse_policy`            | `AutomationReusePolicy`       | No       | See below                                    | Recent-content exclusion settings.            |
+| `content_strategy`        | `AutomationContentStrategy`   | No       | See below                                    | Route-based content strategy.                 |
+| `video_format`            | `AutomationVideoFormat`       | No       | Required by video flows                      | Segment/template configuration.               |
+| `ugc`                     | `AutomationUgcConfig`         | No       | Required by UGC flows                        | UGC actor/voice/caption configuration.        |
 
 ### `PromptFormatting`
 
-| Field                   | Type   | Required | Allowed values / format                            | Meaning                                 |
-| ----------------------- | ------ | -------- | -------------------------------------------------- | --------------------------------------- |
-| `style`                 | string | Yes      | Free string                                        | Slide-copy direction.                   |
-| `narrative`             | string | Yes      | Compatibility string                               | Legacy narrative input.                 |
-| `num_of_slides`         | number | Yes      | Positive integer                                   | Fixed generation count.                 |
-| `slide_count_min`       | number | No       | Same as `num_of_slides`                            | Deprecated compatibility mirror.        |
-| `slide_count_max`       | number | No       | Same as `num_of_slides`                            | Deprecated compatibility mirror.        |
-| `slide_planning_prompt` | string | No       | Free string                                        | Sequence-planner direction.             |
-| `hook_case`             | string | No       | Hook-case modes registered in `lib/hook-casing.ts` | Optional hook capitalization transform. |
-
-### `AutomationSlideDesign`
-
-| Field              | Type         | Required | Meaning                                             |
-| ------------------ | ------------ | -------- | --------------------------------------------------- |
-| `id`               | string       | Yes      | Stable design ID returned by the sequence planner.  |
-| `name`             | string       | Yes      | Editor label.                                       |
-| `instructions`     | string       | Yes      | Tells the text agent when this design fits a slide. |
-| `collectionId`     | string       | Yes      | Primary image collection for this design.           |
-| `textItems`        | `TextItem[]` | Yes      | Independently styled text boxes.                    |
-| `aspect_ratio`     | string enum  | Yes      | Frame ratio.                                        |
-| `imageGrid`        | string enum  | Yes      | Image layout.                                       |
-| `noText`           | boolean      | Yes      | Hides all text boxes when true.                     |
-| `overlay`          | boolean      | Yes      | Applies the dark readability overlay.               |
-| `aiImageSelection` | boolean      | No       | Enables caption-aware image matching.               |
-| `overlayImage`     | object       | No       | Optional cutout/overlay collection and padding.     |
-| `visualPresetId`   | string       | No       | Applied visual preset.                              |
+| Field           | Type   | Required | Allowed values / format                            | Meaning                        |
+| --------------- | ------ | -------- | -------------------------------------------------- | ------------------------------ |
+| `style`         | string | Yes      | Free string                                        | Style direction.               |
+| `narrative`     | string | Yes      | Free string                                        | Narrative/writing direction.   |
+| `num_of_slides` | number | Yes      | Positive integer                                   | Default slide count.           |
+| `hook_case`     | string | No       | Hook-case modes registered in `lib/hook-casing.ts` | Hook capitalization transform. |
 
 ### `ImageCollectionConfig`
 
@@ -450,36 +422,36 @@ continue to resolve.
 
 ### `AutomationUgcConfig`
 
-| Field                    | Type        | Required | Allowed values / format  | Meaning                    |
-| ------------------------ | ----------- | -------- | ------------------------ | -------------------------- |
-| `enabled`                | boolean     | Yes      | `true`, `false`          | Enable UGC flow.           |
-| `productUrl`             | string      | No       | URL                      | Product source.            |
-| `productBrief`           | string      | No       | Free string              | Product direction.         |
-| `actorSource`            | string enum | Yes      | `generate`, `collection` | Actor source.              |
-| `actorCollectionId`      | string      | No       | Collection ID            | Actor portrait collection. |
-| `actorPrompt`            | string      | No       | Free string              | Actor generation prompt.   |
-| `voiceId`                | string      | Yes      | Provider voice ID        | Voice selection.           |
-| `voiceModel`             | string      | No       | Provider model ID        | Voice model.               |
-| `lipSyncTier`            | string enum | Yes      | `standard`, `premium`    | Lip-sync quality tier.     |
-| `targetDurationSeconds`  | number      | Yes      | Positive number          | Target duration.           |
-| `brollCount`             | number      | Yes      | Non-negative integer     | B-roll count.              |
-| `captions.enabled`       | boolean     | Yes      | `true`, `false`          | Caption rendering.         |
-| `captions.style`         | string      | Yes      | Registered/free style    | Caption style.             |
-| `captions.fallback`      | string enum | Yes      | `drawtext`, `png_frames` | Caption fallback renderer. |
-| `hookOverlay.enabled`    | boolean     | Yes      | `true`, `false`          | Hook overlay.              |
-| `hookOverlay.durationMs` | number      | Yes      | Non-negative integer     | Overlay duration.          |
-| `hookOverlay.style`      | string      | Yes      | Registered/free style    | Overlay style.             |
+| Field                    | Type        | Required | Allowed values / format         | Meaning                    |
+| ------------------------ | ----------- | -------- | ------------------------------- | -------------------------- |
+| `enabled`                | boolean     | Yes      | `true`, `false`                 | Enable UGC flow.           |
+| `productUrl`             | string      | No       | URL                             | Product source.            |
+| `productBrief`           | string      | No       | Free string                     | Product direction.         |
+| `actorSource`            | string enum | Yes      | `generate`, `gallery`, `upload` | Actor source.              |
+| `actorAssetUrl`          | string      | No       | URL/path                        | Selected actor media.      |
+| `actorPrompt`            | string      | No       | Free string                     | Actor generation prompt.   |
+| `voiceId`                | string      | Yes      | Provider voice ID               | Voice selection.           |
+| `voiceModel`             | string      | No       | Provider model ID               | Voice model.               |
+| `lipSyncTier`            | string enum | Yes      | `standard`, `premium`           | Lip-sync quality tier.     |
+| `targetDurationSeconds`  | number      | Yes      | Positive number                 | Target duration.           |
+| `brollCount`             | number      | Yes      | Non-negative integer            | B-roll count.              |
+| `captions.enabled`       | boolean     | Yes      | `true`, `false`                 | Caption rendering.         |
+| `captions.style`         | string      | Yes      | Registered/free style           | Caption style.             |
+| `captions.fallback`      | string enum | Yes      | `drawtext`, `png_frames`        | Caption fallback renderer. |
+| `hookOverlay.enabled`    | boolean     | Yes      | `true`, `false`                 | Hook overlay.              |
+| `hookOverlay.durationMs` | number      | Yes      | Non-negative integer            | Overlay duration.          |
+| `hookOverlay.style`      | string      | Yes      | Registered/free style           | Overlay style.             |
 
-## Template execution and output
+## Automation execution and output
 
 ### `AutomationRunRecord`
 
-Persistence: `template_runs`.
+Persistence: `automation_runs`.
 
 | Field                 | Type                           | Required | Allowed values / format          | Meaning                        |
 | --------------------- | ------------------------------ | -------- | -------------------------------- | ------------------------------ |
 | `id`                  | string                         | Yes      | Stable domain ID                 | Run ID.                        |
-| `automationId`        | string                         | Yes      | Template ID                      | Parent template.               |
+| `automationId`        | string                         | Yes      | Automation ID                    | Parent automation.             |
 | `automationTitle`     | string                         | Yes      | Free string                      | Snapshot title.                |
 | `scheduledFor`        | ISO datetime                   | Yes      | ISO 8601                         | Content slot.                  |
 | `generationSource`    | string enum                    | No       | `manual`, `scheduled`            | Initiator.                     |
@@ -517,7 +489,7 @@ Persistence: `template_runs`.
 | `publishType`         | string                 | Yes      | Normalized publish type                | Output/publication form.                       |
 | `autoMusic`           | boolean                | Yes      | `true`, `false`                        | Music decision.                                |
 | `autoPost`            | boolean                | Yes      | `true`, `false`                        | Auto-publication decision.                     |
-| `reuseWarnings`       | object[]               | No       | `kind` is `image`                      | Reuse exceptions.                              |
+| `reuseWarnings`       | object[]               | No       | `kind` currently `image`               | Reuse exceptions.                              |
 | `hookCandidates`      | string[]               | No       | Free strings                           | Candidate hooks.                               |
 | `textModel`           | string                 | No       | Provider model ID                      | Text model used.                               |
 | `language`            | string                 | Yes      | Language label/code                    | Generation language.                           |
@@ -531,7 +503,7 @@ Persistence: `outputs`, `source_key=result`.
 
 | Field                   | Type                    | Required | Allowed values / format                        | Meaning                                 |
 | ----------------------- | ----------------------- | -------- | ---------------------------------------------- | --------------------------------------- |
-| `ownerId`               | string                  | No       | Appwrite user ID                               | Output owner.                           |
+| `ownerId`               | string                  | No       | Railway user ID                               | Output owner.                           |
 | `id`                    | string                  | Yes      | Stable domain ID                               | Result ID.                              |
 | `automationId`          | string                  | Yes      | Automation ID                                  | Source automation.                      |
 | `runId`                 | string                  | Yes      | Run ID                                         | Source run; one current result per run. |
@@ -561,7 +533,7 @@ table.
 
 | Field              | Type                | Required | Allowed values / format | Meaning                    |
 | ------------------ | ------------------- | -------- | ----------------------- | -------------------------- |
-| `ownerId`          | string              | No       | Appwrite user ID        | Owner.                     |
+| `ownerId`          | string              | No       | Railway user ID        | Owner.                     |
 | `id`               | string              | Yes      | Domain ID               | Slideshow ID.              |
 | `runId`            | string              | No       | Run ID                  | Source run.                |
 | `automationId`     | string              | No       | Automation ID           | Source automation.         |
@@ -601,7 +573,7 @@ Persistence: `outputs`, `source_key=generated_video`.
 
 | Field                 | Type         | Required | Allowed values / format                    | Meaning                      |
 | --------------------- | ------------ | -------- | ------------------------------------------ | ---------------------------- |
-| `ownerId`             | string       | No       | Appwrite user ID                           | Owner.                       |
+| `ownerId`             | string       | No       | Railway user ID                           | Owner.                       |
 | `id`                  | string       | Yes      | Stable domain ID                           | Export ID.                   |
 | `type`                | string enum  | Yes      | `greenscreen`, `ugc_ad`, `template_video`  | Export family.               |
 | `status`              | string enum  | Yes      | `queued`, `processing`, `ready`, `failed`  | Generation lifecycle.        |
@@ -621,19 +593,18 @@ Persistence: `outputs`, `source_key=generated_video`.
 | `manuallyPublishedAt` | ISO datetime | No       | ISO 8601                                   | Manual publication evidence. |
 | `deletionBlockedBy`   | string enum  | No       | `published`, `scheduled`                   | Why deletion is blocked.     |
 
-## X and Threads templates
+## X and Threads automation
 
 ### `XAutomationRecord`
 
-Persistence: `social_templates`.
+Persistence: `x_automations`.
 
 | Field                             | Type                          | Required | Allowed values / format                                | Meaning                          |
 | --------------------------------- | ----------------------------- | -------- | ------------------------------------------------------ | -------------------------------- |
-| `id`                              | string                        | Yes      | Stable domain ID                                       | Template ID.                     |
-| `ownerId`                         | string                        | No       | Appwrite user ID                                       | Owner.                           |
+| `id`                              | string                        | Yes      | Stable domain ID                                       | Automation ID.                   |
+| `ownerId`                         | string                        | No       | Railway user ID                                       | Owner.                           |
 | `platform`                        | string enum                   | Yes      | `x`, `threads`                                         | Target platform.                 |
 | `name`                            | string                        | Yes      | Free string                                            | Display name.                    |
-| `hidden`                          | boolean                       | Yes      | `true`, `false`                                        | Active/Hidden tab membership.    |
 | `status`                          | string enum                   | Yes      | `live`, `paused`                                       | Lifecycle.                       |
 | `createdAt`                       | ISO datetime                  | Yes      | ISO 8601                                               | Creation time.                   |
 | `updatedAt`                       | ISO datetime                  | Yes      | ISO 8601                                               | Last update.                     |
@@ -678,14 +649,14 @@ Allowed `output.archetype` values: `educational_thread`, `data_drop`,
 
 ### `XAutomationRun`
 
-Persistence: `outputs`, `source_key=social_template_run`.
+Persistence: `outputs`, `source_key=x_automation_run`.
 
 | Field             | Type               | Required | Allowed values / format                                     | Meaning                      |
 | ----------------- | ------------------ | -------- | ----------------------------------------------------------- | ---------------------------- |
 | `id`              | string             | Yes      | Stable domain ID                                            | Run ID.                      |
-| `ownerId`         | string             | No       | Appwrite user ID                                            | Owner.                       |
+| `ownerId`         | string             | No       | Railway user ID                                            | Owner.                       |
 | `requestId`       | string             | No       | Correlation/idempotency ID                                  | Request identity.            |
-| `automationId`    | string             | Yes      | Template ID                                                 | Parent.                      |
+| `automationId`    | string             | Yes      | Automation ID                                               | Parent.                      |
 | `automationName`  | string             | Yes      | Free string                                                 | Snapshot name.               |
 | `topic`           | string             | Yes      | Free string                                                 | Topic.                       |
 | `archetype`       | string enum        | No       | X archetypes listed above                                   | Selected archetype.          |
@@ -724,7 +695,7 @@ Persistence: `permanent_assets`, `source_key=image_collection`.
 
 | Field                   | Type         | Required | Allowed values / format                              | Meaning                                       |
 | ----------------------- | ------------ | -------- | ---------------------------------------------------- | --------------------------------------------- |
-| `ownerId`               | string       | No       | Appwrite user ID                                     | Owner.                                        |
+| `ownerId`               | string       | No       | Railway user ID                                     | Owner.                                        |
 | `name`                  | string       | Yes      | Non-empty string                                     | Effective upsert identity.                    |
 | `created_at`            | ISO datetime | Yes      | ISO 8601                                             | Creation time; paired with name for deletion. |
 | `pinned`                | boolean      | No       | `true`, `false`                                      | Pin state.                                    |
@@ -757,7 +728,7 @@ Persistence: `permanent_assets`, `source_key=product_collection`.
 
 | Field                  | Type                      | Required | Allowed values / format | Meaning              |
 | ---------------------- | ------------------------- | -------- | ----------------------- | -------------------- |
-| `ownerId`              | string                    | No       | Appwrite user ID        | Owner.               |
+| `ownerId`              | string                    | No       | Railway user ID        | Owner.               |
 | `id`                   | string                    | Yes      | Stable domain ID        | Collection ID.       |
 | `name`                 | string                    | Yes      | Non-empty string        | Display name.        |
 | `description`          | string                    | Yes      | Free string             | Description.         |
@@ -769,21 +740,63 @@ Persistence: `permanent_assets`, `source_key=product_collection`.
 
 ### `ProductCollectionItem`
 
-| Field                 | Type           | Required | Allowed values / format | Meaning                    |
-| --------------------- | -------------- | -------- | ----------------------- | -------------------------- |
-| `id`                  | string         | Yes      | Stable domain ID        | Product ID.                |
-| `marketplace`         | string enum    | Yes      | `amazon`, `shopee`      | Marketplace.               |
-| `marketplaceUrl`      | string         | Yes      | URL                     | Product URL.               |
-| `name`                | string         | Yes      | Free string             | Product name.              |
-| `currency`            | string literal | Yes      | `SGD`                   | Currency.                  |
-| `price`               | number         | Yes      | Non-negative            | Numeric price.             |
-| `priceLabel`          | string         | Yes      | Free string             | Display price.             |
-| `commissionRate`      | number         | Yes      | Numeric rate            | Commission rate.           |
-| `estimatedCommission` | number         | Yes      | Non-negative            | Estimated amount.          |
-| `storeImageUrl`       | string         | Yes      | URL/path                | Marketplace image.         |
-| `generatedImageUrl`   | string         | Yes      | URL/path                | Generated lifestyle image. |
-| `useCase`             | string         | Yes      | Free string             | Creative use case.         |
-| `sourcedAt`           | ISO datetime   | Yes      | ISO 8601                | Source time.               |
+| Field                 | Type                        | Required | Allowed values / format | Meaning                                                   |
+| --------------------- | --------------------------- | -------- | ----------------------- | --------------------------------------------------------- |
+| `id`                  | string                      | Yes      | Stable domain ID        | Product ID.                                               |
+| `marketplace`         | string enum                 | Yes      | `amazon`, `shopee`      | Marketplace.                                              |
+| `marketplaceUrl`      | string                      | Yes      | URL                     | Product URL.                                              |
+| `name`                | string                      | Yes      | Free string             | Product name.                                             |
+| `currency`            | string literal              | Yes      | `SGD`                   | Currency.                                                 |
+| `price`               | number                      | Yes      | Non-negative            | Numeric price.                                            |
+| `priceLabel`          | string                      | Yes      | Free string             | Display price.                                            |
+| `commissionRate`      | number                      | Yes      | Numeric rate            | Commission rate.                                          |
+| `estimatedCommission` | number                      | Yes      | Non-negative            | Estimated amount.                                         |
+| `storeImageUrl`       | string                      | Yes      | URL/path                | Marketplace image.                                        |
+| `generatedImageUrl`   | string                      | Yes      | URL/path                | Generated lifestyle image.                                |
+| `media`               | `ProductCollectionMedia[]`  | No       | Array                   | Stored product gallery.                                   |
+| `salesInspirations`   | `ProductSalesInspiration[]` | No       | Array                   | Source hook/script mappings adapted to sell this product. |
+| `rating`              | number                      | No       | 0–5                     | Marketplace rating.                                       |
+| `reviewCount`         | number                      | No       | Non-negative integer    | Marketplace review count.                                 |
+| `useCase`             | string                      | Yes      | Free string             | Creative use case.                                        |
+| `sourcedAt`           | ISO datetime                | Yes      | ISO 8601                | Source time.                                              |
+
+### `ProductCollectionMedia`
+
+| Field       | Type        | Required | Allowed values / format   | Meaning                         |
+| ----------- | ----------- | -------- | ------------------------- | ------------------------------- |
+| `id`        | string      | Yes      | Stable within the product | Media ID.                       |
+| `type`      | string enum | Yes      | `image`, `video`          | Media type.                     |
+| `role`      | string enum | Yes      | `primary`, `gallery`      | Display role.                   |
+| `url`       | string      | Yes      | Local asset path          | Private stored media reference. |
+| `sourceUrl` | string      | No       | URL                       | Original marketplace media URL. |
+| `mimeType`  | string      | No       | MIME type                 | Stored media content type.      |
+
+### `ProductSalesInspiration`
+
+| Field                   | Type                   | Required | Allowed values / format | Meaning                                              |
+| ----------------------- | ---------------------- | -------- | ----------------------- | ---------------------------------------------------- |
+| `id`                    | string                 | Yes      | Stable within product   | Inspiration pattern ID.                              |
+| `source.platform`       | string enum            | Yes      | `reel_farm`, `pdf`      | Inspiration source.                                  |
+| `source.label`          | string                 | Yes      | Free string             | Pattern label.                                       |
+| `source.creator`        | string                 | Yes      | Creator handle          | Original creator.                                    |
+| `source.url`            | string                 | No       | HTTPS URL               | Source database URL.                                 |
+| `source.assetName`      | string                 | No       | Free string             | Local source document name.                          |
+| `source.page`           | number                 | No       | Positive integer        | Source document page.                                |
+| `source.views`          | number                 | No       | Non-negative            | Observed benchmark views.                            |
+| `source.likes`          | number                 | No       | Non-negative            | Observed benchmark likes.                            |
+| `source.engagementRate` | number                 | No       | Percentage              | Observed likes-to-views rate.                        |
+| `original`              | `ProductSalesCreative` | Yes      | Object                  | Original visual hook, text hook, and script.         |
+| `repurposed`            | `ProductSalesCreative` | Yes      | Object                  | Product-specific visual hook, text hook, and script. |
+| `analysis.pattern`      | string                 | Yes      | Free string             | Why the source pattern works.                        |
+| `analysis.whyItFits`    | string                 | Yes      | Free string             | Why it suits this product.                           |
+
+### `ProductSalesCreative`
+
+| Field        | Type     | Required | Allowed values / format | Meaning                                |
+| ------------ | -------- | -------- | ----------------------- | -------------------------------------- |
+| `visualHook` | string   | Yes      | Free string             | Opening visual treatment.              |
+| `textHook`   | string   | Yes      | Free string             | Opening on-screen copy.                |
+| `script`     | string[] | Yes      | Ordered non-empty lines | Slide-by-slide or beat-by-beat script. |
 
 ### `AssetRecord`
 
@@ -791,7 +804,7 @@ Persistence: `permanent_assets`, `source_key=uploaded_asset`.
 
 | Field          | Type         | Required | Allowed values / format                                                       | Meaning                    |
 | -------------- | ------------ | -------- | ----------------------------------------------------------------------------- | -------------------------- |
-| `ownerId`      | string       | No       | Appwrite user ID                                                              | Owner.                     |
+| `ownerId`      | string       | No       | Railway user ID                                                              | Owner.                     |
 | `id`           | string       | Yes      | Stable domain ID                                                              | Asset ID.                  |
 | `kind`         | string enum  | Yes      | `image`, `video`, `audio`, `text`                                             | Media kind.                |
 | `source`       | string enum  | Yes      | `upload`, `ai_generated`                                                      | Creation source.           |
@@ -906,16 +919,18 @@ Persistence: `postfast_metric_snapshots`.
 
 ### `TikTokStudioAnalytics`
 
-| Field              | Type           | Required | Allowed values / format                                   | Meaning               |
-| ------------------ | -------------- | -------- | --------------------------------------------------------- | --------------------- |
-| `schemaVersion`    | number literal | Yes      | `1`                                                       | Payload version.      |
-| `studioUrl`        | string         | Yes      | TikTok Studio URL                                         | Capture source.       |
-| `capturedSections` | string[]       | Yes      | `overview`, `viewers`, `engagement`                       | Captured panels.      |
-| `overview`         | object         | No       | Optional author/caption/time/photo and KPI fields         | Overview panel.       |
-| `slides`           | object[]       | Yes      | Index, optional retention/like percentages and peak flags | Slide analytics.      |
-| `trafficSources`   | number map     | Yes      | `{ source: percent }`                                     | Traffic distribution. |
-| `searchTerms`      | object[]       | Yes      | `{ term, percent }`                                       | Search traffic.       |
-| `audience`         | object         | No       | Viewer/follower percentages and age/gender/country maps   | Audience breakdown.   |
+| Field              | Type           | Required | Allowed values / format                                   | Meaning                                          |
+| ------------------ | -------------- | -------- | --------------------------------------------------------- | ------------------------------------------------ |
+| `schemaVersion`    | number literal | Yes      | `1`                                                       | Payload version.                                 |
+| `studioUrl`        | string         | Yes      | TikTok Studio URL                                         | Capture source.                                  |
+| `capturedSections` | string[]       | Yes      | `overview`, `viewers`, `engagement`                       | Captured panels.                                 |
+| `overview`         | object         | No       | Optional author/caption/time/photo and KPI fields         | Overview panel.                                  |
+| `slides`           | object[]       | Yes      | Index, optional retention/like percentages and peak flags | Slide analytics.                                 |
+| `trafficSources`   | number map     | Yes      | `{ source: percent }`                                     | Traffic distribution.                            |
+| `searchTerms`      | object[]       | Yes      | `{ term, percent }`                                       | Search traffic.                                  |
+| `viewHistory7d`    | object[]       | No       | Offset, response status, and optional value               | TikTok Studio daily view buckets since posting.  |
+| `viewHistory48h`   | object[]       | No       | Offset, response status, and optional value               | TikTok Studio hourly view buckets since posting. |
+| `audience`         | object         | No       | Viewer/follower percentages and age/gender/country maps   | Audience breakdown.                              |
 
 ### `AccountFollowerSnapshot`
 
@@ -938,7 +953,7 @@ Domain view over the `jobs` table.
 
 | Field         | Type                 | Required | Allowed values / format                               | Meaning              |
 | ------------- | -------------------- | -------- | ----------------------------------------------------- | -------------------- |
-| `id`          | string               | Yes      | Deterministic Appwrite row ID                         | Job ID.              |
+| `id`          | string               | Yes      | Deterministic Railway row ID                         | Job ID.              |
 | `type`        | string               | Yes      | Registered worker job type                            | Dispatch key.        |
 | `status`      | string enum          | Yes      | `queued`, `processing`, `completed`, `failed`, `dead` | Lifecycle.           |
 | `payload`     | unknown              | Yes      | Parsed JSON/value                                     | Worker input.        |
@@ -949,7 +964,7 @@ Domain view over the `jobs` table.
 | `availableAt` | ISO datetime or null | Yes      | ISO 8601 or `null`                                    | Earliest claim time. |
 | `createdAt`   | ISO datetime or null | Yes      | ISO 8601 or `null`                                    | Creation time.       |
 | `updatedAt`   | ISO datetime or null | Yes      | ISO 8601 or `null`                                    | Last update.         |
-| `ownerId`     | string               | Yes      | Appwrite user ID                                      | Owner.               |
+| `ownerId`     | string               | Yes      | Railway user ID                                      | Owner.               |
 
 ### `UsageRecord`
 
@@ -968,14 +983,14 @@ Persistence: `usage_ledger`.
 
 ### `WorkspaceMember`
 
-Domain view over `workspace_members` plus Appwrite Teams.
+Domain view over `workspace_members` plus Railway Teams.
 
 | Field          | Type         | Required | Allowed values / format | Meaning            |
 | -------------- | ------------ | -------- | ----------------------- | ------------------ |
-| `id`           | string       | Yes      | Appwrite row ID         | Membership record. |
+| `id`           | string       | Yes      | Railway row ID         | Membership record. |
 | `email`        | string       | Yes      | Email                   | Invited member.    |
 | `status`       | string enum  | Yes      | `pending`, `accepted`   | Invitation state.  |
-| `memberUserId` | string       | No       | Appwrite user ID        | Accepted user.     |
+| `memberUserId` | string       | No       | Railway user ID        | Accepted user.     |
 | `createdAt`    | ISO datetime | Yes      | ISO 8601                | Invitation time.   |
 
 ### `DemoVideo`
@@ -984,7 +999,7 @@ Domain view over `demos`; bytes live in the private `demos` bucket.
 
 | Field       | Type         | Required | Allowed values / format    | Meaning                   |
 | ----------- | ------------ | -------- | -------------------------- | ------------------------- |
-| `id`        | string       | Yes      | Appwrite row/file ID       | Demo ID.                  |
+| `id`        | string       | Yes      | Railway row/file ID       | Demo ID.                  |
 | `title`     | string       | Yes      | Free string                | Display title.            |
 | `createdAt` | ISO datetime | Yes      | ISO 8601                   | Creation time.            |
 | `url`       | string       | Yes      | `/api/settings/demos/{id}` | Authenticated stream URL. |
@@ -994,5 +1009,5 @@ Domain view over `demos`; bytes live in the private `demos` bucket.
 When a persisted type changes, update this page in the same change as its
 TypeScript type and provisioning/migration code. Add new enum values explicitly;
 do not replace a closed set with “string.” Legacy tables visible in a deployed
-Appwrite project are not active contracts unless they appear in
-`lib/appwrite-stores.ts` or a current direct store module.
+Railway project are not active contracts unless they appear in
+`lib/railway-stores.ts` or a current direct store module.

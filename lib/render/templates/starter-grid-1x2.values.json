@@ -1,0 +1,15 @@
+{
+  "photos": [
+    {
+      "image": {
+        "media": "sample-pair-1"
+      }
+    },
+    {
+      "image": {
+        "media": "sample-pair-2"
+      }
+    }
+  ],
+  "label": "Morning routine"
+}

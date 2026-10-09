@@ -1,0 +1,113 @@
+{
+  "$schema": "https://lumenclip.app/schemas/slideshow-spec-v1.json",
+  "version": 1,
+  "id": "starter-photo-pill",
+  "name": "Photo + pill captions",
+  "description": "Full-bleed photos with captions on rounded per-line pills near the bottom.",
+  "canvas": {
+    "preset": "9:16",
+    "background": "#111111"
+  },
+  "fonts": [
+    {
+      "family": "Inter",
+      "weights": [
+        800
+      ]
+    }
+  ],
+  "meta": {
+    "starter": true,
+    "category": "photo"
+  },
+  "slots": {
+    "slides": {
+      "type": "list",
+      "label": "Slides",
+      "minItems": 1,
+      "maxItems": 35,
+      "item": {
+        "image": {
+          "type": "image",
+          "label": "Photo",
+          "required": true
+        },
+        "caption": {
+          "type": "text",
+          "label": "Caption",
+          "required": true,
+          "maxLength": 180,
+          "multiline": true
+        }
+      }
+    },
+    "pillColor": {
+      "type": "color",
+      "label": "Pill colour",
+      "default": "#FFFFFF"
+    },
+    "textColor": {
+      "type": "color",
+      "label": "Text colour",
+      "default": "#111111"
+    }
+  },
+  "slides": [
+    {
+      "repeat": {
+        "slot": "slides",
+        "as": "s"
+      },
+      "slide": {
+        "id": "slide-{{index1}}",
+        "layers": [
+          {
+            "id": "photo",
+            "type": "image",
+            "src": {
+              "slot": "s.image"
+            },
+            "frame": {
+              "inset": 0
+            },
+            "fit": "cover"
+          },
+          {
+            "id": "caption",
+            "type": "text",
+            "text": "{{s.caption}}",
+            "style": {
+              "fontFamily": "Inter",
+              "fontWeight": 800,
+              "fontSize": {
+                "min": 40,
+                "max": 62
+              },
+              "color": {
+                "slot": "textColor"
+              },
+              "align": "center",
+              "lineHeight": 1.3,
+              "background": {
+                "mode": "lines",
+                "color": {
+                  "slot": "pillColor"
+                },
+                "opacity": 1,
+                "radius": 10
+              },
+              "maxLines": 5,
+              "overflow": "shrink"
+            },
+            "frame": {
+              "x": "50%",
+              "y": "86%",
+              "width": "84%",
+              "anchor": "bottom"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

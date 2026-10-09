@@ -1,4 +1,4 @@
 {
   "title": "Home",
-  "pages": ["home"]
+  "pages": ["home", "published-posts"]
 }

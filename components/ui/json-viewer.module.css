@@ -1,0 +1,64 @@
+.viewer {
+  overflow: hidden;
+  margin-top: 0.75rem;
+  border: 1px solid var(--app-panel-border);
+  border-radius: 12px;
+  background: var(--app-surface-subtle);
+}
+
+.toolbar {
+  display: flex;
+  height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid var(--app-panel-border);
+  background: var(--app-control-bg);
+}
+
+.formatLabel,
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.formatLabel {
+  color: var(--app-muted-text);
+}
+
+.copyButton {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
+  color: var(--app-text);
+  transition: background-color 150ms ease;
+}
+
+.copyButton:hover {
+  background: var(--app-control-hover);
+}
+
+.copyButton:focus-visible {
+  outline: 2px solid var(--app-action);
+  outline-offset: 1px;
+}
+
+.editorShell {
+  position: relative;
+  min-height: 132px;
+  overflow: auto;
+}
+
+.editor {
+  min-height: 100%;
+  padding: 10px 12px 14px;
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.editor :global(.w-rjv-line) {
+  min-height: 20px;
+}

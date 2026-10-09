@@ -33,55 +33,6 @@ export type FetchJsonOptions = RequestInit & {
   toastOnError?: boolean
 }
 
-type QueuedWorkflowLaunch = {
-  status: "queued"
-  pollUrl: string
-}
-
-type WorkflowPoll<T> = {
-  status: "queued" | "running" | "succeeded" | "failed"
-  retryAfterMs?: number
-  error?: string
-  value?: T
-}
-
-export async function queueWorkflowAndWait<T>(
-  input: RequestInfo | URL,
-  options: FetchJsonOptions = {}
-): Promise<T> {
-  const overallTimeoutMs = options.timeoutMs ?? 25 * 60_000
-  const launch = await fetchJsonWithTimeout<QueuedWorkflowLaunch>(input, {
-    ...options,
-    timeoutMs: Math.min(overallTimeoutMs, 30_000),
-  })
-  if (!launch?.pollUrl) {
-    throw new ApiRequestError("Workflow did not return a status URL")
-  }
-
-  const deadline = Date.now() + overallTimeoutMs
-  while (Date.now() < deadline) {
-    const poll = await fetchJsonWithTimeout<WorkflowPoll<T>>(launch.pollUrl, {
-      signal: options.signal,
-      timeoutMs: Math.min(30_000, Math.max(1_000, deadline - Date.now())),
-      toastOnError: false,
-    })
-    if (poll.status === "failed") {
-      throw new ApiRequestError(poll.error || "Workflow failed")
-    }
-    if (poll.status === "succeeded") {
-      if (poll.value === undefined) {
-        throw new ApiRequestError("Workflow completed without a result")
-      }
-      return poll.value
-    }
-    await clientDelay(
-      Math.max(500, Math.min(10_000, poll.retryAfterMs ?? 2_000)),
-      options.signal
-    )
-  }
-  throw new ApiRequestError(TIMEOUT_MESSAGE, { timedOut: true })
-}
-
 export async function fetchJsonWithTimeout<T>(
   input: RequestInfo | URL,
   options: FetchJsonOptions = {}
@@ -215,24 +166,6 @@ function extractApiErrorMessage(payload: JsonPayload) {
   return undefined
 }
 
-function clientDelay(milliseconds: number, signal?: AbortSignal | null) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException("Request was cancelled", "AbortError"))
-      return
-    }
-    const timer = globalThis.setTimeout(resolve, milliseconds)
-    signal?.addEventListener(
-      "abort",
-      () => {
-        globalThis.clearTimeout(timer)
-        reject(new DOMException("Request was cancelled", "AbortError"))
-      },
-      { once: true }
-    )
-  })
-}
-
 function isAbortError(error: unknown) {
   return (
     (error instanceof DOMException && error.name === "AbortError") ||
@@ -247,8 +180,10 @@ function showApiErrorToast(error: ApiRequestError, enabled: boolean) {
 }
 
 function redirectExpiredSessionToLogin() {
-  if (typeof window === "undefined") return
+  if (typeof window === "undefined" || window.location.pathname === "/login") {
+    return
+  }
 
   const next = `${window.location.pathname}${window.location.search}`
-  window.location.assign(`/?auth=sign-in&next=${encodeURIComponent(next)}`)
+  window.location.assign(`/login?next=${encodeURIComponent(next)}`)
 }

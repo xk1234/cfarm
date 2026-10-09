@@ -1,34 +1,41 @@
 ---
 title: Public pages
-description: Find the logged-out marketing and invitation route you need.
+description: Logged-out marketing and Clerk account access routes.
 ---
 
-These are the routes served outside the authenticated workspace. Each one is
-reachable without a session.
+Route: `/`
 
-| Route                    | Visible purpose                                       | Documented in                                          |
-| ------------------------ | ----------------------------------------------------- | ------------------------------------------------------ |
-| `/`                      | Marketing overview and primary conversion actions     | [Marketing pages](/docs/ui/public/landing)             |
-| `/product`               | Product workflow and capability overview              | [Marketing pages](/docs/ui/public/landing)             |
-| `/solutions`             | Team and creator use cases                            | [Marketing pages](/docs/ui/public/landing)             |
-| `/pricing`               | Beta and team plan presentation with questions        | [Marketing pages](/docs/ui/public/landing)             |
-| `/careers`               | Working principles and current role availability      | [Marketing pages](/docs/ui/public/landing)             |
-| `/team-invite`           | Authentication and invitation acceptance states       | [Authentication and invitations](/docs/ui/public/auth) |
-| `/privacy`               | Private-beta account and workspace data summary       | [Legal and system](/docs/ui/public/legal)              |
-| `/terms`                 | Private-beta product-use expectations                 | [Legal and system](/docs/ui/public/legal)              |
-| `/share/slideshows/[id]` | Login-free slideshow preview, gated by a signed token | [Shared slideshow](/docs/ui/public/public-slideshow)   |
-| `/docs/[[...slug]]`      | Repository documentation reader                       | [Documentation shell](/docs/ui/public/docs)            |
+Related logged-out routes: `/docs`, `/privacy`, `/terms`, `/login`, and `/sign-up`
 
-## Pages
+![Desktop landing page](../assets/screenshots/desktop-landing-page.png)
 
-- [Marketing pages](/docs/ui/public/landing) — the shared marketing shell, the
-  landing narrative, and the focused product, solutions, pricing, and careers
-  routes.
-- [Authentication and invitations](/docs/ui/public/auth) — modal account access
-  and workspace invitation acceptance.
-- [Shared slideshow](/docs/ui/public/public-slideshow) — the token-holding
-  visitor's view of a generated slideshow.
-- [Documentation shell](/docs/ui/public/docs) — the Fumadocs reader that serves
-  this site.
-- [Legal and system](/docs/ui/public/legal) — private-beta policy summaries and
-  system routes.
+![Mobile landing page](../assets/screenshots/mobile-landing-page.png)
+
+![Desktop login page](../assets/screenshots/desktop-login-page.png)
+
+## Layout
+
+On desktop, the marketing routes share a sticky LumenClip header with a Docs link plus Log in and Create account actions. The landing page begins with a two-column hero and product collage, then continues through its marketing sections, a closing call to action, and the shared footer. Privacy and Terms use narrower reading columns.
+
+The desktop login and sign-up routes divide the viewport between a branded image panel and Clerk's account component. Clerk presents verification, recovery, and required session tasks within those routes.
+
+| Route          | Visible purpose                                   |
+| -------------- | ------------------------------------------------- |
+| `/`            | Marketing overview and primary conversion actions |
+| `/privacy`     | Private-beta account and workspace data summary   |
+| `/terms`       | Private-beta product-use expectations             |
+| `/login`       | Clerk sign-in, recovery, and session tasks        |
+| `/sign-up`     | Clerk account creation and verification           |
+
+On mobile, marketing content becomes a single vertical flow and multi-column cards stack. The current header keeps the brand and a menu action; opening it displays a full-screen navigation menu with the public destinations followed by Create account and Log in. The menu locks background scrolling, closes on Escape or its close action, and closes when a destination is selected. Login hides the desktop image panel and places the brand link and form in one centered column. No mobile login screenshot exists.
+
+## Interactions
+
+Marketing navigation and calls to action move among public routes or open Clerk
+sign-in/sign-up controls. Dedicated `/login` and `/sign-up` pages preserve safe
+same-origin `next` destinations. Clerk owns recovery and verification.
+
+## MCP coverage
+
+No. Marketing navigation and Clerk authentication are browser and session flows
+with no tools in `lib/mcp/`.

@@ -42,6 +42,6 @@ downloads a ZIP archive. The page does not edit or publish the output.
 ## MCP coverage
 
 Yes. `lumenclip_output_get` retrieves the caller-owned slideshow and returns its
-signed public preview and direct-download URLs. `lumenclip_template_run` also
-returns those delivery URLs for a completed slideshow run. Clipboard actions and
+signed public preview and direct-download URLs. `lumenclip_output_get` also
+supports completion delivery for a completed slideshow output. Clipboard actions and
 opening the public page are browser-only.

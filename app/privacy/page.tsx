@@ -18,7 +18,8 @@ export default function PrivacyPage() {
           <h2 className="text-xl font-semibold text-brand-ink">Account data</h2>
           <p className="mt-3">
             Clerk stores account identity and authentication sessions. LumenClip
-            uses an HTTP-only session cookie to protect the workspace.
+            keeps workspace records in its private application data stores and
+            scopes them to the authenticated account.
           </p>
         </section>
         <section>

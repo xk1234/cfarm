@@ -38,7 +38,7 @@ problem, intended outcome, and workflow moves.
 `/pricing` is a complete private-beta pricing presentation, not a stub. It shows
 a $0 private workspace during beta, a Custom team workspace, included
 capabilities, and a question section. The team features and paid terms are
-described as planned rather than billable.
+described as planned rather than currently billable.
 
 `/careers` is a complete company page, not a stub. It presents three working
 principles and plainly states that there are no open roles right now.
@@ -46,8 +46,8 @@ principles and plainly states that there are no open roles right now.
 ## Interactions
 
 Marketing links move among the five public destinations and Docs. Create account
-and Log in open Clerk modals over the current page, while the landing hero's
-product action opens `/product`. The mobile menu closes when a destination is selected,
+opens Clerk sign-up, Log in opens Clerk sign-in, and the landing hero's product
+action opens `/product`. The mobile menu closes when a destination is selected,
 when its close button is used, or when Escape is pressed. These actions change
 navigation only; the marketing pages do not save data.
 

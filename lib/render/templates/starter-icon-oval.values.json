@@ -1,0 +1,24 @@
+{
+  "title": "My desk setup",
+  "focal": {
+    "media": "sample-icon-focal"
+  },
+  "icon1": {
+    "media": "sample-icon-1"
+  },
+  "icon2": {
+    "media": "sample-icon-2"
+  },
+  "icon3": {
+    "media": "sample-icon-3"
+  },
+  "icon4": {
+    "media": "sample-icon-4"
+  },
+  "icon5": {
+    "media": "sample-icon-5"
+  },
+  "icon6": {
+    "media": "sample-icon-6"
+  }
+}

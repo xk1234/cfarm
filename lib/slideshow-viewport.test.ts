@@ -4,7 +4,6 @@ import {
   clampSlideTransform,
   fitSlideToViewport,
   MAX_SLIDE_ZOOM,
-  MIN_SLIDE_ZOOM,
   zoomSlideAroundPoint,
 } from "@/lib/slideshow-viewport"
 
@@ -40,12 +39,14 @@ describe("slide viewport transforms", () => {
     })
   })
 
-  it("allows the complete slide frame to shrink to 50%", () => {
-    expect(clampSlideTransform({ zoom: 0.2, x: 300, y: -300 }, stage)).toEqual({
-      zoom: MIN_SLIDE_ZOOM,
-      x: 0,
-      y: 0,
-    })
+  it("moves a fitted slide canvas within a wider viewer", () => {
+    expect(
+      clampSlideTransform(
+        { zoom: 1, x: 300, y: -300 },
+        { width: 400, height: 500 },
+        { width: 760, height: 500 }
+      )
+    ).toEqual({ zoom: 1, x: 180, y: 0 })
   })
 
   it("keeps a zoomed slide within its visible pan bounds", () => {

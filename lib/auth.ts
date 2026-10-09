@@ -4,29 +4,20 @@ import { cache } from "react"
 
 import { auth, clerkClient } from "@clerk/nextjs/server"
 
-import { getRailwayDatabase } from "@/lib/railway/database"
-
-const userCache = new Map<string, { expiresAt: number; user: AuthUser }>()
-const userCacheTtlMs = Math.max(
-  30_000,
-  Number(process.env.CLERK_USER_CACHE_TTL_MS ?? 5 * 60_000)
-)
+import { isUserAllowed } from "@/lib/owner-access"
 
 export type AuthUser = {
   $id: string
   email: string
   name: string
-  emailVerification: boolean
 }
 
 export type LumenClipUserPreferences = Record<string, unknown> & {
-  postfastDisconnectedIntegrationIds?: string[]
-  influlabConnection?: {
-    baseUrl: string
-    accessToken: string
-    accountEmail: string
-    connectedAt: string
-  } | null
+  disabledMcpToolNames?: string[]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
 
 function userName(user: {
@@ -43,105 +34,85 @@ function userName(user: {
   )
 }
 
-function verifiedEmail(user: {
-  primaryEmailAddress?: {
-    verification?: { status?: string | null } | null
-  } | null
-}) {
-  return user.primaryEmailAddress?.verification?.status === "verified"
-}
-
-async function ownerIdFor(input: {
-  clerkUserId: string
+function ownerIdFor(user: {
+  id: string
   externalId: string | null
-  email: string
+  privateMetadata: Record<string, unknown>
 }) {
-  if (input.externalId) return input.externalId
-
-  const sql = getRailwayDatabase()
-  const [existing] = await sql<Array<{ id: string }>>`
-    SELECT id FROM app_users WHERE lower(email) = ${input.email.toLowerCase()}
-  `
-  if (!existing) return input.clerkUserId
-
-  const client = await clerkClient()
-  await client.users
-    .updateUser(input.clerkUserId, { externalId: existing.id })
-    .catch(() => undefined)
-  return existing.id
-}
-
-async function persistUser(user: AuthUser) {
-  const sql = getRailwayDatabase()
-  await sql`
-    INSERT INTO app_users (
-      id, email, name, email_verified, preferences
-    ) VALUES (
-      ${user.$id}, ${user.email.toLowerCase()}, ${user.name},
-      ${user.emailVerification}, '{}'::jsonb
-    )
-    ON CONFLICT (id) DO UPDATE SET
-      email = excluded.email,
-      name = excluded.name,
-      email_verified = excluded.email_verified,
-      updated_at = now()
-  `
+  const metadataOwnerId = user.privateMetadata.lumenclipOwnerId
+  if (typeof metadataOwnerId === "string" && metadataOwnerId) {
+    return metadataOwnerId
+  }
+  return user.externalId || user.id
 }
 
 export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
   const { userId } = await auth()
   if (!userId) return null
-
-  const cached = userCache.get(userId)
-  if (cached && cached.expiresAt > Date.now()) return cached.user
+  // Single-user instance: other Clerk users get no workspace (lib/owner-access.ts).
+  if (!isUserAllowed(userId)) return null
 
   const client = await clerkClient()
-  const clerkUser = await client.users.getUser(userId)
+  const user = await client.users.getUser(userId)
   const email =
-    clerkUser.primaryEmailAddress?.emailAddress ??
-    clerkUser.emailAddresses[0]?.emailAddress
+    user.primaryEmailAddress?.emailAddress ??
+    user.emailAddresses[0]?.emailAddress
   if (!email) return null
 
-  const user: AuthUser = {
-    $id: await ownerIdFor({
-      clerkUserId: clerkUser.id,
-      externalId: clerkUser.externalId,
-      email,
-    }),
-    email,
-    name: userName(clerkUser),
-    emailVerification: verifiedEmail(clerkUser),
+  const ownerId = ownerIdFor(user)
+  if (user.privateMetadata.lumenclipOwnerId !== ownerId) {
+    await client.users
+      .updateUserMetadata(user.id, {
+        privateMetadata: { lumenclipOwnerId: ownerId },
+      })
+      .catch(() => undefined)
   }
-  await persistUser(user)
-  userCache.set(userId, { user, expiresAt: Date.now() + userCacheTtlMs })
-  return user
+
+  return {
+    $id: ownerId,
+    email,
+    name: userName(user),
+  }
 })
 
+async function clerkUserForOwnerId(ownerId: string) {
+  const client = await clerkClient()
+  const byExternalId = await client.users.getUserList({
+    externalId: [ownerId],
+    limit: 1,
+  })
+  if (byExternalId.data[0]) return byExternalId.data[0]
+
+  try {
+    const byClerkId = await client.users.getUser(ownerId)
+    return ownerIdFor(byClerkId) === ownerId ? byClerkId : null
+  } catch {
+    return null
+  }
+}
+
 export async function getUserPreferences(
-  userId: string
+  ownerId: string
 ): Promise<LumenClipUserPreferences> {
-  const sql = getRailwayDatabase()
-  const [row] = await sql<Array<{ preferences: LumenClipUserPreferences }>>`
-    SELECT preferences FROM app_users WHERE id = ${userId}
-  `
-  if (!row) throw Object.assign(new Error("User not found."), { code: 404 })
-  return row.preferences ?? {}
+  const user = await clerkUserForOwnerId(ownerId)
+  const preferences = user?.privateMetadata.lumenclipPreferences
+  return isRecord(preferences) ? preferences : {}
 }
 
 export async function updateUserPreferences(
-  userId: string,
+  ownerId: string,
   patch: Partial<LumenClipUserPreferences>
 ) {
-  const sql = getRailwayDatabase()
-  const [row] = await sql<Array<{ preferences: LumenClipUserPreferences }>>`
-    UPDATE app_users
-    SET preferences = preferences || ${sql.json(JSON.parse(JSON.stringify(patch)))},
-        updated_at = now()
-    WHERE id = ${userId}
-    RETURNING preferences
-  `
-  if (!row) {
-    throw Object.assign(new Error("User not found."), { code: 404 })
+  const user = await clerkUserForOwnerId(ownerId)
+  if (!user) {
+    throw new Error(`No Clerk user is mapped to owner ${ownerId}`)
   }
-  return row.preferences
+
+  const client = await clerkClient()
+  const current = await getUserPreferences(ownerId)
+  const preferences = { ...current, ...patch }
+  await client.users.updateUserMetadata(user.id, {
+    privateMetadata: { lumenclipPreferences: preferences },
+  })
+  return preferences
 }

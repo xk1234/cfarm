@@ -1,11 +1,6 @@
-import Skeleton from "react-loading-skeleton"
+import { Skeleton } from "@mantine/core"
 
 import { cn } from "@/lib/utils"
-
-const skeletonColors = {
-  baseColor: "var(--app-panel-border)",
-  highlightColor: "var(--app-surface-subtle)",
-}
 
 export function SkeletonBlock({
   className,
@@ -15,15 +10,13 @@ export function SkeletonBlock({
   circle?: boolean
 }) {
   return (
-    <span className={cn("block overflow-hidden", className)} aria-hidden="true">
-      <Skeleton
-        {...skeletonColors}
-        circle={circle}
-        borderRadius="inherit"
-        height="100%"
-        containerClassName="block h-full leading-none"
-      />
-    </span>
+    <Skeleton
+      className={cn("block overflow-hidden", className)}
+      circle={circle}
+      radius="inherit"
+      height="100%"
+      aria-hidden="true"
+    />
   )
 }
 

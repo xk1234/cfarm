@@ -1,52 +1,33 @@
-export type ViewKey =
-  "home" | "compose" | "schedule" | "analytics" | "collections" | "templates"
+export type ViewKey = "home" | "new" | "render" | "schedule" | "collections"
 
 export type WorkspaceLocation = {
   view: ViewKey
   collectionId?: string
+  renderId?: string
 }
 
-const viewKeys = new Set<ViewKey>([
-  "home",
-  "compose",
-  "schedule",
-  "analytics",
-  "collections",
-  "templates",
-])
+const queryViews = new Set<ViewKey>(["home", "new", "schedule", "collections"])
+
+/** Views addressable through `?view=`; render details need an id path. */
+export function isWorkspaceViewKey(value: unknown): value is ViewKey {
+  return typeof value === "string" && queryViews.has(value as ViewKey)
+}
 
 export function workspaceViewHref(view: ViewKey) {
-  if (view === "home") return "/app"
-  if (view === "compose") return "/app/compose"
-  if (view === "schedule") return "/app/schedule"
-  if (view === "analytics") return "/app/analytics"
-  if (view === "collections") return "/app/collections"
-  return "/app/templates"
+  if (view === "home" || view === "render") return "/app"
+  if (view === "new") return "/app/new"
+  if (view === "schedule") return "/app?view=schedule"
+  return "/app/collections"
 }
 
-export function legacyWorkspaceViewHref(input: {
-  view: string
-  templateId?: string
-  runId?: string
-}) {
-  if (!viewKeys.has(input.view as ViewKey) || input.view === "home") return null
-  const view = input.view as ViewKey
-  const href = workspaceViewHref(view)
-  if (view !== "templates") return href
-
-  const search = new URLSearchParams()
-  if (input.templateId) search.set("template", input.templateId)
-  if (input.runId) search.set("run", input.runId)
-  return `${href}${search.size ? `?${search}` : ""}`
+export function renderHref(renderId: string) {
+  return `/app/renders/${encodeURIComponent(renderId)}`
 }
 
 export function workspaceLocationFromUrl(
   pathname: string,
   search = ""
 ): WorkspaceLocation {
-  if (pathname === "/app/compose") return { view: "compose" }
-  if (pathname === "/app/schedule") return { view: "schedule" }
-  if (pathname.startsWith("/app/analytics")) return { view: "analytics" }
   if (pathname.startsWith("/app/collections/")) {
     const encodedId = pathname.slice("/app/collections/".length).split("/")[0]
     return {
@@ -55,15 +36,15 @@ export function workspaceLocationFromUrl(
     }
   }
   if (pathname === "/app/collections") return { view: "collections" }
-  if (pathname.startsWith("/app/templates")) return { view: "templates" }
-  if (pathname === "/app/social-templates") return { view: "templates" }
+  if (pathname === "/app/new") return { view: "new" }
+  if (pathname.startsWith("/app/renders/")) {
+    const encodedId = pathname.slice("/app/renders/".length).split("/")[0]
+    if (encodedId) return { view: "render", renderId: safelyDecode(encodedId) }
+  }
 
   const requestedView = new URLSearchParams(search).get("view")
   return {
-    view:
-      requestedView && viewKeys.has(requestedView as ViewKey)
-        ? (requestedView as ViewKey)
-        : "home",
+    view: isWorkspaceViewKey(requestedView) ? requestedView : "home",
   }
 }
 

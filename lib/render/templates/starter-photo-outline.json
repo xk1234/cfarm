@@ -1,0 +1,130 @@
+{
+  "$schema": "https://lumenclip.app/schemas/slideshow-spec-v1.json",
+  "version": 1,
+  "id": "starter-photo-outline",
+  "name": "Photo + outline caption",
+  "description": "Full-bleed photos with a bold white outlined caption, the classic TikTok slideshow look.",
+  "canvas": {
+    "preset": "9:16",
+    "background": "#111111"
+  },
+  "fonts": [
+    {
+      "family": "Inter",
+      "weights": [
+        800
+      ]
+    }
+  ],
+  "meta": {
+    "starter": true,
+    "category": "photo"
+  },
+  "theme": {
+    "colors": {
+      "accent": "#FFF176"
+    },
+    "textStyles": {
+      "caption": {
+        "fontFamily": "Inter",
+        "fontWeight": 800,
+        "fontSize": {
+          "min": 44,
+          "max": 84
+        },
+        "color": "#FFFFFF",
+        "align": "center",
+        "lineHeight": 1.12,
+        "stroke": {
+          "color": "rgba(0,0,0,0.88)",
+          "width": 11,
+          "join": "round"
+        },
+        "maxLines": 6,
+        "overflow": "shrink"
+      }
+    }
+  },
+  "slots": {
+    "slides": {
+      "type": "list",
+      "label": "Slides",
+      "minItems": 1,
+      "maxItems": 35,
+      "item": {
+        "image": {
+          "type": "image",
+          "label": "Photo",
+          "required": true
+        },
+        "caption": {
+          "type": "text",
+          "label": "Caption",
+          "maxLength": 220,
+          "multiline": true
+        }
+      }
+    },
+    "darken": {
+      "type": "boolean",
+      "label": "Darken photos",
+      "default": false
+    }
+  },
+  "slides": [
+    {
+      "repeat": {
+        "slot": "slides",
+        "as": "s"
+      },
+      "slide": {
+        "id": "slide-{{index1}}",
+        "layers": [
+          {
+            "id": "photo",
+            "type": "image",
+            "src": {
+              "slot": "s.image"
+            },
+            "frame": {
+              "inset": 0
+            },
+            "fit": "cover"
+          },
+          {
+            "id": "scrim",
+            "type": "shape",
+            "shape": "rect",
+            "if": {
+              "slot": "darken"
+            },
+            "frame": {
+              "inset": 0
+            },
+            "fill": "#000000",
+            "opacity": 0.2
+          },
+          {
+            "id": "caption",
+            "type": "text",
+            "if": {
+              "slot": "s.caption"
+            },
+            "text": "{{s.caption}}",
+            "markup": "emphasis",
+            "style": "caption",
+            "emphasisStyle": {
+              "color": "$colors.accent"
+            },
+            "frame": {
+              "x": "50%",
+              "y": "16%",
+              "width": "84%",
+              "anchor": "top"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
