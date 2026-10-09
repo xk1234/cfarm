@@ -1,35 +1,24 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import {
   IconBrandInstagram,
-  IconBrandTelegram,
   IconBrandTiktok,
   IconBrandYoutube,
   IconApi,
   IconCheck,
-  IconCreditCard,
   IconExternalLink,
   IconPlus,
   IconRefresh,
-  IconSparkles,
   IconBell,
-  IconSettings,
   IconTrash,
-  IconUpload,
-  IconUsers,
-  IconVideo,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
-import {
-  CardGridSkeleton,
-  ListSkeleton,
-} from "@/components/ui/loading-skeleton"
-import { UploadDropzone } from "@/components/ui/upload-dropzone"
+import { ListSkeleton } from "@/components/ui/loading-skeleton"
 import { normalizePostFastSocialIntegration } from "@/lib/social/postfast-adapter"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 import { clientQueryFetcher } from "@/lib/client-fetcher"
@@ -38,36 +27,21 @@ import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
 import { McpSettingsPanel } from "@/components/realfarm/mcp-settings-panel"
 
-export type WorkspaceSettingsTab =
-  "billing" | "accounts" | "models" | "reminders" | "team" | "demos" | "mcp"
-type Member = {
-  id: string
-  email: string
-  status: "pending" | "accepted"
-  createdAt: string
+export type WorkspaceSettingsTab = "accounts" | "reminders" | "mcp"
+// Notifications are delivered in-app only; there is no external channel.
+type ReminderChannel = "none" | "in_app"
+type ReminderEventSettings = {
+  channel: ReminderChannel | string
+  offsetsHours?: number[]
 }
-type Demo = { id: string; title: string; url: string; createdAt: string }
-type ReminderEvent =
-  | "generated"
-  | "ready_to_post"
-  | "scheduled_to_post"
-  | "respond_to_comments"
-  | "publish_failed"
-  | "generation_failed"
-type ReminderChannel = "none" | "telegram"
 type ReminderSettings = {
-  telegramChatId?: string
-  telegramBotToken?: string
   notificationDefaultsApplied?: boolean
-  events: Record<
-    ReminderEvent,
-    { channel: ReminderChannel; offsetsHours?: number[] }
-  >
+  events: Record<string, ReminderEventSettings>
 }
 type ReminderResponse = {
   settings: ReminderSettings
   eventMetadata: Record<
-    ReminderEvent,
+    string,
     {
       label: string
       description: string
@@ -75,37 +49,18 @@ type ReminderResponse = {
       defaultOffsetsHours?: number[]
     }
   >
-  telegram: {
-    botConfigured: boolean
-    customBotConfigured: boolean
-    username?: string
-    name?: string
-    defaultChatConfigured: boolean
-    interactiveConfigured: boolean
-  }
-}
-
-type GenerationModelSettings = {
-  id: "generation-models"
-  slideshowTextModel: string
-  imageCaptioningModel: string
-  updatedAt: string
 }
 
 const tabs = [
-  { id: "billing", label: "Billing & plans", icon: IconCreditCard },
   { id: "accounts", label: "Connected accounts", icon: IconExternalLink },
-  { id: "models", label: "AI models", icon: IconSparkles },
   { id: "reminders", label: "Notifications", icon: IconBell },
-  { id: "team", label: "Team members", icon: IconUsers },
-  { id: "demos", label: "Demos", icon: IconVideo },
   { id: "mcp", label: "MCP", icon: IconApi },
 ] as const
 
 export function UserSettingsModal({
   onClose,
   onSocialAccountDisconnected,
-  initialTab = "billing",
+  initialTab = "accounts",
 }: {
   onClose: () => void
   onSocialAccountDisconnected?: (integrationId: string) => void
@@ -113,8 +68,7 @@ export function UserSettingsModal({
 }) {
   const [tab, setTab] = useState<WorkspaceSettingsTab>(initialTab)
   const [remindersDirty, setRemindersDirty] = useState(false)
-  const [modelsDirty, setModelsDirty] = useState(false)
-  const dirtyGuard = useDirtyGuard(remindersDirty || modelsDirty)
+  const dirtyGuard = useDirtyGuard(remindersDirty)
 
   function requestClose() {
     dirtyGuard.run(onClose)
@@ -124,7 +78,6 @@ export function UserSettingsModal({
     if (nextTab === tab) return
     dirtyGuard.run(() => {
       setRemindersDirty(false)
-      setModelsDirty(false)
       setTab(nextTab)
     })
   }
@@ -160,20 +113,14 @@ export function UserSettingsModal({
               })}
             </nav>
             <div className="min-w-0 overflow-y-auto p-6 sm:p-8">
-              {tab === "billing" && <BillingPanel />}
               {tab === "accounts" && (
                 <AccountsPanel
                   onSocialAccountDisconnected={onSocialAccountDisconnected}
                 />
               )}
-              {tab === "models" && (
-                <GenerationModelsPanel onDirtyChange={setModelsDirty} />
-              )}
               {tab === "reminders" && (
                 <RemindersPanel onDirtyChange={setRemindersDirty} />
               )}
-              {tab === "team" && <TeamPanel />}
-              {tab === "demos" && <DemosPanel />}
               {tab === "mcp" && <McpSettingsPanel />}
             </div>
           </div>
@@ -181,169 +128,6 @@ export function UserSettingsModal({
       </AppModal>
       {dirtyGuard.confirmation}
     </>
-  )
-}
-
-const recommendedOpenRouterModels = [
-  "openai/gpt-5.6-luna",
-  "openai/gpt-5.6-luna-pro",
-  "openai/gpt-5.6-terra",
-  "openai/gpt-5.4-mini",
-  "google/gemini-3.1-flash-lite",
-] as const
-
-function GenerationModelsPanel({
-  onDirtyChange,
-}: {
-  onDirtyChange: (dirty: boolean) => void
-}) {
-  const {
-    data,
-    error: loadError,
-    isLoading,
-    mutate,
-  } = useAppQuery<{
-    settings: GenerationModelSettings
-  }>("/api/settings/generation-models", clientQueryFetcher)
-  const [draft, setDraft] = useState<GenerationModelSettings | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
-  const [message, setMessage] = useState("")
-  const settings = draft ?? data?.settings ?? null
-  const dirty = Boolean(
-    draft &&
-    data?.settings &&
-    (draft.slideshowTextModel !== data.settings.slideshowTextModel ||
-      draft.imageCaptioningModel !== data.settings.imageCaptioningModel)
-  )
-
-  useEffect(() => {
-    onDirtyChange(dirty)
-    return () => onDirtyChange(false)
-  }, [dirty, onDirtyChange])
-
-  function edit(patch: Partial<GenerationModelSettings>) {
-    if (!settings) return
-    setDraft({ ...settings, ...patch })
-    setError("")
-    setMessage("")
-  }
-
-  async function save() {
-    if (!settings) return
-    setSaving(true)
-    setError("")
-    setMessage("")
-    try {
-      const payload = await fetchJsonWithTimeout<{
-        settings: GenerationModelSettings
-      }>("/api/settings/generation-models", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slideshowTextModel: settings.slideshowTextModel,
-          imageCaptioningModel: settings.imageCaptioningModel,
-        }),
-        toastOnError: false,
-      })
-      setDraft(payload.settings)
-      await mutate(payload, false)
-      setMessage("AI model settings saved.")
-    } catch (saveError) {
-      setError(getApiErrorMessage(saveError, "AI models could not be saved."))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div>
-      <PanelHeading title="AI models" />
-      {loadError ? (
-        <div>
-          <p className="text-sm font-medium text-destructive">
-            AI model settings could not be loaded.
-          </p>
-          <Button
-            className="mt-3"
-            variant="outline"
-            onClick={() => void mutate()}
-          >
-            Try again
-          </Button>
-        </div>
-      ) : isLoading || !settings ? (
-        <ListSkeleton count={2} className="border-y border-app-panel-border" />
-      ) : (
-        <div className="space-y-6">
-          <datalist id="openrouter-model-options">
-            {recommendedOpenRouterModels.map((model) => (
-              <option key={model} value={model} />
-            ))}
-          </datalist>
-          <ModelSettingField
-            label="Slide text generation"
-            value={settings.slideshowTextModel}
-            onChange={(value) => edit({ slideshowTextModel: value })}
-          />
-          <ModelSettingField
-            label="Picture captioning"
-            value={settings.imageCaptioningModel}
-            onChange={(value) => edit({ imageCaptioningModel: value })}
-          />
-          {error ? (
-            <p className="text-sm font-medium text-destructive">{error}</p>
-          ) : null}
-          {message ? (
-            <p className="text-sm font-medium text-emerald-700">{message}</p>
-          ) : null}
-          <div className="flex flex-wrap gap-2 border-t border-app-panel-border pt-5">
-            <Button
-              variant="action"
-              disabled={saving || !dirty}
-              onClick={() => void save()}
-            >
-              {saving ? "Saving…" : "Save AI models"}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={saving}
-              onClick={() =>
-                edit({
-                  slideshowTextModel: "openai/gpt-5.6-luna",
-                  imageCaptioningModel: "openai/gpt-5.6-luna",
-                })
-              }
-            >
-              Use Luna defaults
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ModelSettingField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <label className="block border-t border-app-panel-border pt-4 text-sm font-semibold">
-      {label}
-      <input
-        list="openrouter-model-options"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        spellCheck={false}
-        className="mt-2 h-10 w-full rounded-control border border-app-panel-border bg-background px-3 font-mono text-sm font-normal text-app-text outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
-      />
-    </label>
   )
 }
 
@@ -362,14 +146,10 @@ function RemindersPanel({
     clientQueryFetcher
   )
   const [draft, setDraft] = useState<ReminderSettings | null>(null)
-  const [pending, setPending] = useState<"save" | "test" | "detect" | "">("")
+  const [pending, setPending] = useState<"save" | "">("")
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
   const settings = draft ?? data?.settings ?? null
-  const usesTelegram = Boolean(
-    settings &&
-    Object.values(settings.events).some((event) => event.channel === "telegram")
-  )
   const dirty = Boolean(
     draft &&
     data?.settings &&
@@ -428,57 +208,6 @@ function RemindersPanel({
     }
   }
 
-  async function detectChat() {
-    setPending("detect")
-    setError("")
-    setMessage("")
-    try {
-      const detected = await fetchJsonWithTimeout<{
-        chatId: string
-        title?: string
-      }>("/api/settings/reminders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "detect-chat" }),
-        toastOnError: false,
-      })
-      edit((current) => ({ ...current, telegramChatId: detected.chatId }))
-      setMessage(
-        detected.title
-          ? `Found ${detected.title}. Save to keep it.`
-          : "Chat detected. Save to keep it."
-      )
-    } catch (detectError) {
-      setError(
-        getApiErrorMessage(detectError, "The Telegram chat was not detected.")
-      )
-    } finally {
-      setPending("")
-    }
-  }
-
-  async function testTelegram() {
-    if (!settings) return
-    setPending("test")
-    setError("")
-    setMessage("")
-    try {
-      await fetchJsonWithTimeout("/api/settings/reminders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telegramChatId: settings.telegramChatId }),
-        toastOnError: false,
-      })
-      setMessage("Test notification sent to Telegram.")
-    } catch (testError) {
-      setError(
-        getApiErrorMessage(testError, "The Telegram test could not be sent.")
-      )
-    } finally {
-      setPending("")
-    }
-  }
-
   return (
     <div>
       <PanelHeading title="Notifications" />
@@ -499,113 +228,6 @@ function RemindersPanel({
         <ListSkeleton count={4} className="border-y border-app-panel-border" />
       ) : (
         <div className="space-y-7">
-          {/* Shown whenever a bot exists, not only once an event already routes
-              to Telegram — otherwise connecting is undiscoverable, because the
-              only way to reach these fields was to first pick a channel you had
-              not been able to set up yet. */}
-          {data?.telegram.botConfigured || usesTelegram ? (
-            <section className="space-y-4 rounded-xl border border-app-panel-border bg-app-control-bg p-4">
-              <div className="flex items-center gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-app-control-hover text-app-muted-text">
-                  <IconBrandTelegram className="size-4.5" />
-                </span>
-                <div>
-                  <h3 className="text-sm font-semibold">Telegram delivery</h3>
-                </div>
-              </div>
-              {data?.telegram.botConfigured &&
-              !data?.telegram.customBotConfigured ? (
-                <p className="rounded-lg bg-app-control-bg px-3 py-2 text-xs leading-5 text-app-text-faint">
-                  Using the workspace bot
-                  {data.telegram.username ? (
-                    <>
-                      {" "}
-                      <a
-                        href={`https://t.me/${data.telegram.username}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-semibold text-app-action underline"
-                      >
-                        @{data.telegram.username}
-                      </a>
-                    </>
-                  ) : null}
-                  . Open it in Telegram, send <code>/start</code>, then detect
-                  your chat below — no bot token needed.
-                </p>
-              ) : null}
-              <label className="block text-sm font-semibold">
-                Telegram chat or channel ID
-                <div className="mt-2 flex gap-2">
-                  <input
-                    value={settings.telegramChatId ?? ""}
-                    onChange={(event) =>
-                      edit((current) => ({
-                        ...current,
-                        telegramChatId: event.target.value,
-                      }))
-                    }
-                    placeholder={
-                      data?.telegram.defaultChatConfigured
-                        ? "Using the workspace default"
-                        : "123456789 or @channelname"
-                    }
-                    className="h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={pending !== "" || !data?.telegram.botConfigured}
-                    onClick={() => void detectChat()}
-                  >
-                    {pending === "detect" ? "Detecting…" : "Detect"}
-                  </Button>
-                </div>
-              </label>
-              <details className="text-xs">
-                <summary className="cursor-pointer font-semibold text-app-text-faint">
-                  Use a different bot
-                </summary>
-                <label className="mt-3 block text-sm font-semibold">
-                  Telegram bot token
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    value={settings.telegramBotToken ?? ""}
-                    onChange={(event) =>
-                      edit((current) => ({
-                        ...current,
-                        telegramBotToken: event.target.value,
-                      }))
-                    }
-                    placeholder={
-                      data?.telegram.customBotConfigured
-                        ? "Saved — enter a new token to replace it"
-                        : "123456789:AA…"
-                    }
-                    className="mt-2 h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
-                  />
-                </label>
-                <p className="mt-2 leading-5 text-app-text-faint">
-                  Create a bot with BotFather and paste its token to override
-                  the workspace bot. Saved tokens are never returned to the
-                  browser.
-                </p>
-              </details>
-              {!data?.telegram.botConfigured ? (
-                <p className="mt-3 text-xs font-medium text-destructive">
-                  Telegram delivery needs a server bot token before it can be
-                  enabled.
-                </p>
-              ) : !data?.telegram.interactiveConfigured ? (
-                <p className="mt-3 text-xs font-medium text-amber-700">
-                  Messages can be delivered, but the one-tap posted button needs
-                  a public app URL and Telegram webhook secret.
-                </p>
-              ) : null}
-            </section>
-          ) : null}
-
           <section>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold">Notify me when</h3>
@@ -614,8 +236,7 @@ function RemindersPanel({
                   type="button"
                   variant="softControl"
                   size="compact"
-                  disabled={!data?.telegram.botConfigured}
-                  onClick={() => setAllNotifications("telegram")}
+                  onClick={() => setAllNotifications("in_app")}
                 >
                   Turn all on
                 </Button>
@@ -633,8 +254,10 @@ function RemindersPanel({
               {data?.eventMetadata
                 ? Object.entries(data.eventMetadata).map(
                     ([event, metadata]) => {
-                      const eventId = event as ReminderEvent
-                      const eventSettings = settings.events[eventId]
+                      const eventId = event
+                      const eventSettings = settings.events[eventId] ?? {
+                        channel: "none",
+                      }
                       return (
                         <div
                           key={eventId}
@@ -731,7 +354,7 @@ function RemindersPanel({
                               className="mt-1 h-10 w-full rounded-control border border-app-panel-border bg-background px-3 text-sm text-app-text transition-colors outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
                             >
                               <option value="none">Off</option>
-                              <option value="telegram">Telegram</option>
+                              <option value="in_app">In app</option>
                             </select>
                           </label>
                         </div>
@@ -758,15 +381,6 @@ function RemindersPanel({
             >
               {pending === "save" ? "Saving…" : "Save notifications"}
             </Button>
-            {data?.telegram.botConfigured ? (
-              <Button
-                variant="outline"
-                disabled={pending !== "" || !settings.telegramChatId}
-                onClick={() => void testTelegram()}
-              >
-                {pending === "test" ? "Sending…" : "Send test"}
-              </Button>
-            ) : null}
           </div>
         </div>
       )}
@@ -778,39 +392,6 @@ function PanelHeading({ title }: { title: string }) {
   return (
     <div className="mb-7">
       <h2 className="text-2xl font-semibold tracking-[-0.035em]">{title}</h2>
-    </div>
-  )
-}
-
-function BillingPanel() {
-  return (
-    <div>
-      <PanelHeading title="Billing & plans" />
-      <div className="rounded-[14px] border border-[#e4d7ff] bg-[#f6f2ff] p-5">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <h3 className="text-xl font-semibold">LumenClip Free</h3>
-            <span className="text-xs font-semibold text-app-action">
-              Current plan
-            </span>
-          </div>
-          <span className="rounded-full bg-app-surface px-3 py-1 text-xs font-semibold text-app-action">
-            Active
-          </span>
-        </div>
-        <p className="mt-4 text-sm text-app-muted-text">
-          Billing is being finalized. You’ll be able to upgrade, manage payment
-          methods, and download invoices here.
-        </p>
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        {["Generations", "Storage", "Team seats"].map((label) => (
-          <div key={label} className="border-t border-app-panel-border pt-4">
-            <p className="text-xs font-medium text-app-text-faint">{label}</p>
-            <p className="mt-1 text-sm font-semibold">Coming soon</p>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
@@ -1017,259 +598,12 @@ function normalizedIntegrations(values: unknown[] | undefined) {
   })
 }
 
-function TeamPanel() {
-  const [members, setMembers] = useState<Member[]>([]),
-    [loading, setLoading] = useState(true),
-    [open, setOpen] = useState(false),
-    [email, setEmail] = useState(""),
-    [pending, setPending] = useState(false),
-    [inviteUrl, setInviteUrl] = useState(""),
-    [error, setError] = useState("")
-  async function load() {
-    try {
-      const r = await fetch("/api/settings/team")
-      const p = await r.json().catch(() => null)
-      if (r.ok) {
-        setMembers(p.members || [])
-        setError("")
-      } else {
-        setError(p?.error || "Could not load team members.")
-      }
-    } catch {
-      setError("Could not load team members.")
-    } finally {
-      setLoading(false)
-    }
-  }
-  useEffect(() => {
-    const timer = window.setTimeout(() => void load(), 0)
-    return () => window.clearTimeout(timer)
-  }, [])
-  async function invite(e: React.FormEvent) {
-    e.preventDefault()
-    setPending(true)
-    setError("")
-    try {
-      const response = await fetchJsonWithTimeout<{ inviteUrl: string }>("/api/settings/team", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-        toastOnError: false,
-      })
-      setInviteUrl(response.inviteUrl)
-      setOpen(false)
-      setEmail("")
-      setLoading(true)
-      await load()
-    } catch (inviteError) {
-      setError(getApiErrorMessage(inviteError, "Invitation failed."))
-    } finally {
-      setPending(false)
-    }
-  }
-  return (
-    <div>
-      <PanelHeading title="Team members" />
-      <button
-        onClick={() => setOpen(true)}
-        className="mb-6 inline-flex h-10 items-center gap-2 rounded-[10px] bg-app-action px-4 text-sm font-semibold text-white"
-      >
-        <IconPlus className="size-4" />
-        Add member
-      </button>
-      {error ? (
-        <p className="mb-4 text-sm font-medium text-[#b43e4d]">{error}</p>
-      ) : null}
-      {loading ? (
-        <ListSkeleton count={4} className="border-y border-app-panel-border" />
-      ) : members.length ? (
-        <div className="divide-y divide-[#ececf1] border-y border-app-panel-border">
-          {members.map((m) => (
-            <div key={m.id} className="flex items-center gap-3 py-4">
-              <span className="grid size-9 place-items-center rounded-full bg-app-control-hover text-sm font-semibold text-app-action">
-                {m.email[0]?.toUpperCase()}
-              </span>
-              <div>
-                <p className="text-sm font-semibold">{m.email}</p>
-                <p className="text-xs text-app-text-faint">
-                  Can view shared generations
-                </p>
-              </div>
-              <span
-                className={cn(
-                  "ml-auto rounded-full px-2.5 py-1 text-xs font-semibold",
-                  m.status === "accepted"
-                    ? "bg-[#e9f7ef] text-[#27845b]"
-                    : "bg-[#fff5df] text-[#93630c]"
-                )}
-              >
-                {m.status}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <Empty
-          icon={IconUsers}
-          title="No collaborators"
-          text="Invite someone by email to share selected workspace output."
-        />
-      )}
-      {open ? (
-        <AppModal
-          className="z-[120] bg-[#242136]/45"
-          onClose={() => setOpen(false)}
-        >
-          <AppModalPanel className="max-w-[470px] p-0">
-            <AppModalHeader
-              title="Invite collaborator"
-              closeLabel="Close invite"
-              onClose={() => setOpen(false)}
-            />
-            <form onSubmit={invite} className="p-5">
-              <label className="text-sm font-semibold">
-                Email address
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mt-2 h-11 w-full rounded-[10px] border border-[#d8d8e2] px-3 outline-none focus:border-[#6d28d9]"
-                />
-              </label>
-              {error ? (
-                <p className="mt-3 text-sm text-[#b43e4d]">{error}</p>
-              ) : null}
-              {inviteUrl ? (
-                <label className="mt-4 block text-sm">
-                  Invitation link
-                  <input
-                    readOnly
-                    value={inviteUrl}
-                    onFocus={(event) => event.target.select()}
-                    className="mt-2 h-11 w-full rounded-[10px] border border-[#d8d8e2] px-3"
-                  />
-                </label>
-              ) : null}
-              <button
-                disabled={pending}
-                className="mt-5 h-10 w-full rounded-[10px] bg-app-action text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {pending ? "Creating link…" : "Create invitation link"}
-              </button>
-            </form>
-          </AppModalPanel>
-        </AppModal>
-      ) : null}
-    </div>
-  )
-}
-
-function DemosPanel() {
-  const [demos, setDemos] = useState<Demo[]>([]),
-    [loading, setLoading] = useState(true),
-    [pending, setPending] = useState(false),
-    [error, setError] = useState("")
-  const input = useRef<HTMLInputElement>(null)
-  async function load() {
-    try {
-      const r = await fetch("/api/settings/demos")
-      const p = await r.json().catch(() => null)
-      if (r.ok) {
-        setDemos(p.demos || [])
-        setError("")
-      } else {
-        setError(p?.error || "Could not load demos.")
-      }
-    } catch {
-      setError("Could not load demos.")
-    } finally {
-      setLoading(false)
-    }
-  }
-  useEffect(() => {
-    const timer = window.setTimeout(() => void load(), 0)
-    return () => window.clearTimeout(timer)
-  }, [])
-  async function upload(file: File) {
-    setPending(true)
-    setError("")
-    const form = new FormData()
-    form.set("file", file)
-    form.set("title", file.name.replace(/\.[^.]+$/, ""))
-    try {
-      await fetchJsonWithTimeout("/api/settings/demos", {
-        method: "POST",
-        body: form,
-        toastOnError: false,
-      })
-      setLoading(true)
-      await load()
-    } catch (uploadError) {
-      setError(getApiErrorMessage(uploadError, "Upload failed."))
-    } finally {
-      setPending(false)
-    }
-  }
-  return (
-    <div>
-      <PanelHeading title="Demos" />
-      <UploadDropzone
-        inputRef={input}
-        accept="video/*"
-        disabled={pending}
-        onFiles={(files) => {
-          const f = files?.[0]
-          if (f) void upload(f)
-        }}
-      >
-        <Button className="mb-6" variant="action" disabled={pending}>
-          <IconUpload className="size-4" />
-          {pending ? "Uploading…" : "Upload demo"}
-        </Button>
-      </UploadDropzone>
-      {error ? <p className="mb-4 text-sm text-[#b43e4d]">{error}</p> : null}
-      {loading ? (
-        <CardGridSkeleton count={4} className="sm:grid-cols-2 xl:grid-cols-2" />
-      ) : demos.length ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {demos.map((d) => (
-            <article
-              key={d.id}
-              className="overflow-hidden rounded-[14px] border border-app-panel-border bg-app-surface"
-            >
-              <video
-                controls
-                preload="metadata"
-                src={d.url}
-                className="aspect-video w-full bg-app-strong"
-              />
-              <div className="p-3">
-                <p className="truncate text-sm font-semibold">{d.title}</p>
-                <p className="mt-1 text-xs text-app-text-faint">
-                  {new Date(d.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <Empty
-          icon={IconVideo}
-          title="No demos uploaded"
-          text="Your uploaded walkthroughs will appear here in a reusable grid."
-        />
-      )}
-    </div>
-  )
-}
-
 function Empty({
   icon: Icon,
   title,
   text,
 }: {
-  icon: typeof IconSettings
+  icon: typeof IconExternalLink
   title: string
   text: string
 }) {

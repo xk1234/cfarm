@@ -16,11 +16,7 @@ import {
 } from "@/components/ui/sheet"
 
 const navigation = [
-  ["Product", "/product"],
-  ["Solutions", "/solutions"],
-  ["Pricing", "/pricing"],
   ["Docs", "/docs"],
-  ["Careers", "/careers"],
 ] as const
 
 export function MarketingMobileMenu() {

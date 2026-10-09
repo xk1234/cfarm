@@ -13,13 +13,13 @@ import { MobileNavigation } from "@/components/realfarm/navigation"
 
 describe("mobile navigation", () => {
   it("keeps the company identity and hamburger in the workspace header", () => {
-    const markup = renderToStaticMarkup(<MobileNavigation view="analytics" />)
+    const markup = renderToStaticMarkup(<MobileNavigation view="schedule" />)
 
     expect(markup.match(/>LumenClip</g)).toHaveLength(1)
     expect(markup).toContain('aria-label="Open menu"')
     expect(markup).toContain('aria-haspopup="dialog"')
     expect(markup).toContain('aria-expanded="false"')
-    expect(markup).not.toContain(">Analytics<")
+    expect(markup).not.toContain(">Schedule<")
   })
 
   it("uses the same company identity and hamburger pattern on marketing pages", () => {

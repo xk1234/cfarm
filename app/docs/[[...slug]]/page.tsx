@@ -8,7 +8,6 @@ import {
 } from "fumadocs-ui/layouts/docs/page"
 import { createRelativeLink } from "fumadocs-ui/mdx"
 
-import { PipelineStageJsonEnhancer } from "@/components/docs/pipeline-stage-json-enhancer"
 import { getMDXComponents } from "@/mdx-components"
 import { docsSource } from "@/lib/docs-source"
 
@@ -27,7 +26,6 @@ export default async function DocumentationPage({
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody className="docs-body">
-        <PipelineStageJsonEnhancer />
         <Content
           components={getMDXComponents({
             a: createRelativeLink(docsSource, page),

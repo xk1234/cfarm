@@ -14,7 +14,6 @@ import {
 } from "@/lib/realfarm-collections"
 import type { RealFarmData } from "@/lib/realfarm-data"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
-import type { ProductCollection } from "@/lib/product-collections"
 
 export function useCollectionsData({
   assets,
@@ -27,11 +26,6 @@ export function useCollectionsData({
     defaultImageCollections()
   )
   const [collectionsLoaded, setCollectionsLoaded] = useState(false)
-  const [productCollections, setProductCollections] = useState<
-    ProductCollection[]
-  >([])
-  const [productCollectionsLoaded, setProductCollectionsLoaded] =
-    useState(false)
 
   const visibleCollections = useMemo(
     () => [
@@ -61,24 +55,6 @@ export function useCollectionsData({
       active = false
     }
   }, [collectionsLoaded, enabled])
-
-  useEffect(() => {
-    if (!enabled || productCollectionsLoaded) return
-    let active = true
-    void fetchJsonWithTimeout<{ collections?: ProductCollection[] }>(
-      "/api/product-collections"
-    )
-      .then((payload) => {
-        if (active) setProductCollections(payload.collections ?? [])
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setProductCollectionsLoaded(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [enabled, productCollectionsLoaded])
 
   async function persistCollection(collection: CreatedImageCollection) {
     if (collection.virtual) return
@@ -184,7 +160,6 @@ export function useCollectionsData({
   return {
     collections,
     visibleCollections,
-    productCollections,
     collectionsLoaded,
     commitCollection,
     deleteCollections,

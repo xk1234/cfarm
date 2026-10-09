@@ -1,30 +1,13 @@
 import { redirect } from "next/navigation"
 
-import {
-  RealFarmWorkspace,
-  type InitialTemplateData,
-} from "@/components/realfarm-workspace"
+import { RealFarmWorkspace } from "@/components/realfarm-workspace"
 import type { ViewKey } from "@/components/realfarm/navigation"
-import {
-  automationTemplateSchemaToRuntime,
-  automationTemplateRecordToSummary,
-  groupAutomationTemplateExampleRunsByTemplateId,
-  listAutomationTemplateExampleRuns,
-  listAutomationTemplateRecords,
-} from "@/lib/automation-templates"
 import { getCurrentUser } from "@/lib/auth"
-import { loadPublishedPostDates } from "@/lib/published-post-dates"
 import { loadRealFarmData } from "@/lib/realfarm-data"
-import { listConnectedPostFastIntegrations } from "@/lib/postfast-integrations"
-import type { ConnectedComposerAccount } from "@/components/realfarm/composer/composer-types"
 
 export type WorkspaceNavigation = {
   view: ViewKey
-  automationId?: string
-  runId?: string
   collectionId?: string
-  companionIntent?: "tiktok-studio" | "tiktok-comments"
-  platformPostId?: string
 }
 
 export async function WorkspaceRoute({
@@ -35,13 +18,7 @@ export async function WorkspaceRoute({
   const user = await getCurrentUser()
   if (!user) redirect("/login")
 
-  const [data, initialTemplateData, composeAccountResult, publishedPostDates] =
-    await Promise.all([
-      loadRealFarmData({ mediaAssets: [] }),
-      loadInitialTemplateData(),
-      loadComposeAccounts(user.$id),
-      loadPublishedPostDates(),
-    ])
+  const data = await loadRealFarmData({ mediaAssets: [] })
 
   return (
     <RealFarmWorkspace
@@ -49,54 +26,7 @@ export async function WorkspaceRoute({
         ...data,
         brand: { ...data.brand, owner: user.name || user.email },
       }}
-      initialTemplateData={initialTemplateData}
       initialNavigation={navigation}
-      composeAccounts={composeAccountResult.accounts}
-      composeAccountsStatus={composeAccountResult.status}
-      publishedPostDates={publishedPostDates}
-      user={{
-        id: user.$id,
-        email: user.email,
-      }}
     />
   )
-}
-
-async function loadComposeAccounts(ownerId: string): Promise<{
-  accounts: ConnectedComposerAccount[]
-  status: "ready" | "empty" | "error"
-}> {
-  try {
-    const accounts = (await listConnectedPostFastIntegrations(ownerId)).map(
-      (integration) => ({
-        integrationId: integration.integration_id,
-        platformKey: integration.provider,
-        accountName: integration.name,
-        handle: integration.profile ?? integration.name,
-        avatarUrl: integration.picture,
-      })
-    )
-    return { accounts, status: accounts.length > 0 ? "ready" : "empty" }
-  } catch {
-    return { accounts: [], status: "error" }
-  }
-}
-
-async function loadInitialTemplateData(): Promise<InitialTemplateData> {
-  const [templateRecords, templateExampleRuns] = await Promise.all([
-    listAutomationTemplateRecords(),
-    listAutomationTemplateExampleRuns(),
-  ])
-
-  return {
-    templates: templateRecords.map(automationTemplateRecordToSummary),
-    exampleRunsByTemplateId:
-      groupAutomationTemplateExampleRunsByTemplateId(templateExampleRuns),
-    schemas: Object.fromEntries(
-      templateRecords.map((record) => [
-        record.id,
-        automationTemplateSchemaToRuntime(record),
-      ])
-    ),
-  }
 }

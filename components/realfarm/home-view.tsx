@@ -1,94 +1,71 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ComponentType } from "react"
+import { useMemo, useState, type ComponentType } from "react"
 import {
   IconAlertCircle,
+  IconCalendarEvent,
   IconChevronLeft,
   IconChevronRight,
   IconPhoto,
-  IconPlayerPlay,
-  IconPlus,
   IconSlideshow,
-  IconTrash,
-  IconVideo,
 } from "@tabler/icons-react"
-import { toast } from "sonner"
 
 import {
-  TemplateGeneratedPreview,
-  generatedExampleSlideshows,
-  type GeneratedShowcaseRun,
-  type TemplateExampleSlideshow,
-} from "@/components/realfarm/template-showcase-preview"
+  SlideshowPublishActions,
+  type PublishableSlideshow,
+} from "@/components/realfarm/publish/slideshow-publish-dialog"
 import {
   GenerationFailurePlaceholder,
   MediaCardShell,
   MediaFrame,
-  MediaPendingState,
 } from "@/components/realfarm/shared-media"
-import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-modal"
 import {
-  GeneratedSlideshowViewerModal,
-  automationRunViewerImageUrls,
-} from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
-import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
+  SlideshowViewerModal,
+  type SlideshowViewerItem,
+  type SlideshowViewerMetadata,
+} from "@/components/realfarm/slideshow-viewer-modal"
 import { Button } from "@/components/ui/button"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { clientQueryFetcher } from "@/lib/client-fetcher"
 import { useAppQuery } from "@/lib/client-query"
 import type { CalendarAlertSummary } from "@/lib/calendar-summary"
-import type { GeneratedVideoExport } from "@/lib/generated-video-types"
-import type { Automation } from "@/lib/realfarm-data"
-import { PostFrequencyGraph } from "@/components/realfarm/post-frequency-graph"
 import { cn } from "@/lib/utils"
 
-import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
+const ITEMS_PER_PAGE = 10
+const RENDERS_URL = "/api/slideshows?limit=100"
 
-const ITEMS_PER_PAGE = 5
-const QUICK_START_ITEMS_PER_PAGE = 6
+/**
+ * The persisted slideshow fields the home grid reads. Mirrors the subset of
+ * `SlideshowRecord` returned by `GET /api/slideshows`.
+ */
+export type HomeSlideshow = PublishableSlideshow & {
+  status: "exported" | "failed" | string
+  created_at?: string
+  updated_at?: string
+  settings?: { aspect_ratio?: string }
+  images?: Array<{ image_url?: string; textItems?: Array<{ text?: string }> }>
+}
+
+type SlideshowsPayload = {
+  slideshows?: HomeSlideshow[]
+  slideshowsCount?: number
+}
 
 export function HomeView({
-  currentUserId,
-  automations,
-  automationsLoading,
-  publishedPostDates,
-  templates,
-  recentRunsByAutomationId,
-  generatedRunsByAutomationId,
-  generatedRunsLoading,
-  generatedRunsError,
-  onRetryGeneratedRuns,
-  onCreate,
-  onUseTemplate,
-  onAutomations,
-  onGenerationRunRemove,
+  onOpenSchedule,
+  onOpenCollections,
 }: {
-  currentUserId: string
-  automations: Automation[]
-  automationsLoading?: boolean
-  /** When each LINKED post went out. Generated drafts are not posts. */
-  publishedPostDates: string[]
-  templates: Automation[]
-  recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
-  generatedRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
-  generatedRunsLoading?: boolean
-  generatedRunsError?: string
-  onRetryGeneratedRuns: () => void
-  onCreate: () => void
-  onUseTemplate: (automation: Automation) => void
-  onAutomations: () => void
-  onGenerationRunRemove: (runId: string) => void
+  onOpenSchedule: () => void
+  onOpenCollections: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<"slideshows" | "videos">(
-    "slideshows"
-  )
-  const [videos, setVideos] = useState<GeneratedVideoExport[]>([])
-  const [videosLoading, setVideosLoading] = useState(true)
-  const [videosLoaded, setVideosLoaded] = useState(false)
-  const [videosError, setVideosError] = useState("")
   const [page, setPage] = useState(1)
-  const [quickStartPage, setQuickStartPage] = useState(1)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: mutateRenders,
+  } = useAppQuery<SlideshowsPayload>(RENDERS_URL, clientQueryFetcher)
   const { data: calendarStatus } = useAppQuery<{
     summary: CalendarAlertSummary
   }>("/api/calendar/summary", clientQueryFetcher, {
@@ -96,111 +73,67 @@ export function HomeView({
     refreshWhenHidden: false,
     refreshWhenOffline: false,
   })
-  const [selectedExample, setSelectedExample] = useState<{
-    automation: Automation
-    slideshowId?: string
-  } | null>(null)
-  const [selectedGeneratedSlideshow, setSelectedGeneratedSlideshow] = useState<{
-    runs: GeneratedShowcaseRun[]
-    runId: string
-  } | null>(null)
-  const quickStartTemplates = templates
+
+  const renders = useMemo(
+    () =>
+      [...(data?.slideshows ?? [])].sort(
+        (first, second) => timestamp(second) - timestamp(first)
+      ),
+    [data?.slideshows]
+  )
   const outstandingActionCount = calendarStatus
     ? calendarStatus.summary.needsAction + calendarStatus.summary.failed
     : null
-  const generatedSlideshowCards = useMemo(
-    () => generatedHomeSlideshowCards(generatedRunsByAutomationId),
-    [generatedRunsByAutomationId]
-  )
-  const selectedGeneratedRun = selectedGeneratedSlideshow?.runs.find(
-    (run) => run.id === selectedGeneratedSlideshow.runId
-  )
-
-  const totalItems =
-    activeTab === "slideshows" ? generatedSlideshowCards.length : videos.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
+  const totalPages = Math.max(1, Math.ceil(renders.length / ITEMS_PER_PAGE))
   const safePage = Math.min(page, totalPages)
-  const pagedGeneratedSlideshows = useMemo(
-    () =>
-      generatedSlideshowCards.slice(
-        (safePage - 1) * ITEMS_PER_PAGE,
-        safePage * ITEMS_PER_PAGE
-      ),
-    [generatedSlideshowCards, safePage]
-  )
-  const pagedVideos = videos.slice(
+  const pagedRenders = renders.slice(
     (safePage - 1) * ITEMS_PER_PAGE,
     safePage * ITEMS_PER_PAGE
   )
-  const quickStartTotalPages = Math.max(
-    1,
-    Math.ceil(quickStartTemplates.length / QUICK_START_ITEMS_PER_PAGE)
-  )
-  const safeQuickStartPage = Math.min(quickStartPage, quickStartTotalPages)
-  const quickStartOffset = (safeQuickStartPage - 1) * QUICK_START_ITEMS_PER_PAGE
-  const pagedQuickStartTemplates = quickStartTemplates.slice(
-    quickStartOffset,
-    quickStartOffset + QUICK_START_ITEMS_PER_PAGE
-  )
+  const selected = renders.find((item) => item.id === selectedId) ?? null
 
-  useEffect(() => {
-    if (activeTab !== "slideshows") return
-    const preloaded: HTMLImageElement[] = []
-    for (const src of automationRunViewerImageUrls(
-      pagedGeneratedSlideshows.flatMap((item) =>
-        item.runs.filter((run) => run.id === item.slideshow.id)
-      ) as AutomationRunApiRecord[]
-    )) {
-      const image = new window.Image()
-      image.decoding = "async"
-      image.src = src
-      preloaded.push(image)
-    }
-    return () => {
-      for (const image of preloaded) image.src = ""
-    }
-  }, [activeTab, pagedGeneratedSlideshows])
+  function replaceRender(updated: HomeSlideshow) {
+    void mutateRenders(
+      {
+        ...data,
+        slideshows: (data?.slideshows ?? []).map((item) =>
+          item.id === updated.id ? { ...item, ...updated } : item
+        ),
+      },
+      false
+    )
+  }
 
-  useEffect(() => {
-    if (activeTab !== "videos" || videosLoaded) return
-    let active = true
+  async function deleteRender(id: string) {
+    await fetchJsonWithTimeout(`/api/slideshows/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      timeoutMs: 15_000,
+      toastOnError: false,
+    })
+    setSelectedId(null)
+    void mutateRenders(
+      {
+        ...data,
+        slideshows: (data?.slideshows ?? []).filter((item) => item.id !== id),
+      },
+      true
+    )
+  }
 
-    async function loadGeneratedVideos() {
-      try {
-        const payload = await fetchJsonWithTimeout<{
-          exports?: GeneratedVideoExport[]
-        }>("/api/generated-videos?limit=50", {
-          timeoutMs: 12_000,
-          toastOnError: false,
-        })
-        if (active) {
-          setVideos(payload?.exports ?? [])
-          setVideosError("")
-        }
-      } catch (error) {
-        if (active) {
-          setVideosError(
-            getApiErrorMessage(error, "Failed to load generated videos")
-          )
-        }
-      } finally {
-        if (active) {
-          setVideosLoading(false)
-          setVideosLoaded(true)
-        }
+  async function updateMetadata(
+    slideshow: HomeSlideshow,
+    metadata: SlideshowViewerMetadata
+  ) {
+    const payload = await fetchJsonWithTimeout<{ slideshow?: HomeSlideshow }>(
+      `/api/slideshows/${encodeURIComponent(slideshow.id)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "updateMetadata", ...metadata }),
+        toastOnError: false,
       }
-    }
-
-    void loadGeneratedVideos()
-
-    return () => {
-      active = false
-    }
-  }, [activeTab, videosLoaded])
-
-  function switchTab(tab: "slideshows" | "videos") {
-    setActiveTab(tab)
-    setPage(1)
+    )
+    replaceRender(payload.slideshow ?? { ...slideshow, ...metadata })
   }
 
   return (
@@ -208,85 +141,44 @@ export function HomeView({
       <h1 className="pt-5 text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text sm:pt-7">
         Home
       </h1>
-      <section className="py-5 text-center sm:py-6 lg:py-7">
-        <div className="mx-auto max-w-[960px]">
-          <div className="lc-spectrum mx-auto mb-4 h-1 w-14 rounded-full" />
-          <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:grid-rows-[auto_auto] lg:gap-x-8 lg:gap-y-5">
-            {/* Cadence, not a tagline: the gaps are the useful signal here. */}
-            <PostFrequencyGraph
-              dates={publishedPostDates}
-              className="min-w-0 lg:col-start-1 lg:row-start-1 lg:mx-0"
-            />
-            <div className="grid gap-2 text-left min-[420px]:grid-cols-2 sm:grid-cols-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:grid-cols-1">
-              <DashboardMetric
-                className="min-[420px]:col-span-2 sm:col-span-1"
-                icon={IconSlideshow}
-                label="Draft outputs"
-                value={
-                  generatedRunsLoading
-                    ? null
-                    : generatedSlideshowCards.length + videos.length
-                }
-              />
-              <DashboardMetric
-                icon={IconPhoto}
-                label="Templates"
-                value={automationsLoading ? null : automations.length}
-              />
-              <DashboardMetric
-                icon={IconAlertCircle}
-                label="Outstanding actions"
-                value={outstandingActionCount}
-              />
-            </div>
-            <div className="flex flex-wrap justify-center gap-3 lg:col-start-1 lg:row-start-2">
-              <Button variant="action" size="appDefault" onClick={onCreate}>
-                <IconPlus className="size-5" />
-                New template
-              </Button>
-              <Button
-                variant="softControl"
-                size="appDefault"
-                onClick={onAutomations}
-              >
-                <IconPlayerPlay className="size-5" />
-                View templates
-              </Button>
-            </div>
+      <section className="py-5 sm:py-6 lg:py-7">
+        <div className="grid gap-2 min-[420px]:grid-cols-2 lg:grid-cols-3">
+          <DashboardMetric
+            icon={IconSlideshow}
+            label="Renders"
+            value={isLoading ? null : (data?.slideshowsCount ?? renders.length)}
+          />
+          <DashboardMetric
+            icon={IconAlertCircle}
+            label="Outstanding actions"
+            value={outstandingActionCount}
+          />
+          <div className="flex flex-wrap items-center gap-3 min-[420px]:col-span-2 lg:col-span-1 lg:justify-end">
+            <Button
+              variant="softControl"
+              size="appDefault"
+              onClick={onOpenSchedule}
+            >
+              <IconCalendarEvent className="size-4" />
+              Schedule
+            </Button>
+            <Button
+              variant="softControl"
+              size="appDefault"
+              onClick={onOpenCollections}
+            >
+              <IconPhoto className="size-4" />
+              Collections
+            </Button>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto mt-8 max-w-[1210px] sm:mt-12">
-        <h2 className="mb-4 text-[20px] font-semibold tracking-[-0.025em] text-app-text">
-          Outputs
-        </h2>
-        {/* The tabs and the pager together overflow a phone on one row. */}
+      <section className="mx-auto mt-4 max-w-[1210px] sm:mt-8">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-y-2">
-          <div className="flex min-w-0 items-center gap-1">
-            <button
-              className={cn(
-                "shrink-0 rounded-[7px] px-3 py-2 text-[13px] font-semibold transition sm:px-4 sm:text-[14px]",
-                activeTab === "slideshows"
-                  ? "bg-app-strong text-white"
-                  : "text-app-muted-text hover:bg-app-control-hover"
-              )}
-              onClick={() => switchTab("slideshows")}
-            >
-              Slideshows ({generatedSlideshowCards.length})
-            </button>
-            <button
-              className={cn(
-                "shrink-0 rounded-[7px] px-3 py-2 text-[13px] font-semibold transition sm:px-4 sm:text-[14px]",
-                activeTab === "videos"
-                  ? "bg-app-strong text-white"
-                  : "text-app-muted-text hover:bg-app-control-hover"
-              )}
-              onClick={() => switchTab("videos")}
-            >
-              Videos ({videos.length})
-            </button>
-          </div>
+          <h2 className="text-[20px] font-semibold tracking-[-0.025em] text-app-text">
+            Renders
+          </h2>
           {totalPages > 1 ? (
             <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
               <Button
@@ -312,149 +204,108 @@ export function HomeView({
           ) : null}
         </div>
 
-        {activeTab === "slideshows" && pagedGeneratedSlideshows.length > 0 ? (
+        {pagedRenders.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-            {pagedGeneratedSlideshows.map((item) => (
-              <GeneratedSlideshowCard
-                key={item.slideshow.id}
-                item={item}
-                shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
-                onOpen={() =>
-                  setSelectedGeneratedSlideshow({
-                    runs: item.runs,
-                    runId: item.slideshow.id,
-                  })
-                }
-              />
-            ))}
-          </div>
-        ) : activeTab === "slideshows" && generatedRunsLoading ? (
-          <HomeCardSkeletonRow />
-        ) : activeTab === "slideshows" && generatedRunsError ? (
-          <HomeLoadError
-            message={generatedRunsError}
-            onRetry={onRetryGeneratedRuns}
-          />
-        ) : activeTab === "slideshows" ? (
-          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-app-muted-text">
-            No slideshow outputs yet. Generate a slideshow template to create
-            one.
-          </div>
-        ) : pagedVideos.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-            {pagedVideos.map((item) => (
-              <VideoCard
+            {pagedRenders.map((item) => (
+              <RenderCard
                 key={item.id}
                 item={item}
-                shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
-                onDeleted={() =>
-                  setVideos((current) =>
-                    current.filter((video) => video.id !== item.id)
-                  )
-                }
+                onOpen={() => setSelectedId(item.id)}
               />
             ))}
           </div>
-        ) : videosLoading ? (
+        ) : isLoading ? (
           <HomeCardSkeletonRow />
-        ) : videosError ? (
+        ) : error ? (
           <HomeLoadError
-            message={videosError}
-            onRetry={() => {
-              setVideosLoaded(false)
-              setVideosLoading(true)
-            }}
+            message={getApiErrorMessage(error, "Failed to load renders")}
+            onRetry={() => void mutateRenders()}
           />
         ) : (
-          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-app-muted-text">
-            No videos yet. Generate a video from the Greenscreen or UGC Ads
-            editors.
+          <div className="grid min-h-[86px] place-items-center text-center text-[16px] font-medium text-app-muted-text">
+            No renders yet. Submit a slideshow spec through the API or MCP to
+            render one.
           </div>
         )}
       </section>
 
-      <section className="mx-auto mt-14 max-w-[1210px] sm:mt-24">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-y-2">
-          <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text sm:text-[20px]">
-            Start from a proven workflow
-          </h2>
-          {quickStartTotalPages > 1 ? (
-            <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
-              <Button
-                variant="iconControl"
-                size="icon-control"
-                aria-label="Previous quick start page"
-                disabled={safeQuickStartPage <= 1}
-                onClick={() => setQuickStartPage((p) => Math.max(1, p - 1))}
-              >
-                <IconChevronLeft className="size-4" />
-              </Button>
-              Page {safeQuickStartPage} of {quickStartTotalPages}
-              <Button
-                variant="iconControl"
-                size="icon-control"
-                aria-label="Next quick start page"
-                disabled={safeQuickStartPage >= quickStartTotalPages}
-                onClick={() =>
-                  setQuickStartPage((p) =>
-                    Math.min(quickStartTotalPages, p + 1)
-                  )
-                }
-              >
-                <IconChevronRight className="size-4" />
-              </Button>
-            </div>
-          ) : null}
-        </div>
-        {quickStartTemplates.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {pagedQuickStartTemplates.map((automation, index) => (
-              <QuickStartTemplateCard
-                key={automation.id}
-                automation={automation}
-                index={quickStartOffset + index}
-                slideshows={generatedExampleSlideshows(
-                  recentRunsByAutomationId[automation.id]
-                ).slice(0, 3)}
-                onOpenSlideshow={(slideshowId) =>
-                  setSelectedExample({ automation, slideshowId })
-                }
-                onUse={() => onUseTemplate(automation)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="grid min-h-[120px] place-items-center rounded-[7px] border border-dashed border-[#d7d6cf] bg-white/55 px-6 text-center text-[16px] font-medium text-app-muted-text">
-            No templates available.
-          </div>
-        )}
-      </section>
-      {selectedExample ? (
-        <ExampleSlideshowModal
-          title={selectedExample.automation.name}
-          runs={recentRunsByAutomationId[selectedExample.automation.id]}
-          initialSlideshowId={selectedExample.slideshowId}
-          onDeleted={onGenerationRunRemove}
-          onClose={() => setSelectedExample(null)}
-        />
-      ) : null}
-      {selectedGeneratedSlideshow && selectedGeneratedRun ? (
-        <GeneratedSlideshowViewerModal
-          run={selectedGeneratedRun as AutomationRunApiRecord}
-          runs={selectedGeneratedSlideshow.runs as AutomationRunApiRecord[]}
-          allowDelete={
-            !selectedGeneratedRun.ownerId ||
-            selectedGeneratedRun.ownerId === currentUserId
-          }
-          onDeleted={(runId) => {
-            onGenerationRunRemove(runId)
-            setSelectedGeneratedSlideshow(null)
-          }}
-          onClose={() => setSelectedGeneratedSlideshow(null)}
-        />
+      {selected ? (
+        <SlideshowPublishActions slideshow={selected}>
+          {(actions) => (
+            <SlideshowViewerModal
+              title={selected.title || "Slideshow"}
+              slideshows={[viewerItem(selected)]}
+              initialSlideshowId={selected.id}
+              details={{
+                creationDate: formatDate(selected.created_at),
+                postDate: "Not scheduled",
+                language: "English",
+              }}
+              actions={actions}
+              onDelete={() => deleteRender(selected.id)}
+              onUpdateMetadata={(_, metadata) =>
+                updateMetadata(selected, metadata)
+              }
+              onClose={() => setSelectedId(null)}
+            />
+          )}
+        </SlideshowPublishActions>
       ) : null}
     </div>
   )
+}
+
+function viewerItem(slideshow: HomeSlideshow): SlideshowViewerItem {
+  const cacheKey = slideshow.updated_at
+  return {
+    id: slideshow.id,
+    label: formatDate(slideshow.created_at) || "Slideshow",
+    title: slideshow.title || "Slideshow",
+    caption: slideshow.caption,
+    hashtags: slideshow.hashtags,
+    slides: renderedSlideUrls(slideshow).map((imageUrl, index) => ({
+      id: `${slideshow.id}-${index}`,
+      imageUrl: cacheBustedImageUrl(imageUrl, cacheKey),
+      text:
+        slideshow.images?.[index]?.textItems
+          ?.map((item) => item.text?.trim())
+          .filter(Boolean)
+          .join(" ") ?? "",
+      section: index === 0 ? "hook" : "content",
+    })),
+  }
+}
+
+function renderedSlideUrls(slideshow: HomeSlideshow) {
+  const rendered = (slideshow.output_images ?? [])
+    .map((url) => url.trim())
+    .filter(Boolean)
+  if (rendered.length > 0) return rendered
+  return (slideshow.images ?? [])
+    .map((image) => image.image_url?.trim() ?? "")
+    .filter(Boolean)
+}
+
+function cacheBustedImageUrl(imageUrl: string, updatedAt?: string) {
+  if (!updatedAt) return imageUrl
+  const separator = imageUrl.includes("?") ? "&" : "?"
+  return `${imageUrl}${separator}v=${encodeURIComponent(updatedAt)}`
+}
+
+function timestamp(slideshow: HomeSlideshow) {
+  const value = slideshow.created_at || slideshow.updated_at
+  const time = value ? new Date(value).getTime() : 0
+  return Number.isFinite(time) ? time : 0
+}
+
+function formatDate(value?: string) {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })
 }
 
 function HomeLoadError({
@@ -481,13 +332,6 @@ function HomeLoadError({
   )
 }
 
-type GeneratedHomeSlideshowCard = {
-  ownerId?: string
-  title: string
-  runs: GeneratedShowcaseRun[]
-  slideshow: TemplateExampleSlideshow
-}
-
 function HomeCardSkeletonRow() {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
@@ -502,64 +346,45 @@ function HomeCardSkeletonRow() {
   )
 }
 
-function GeneratedSlideshowCard({
+function RenderCard({
   item,
-  shared,
   onOpen,
 }: {
-  item: GeneratedHomeSlideshowCard
-  shared: boolean
+  item: HomeSlideshow
   onOpen: () => void
 }) {
-  const firstSlide = item.slideshow.slides[0]
-  const failed = item.slideshow.status === "failed"
+  const coverUrl = renderedSlideUrls(item)[0]
+  const failed = item.status === "failed"
+  const title = item.title || "Slideshow"
 
   return (
-    <div
-      className={cn(
-        "relative rounded-[10px]",
-        shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
-      )}
-    >
-      {shared ? (
-        <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
-          Shared
-        </span>
-      ) : null}
+    <div className="relative rounded-[10px]">
       <span
         className={cn(
           "absolute top-2 right-2 z-20 rounded-full px-2 py-1 text-[10px] font-semibold text-white",
           failed ? "bg-app-danger" : "bg-black/75"
         )}
       >
-        {failed
-          ? "Generation failed"
-          : item.slideshow.status === "generating"
-            ? "Generating"
-            : "Not published"}
+        {failed ? "Render failed" : "Rendered"}
       </span>
       <MediaCardShell danger={failed}>
         {failed ? (
           <MediaFrame>
-            <GenerationFailurePlaceholder
-              message={
-                item.slideshow.error || "This slideshow could not be generated."
-              }
-            />
+            <GenerationFailurePlaceholder message="This slideshow could not be rendered." />
           </MediaFrame>
         ) : (
           <button
             type="button"
             className="block w-full text-left"
             onClick={onOpen}
-            aria-label={`Open ${item.title} generated slideshow`}
+            aria-label={`Open ${title}`}
           >
             <MediaFrame>
-              {firstSlide ? (
-                /* eslint-disable-next-line @next/next/no-img-element -- Generated slides are already rendered image artifacts. */
+              {coverUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element -- Rendered slides are already image artifacts. */
                 <img
-                  src={firstSlide.imageUrl}
-                  alt={firstSlide.text || `${item.title} first slide`}
+                  src={cacheBustedImageUrl(coverUrl, item.updated_at)}
+                  alt={`${title} first slide`}
                   className="absolute inset-0 h-full w-full object-cover"
                   draggable={false}
                 />
@@ -570,6 +395,9 @@ function GeneratedSlideshowCard({
           </button>
         )}
       </MediaCardShell>
+      <div className="mt-2 truncate px-0.5 text-[13px] font-semibold text-app-text">
+        {title}
+      </div>
     </div>
   )
 }
@@ -579,13 +407,11 @@ function DashboardMetric({
   icon: Icon,
   label,
   value,
-  title,
 }: {
   className?: string
   icon: ComponentType<{ className?: string }>
   label: string
   value: string | number | null
-  title?: string
 }) {
   return (
     <div
@@ -593,7 +419,6 @@ function DashboardMetric({
         "flex min-h-[86px] items-center gap-3 rounded-[12px] border border-app-panel-border bg-app-surface px-4 py-3 shadow-sm",
         className
       )}
-      title={title}
     >
       <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-app-strong/10 text-app-strong">
         <Icon className="size-[18px]" />
@@ -614,320 +439,5 @@ function DashboardMetric({
         </span>
       </span>
     </div>
-  )
-}
-
-function generatedHomeSlideshowCards(
-  runsByAutomationId: Record<string, GeneratedShowcaseRun[]>
-) {
-  return Object.entries(runsByAutomationId)
-    .flatMap<GeneratedHomeSlideshowCard>(([, runs]) => {
-      const slideshows = generatedExampleSlideshows(runs, {
-        includeFailed: true,
-      })
-      return slideshows.map((slideshow) => ({
-        ownerId: runs.find((run) => run.id === slideshow.id)?.ownerId,
-        title:
-          runs
-            .find((run) => run.id === slideshow.id)
-            ?.automationTitle?.trim() || slideshow.title,
-        runs,
-        slideshow,
-      }))
-    })
-    .sort(
-      (first, second) =>
-        slideshowTimestamp(second.slideshow) -
-        slideshowTimestamp(first.slideshow)
-    )
-}
-
-function slideshowTimestamp(slideshow: TemplateExampleSlideshow) {
-  const value = slideshow.createdAt || slideshow.scheduledFor
-  const time = value ? new Date(value).getTime() : 0
-  return Number.isFinite(time) ? time : 0
-}
-
-function QuickStartTemplateCard({
-  automation,
-  slideshows,
-  index,
-  onOpenSlideshow,
-  onUse,
-}: {
-  automation: Automation
-  slideshows: TemplateExampleSlideshow[]
-  index: number
-  onOpenSlideshow: (slideshowId: string) => void
-  onUse: () => void
-}) {
-  const coverSlides = slideshows.map((slideshow) => slideshow.slides[0])
-
-  return (
-    <article className="overflow-hidden rounded-[7px] border border-app-panel-border bg-app-surface shadow-sm">
-      <div className="h-[128px] w-full">
-        <TemplateGeneratedPreview
-          exampleSlides={coverSlides}
-          className="h-full"
-          index={index}
-          onSelectSlide={(tileIndex) => {
-            const slideshow = slideshows[tileIndex]
-            if (slideshow) {
-              onOpenSlideshow(slideshow.id)
-            }
-          }}
-          selectLabel={`Open ${automation.name} slideshow`}
-        />
-      </div>
-      <div className="flex items-center justify-between gap-3 px-3 py-3">
-        <div className="min-w-0">
-          <div className="truncate text-[15px] font-bold text-[#30302e]">
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              {automation.automationKind === "video" ? (
-                <IconVideo className="size-4 shrink-0 text-[#67665f]" />
-              ) : (
-                <IconSlideshow className="size-4 shrink-0 text-[#67665f]" />
-              )}
-              <span className="truncate">{automation.name}</span>
-            </span>
-          </div>
-          <div className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-[#8a8a83]">
-            {automation.automationKind === "video" ? (
-              <IconPlayerPlay className="size-3.5" />
-            ) : (
-              <IconPhoto className="size-3.5" />
-            )}
-            {automation.automationKind === "video"
-              ? "Video template"
-              : "Slideshow template"}
-          </div>
-        </div>
-        <Button variant="softControl" size="sm" onClick={onUse}>
-          Use
-        </Button>
-      </div>
-    </article>
-  )
-}
-
-function VideoCard({
-  item,
-  shared,
-  onDeleted,
-}: {
-  item: GeneratedVideoExport
-  shared: boolean
-  onDeleted: () => void
-}) {
-  const { videoRef, thumbnailReady } = useVideoThumbnailFrame(
-    item.previewUrl ? undefined : item.videoUrl
-  )
-  const [playing, setPlaying] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const isPending =
-    !item.videoUrl && (item.status === "queued" || item.status === "processing")
-  const isFailed = !item.videoUrl && item.status === "failed"
-  const canDelete = !shared && !item.deletionBlockedBy
-  const deleteConfirmation = deleteOpen ? (
-    <ConfirmDialog
-      title="Delete this video?"
-      description="This permanently removes the generated video and cannot be undone."
-      confirmLabel="Delete video"
-      pendingLabel="Deleting…"
-      onCancel={() => setDeleteOpen(false)}
-      onConfirm={deleteVideo}
-    />
-  ) : null
-
-  async function deleteVideo() {
-    if (!canDelete || deleting) return
-    setDeleting(true)
-    try {
-      await toast.promise(
-        fetchJsonWithTimeout(
-          `/api/generated-videos/${encodeURIComponent(item.id)}`,
-          {
-            method: "DELETE",
-            timeoutMs: 15_000,
-            toastOnError: false,
-          }
-        ),
-        {
-          loading: "Deleting video…",
-          success: "Video deleted",
-          error: (error) =>
-            getApiErrorMessage(error, "The video could not be deleted"),
-        }
-      )
-      onDeleted()
-    } catch {
-      // toast.promise already presents the API error.
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  function togglePlay() {
-    const video = videoRef.current
-    if (!video) return
-    if (video.paused) {
-      video.play()
-      setPlaying(true)
-    } else {
-      video.pause()
-      setPlaying(false)
-    }
-  }
-
-  if (isPending) {
-    return (
-      <>
-        <div
-          className={cn(
-            "relative rounded-[10px]",
-            shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
-          )}
-        >
-          {shared ? (
-            <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
-              Shared
-            </span>
-          ) : null}
-          {canDelete ? (
-            <VideoDeleteButton
-              deleting={deleting}
-              onDelete={() => setDeleteOpen(true)}
-            />
-          ) : null}
-          <MediaCardShell>
-            <MediaPendingState label="Creating hook video..." />
-          </MediaCardShell>
-        </div>
-        {deleteConfirmation}
-      </>
-    )
-  }
-
-  if (isFailed) {
-    return (
-      <>
-        <div
-          className={cn(
-            "relative rounded-[10px]",
-            shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
-          )}
-        >
-          {shared ? (
-            <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
-              Shared
-            </span>
-          ) : null}
-          {canDelete ? (
-            <VideoDeleteButton
-              deleting={deleting}
-              onDelete={() => setDeleteOpen(true)}
-            />
-          ) : null}
-          <MediaCardShell danger>
-            <MediaFrame>
-              <GenerationFailurePlaceholder
-                message={item.error || "This video could not be generated."}
-              />
-            </MediaFrame>
-          </MediaCardShell>
-        </div>
-        {deleteConfirmation}
-      </>
-    )
-  }
-
-  return (
-    <>
-      <div
-        className={cn(
-          "relative rounded-[10px]",
-          shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
-        )}
-      >
-        {shared ? (
-          <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
-            Shared
-          </span>
-        ) : null}
-        {canDelete ? (
-          <VideoDeleteButton
-            deleting={deleting}
-            onDelete={() => setDeleteOpen(true)}
-          />
-        ) : null}
-        <MediaCardShell>
-          <MediaFrame>
-            {item.videoUrl ? (
-              <>
-                <video
-                  ref={videoRef}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  src={item.videoUrl}
-                  poster={item.previewUrl}
-                  muted
-                  playsInline
-                  preload={item.previewUrl ? "none" : "metadata"}
-                  onEnded={() => setPlaying(false)}
-                />
-                {!item.previewUrl && !thumbnailReady && !playing ? (
-                  <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
-                ) : null}
-                <button
-                  className="absolute inset-0 z-10 flex items-center justify-center"
-                  onClick={togglePlay}
-                  aria-label={playing ? "Pause video" : "Play video"}
-                >
-                  {!playing && (
-                    <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
-                      <IconPlayerPlay
-                        className="size-7 text-white"
-                        fill="white"
-                      />
-                    </div>
-                  )}
-                </button>
-              </>
-            ) : item.previewUrl ? (
-              <div
-                className="absolute inset-0 bg-cover bg-center"
-                style={{ backgroundImage: `url(${item.previewUrl})` }}
-              />
-            ) : (
-              <div className="app-media-poster-fallback absolute inset-0" />
-            )}
-          </MediaFrame>
-        </MediaCardShell>
-      </div>
-      {deleteConfirmation}
-    </>
-  )
-}
-
-function VideoDeleteButton({
-  deleting,
-  onDelete,
-}: {
-  deleting: boolean
-  onDelete: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      variant="iconControl"
-      size="icon-control-sm"
-      className="absolute top-2 right-2 z-30 bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
-      onClick={onDelete}
-      disabled={deleting}
-      aria-label="Delete video"
-      title="Delete video"
-    >
-      <IconTrash className="size-4" />
-    </Button>
   )
 }

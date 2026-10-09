@@ -1,35 +1,26 @@
-export type ViewKey =
-  "home" | "compose" | "schedule" | "analytics" | "collections" | "templates"
+export type ViewKey = "home" | "schedule" | "collections"
 
 export type WorkspaceLocation = {
   view: ViewKey
   collectionId?: string
 }
 
-const viewKeys = new Set<ViewKey>([
-  "home",
-  "compose",
-  "schedule",
-  "analytics",
-  "collections",
-  "templates",
-])
+const viewKeys = new Set<ViewKey>(["home", "schedule", "collections"])
+
+export function isWorkspaceViewKey(value: unknown): value is ViewKey {
+  return typeof value === "string" && viewKeys.has(value as ViewKey)
+}
 
 export function workspaceViewHref(view: ViewKey) {
   if (view === "home") return "/app"
-  if (view === "compose") return "/app/compose"
   if (view === "schedule") return "/app?view=schedule"
-  if (view === "analytics") return "/app/analytics"
-  if (view === "collections") return "/app/collections"
-  return "/app?view=templates"
+  return "/app/collections"
 }
 
 export function workspaceLocationFromUrl(
   pathname: string,
   search = ""
 ): WorkspaceLocation {
-  if (pathname === "/app/compose") return { view: "compose" }
-  if (pathname.startsWith("/app/analytics")) return { view: "analytics" }
   if (pathname.startsWith("/app/collections/")) {
     const encodedId = pathname.slice("/app/collections/".length).split("/")[0]
     return {
@@ -38,16 +29,10 @@ export function workspaceLocationFromUrl(
     }
   }
   if (pathname === "/app/collections") return { view: "collections" }
-  if (pathname === "/app/x-automations") return { view: "templates" }
 
   const requestedView = new URLSearchParams(search).get("view")
-  const normalizedView =
-    requestedView === "automations" ? "templates" : requestedView
   return {
-    view:
-      normalizedView && viewKeys.has(normalizedView as ViewKey)
-        ? (normalizedView as ViewKey)
-        : "home",
+    view: isWorkspaceViewKey(requestedView) ? requestedView : "home",
   }
 }
 

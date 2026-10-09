@@ -8,14 +8,10 @@ import Link from "next/link"
 
 import {
   IconBook,
-  IconChartHistogram,
   IconCalendar,
   IconHome,
   IconMenu2,
   IconPhoto,
-  IconPlus,
-  IconPencilPlus,
-  IconTemplate,
   IconSettings,
   IconX,
 } from "@tabler/icons-react"
@@ -45,15 +41,9 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>
 }
 
-const topNav: NavItem[] = [
+const navItems: NavItem[] = [
   { key: "home", label: "Home", icon: IconHome },
-  { key: "compose", label: "Compose", icon: IconPencilPlus },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
-  { key: "analytics", label: "Analytics", icon: IconChartHistogram },
-]
-
-const creationNav: NavItem[] = [
-  { key: "templates", label: "Templates", icon: IconTemplate },
   { key: "collections", label: "Collections", icon: IconPhoto },
 ]
 
@@ -61,13 +51,11 @@ export function Sidebar({
   data,
   view,
   onViewChange,
-  onNewTemplate,
   onSettings,
 }: {
   data: RealFarmData
   view: ViewKey
   onViewChange: (view: ViewKey) => void
-  onNewTemplate: () => void
   onSettings: () => void
 }) {
   const { data: calendarStatus } = useAppQuery<{
@@ -98,43 +86,15 @@ export function Sidebar({
         </span>
         {data.brand.name}
       </Link>
-      <Button
-        variant="action"
-        size="appDefault"
-        className="mb-4 justify-start"
-        onClick={onNewTemplate}
-      >
-        <IconPlus className="size-4" />
-        New template
-      </Button>
       <nav className="space-y-1">
-        {topNav.map((item) => (
+        {navItems.map((item) => (
           <SidebarButton
             key={item.key}
-            item={item}
-            active={
-              (view === "home" && item.label === "Home") ||
-              (view === "compose" && item.label === "Compose") ||
-              (view === "schedule" && item.label === "Schedule") ||
-              (view === "analytics" && item.label === "Analytics")
-            }
-            onClick={() => onViewChange(item.key)}
-            href={workspaceViewHref(item.key)}
-            badge={item.key === "schedule" ? scheduleBadge : 0}
-          />
-        ))}
-      </nav>
-      <div className="mt-5 px-3 text-[11px] font-medium text-[#91909d]">
-        Create and ship
-      </div>
-      <nav className="mt-1 space-y-1">
-        {creationNav.map((item) => (
-          <SidebarButton
-            key={item.label}
             item={item}
             active={item.key === view}
             onClick={() => onViewChange(item.key)}
             href={workspaceViewHref(item.key)}
+            badge={item.key === "schedule" ? scheduleBadge : 0}
           />
         ))}
       </nav>
@@ -166,15 +126,12 @@ export function Sidebar({
  * Standard mobile pattern: a branded top bar with a hamburger that opens a
  * full-screen menu.
  *
- * This replaced a fixed bottom tab bar. The bar had to squeeze seven
- * destinations into one row, so every label truncated to ~10px and adding an
- * eighth would have broken the layout. A full-screen menu scales with the nav
- * instead of fighting it, and matches what people expect on a mobile site.
+ * A full-screen menu scales with the nav instead of fighting a bottom tab bar,
+ * and matches what people expect on a mobile site.
  */
 export function MobileNavigation({
   view,
   onViewChange,
-  onNewTemplate,
   onSettings,
 }: {
   view: ViewKey
@@ -183,11 +140,10 @@ export function MobileNavigation({
    * plain link, which is what those pages need -- they have no view state.
    */
   onViewChange?: (view: ViewKey) => void
-  onNewTemplate?: () => void
   onSettings?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const items = [...topNav, ...creationNav]
+  const items = navItems
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -295,19 +251,6 @@ export function MobileNavigation({
           </div>
 
           <div className="mt-auto flex flex-col gap-2 border-t border-app-panel-border p-3">
-            {onNewTemplate ? (
-              <Button
-                variant="action"
-                size="appDefault"
-                onClick={() => {
-                  setOpen(false)
-                  onNewTemplate()
-                }}
-              >
-                <IconPlus className="size-5" />
-                New template
-              </Button>
-            ) : null}
             {onSettings ? (
               <Button
                 variant="softControl"

@@ -27,6 +27,8 @@ test("marketing navigation opens as a full-screen mobile menu", async ({
     dialog.getByRole("link", { name: "LumenClip home" })
   ).toBeVisible()
   await expect(dialog.getByRole("button", { name: "Close menu" })).toBeVisible()
+  await expect(dialog.getByRole("link", { name: "Docs" })).toBeVisible()
+  await expect(dialog.getByRole("link", { name: "Pricing" })).toHaveCount(0)
   await expect(dialog).toHaveCSS("position", "fixed")
   await expect(dialog).toHaveCSS("inset", "0px")
 

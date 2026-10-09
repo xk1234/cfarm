@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/modal"
 import { thumbTone } from "@/components/realfarm/shared-media"
 import {
-  collectionToStored,
   storedToCollection,
   type CreatedImageCollection,
   type PinterestCollectionCreatePayload,
@@ -50,7 +49,6 @@ export function PinterestCollectionSearch({
     "idle" | "searching" | "loadingMore"
   >("idle")
   const [creatingCollection, setCreatingCollection] = useState(false)
-  const [autoCaption, setAutoCaption] = useState(true)
   const [showImageLabels, setShowImageLabels] = useState(true)
   const [recentSearches, setRecentSearches] = useState<string[]>(() =>
     readRecentPinterestSearches()
@@ -60,7 +58,7 @@ export function PinterestCollectionSearch({
   function cancel() {
     createControllerRef.current?.abort()
     createControllerRef.current = null
-    toast.dismiss("pinterest-auto-caption")
+    toast.dismiss("pinterest-import")
     onCancel()
   }
 
@@ -173,16 +171,13 @@ export function PinterestCollectionSearch({
         .filter(Boolean),
       user_id: "103073708745629128582",
       collection_name: collectionName,
-      auto_caption: autoCaption,
+      auto_caption: false,
     }
 
     try {
-      toast.loading(
-        autoCaption
-          ? `Importing and captioning ${selectedResults.length} images...`
-          : `Importing ${selectedResults.length} images...`,
-        { id: "pinterest-auto-caption" }
-      )
+      toast.loading(`Importing ${selectedResults.length} images...`, {
+        id: "pinterest-import",
+      })
       const collection = await importSelectedImages({
         collectionName,
         collectionCreatedAt: createdAt,
@@ -192,28 +187,12 @@ export function PinterestCollectionSearch({
         signal: controller.signal,
       })
       if (controller.signal.aborted) return
-      onCreateCollection(
-        autoCaption
-          ? await captionCollection(collection, controller.signal)
-          : collection
-      )
+      onCreateCollection(collection)
+      toast.success("Image collection imported", { id: "pinterest-import" })
+    } catch (importError) {
       if (controller.signal.aborted) return
-      if (autoCaption) {
-        toast.success("Image captions ready", { id: "pinterest-auto-caption" })
-      } else {
-        toast.success("Image collection imported", {
-          id: "pinterest-auto-caption",
-        })
-      }
-    } catch (captionError) {
-      if (controller.signal.aborted) return
-      toast.dismiss("pinterest-auto-caption")
-      toast.error(
-        getApiErrorMessage(
-          captionError,
-          autoCaption ? "Auto-caption failed" : "Image import failed"
-        )
-      )
+      toast.dismiss("pinterest-import")
+      toast.error(getApiErrorMessage(importError, "Image import failed"))
     } finally {
       if (createControllerRef.current === controller) {
         createControllerRef.current = null
@@ -403,14 +382,6 @@ export function PinterestCollectionSearch({
             >
               Clear
             </Button>
-            <label className="flex items-center gap-2 text-app-muted-text">
-              <SwitchPillButton
-                enabled={autoCaption}
-                onClick={() => setAutoCaption((current) => !current)}
-                aria-label="Toggle auto caption"
-              />
-              Auto-caption
-            </label>
           </div>
           {results.length > 0 ? (
             <div className="flex w-full items-center gap-3 sm:w-auto">
@@ -422,9 +393,7 @@ export function PinterestCollectionSearch({
                 onClick={() => void createCollection()}
               >
                 {creatingCollection
-                  ? autoCaption
-                    ? "Captioning..."
-                    : "Adding..."
+                  ? "Adding..."
                   : `Add ${selectedResults.length} images`}
               </Button>
             </div>
@@ -554,37 +523,6 @@ function readRecentPinterestSearches() {
       : []
   } catch {
     return []
-  }
-}
-
-async function captionCollection(
-  collection: CreatedImageCollection,
-  signal?: AbortSignal
-) {
-  const payload = await fetchJsonWithTimeout<{
-    collection?: StoredImageCollection
-  }>("/api/image-collections/captions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(collectionToStored(collection)),
-    timeoutMs: 180_000,
-    toastOnError: false,
-    signal,
-  })
-  if (!payload.collection) {
-    throw new Error("Auto-caption failed")
-  }
-
-  const captioned = storedToCollection(payload.collection)
-  return {
-    ...collection,
-    title: captioned.title,
-    createdAt: captioned.createdAt,
-    images: collection.images.map((image, index) => ({
-      ...image,
-      description:
-        payload.collection?.images[index]?.caption ?? image.description,
-    })),
   }
 }
 

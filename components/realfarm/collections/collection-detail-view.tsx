@@ -4,150 +4,32 @@ import { useEffect, useRef, useState } from "react"
 import type * as React from "react"
 import {
   IconChevronLeft,
-  IconLayoutDashboard,
   IconList,
-  IconPhotoPlus,
   IconPlus,
   IconTrash,
   IconUpload,
-  IconX,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 import { Popover } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  LabelledSelect,
-  SelectControl,
-  SwitchPillButton,
-  ToggleRow,
-} from "@/components/ui/form-controls"
-import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import { SelectControl, ToggleRow } from "@/components/ui/form-controls"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import { ImageViewerModal } from "@/components/realfarm/image-viewer-modal"
 import {
-  ControlRow,
-  ControlToggle,
   MediaCardShell,
   PinterestPreviewTile,
-  SlideThumb,
 } from "@/components/realfarm/shared-media"
 import { PinterestCollectionSearch } from "@/components/realfarm/pinterest-collection-search"
-import {
-  collectionToStored,
-  type CreatedImageCollection,
-  type StoredImageCollection,
-} from "@/lib/realfarm-collections"
+import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { AssetRecord } from "@/lib/assets"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
 
-type CaptionProgressState = {
-  total: number
-  completed: number
-  status: "running" | "complete" | "error"
-  currentTitle: string
-  error?: string
-}
-
 const INITIAL_VISIBLE_ROWS = 3
 const LOAD_MORE_ROWS = 3
-
-function CaptionProgressModal({
-  progress,
-  onClose,
-}: {
-  progress: CaptionProgressState
-  onClose: () => void
-}) {
-  const complete = progress.status === "complete"
-  const failed = progress.status === "error"
-  const percent =
-    progress.total > 0
-      ? Math.round((progress.completed / progress.total) * 100)
-      : 0
-
-  return (
-    <AppModal className="z-[70]" onClose={onClose}>
-      <AppModalPanel
-        accessibleTitle={failed ? "Captioning stopped" : "Captioning images"}
-        className="max-w-[460px] p-5"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-[22px] font-bold text-app-text">
-              {failed
-                ? "Captioning stopped"
-                : complete
-                  ? "Captions generated"
-                  : "Generating captions"}
-            </h2>
-            <p className="mt-1 text-[13px] font-semibold text-app-muted-text">
-              {complete || failed
-                ? `${progress.completed} of ${progress.total} captions generated`
-                : `Processing ${progress.total} image${progress.total === 1 ? "" : "s"}. This can take a few minutes.`}
-            </p>
-          </div>
-          {(complete || failed) && (
-            <Button
-              type="button"
-              variant="iconControl"
-              size="icon-sm"
-              onClick={onClose}
-              aria-label="Close captions progress"
-            >
-              <IconX className="size-5" />
-            </Button>
-          )}
-        </div>
-        <div className="mt-5">
-          <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-semibold text-app-muted-text">
-            <span className="min-w-0 truncate">
-              {failed
-                ? "Failed"
-                : complete
-                  ? "Complete"
-                  : `Captioning ${progress.currentTitle}`}
-            </span>
-            <span>{complete || failed ? `${percent}%` : "Working…"}</span>
-          </div>
-          <div className="h-3 overflow-hidden rounded-md bg-app-control-bg">
-            <div
-              className={cn(
-                "h-full rounded-md transition-all",
-                failed
-                  ? "bg-destructive"
-                  : complete
-                    ? "bg-app-action"
-                    : "w-1/3 animate-pulse bg-app-action"
-              )}
-              style={complete || failed ? { width: `${percent}%` } : undefined}
-            />
-          </div>
-        </div>
-        {progress.error && (
-          <div className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-[12px] font-semibold text-destructive">
-            {progress.error}
-          </div>
-        )}
-        {(complete || failed) && (
-          <div className="mt-5 flex justify-end">
-            <Button
-              type="button"
-              variant={failed ? "outline" : "action"}
-              size="compact"
-              onClick={onClose}
-            >
-              Done
-            </Button>
-          </div>
-        )}
-      </AppModalPanel>
-    </AppModal>
-  )
-}
 
 export function CollectionDetailView({
   collection,
@@ -157,7 +39,6 @@ export function CollectionDetailView({
   onRemoveImages,
   onUpdateCollection,
   onRename,
-  onCreateAutomation,
 }: {
   collection: CreatedImageCollection
   readonly?: boolean
@@ -168,10 +49,8 @@ export function CollectionDetailView({
   onRemoveImages: (keys: string[]) => void
   onUpdateCollection: (collection: CreatedImageCollection) => void
   onRename: (title: string) => void
-  onCreateAutomation: (name: string) => void
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
-  const [editorOpen, setEditorOpen] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState(collection.title)
   const [columns, setColumns] = useState(5)
@@ -179,12 +58,8 @@ export function CollectionDetailView({
   const [showDescriptions, setShowDescriptions] = useState(false)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({})
-  const [captioning, setCaptioning] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [captionProgress, setCaptionProgress] =
-    useState<CaptionProgressState | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const captionControllerRef = useRef<AbortController | null>(null)
   const [selectedImageKeys, setSelectedImageKeys] = useState<string[]>([])
   const [deleteImagesOpen, setDeleteImagesOpen] = useState(false)
   const visibleImageCount = visibleRows * columns
@@ -202,10 +77,7 @@ export function CollectionDetailView({
       setViewerIndex(null)
       setSelectedImageKeys([])
     }, 0)
-    return () => {
-      window.clearTimeout(reset)
-      captionControllerRef.current?.abort()
-    }
+    return () => window.clearTimeout(reset)
   }, [collection.id])
 
   function saveTitle() {
@@ -222,90 +94,6 @@ export function CollectionDetailView({
 
   function captionFor(image: PinterestSearchResult) {
     return captionEdits[imageKey(image)] ?? image.description ?? ""
-  }
-
-  async function captionImages() {
-    if (readonly || captioning) {
-      return
-    }
-
-    if (collection.images.length === 0) {
-      return
-    }
-
-    let workingCollection: CreatedImageCollection = {
-      ...collection,
-      images: collection.images.map((image) => ({
-        ...image,
-        description: captionFor(image),
-      })),
-    }
-
-    const controller = new AbortController()
-    captionControllerRef.current = controller
-
-    setCaptioning(true)
-    setCaptionProgress({
-      total: workingCollection.images.length,
-      completed: 0,
-      status: "running",
-      currentTitle: workingCollection.images[0]?.title || "Image 1",
-    })
-
-    try {
-      const payload = await fetchJsonWithTimeout<{
-        collection?: StoredImageCollection
-      }>("/api/image-collections/captions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        timeoutMs: 180_000,
-        toastOnError: false,
-        signal: controller.signal,
-        body: JSON.stringify(collectionToStored(workingCollection)),
-      })
-      if (!payload.collection) {
-        throw new Error("Failed to caption images")
-      }
-
-      workingCollection = {
-        ...workingCollection,
-        title: payload.collection.name,
-        createdAt: payload.collection.created_at,
-        images: workingCollection.images.map((image, index) => ({
-          ...image,
-          description:
-            payload.collection!.images[index]?.caption ?? image.description,
-        })),
-      }
-      onUpdateCollection(workingCollection)
-      setCaptionEdits({})
-      setCaptionProgress({
-        total: workingCollection.images.length,
-        completed: workingCollection.images.length,
-        status: "complete",
-        currentTitle:
-          workingCollection.images.at(-1)?.title ||
-          `Image ${workingCollection.images.length}`,
-      })
-      toast.success(
-        `Generated ${workingCollection.images.length} image captions`
-      )
-    } catch (captionError) {
-      if (controller.signal.aborted) return
-      const message = getApiErrorMessage(
-        captionError,
-        "Failed to caption images"
-      )
-      setCaptionProgress((current) =>
-        current ? { ...current, status: "error", error: message } : null
-      )
-      toast.error(message)
-    } finally {
-      if (captionControllerRef.current === controller) {
-        captionControllerRef.current = null
-        setCaptioning(false)
-      }
-    }
   }
 
   function toggleImageSelection(key: string) {
@@ -463,16 +251,6 @@ export function CollectionDetailView({
           )}
         </div>
         <div className="flex w-full items-center gap-2 overflow-x-auto sm:w-auto">
-          <Button
-            variant="softControl"
-            size="compact"
-            className="h-10 sm:h-8"
-            disabled={readonly || captioning || collection.images.length === 0}
-            onClick={() => void captionImages()}
-          >
-            <IconPhotoPlus className="size-4" />
-            {captioning ? "Captioning..." : "Get image captions"}
-          </Button>
           <Popover.Root>
             <Popover.Trigger asChild>
               <Button
@@ -704,23 +482,6 @@ export function CollectionDetailView({
           onConfirm={deleteSelectedImages}
         />
       ) : null}
-      {captionProgress && (
-        <CaptionProgressModal
-          progress={captionProgress}
-          onClose={() => {
-            if (!captioning) {
-              setCaptionProgress(null)
-            }
-          }}
-        />
-      )}
-      {editorOpen && (
-        <CollectionAutomationEditor
-          collection={collection}
-          onClose={() => setEditorOpen(false)}
-          onCreateAutomation={onCreateAutomation}
-        />
-      )}
       {viewerIndex !== null && visibleImages[viewerIndex] && (
         <ImageViewerModal
           image={visibleImages[viewerIndex]}
@@ -738,17 +499,6 @@ export function CollectionDetailView({
               images: collection.images.map((item) =>
                 imageKey(item) === imageKey(image)
                   ? { ...item, description: caption }
-                  : item
-              ),
-            })
-          }}
-          onImageReplace={(imageUrl) => {
-            const image = visibleImages[viewerIndex]
-            onUpdateCollection({
-              ...collection,
-              images: collection.images.map((item) =>
-                imageKey(item) === imageKey(image)
-                  ? { ...item, imageUrl }
                   : item
               ),
             })
@@ -781,302 +531,4 @@ function formatCollectionImageDate(value: string) {
     month: "short",
     day: "numeric",
   })
-}
-
-function CollectionAutomationEditor({
-  collection,
-  onClose,
-  onCreateAutomation,
-}: {
-  collection: CreatedImageCollection
-  onClose: () => void
-  onCreateAutomation: (name: string) => void
-}) {
-  const [wordRange, setWordRange] = useState("3-5 words")
-  const [displayText, setDisplayText] = useState(true)
-  const [ctaEnabled, setCtaEnabled] = useState(false)
-  const [activeTab, setActiveTab] = useState<"Hook" | "Content" | "CTA">(
-    "Content"
-  )
-  const [createOpen, setCreateOpen] = useState(false)
-  const previewImages = collection.images.slice(0, 4)
-
-  return (
-    <AppModal className="z-40 bg-[#24251f]/48" onClose={onClose}>
-      <AppModalPanel
-        accessibleTitle="Automation editor"
-        className="relative grid max-w-[760px] rounded-[10px] bg-[#d0d0cc] md:grid-cols-[255px_1fr]"
-      >
-        <div className="flex min-h-[520px] flex-col bg-app-surface p-4">
-          <div className="mb-5 flex items-center justify-between text-[13px]">
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              className="justify-start"
-              onClick={onClose}
-            >
-              <IconChevronLeft className="size-4" />
-              Back
-            </Button>
-            <div className="flex gap-2 text-[#8c8b84]">
-              <IconList className="size-4" />
-              <IconLayoutDashboard className="size-4" />
-            </div>
-          </div>
-          <div className="mb-4 grid grid-cols-3 border-b text-center text-[11px] font-semibold text-app-text-faint">
-            {(["Hook", "Content", "CTA"] as const).map((tab) => (
-              <button
-                key={tab}
-                className={cn(
-                  "pb-3",
-                  activeTab === tab &&
-                    "border-b-2 border-app-strong text-app-text"
-                )}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-          {activeTab === "CTA" ? (
-            <div className="mt-5 flex items-center justify-between text-[14px] font-semibold">
-              Enable CTA
-              <SwitchPillButton
-                enabled={ctaEnabled}
-                onClick={() => setCtaEnabled((value) => !value)}
-                aria-label="Enable CTA"
-              />
-            </div>
-          ) : (
-            <>
-              <ControlRow label={activeTab} value={collection.title} image />
-              {activeTab === "Content" && (
-                <ControlRow label="Slide count" value="Static     4" />
-              )}
-              <ControlRow
-                label="Aspect Ratio"
-                value={activeTab === "Hook" ? "9:16" : "3:2"}
-              />
-              <ControlRow label="Image Grid" value="None" />
-              <ControlToggle label="Overlay" enabled={false} />
-              {activeTab === "Content" && (
-                <ControlToggle label="Overlay Image" enabled={false} />
-              )}
-              <ControlToggle
-                label="Display text"
-                enabled={displayText}
-                onClick={() => setDisplayText((value) => !value)}
-              />
-              <div className="mt-6 text-[12px] font-semibold text-app-muted-text">
-                Advanced
-              </div>
-              {activeTab === "Content" && (
-                <div className="mt-6 text-[12px]">
-                  <div className="mb-1 font-semibold text-[#6b6a64]">
-                    Image overrides{" "}
-                    <span className="float-right text-app-action">+ Add</span>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-          <Button
-            type="button"
-            variant="action"
-            size="appDefault"
-            className="mt-auto w-full"
-            onClick={() => {
-              if (activeTab === "CTA") {
-                onClose()
-              } else {
-                setCreateOpen(true)
-              }
-            }}
-          >
-            {activeTab === "CTA" ? "Save Changes" : "Create template"}
-          </Button>
-        </div>
-
-        <div className="min-h-[520px] p-6">
-          <div
-            className={cn(
-              "mx-auto grid max-w-[390px] gap-3",
-              activeTab === "Hook" ? "grid-cols-[1fr_120px]" : "grid-cols-3"
-            )}
-          >
-            {[0, 1, 2].map((index) => (
-              <div
-                key={index}
-                className={cn(
-                  activeTab === "Hook" && index > 0 && "opacity-80"
-                )}
-              >
-                <div className="mb-2 text-center text-[11px] font-semibold text-[#6c6b66]">
-                  {index === 0 ? activeTab : `Content ${index}`}
-                </div>
-                {previewImages[index] ? (
-                  <div className="relative">
-                    <PinterestPreviewTile
-                      image={previewImages[index]}
-                      index={index}
-                      className={cn(
-                        "w-full rounded-[3px] shadow-sm",
-                        activeTab === "Hook" && index === 0 ? "h-72" : "h-44"
-                      )}
-                    />
-                    {displayText && (
-                      <div className="absolute inset-x-3 top-[44%] rounded border border-[#4f91ff] bg-black/35 px-2 py-1 text-center font-tiktok text-[10px] leading-tight font-bold text-white">
-                        {index === 0
-                          ? "uncomfortable things to build extreme confidence"
-                          : "Et dolore magna"}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <SlideThumb
-                    index={index + 6}
-                    className={cn(
-                      "w-full rounded-[3px]",
-                      activeTab === "Hook" && index === 0 ? "h-72" : "h-44"
-                    )}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="mx-auto mt-5 flex w-fit gap-1">
-            {[0, 1, 2, 3, 4].map((dot) => (
-              <span
-                key={dot}
-                className={cn(
-                  "size-1.5 rounded-full",
-                  dot === 0 ? "bg-app-surface" : "bg-white/45"
-                )}
-              />
-            ))}
-          </div>
-          <div className="mt-5 rounded-[8px] bg-app-surface p-4">
-            <div className="grid grid-cols-3 gap-3">
-              <LabelledSelect
-                label={activeTab === "Hook" ? "Font" : "Content direction"}
-                value={activeTab === "Hook" ? "Default" : wordRange}
-                options={[
-                  "Default",
-                  "1-2 words",
-                  "2-3 words",
-                  "3-5 words",
-                  "5-7 words",
-                  "10-15 words",
-                ]}
-                onChange={setWordRange}
-              />
-              <LabelledSelect
-                label="Style"
-                value="Outline"
-                options={["Outline", "Bold", "Plain"]}
-              />
-              <LabelledSelect
-                label="Size"
-                value={activeTab === "Hook" ? "14px" : "12px"}
-                options={["12px", "14px", "16px"]}
-              />
-              <LabelledSelect
-                label="Position"
-                value="Center"
-                options={["Center", "Bottom", "Top"]}
-              />
-              <LabelledSelect
-                label="Width"
-                value="100%"
-                options={["50%", "75%", "100%"]}
-              />
-            </div>
-            <input
-              className="mt-4 h-10 w-full rounded-[6px] border border-app-panel-border px-3 text-[12px] outline-none"
-              placeholder="e.g. A bold hook about..."
-            />
-            <div className="mt-4 flex items-center justify-between text-[12px]">
-              <Button type="button" variant="ghost" size="xs">
-                Advanced ^
-              </Button>
-              <div className="flex gap-4">
-                <Button type="button" variant="ghost" size="xs">
-                  + Add text
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </AppModalPanel>
-      {createOpen && (
-        <CreateAutomationDialog
-          defaultName="Custom Template"
-          onCancel={() => setCreateOpen(false)}
-          onCreate={(name) => {
-            setCreateOpen(false)
-            onCreateAutomation(name)
-          }}
-        />
-      )}
-    </AppModal>
-  )
-}
-
-function CreateAutomationDialog({
-  defaultName,
-  onCancel,
-  onCreate,
-}: {
-  defaultName: string
-  onCancel: () => void
-  onCreate: (name: string) => void
-}) {
-  const [name, setName] = useState(defaultName)
-
-  return (
-    <AppModal layer="absolute" className="z-50" onClose={onCancel}>
-      <AppModalPanel className="max-w-[430px] rounded-[8px] shadow-2xl">
-        <AppModalHeader title="Create Template" onClose={onCancel} />
-        <div className="p-5">
-          <label className="mt-5 block text-[12px] font-semibold">
-            Template name
-            <input
-              className="mt-2 h-10 w-full rounded-[7px] border border-app-panel-border px-3 text-[13px] outline-none"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <div className="mt-4 flex border-b text-[12px] font-semibold">
-            <button className="border-b-2 border-app-strong pr-6 pb-2">
-              Hooks (1)
-            </button>
-            <button className="pb-2 text-[#8b8a83]">Tone & Style</button>
-          </div>
-          <div className="mt-4 text-[14px] font-semibold">
-            Slideshow Hooks <span className="text-app-text-faint">⊙</span>
-          </div>
-          <div className="mt-1 text-[12px] font-semibold text-app-action">
-            Each line is a separate hook
-          </div>
-          <textarea
-            className="mt-3 h-28 w-full resize-none rounded-[8px] border border-app-panel-border p-3 text-[13px] outline-none"
-            defaultValue="uncomfortable things to build extreme confidence"
-          />
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="softControl" size="appDefault" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button
-              variant="action"
-              size="appDefault"
-              onClick={() => onCreate(name.trim() || defaultName)}
-            >
-              Create
-            </Button>
-          </div>
-        </div>
-      </AppModalPanel>
-    </AppModal>
-  )
 }

@@ -18,28 +18,31 @@ import type {
   PostFastCreatePostType,
   PostFastMedia,
 } from "@/lib/postfast-client"
+import type { SlideshowRecord } from "@/lib/slideshows"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 
-import {
-  automationRunSlides,
-  slideshowCaption,
-  slideshowTitle,
-} from "./run-helpers"
-import type { AutomationRunApiRecord } from "./types"
+/**
+ * The slideshow fields the publish dialog reads. A persisted
+ * `SlideshowRecord` satisfies it directly.
+ */
+export type PublishableSlideshow = Pick<
+  SlideshowRecord,
+  "id" | "title" | "caption" | "hashtags" | "output_images"
+> & {
+  images?: Array<{ image_url?: string }>
+}
 
-export function SlideshowPublicationActions({
-  run,
-  onRunChanged,
+export function SlideshowPublishActions({
+  slideshow,
+  initialReleaseUrl = "",
   children,
 }: {
-  run: AutomationRunApiRecord
-  onRunChanged: (run: AutomationRunApiRecord) => void
+  slideshow: PublishableSlideshow
+  initialReleaseUrl?: string
   children: (actions: SlideshowViewerAction[]) => ReactNode
 }) {
   const [modal, setModal] = useState<"post" | "link" | null>(null)
-  const [releaseUrl, setReleaseUrl] = useState(
-    run.socialStatuses?.find((item) => item.releaseUrl)?.releaseUrl ?? ""
-  )
+  const [releaseUrl, setReleaseUrl] = useState(initialReleaseUrl)
   const actions: SlideshowViewerAction[] = [
     ...(releaseUrl
       ? [
@@ -67,33 +70,27 @@ export function SlideshowPublicationActions({
     <>
       {children(actions)}
       {modal ? (
-        <SlideshowPublicationModal
+        <SlideshowPublishModal
           mode={modal}
-          run={run}
+          slideshow={slideshow}
           onClose={() => setModal(null)}
-          onLinked={(url, updated) => {
-            setReleaseUrl(url)
-            onRunChanged(updated)
-          }}
-          onRunChanged={onRunChanged}
+          onLinked={setReleaseUrl}
         />
       ) : null}
     </>
   )
 }
 
-function SlideshowPublicationModal({
+function SlideshowPublishModal({
   mode,
-  run,
+  slideshow,
   onClose,
   onLinked,
-  onRunChanged,
 }: {
   mode: "post" | "link"
-  run: AutomationRunApiRecord
+  slideshow: PublishableSlideshow
   onClose: () => void
-  onLinked: (url: string, run: AutomationRunApiRecord) => void
-  onRunChanged: (run: AutomationRunApiRecord) => void
+  onLinked: (url: string) => void
 }) {
   const {
     integrations,
@@ -142,7 +139,7 @@ function SlideshowPublicationModal({
   }
 
   async function submit() {
-    if (!run.slideshowId) {
+    if (!slideshow.id) {
       setError("This output has no slideshow record.")
       return
     }
@@ -172,29 +169,26 @@ function SlideshowPublicationModal({
       if (mode === "link") {
         const integration = selectedIntegrations[0]
         const payload = await createPublicationRecord({
-          run,
+          slideshow,
           integration,
           type: "manual_posted",
           releaseUrl: url,
           date: new Date(publishedAt).toISOString(),
           media: [],
         })
-        const releaseUrl = payload.record.releaseUrl || url
-        const updated = withPublicationStatus(run, integration, payload.record)
-        onLinked(releaseUrl, updated)
+        onLinked(payload.record.releaseUrl || url)
         toast.success("Published post linked to this output")
       } else {
         if (postType === "schedule" && !scheduledAt) {
           throw new Error("Select a date and time.")
         }
-        const media = await uploadSlideshow(run)
-        let updated = run
+        const media = await uploadSlideshow(slideshow)
         const succeeded: SocialIntegration[] = []
         const failed: SocialIntegration[] = []
         for (const integration of selectedIntegrations) {
           try {
-            const payload = await createPublicationRecord({
-              run,
+            await createPublicationRecord({
+              slideshow,
               integration,
               type: postType,
               date:
@@ -203,18 +197,12 @@ function SlideshowPublicationModal({
                   : undefined,
               media,
             })
-            updated = withPublicationStatus(
-              updated,
-              integration,
-              payload.record
-            )
             succeeded.push(integration)
           } catch {
             failed.push(integration)
           }
         }
         if (succeeded.length > 0) {
-          onRunChanged(updated)
           setCompletedKeys((current) => [
             ...new Set([...current, ...succeeded.map(socialIntegrationKey)]),
           ])
@@ -364,10 +352,18 @@ function Field({
   )
 }
 
-async function uploadSlideshow(run: AutomationRunApiRecord) {
-  const urls = automationRunSlides(run)
-    .map((slide) => slide.imageUrl?.trim() || slide.sourceImageUrl?.trim())
-    .filter((url): url is string => Boolean(url))
+function slideshowImageUrls(slideshow: PublishableSlideshow) {
+  const rendered = (slideshow.output_images ?? [])
+    .map((url) => url.trim())
+    .filter(Boolean)
+  if (rendered.length > 0) return rendered
+  return (slideshow.images ?? [])
+    .map((image) => image.image_url?.trim() ?? "")
+    .filter(Boolean)
+}
+
+async function uploadSlideshow(slideshow: PublishableSlideshow) {
+  const urls = slideshowImageUrls(slideshow)
   if (urls.length === 0)
     throw new Error("This slideshow has no rendered images.")
   return Promise.all(
@@ -390,7 +386,7 @@ async function uploadSlideshow(run: AutomationRunApiRecord) {
 }
 
 async function createPublicationRecord(input: {
-  run: AutomationRunApiRecord
+  slideshow: PublishableSlideshow
   integration: SocialIntegration
   type: PostFastCreatePostType | "manual_posted"
   date?: string
@@ -410,14 +406,14 @@ async function createPublicationRecord(input: {
         provider: input.integration.provider,
         content:
           [
-            slideshowCaption(input.run) || slideshowTitle(input.run),
-            input.run.plan?.hashtags,
+            input.slideshow.caption?.trim() || input.slideshow.title?.trim(),
+            input.slideshow.hashtags?.trim(),
           ]
             .filter(Boolean)
             .join("\n\n") || "Slideshow",
         media: input.media,
         sourceType: "slideshow",
-        sourceId: input.run.slideshowId,
+        sourceId: input.slideshow.id,
       }),
       timeoutMs: 90_000,
       toastOnError: false,
@@ -433,35 +429,6 @@ type PublicationRecord = {
   releaseUrl?: string
   externalPostId?: string
   error?: string
-}
-
-function withPublicationStatus(
-  run: AutomationRunApiRecord,
-  integration: SocialIntegration,
-  record: PublicationRecord
-): AutomationRunApiRecord {
-  const status = {
-    provider: integration.provider,
-    integrationId: integration.integration_id,
-    name: integration.name,
-    profile: integration.profile,
-    status: record.status,
-    scheduledAt: record.scheduledAt,
-    publishedAt: record.publishedAt,
-    releaseUrl: record.releaseUrl,
-    externalPostId: record.externalPostId,
-    error: record.error,
-  }
-  return {
-    ...run,
-    socialStatuses: [
-      status,
-      ...(run.socialStatuses ?? []).filter(
-        (item) => item.integrationId !== integration.integration_id
-      ),
-    ],
-    ...(record.publishedAt ? { manuallyPublishedAt: record.publishedAt } : {}),
-  }
 }
 
 function postfastMediaFromUpload(upload: unknown): PostFastMedia | null {
