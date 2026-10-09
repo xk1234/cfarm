@@ -131,7 +131,6 @@ describe("/api/slideshows", () => {
     expect(resultsRows).toHaveLength(1)
     expect(listResponse.status).toBe(200)
     expect(listPayload.slideshowsCount).toBe(1)
-    expect(listPayload.videosCount).toBe(0)
     expect(listPayload.slideshows).toHaveLength(1)
     expect(listPayload.slideshows[0].images[0]).toMatchObject({
       image_url: expect.stringMatching(
@@ -179,7 +178,6 @@ describe("/api/slideshows", () => {
     )
     const listPayload = await listResponse.json()
 
-    expect(listPayload.videosCount).toBe(1)
     expect(listPayload.slideshows[0].settings).toMatchObject({
       export_as_video: true,
       transition_style: "fade",

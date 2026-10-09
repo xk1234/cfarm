@@ -37,10 +37,6 @@ export async function POST(request: Request) {
         (total, collection) => total + collection.images.length,
         0
       ),
-      // Kept empty for the current collections UI until it drops the
-      // dependency list; nothing references collections any more.
-      dependentAutomations: [],
-      dependentTemplates: [],
       recoveryDays: 30,
     })
   } catch (error) {

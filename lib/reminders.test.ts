@@ -15,11 +15,11 @@ describe("enqueueReminder", () => {
     enqueueJob.mockReset()
     getReminderSettings.mockResolvedValue({
       events: {
-        generated: { channel: "telegram" },
-        ready_to_post: { channel: "telegram" },
-        scheduled_to_post: { channel: "telegram" },
+        generated: { channel: "in_app" },
+        ready_to_post: { channel: "in_app" },
+        scheduled_to_post: { channel: "in_app" },
         respond_to_comments: {
-          channel: "telegram",
+          channel: "in_app",
           offsetsHours: [24, 72],
         },
       },
@@ -30,8 +30,8 @@ describe("enqueueReminder", () => {
     getReminderSettings.mockResolvedValue({
       events: {
         generated: { channel: "none" },
-        ready_to_post: { channel: "telegram" },
-        scheduled_to_post: { channel: "telegram" },
+        ready_to_post: { channel: "in_app" },
+        scheduled_to_post: { channel: "in_app" },
       },
     })
     await expect(

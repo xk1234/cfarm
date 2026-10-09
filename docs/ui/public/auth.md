@@ -1,13 +1,12 @@
 ---
-title: Authentication and invitations
-description: Use Clerk account flows and accept workspace invitations.
+title: Authentication
+description: Use Clerk account flows.
 ---
 
-Route: `/login`, `/sign-up`, and `/team-invite`
+Route: `/login` and `/sign-up`
 
 Owner: `app/login/[[...login]]/page.tsx`,
-`app/sign-up/[[...sign-up]]/page.tsx`, `components/clerk-auth-shell.tsx`, and
-`components/team-invite-card.tsx`.
+`app/sign-up/[[...sign-up]]/page.tsx`, and `components/clerk-auth-shell.tsx`.
 
 ## Authentication
 
@@ -22,12 +21,10 @@ Marketing navigation uses `<Show>`, `<SignInButton>`, `<SignUpButton>`, and
 `/app`. Both auth routes accept a safe same-origin `next` value and otherwise
 continue to `/app`.
 
-## Team invitation
+## Workspace
 
-`/team-invite` reads the current Clerk-backed application identity and the
-`teamId`, `membershipId`, `userId`, and `secret` query parameters. A logged-out
-visitor is offered login or account creation while preserving the invitation
-URL. A signed-in visitor with a complete link enters acceptance automatically.
+LumenClip is single-user. The workspace id is the signed-in Clerk user id, and
+there are no team members or invitations.
 
 ## Identity mapping
 
@@ -41,5 +38,4 @@ sessions.
 
 ## MCP coverage
 
-Partial. `lumenclip_workspace_members_list` can inspect accepted members and
-pending invitations. Authentication remains a browser-managed Clerk flow.
+No. Authentication is a browser-managed Clerk flow.

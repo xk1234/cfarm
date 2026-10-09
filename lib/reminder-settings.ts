@@ -2,7 +2,7 @@ import "server-only"
 
 import path from "node:path"
 
-import { clean, isRecord } from "@/lib/guards"
+import { clean } from "@/lib/guards"
 import { readJsonArrayRecord, upsertJsonArrayRecord } from "@/lib/json-store"
 
 export const reminderEvents = [
@@ -11,11 +11,11 @@ export const reminderEvents = [
   "scheduled_to_post",
   "respond_to_comments",
   "publish_failed",
-  "generation_failed",
 ] as const
 
 export type ReminderEvent = (typeof reminderEvents)[number]
-export type ReminderChannel = "none" | "telegram"
+// Notifications are delivered in-app only; there is no external channel.
+export type ReminderChannel = "none" | "in_app"
 
 export type ReminderEventMetadata = {
   label: string
@@ -29,8 +29,8 @@ export const reminderEventMetadata: Record<
   ReminderEventMetadata
 > = {
   generated: {
-    label: "Generation complete",
-    description: "Send as soon as a slideshow or video finishes generating.",
+    label: "Slideshow rendered",
+    description: "Notify as soon as a slideshow finishes rendering.",
     supportsOffsets: false,
   },
   ready_to_post: {
@@ -55,11 +55,6 @@ export const reminderEventMetadata: Record<
     description: "Send when LumenClip cannot publish a post.",
     supportsOffsets: false,
   },
-  generation_failed: {
-    label: "Generation failed",
-    description: "Send when a slideshow or video cannot be generated.",
-    supportsOffsets: false,
-  },
 }
 
 export type ReminderEventSettings = {
@@ -69,8 +64,6 @@ export type ReminderEventSettings = {
 
 export type ReminderSettings = {
   id: "reminders"
-  telegramChatId?: string
-  telegramBotToken?: string
   notificationDefaultsApplied: boolean
   events: Record<ReminderEvent, ReminderEventSettings>
   updatedAt: string
@@ -78,7 +71,7 @@ export type ReminderSettings = {
 
 export type ReminderSettingsInput = Pick<
   ReminderSettings,
-  "telegramChatId" | "telegramBotToken" | "events"
+  "events"
 > & {
   notificationDefaultsApplied?: boolean
 }
@@ -125,7 +118,6 @@ export function normalizeReminderSettings(
       ? (input.events as Record<string, unknown>)
       : {}
   const defaults = defaultReminderSettings()
-  const telegramChatId = clean(input.telegramChatId) || undefined
   const notificationDefaultsApplied = input.notificationDefaultsApplied === true
   const events = Object.fromEntries(
     reminderEvents.map((event) => {
@@ -135,8 +127,11 @@ export function normalizeReminderSettings(
         raw && typeof raw === "object" && !Array.isArray(raw)
           ? (raw as Record<string, unknown>)
           : null
+      // Legacy Telegram routing becomes in-app delivery.
       const channel: ReminderChannel =
-        rawEvent?.channel === "telegram" ? "telegram" : "none"
+        rawEvent?.channel === "in_app" || rawEvent?.channel === "telegram"
+          ? "in_app"
+          : "none"
       const offsetsHours = metadata.supportsOffsets
         ? normalizeOffsets(
             rawEvent?.offsetsHours,
@@ -153,24 +148,9 @@ export function normalizeReminderSettings(
     })
   ) as Record<ReminderEvent, ReminderEventSettings>
 
-  // Existing linked Telegram workspaces predate an explicit connection
-  // default. Migrate each one once so linking Telegram actually enables the
-  // delivery users connected it for. Once saved, the marker preserves an
-  // intentional all-Off configuration.
-  if (
-    telegramChatId &&
-    !notificationDefaultsApplied &&
-    !reminderEvents.some((event) => events[event].channel === "telegram")
-  ) {
-    events.generated = { channel: "telegram" }
-  }
-
   return {
     id: "reminders",
-    telegramChatId,
-    telegramBotToken: clean(input.telegramBotToken) || undefined,
-    notificationDefaultsApplied:
-      notificationDefaultsApplied || Boolean(telegramChatId),
+    notificationDefaultsApplied,
     events,
     updatedAt: clean(input.updatedAt) || defaults.updatedAt,
   }
@@ -215,187 +195,5 @@ export async function saveReminderSettings(
 }
 
 export function publicReminderSettings(settings: ReminderSettings) {
-  const safe = { ...settings }
-  delete safe.telegramBotToken
-  return safe
-}
-
-export function telegramReminderConfiguration(settings?: ReminderSettings) {
-  const baseUrl = clean(process.env.BASE_URL).replace(/\/$/, "")
-  const webhookSecret = clean(process.env.TELEGRAM_WEBHOOK_SECRET)
-  const token =
-    clean(settings?.telegramBotToken) || clean(process.env.TELEGRAM_BOT_TOKEN)
-  return {
-    botConfigured: Boolean(token),
-    customBotConfigured: Boolean(settings?.telegramBotToken),
-    defaultChatConfigured: Boolean(process.env.TELEGRAM_CHAT_ID?.trim()),
-    interactiveConfigured:
-      Boolean(token) && Boolean(webhookSecret) && /^https:\/\//i.test(baseUrl),
-  }
-}
-
-export async function telegramBotRequest(
-  method: string,
-  body: Record<string, unknown>,
-  fetcher: typeof fetch = fetch,
-  botToken?: string
-) {
-  const token = clean(botToken) || process.env.TELEGRAM_BOT_TOKEN?.trim()
-  if (!token)
-    throw new Error("Telegram reminders are not configured on the server.")
-  const response = await fetcher(
-    `https://api.telegram.org/bot${token}/${encodeURIComponent(method)}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }
-  )
-  if (!response.ok) {
-    throw new Error(`Telegram request failed (${response.status}).`)
-  }
-  // Telegram answers 200 with `{ok:false, error_code, description}`. Throwing a
-  // bare string discarded the only field that says what was wrong.
-  const raw = await response.text()
-  let payload: unknown = null
-  try {
-    payload = JSON.parse(raw)
-  } catch {
-    payload = null
-  }
-  if (
-    payload &&
-    typeof payload === "object" &&
-    (payload as { ok?: boolean }).ok === false
-  ) {
-    const detail = payload as { error_code?: number; description?: string }
-    throw new Error(
-      [
-        "Telegram rejected the request",
-        detail.error_code ? `code=${detail.error_code}` : "",
-        detail.description,
-      ]
-        .filter(Boolean)
-        .join(" | ")
-    )
-  }
-  return payload
-}
-
-export async function configureTelegramWebhook(
-  settingsOrFetcher?: ReminderSettings | typeof fetch,
-  requestedFetcher: typeof fetch = fetch
-) {
-  const settings =
-    typeof settingsOrFetcher === "function" ? undefined : settingsOrFetcher
-  const fetcher =
-    typeof settingsOrFetcher === "function"
-      ? settingsOrFetcher
-      : requestedFetcher
-  const configuration = telegramReminderConfiguration(settings)
-  if (!configuration.interactiveConfigured) return { configured: false }
-  const baseUrl = clean(process.env.BASE_URL).replace(/\/$/, "")
-  await telegramBotRequest(
-    "setWebhook",
-    {
-      url: `${baseUrl}/api/telegram/webhook`,
-      secret_token: clean(process.env.TELEGRAM_WEBHOOK_SECRET),
-      allowed_updates: ["callback_query"],
-      drop_pending_updates: false,
-    },
-    fetcher,
-    settings?.telegramBotToken
-  )
-  return { configured: true }
-}
-
-/**
- * Who the workspace bot is. Shown in settings so a person knows which bot to
- * open — "enter a chat ID" is unanswerable if you cannot tell which bot is
- * asking.
- */
-export async function telegramBotIdentity(input: {
-  botToken?: string
-  fetcher?: typeof fetch
-}) {
-  const payload = await telegramBotRequest(
-    "getMe",
-    {},
-    input.fetcher,
-    input.botToken
-  )
-  // telegramBotRequest returns Telegram's whole `{ok, result}` envelope.
-  const result =
-    isRecord(payload) && isRecord(payload.result) ? payload.result : {}
-  const username = clean(result.username)
-  return {
-    username: username || undefined,
-    name: clean(result.first_name) || undefined,
-  }
-}
-
-/**
- * Resolve the chat ID from the bot's own recent updates, so nobody has to open
- * a getUpdates URL by hand. Returns the most recent chat that messaged the bot.
- */
-export async function detectTelegramChat(input: {
-  botToken?: string
-  fetcher?: typeof fetch
-}) {
-  const payload = await telegramBotRequest(
-    "getUpdates",
-    { limit: 100, allowed_updates: ["message", "channel_post"] },
-    input.fetcher,
-    input.botToken
-  )
-  const updates =
-    isRecord(payload) && Array.isArray(payload.result) ? payload.result : []
-  for (const update of [...updates].reverse()) {
-    if (!isRecord(update)) continue
-    const message = isRecord(update.message)
-      ? update.message
-      : isRecord(update.channel_post)
-        ? update.channel_post
-        : undefined
-    const chat = message && isRecord(message.chat) ? message.chat : undefined
-    // Chat IDs arrive as numbers, and negative for groups and channels, so
-    // clean() would drop every one of them.
-    const id =
-      typeof chat?.id === "number" || typeof chat?.id === "string"
-        ? String(chat.id)
-        : ""
-    if (!id) continue
-    return {
-      chatId: id,
-      title:
-        clean(chat?.title) ||
-        [clean(chat?.first_name), clean(chat?.last_name)]
-          .filter(Boolean)
-          .join(" ") ||
-        clean(chat?.username) ||
-        undefined,
-    }
-  }
-  return { chatId: undefined, title: undefined }
-}
-
-export async function sendTelegramReminder(input: {
-  text: string
-  chatId?: string
-  botToken?: string
-  fetcher?: typeof fetch
-}) {
-  const token = clean(input.botToken) || process.env.TELEGRAM_BOT_TOKEN?.trim()
-  const chatId = clean(input.chatId) || process.env.TELEGRAM_CHAT_ID?.trim()
-  if (!token)
-    throw new Error("Telegram reminders are not configured on the server.")
-  if (!chatId) throw new Error("Enter a Telegram chat or channel ID.")
-
-  await telegramBotRequest(
-    "sendMessage",
-    { chat_id: chatId, text: clean(input.text).slice(0, 4000) },
-    input.fetcher,
-    token
-  )
-  return { sent: true }
+  return { ...settings }
 }

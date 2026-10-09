@@ -18,15 +18,11 @@ type McpTool = {
 type McpToolsResponse = { tools: McpTool[] }
 
 const categoryLabels: Record<string, string> = {
-  workflows: "Workflows",
-  automations: "Templates",
   slideshows: "Slideshows",
-  videos: "Videos",
   collections: "Collections",
   outputs: "Outputs",
   publishing: "Publishing",
   scheduling: "Scheduling",
-  analytics: "Analytics",
 }
 
 export function McpSettingsPanel() {

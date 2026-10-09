@@ -39,17 +39,6 @@ describe("Clerk auth migration", () => {
     )
   })
 
-  it("uses Clerk testing helpers for authenticated documentation captures", () => {
-    for (const file of [
-      "scripts/capture-automations-docs.mjs",
-      "scripts/capture-hook-docs.mjs",
-    ]) {
-      const source = readFileSync(path.join(root, file), "utf8")
-      expect(source).toContain("@clerk/testing/playwright")
-      expect(source).not.toContain("/api/auth/")
-    }
-  })
-
   it("keeps a one-time user and preference importer for the cutover", () => {
     const migration = path.join(
       root,

@@ -20,7 +20,7 @@ describe("published comment reminders", () => {
     mocks.getReminderSettings.mockResolvedValue({
       events: {
         respond_to_comments: {
-          channel: "telegram",
+          channel: "in_app",
           offsetsHours: [24, 72],
         },
       },

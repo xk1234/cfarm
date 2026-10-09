@@ -24,7 +24,7 @@ export type ReminderEventInput = {
  */
 export async function enqueueReminder(input: ReminderEventInput) {
   const settings = await getReminderSettings()
-  if (settings.events[input.event].channel !== "telegram") {
+  if (settings.events[input.event].channel !== "in_app") {
     return null
   }
   return enqueueJob({

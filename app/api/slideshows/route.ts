@@ -20,16 +20,14 @@ export const GET = withHandler(async (request: Request) => {
     100,
     Number.isFinite(limitValue) && limitValue > 0 ? limitValue : 100
   )
-  const [slideshows, slideshowsCount, videosCount] = await Promise.all([
+  const [slideshows, slideshowsCount] = await Promise.all([
     listSlideshowRecords({ id, limit: id ? 1 : limit }),
     countResultRecords({ workflowType: "slideshow" }),
-    countResultRecords({ workflowType: "slideshow", hasVideo: true }),
   ])
 
   return NextResponse.json({
     slideshows,
     slideshowsCount,
-    videosCount,
   })
 })
 
@@ -42,7 +40,7 @@ export const POST = withHandler(async (request: Request) => {
     event: "generated",
     sourceType: "slideshow",
     sourceId: slideshow.id,
-    text: `Slideshow generated\n${slideshow.title}`,
+    text: `Slideshow rendered\n${slideshow.title}`,
   }).catch(() => undefined)
 
   return NextResponse.json(

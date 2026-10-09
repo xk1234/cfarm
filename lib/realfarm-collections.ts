@@ -29,7 +29,6 @@ export type PinterestCollectionCreatePayload = {
   image_urls: string[]
   user_id: string
   collection_name: string
-  auto_caption: boolean
 }
 
 export function defaultImageCollections(): CreatedImageCollection[] {

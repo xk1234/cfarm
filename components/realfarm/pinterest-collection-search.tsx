@@ -171,7 +171,6 @@ export function PinterestCollectionSearch({
         .filter(Boolean),
       user_id: "103073708745629128582",
       collection_name: collectionName,
-      auto_caption: false,
     }
 
     try {
