@@ -5,12 +5,8 @@
     "routes",
     "workspace",
     "home",
-    "templates",
-    "compose",
     "schedule",
-    "analytics",
     "collections",
-    "testing",
     "settings",
     "public"
   ]

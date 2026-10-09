@@ -4,12 +4,10 @@
     "index",
     "persistence",
     "workspace-assets",
-    "automations",
     "generation-outputs",
     "publishing-analytics",
     "operations-access",
     "backend-architecture",
-    "railway-migration",
     "backend-endpoints"
   ]
 }

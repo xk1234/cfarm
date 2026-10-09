@@ -50,38 +50,18 @@ precedence where they disagree.
 - [Home](/docs/ui/home/home)
 - [Published posts](/docs/ui/home/published-posts)
 
-### Templates
+### Schedule
 
-- [Templates overview](/docs/ui/templates/overview)
-- [Template hooks](/docs/ui/templates/hooks)
-- [Hook analytics](/docs/ui/templates/hook-analytics)
-- [Template schedule](/docs/ui/templates/schedule)
-- [Template settings](/docs/ui/templates/settings)
-- [Template social settings](/docs/ui/templates/social-settings)
-- [Template editors](/docs/ui/templates/editors)
-- [Text posting templates](/docs/ui/templates/x-automations)
-- [Composition and publish gates](/docs/ui/templates/composition)
-- [UGC video templates (WIP)](/docs/ui/templates/ugc)
-
-### Compose, Schedule, Analytics
-
-- [Compose](/docs/ui/compose/compose)
 - [Schedule](/docs/ui/schedule/schedule)
-- [Analytics](/docs/ui/analytics/analytics)
-- [Post analytics](/docs/ui/analytics/post-analytics)
-- [Analytics preview](/docs/ui/analytics/analytics-preview)
 
-### Collections and Testing
+### Collections
 
 - [Collections](/docs/ui/collections/collections)
 - [Collection detail](/docs/ui/collections/collection-detail)
-- [Testing facility](/docs/ui/testing/testing)
-- [Output trace](/docs/ui/testing/output-trace)
 
 ### Workspace settings
 
 - [Notifications](/docs/ui/settings/notifications)
-- [AI models](/docs/ui/settings/ai-models)
 
 ### Public and system
 

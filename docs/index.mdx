@@ -1,16 +1,12 @@
 ---
 title: LumenClip engineering documentation
-description: Workflows, libraries, application data, UI, and scheduled jobs.
+description: Libraries, application data, UI, and scheduled jobs.
 ---
 
-This documentation is organized around the five areas maintained alongside the
+This documentation is organized around the four areas maintained alongside the
 application.
 
 <Cards>
-  <Card title="Output generation" href="/docs/workflows">
-    Generation pipelines that transform application inputs into content outputs,
-    including the exact model and provider at generative stages.
-  </Card>
   <Card title="Libraries" href="/docs/libraries">
     Runtime and development dependencies used by LumenClip.
   </Card>
@@ -27,9 +23,6 @@ application.
 
 ## Documentation rules
 
-- Keep only content-output generation workflows in `docs/workflows/`. Express
-  each pipeline as ordered transformations with explicit inputs, outputs,
-  branches, validation, and model/provider details.
 - Keep dependency ownership in `docs/libraries/`.
 - Keep persisted shapes and backend contracts in `docs/data/`.
 - Keep frontend architecture and product surfaces in `docs/ui/`.

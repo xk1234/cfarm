@@ -7,9 +7,7 @@ the repository. Domain object shapes are in [Data structures](index.md),
 the HTTP surface is in [backend-endpoints.md](backend-endpoints.md), and the
 queue lifecycle is in [Backend scheduling](../jobs/backend.md).
 
-The additive Railway-to-Railway replacement is tracked in
-[Railway migration](railway-migration.md). Railway remains the runtime default
-until the documented cutover gates pass.
+Railway remains the runtime default until the backend moves to Appwrite.
 
 ## Maintained backend foundations
 
