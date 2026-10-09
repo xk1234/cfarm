@@ -1,15 +1,7 @@
 import "server-only"
 
-import {
-  getUserPreferences,
-  updateUserPreferences,
-  type LumenClipUserPreferences,
-} from "@/lib/auth"
-import { clean, isRecord } from "@/lib/guards"
-import {
-  LUMENCLIP_MCP_TOOLS,
-  LUMENCLIP_MCP_TOOL_NAMES,
-} from "@/lib/mcp/tool-registry"
+import { getRepositories, type Repositories, type WorkspaceId } from "@/lib/data"
+import { LUMENCLIP_MCP_TOOLS, LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
 
 const knownToolNames = new Set<string>(LUMENCLIP_MCP_TOOL_NAMES)
 
@@ -17,43 +9,55 @@ export type McpToolSetting = (typeof LUMENCLIP_MCP_TOOLS)[number] & {
   enabled: boolean
 }
 
-export function disabledMcpToolNames(preferences: unknown) {
-  if (
-    !isRecord(preferences) ||
-    !Array.isArray(preferences.disabledMcpToolNames)
-  ) {
-    return []
-  }
-  return preferences.disabledMcpToolNames
-    .map(clean)
-    .filter((name): name is string => Boolean(name) && knownToolNames.has(name))
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
 
-export function mcpToolSettings(preferences: unknown): McpToolSetting[] {
-  const disabled = new Set(disabledMcpToolNames(preferences))
-  return LUMENCLIP_MCP_TOOLS.map((tool) => ({
-    ...tool,
-    enabled: !disabled.has(tool.name),
-  }))
+/**
+ * Disabled tool names from workspace settings (`mcpDisabledTools`) or the
+ * legacy preferences shape (`disabledMcpToolNames`). Unknown names are dropped.
+ */
+export function disabledMcpToolNames(settings: unknown): string[] {
+  if (!isRecord(settings)) return []
+  const raw = Array.isArray(settings.mcpDisabledTools)
+    ? settings.mcpDisabledTools
+    : Array.isArray(settings.disabledMcpToolNames)
+      ? settings.disabledMcpToolNames
+      : []
+  return raw
+    .map((name) => (typeof name === "string" ? name.trim() : ""))
+    .filter((name) => Boolean(name) && knownToolNames.has(name))
 }
 
-export async function getDisabledMcpToolNames(userId: string) {
-  return disabledMcpToolNames(await getUserPreferences(userId))
+export function mcpToolSettings(settings: unknown): McpToolSetting[] {
+  const disabled = new Set(disabledMcpToolNames(settings))
+  return LUMENCLIP_MCP_TOOLS.map((tool) => ({ ...tool, enabled: !disabled.has(tool.name) }))
+}
+
+export async function getMcpToolSettings(
+  workspaceId: WorkspaceId,
+  repos: Repositories = getRepositories()
+): Promise<McpToolSetting[]> {
+  return mcpToolSettings(await repos.settings.get(workspaceId))
+}
+
+export async function getDisabledMcpToolNames(
+  workspaceId: WorkspaceId,
+  repos: Repositories = getRepositories()
+): Promise<string[]> {
+  return disabledMcpToolNames(await repos.settings.get(workspaceId))
 }
 
 export async function setMcpToolEnabled(
-  userId: string,
+  workspaceId: WorkspaceId,
   toolName: string,
-  enabled: boolean
-) {
+  enabled: boolean,
+  repos: Repositories = getRepositories()
+): Promise<McpToolSetting[]> {
   if (!knownToolNames.has(toolName)) throw new Error("Unknown MCP API")
-  const preferences = await getUserPreferences(userId)
-  const disabled = new Set(disabledMcpToolNames(preferences))
+  const disabled = new Set(await getDisabledMcpToolNames(workspaceId, repos))
   if (enabled) disabled.delete(toolName)
   else disabled.add(toolName)
-  const next: Partial<LumenClipUserPreferences> = {
-    disabledMcpToolNames: [...disabled].sort(),
-  }
-  await updateUserPreferences(userId, next)
-  return mcpToolSettings({ ...preferences, ...next })
+  const settings = await repos.settings.patch(workspaceId, { mcpDisabledTools: [...disabled].sort() })
+  return mcpToolSettings(settings)
 }

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { getCurrentUser, getUserPreferences } from "@/lib/auth"
-import { mcpToolSettings, setMcpToolEnabled } from "@/lib/mcp/tool-access"
+import { getCurrentUser } from "@/lib/auth"
+import { getMcpToolSettings, setMcpToolEnabled } from "@/lib/mcp/tool-access"
 
 export const dynamic = "force-dynamic"
 
@@ -15,7 +15,7 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const tools = mcpToolSettings(await getUserPreferences(user.$id))
+  const tools = await getMcpToolSettings(user.$id)
   return NextResponse.json({ tools })
 }
 

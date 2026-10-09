@@ -1,1784 +1,805 @@
+/**
+ * LumenClip MCP server: spec-in, slides-out rendering plus collections,
+ * outputs (renders), publishing (SocialBu) and the schedule.
+ *
+ * Every tool runs for one workspace (resolved from an API key by the HTTP
+ * route or the stdio launcher) and codes against the repository, engine and
+ * publisher contracts, so tests use memory repositories and fakes.
+ */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 
-import { absoluteAssetUrl, slideshowDeliveryLinks } from "@/lib/asset-urls"
-import { listAssetRecords } from "@/lib/assets"
-import { toLumenClipDataError } from "@/lib/data-store-errors"
-import { clean, isRecord } from "@/lib/guards"
 import {
-  deleteImageCollections,
-  importRemoteImagesToCollection,
-  listImageCollections,
-  upsertImageCollection,
-  type StoredImageCollection,
-} from "@/lib/image-collections"
-import { linkPublishedOutput } from "@/lib/manual-publication-linking"
-import { listMediaLibraryAssets } from "@/lib/media-library"
+  DataConflictError,
+  DataNotFoundError,
+  getRepositories,
+  type Collection,
+  type Job,
+  type Repositories,
+  type WorkspaceId,
+} from "@/lib/data"
+import { listFontFamilies, listFonts, renderSpec, type AssetLoader } from "@/lib/render/engine"
 import {
-  postfastRequest,
-  type PostFastCreatePostType,
-  type PostFastSocialIntegration,
-} from "@/lib/postfast-client"
-import { listConnectedPostFastIntegrations } from "@/lib/postfast-integrations"
-import { uploadPostFastMediaSources } from "@/lib/postfast-media-upload"
+  getSpecJsonSchema,
+  resolveTemplate,
+  SPEC_ISSUE_CODES,
+  SPEC_LIMITS,
+  SPEC_VERSION,
+  SpecError,
+  validateSpec,
+  type SlotValues,
+} from "@/lib/render/spec"
 import {
-  listPostFastPostRecords,
-  type PostFastPostRecord,
-} from "@/lib/postfast-posts"
+  getPublisher,
+  PUBLISHER_NOT_CONNECTED_MESSAGE,
+  PublisherNotConfiguredError,
+  PublisherRequestError,
+  type Publisher,
+} from "@/lib/publishing/publisher"
+import type { RemoteFetchOptions } from "@/lib/renders/assets"
+import { collectionMediaIds, importMediaFromUrl, MediaInputError, mediaView } from "@/lib/renders/media"
+import { listPublishableAccounts, postView, PublishRequestError, scheduleRenderPost } from "@/lib/renders/publish"
 import {
-  deletePosts as deletePostFastPostRecords,
-  listPublicationRecordsForRead,
-  type PublicationReadFilters,
-} from "@/lib/post-repository"
-import { publicationLinkState as resolvedPublicationLinkState } from "@/lib/publication-link-state"
-import { publishPost } from "@/lib/publishing"
-import { getJob, listJobs, type Job } from "@/lib/queue"
-import {
-  collectionMatchesId,
-  storedToCollection,
-} from "@/lib/realfarm-collections"
-import {
-  isPostLinkedToSlideshow,
-  slideshowDeletionBlockReason,
-} from "@/lib/slideshow-lifecycle"
-import {
-  deleteSlideshowRecord,
-  listSlideshowRecords,
-  type SlideshowRecord,
-} from "@/lib/slideshows"
-import { withSystemOwner } from "@/lib/system-owner-context"
-import { assertPublicHttpUrl } from "@/lib/url-guard"
+  issuesForRenderError,
+  loadTemplateSpec,
+  RenderRequestError,
+  renderView,
+  submitRender,
+  type RenderEngine,
+} from "@/lib/renders/service"
+import { getStarterTemplate, listStarterTemplates, templateShape } from "@/lib/renders/starters"
 
 export type LumenClipMcpServices = {
   now: () => Date
-  listImageCollections: typeof listImageCollections
-  deleteImageCollections: typeof deleteImageCollections
-  upsertImageCollection: typeof upsertImageCollection
-  importRemoteImagesToCollection: typeof importRemoteImagesToCollection
-  listAssetRecords: typeof listAssetRecords
-  listMediaLibraryAssets: typeof listMediaLibraryAssets
-  listAccounts: (ownerId: string) => Promise<PostFastSocialIntegration[]>
-  listPostFastPostRecords: typeof listPostFastPostRecords
-  deletePostFastPostRecords: typeof deletePostFastPostRecords
-  listSlideshowRecords: typeof listSlideshowRecords
-  deleteSlideshowRecord: typeof deleteSlideshowRecord
-  uploadPostFastMediaSources: typeof uploadPostFastMediaSources
-  publishPost: typeof publishPost
-  linkPublishedOutput: typeof linkPublishedOutput
-  getJob: typeof getJob
-  listJobs: typeof listJobs
-  postfastRequest: typeof postfastRequest
+  repositories: () => Repositories
+  renderSpec: RenderEngine
+  publisher: () => Publisher
+  /** Absolute API base for slide/ZIP URLs, e.g. `https://app.example/api/v1`. */
+  apiBaseUrl: () => string
+  assetLoader?: (repos: Repositories, workspaceId: WorkspaceId) => AssetLoader
+  remoteFetch?: RemoteFetchOptions
+}
+
+export type LumenClipMcpOptions = {
+  disabledToolNames?: Iterable<string>
+  /** API key id the session authenticated with (recorded on renders). */
+  apiKeyId?: string | null
+}
+
+function defaultApiBaseUrl() {
+  const base = (process.env.BASE_URL ?? "").trim().replace(/\/$/, "")
+  return `${base}/api/v1`
 }
 
 const defaultServices: LumenClipMcpServices = {
   now: () => new Date(),
-  listImageCollections,
-  deleteImageCollections,
-  upsertImageCollection,
-  importRemoteImagesToCollection,
-  listAssetRecords,
-  listMediaLibraryAssets,
-  listAccounts: listConnectedPostFastIntegrations,
-  listPostFastPostRecords,
-  deletePostFastPostRecords,
-  listSlideshowRecords,
-  deleteSlideshowRecord,
-  uploadPostFastMediaSources,
-  publishPost,
-  linkPublishedOutput,
-  getJob,
-  listJobs,
-  postfastRequest,
+  repositories: getRepositories,
+  renderSpec,
+  publisher: () => getPublisher(),
+  apiBaseUrl: defaultApiBaseUrl,
 }
 
-const OUTPUT_LIST_LIMIT = 500
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const
+const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const
 
-function readMcpPublications(
-  services: Pick<LumenClipMcpServices, "listPostFastPostRecords">,
-  surface: string,
-  filters?: PublicationReadFilters
-) {
-  return listPublicationRecordsForRead({
-    surface: `mcp_${surface}`,
-    filters,
-    legacy: () => services.listPostFastPostRecords(filters),
-  })
+const cursorInput = {
+  cursor: z.string().optional().describe("Opaque cursor from a previous page's nextCursor."),
+  limit: z.number().int().min(1).max(100).default(50).describe("Page size, e.g. 50."),
 }
 
 export function createLumenClipMcpServer(
-  ownerId: string,
+  workspaceId: WorkspaceId,
   overrides: Partial<LumenClipMcpServices> = {},
-  options: { disabledToolNames?: Iterable<string> } = {}
+  options: LumenClipMcpOptions = {}
 ) {
-  const services = { ...defaultServices, ...overrides }
-  const server = new McpServer({
-    name: "lumenclip",
-    version: "3.0.0",
-  })
+  const services: LumenClipMcpServices = { ...defaultServices, ...overrides }
+  const server = new McpServer({ name: "lumenclip", version: "4.0.0" })
   const disabledToolNames = new Set(options.disabledToolNames)
   const registerTool = server.registerTool.bind(server)
   server.registerTool = ((name: string, ...args: unknown[]) => {
-    const tool = (
-      registerTool as (...input: unknown[]) => ReturnType<typeof registerTool>
-    )(name, ...args)
+    const tool = (registerTool as (...input: unknown[]) => ReturnType<typeof registerTool>)(name, ...args)
     if (disabledToolNames.has(name)) tool.disable()
     return tool
   }) as typeof server.registerTool
 
-  registerScheduleTools(server, ownerId, services)
-  registerCollectionTools(server, ownerId, services)
-  registerOutputTools(server, ownerId, services)
-  registerPublishingTools(server, ownerId, services)
-
+  const ctx: ToolContext = { workspaceId, services, apiKeyId: options.apiKeyId ?? null }
+  registerSlideshowTools(server, ctx)
+  registerCollectionTools(server, ctx)
+  registerOutputTools(server, ctx)
+  registerPublishingTools(server, ctx)
+  registerScheduleTools(server, ctx)
   return server
 }
 
-function registerScheduleTools(
-  server: McpServer,
-  ownerId: string,
+type ToolContext = {
+  workspaceId: WorkspaceId
   services: LumenClipMcpServices
-) {
-  const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
+  apiKeyId: string | null
+}
+
+// ─────────────────────────────── slideshows ───────────────────────────────
+
+function registerSlideshowTools(server: McpServer, ctx: ToolContext) {
+  const { services, workspaceId } = ctx
+  const repos = () => services.repositories()
 
   server.registerTool(
-    "lumenclip_schedule_get",
+    "lumenclip_spec_schema_get",
     {
-      title: "Check the publishing schedule",
+      title: "Get the slideshow spec JSON Schema",
       description:
-        "Returns scheduled, published, draft, and failed publications plus queued render jobs in a time window. This never renders or publishes content.",
+        "Returns the JSON Schema (draft 2020-12) for slideshow spec v1, the spec limits and every issue code validators can report. Read this before writing a spec.",
+      inputSchema: {},
+      annotations: READ_ONLY,
+    },
+    async () =>
+      run(async () => ({
+        specVersion: SPEC_VERSION,
+        schema: getSpecJsonSchema(),
+        limits: { ...SPEC_LIMITS },
+        issueCodes: [...SPEC_ISSUE_CODES],
+      }))
+  )
+
+  server.registerTool(
+    "lumenclip_spec_validate",
+    {
+      title: "Validate a slideshow spec",
+      description:
+        "Validates a spec (template or plain) and, when slotValues are given, the slot values too. Returns ok, errors and warnings with JSON Pointer paths. Set resolve=true to also return the resolved spec (collection picks included). Never renders.",
       inputSchema: {
-        from: z
-          .string()
-          .datetime({ offset: true })
-          .optional()
-          .describe(
-            'Inclusive ISO datetime with timezone offset for the window start, e.g. "2026-07-23T09:00:00+08:00". Defaults to now.'
-          ),
-        days: z
-          .number()
-          .int()
-          .min(1)
-          .max(90)
-          .default(14)
-          .describe("Number of calendar days to include from the start, e.g. 14."),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(200)
-          .default(100)
-          .describe("Maximum number of schedule entries to return, e.g. 50."),
+        spec: z.record(z.string(), z.unknown()).describe("Slideshow spec v1 object."),
+        slotValues: z.record(z.string(), z.unknown()).optional().describe("Values for the template's slots."),
+        resolve: z.boolean().default(false).describe("Also resolve the template and return resolvedSpec."),
       },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
+      annotations: READ_ONLY,
     },
     async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const from = input.from ? new Date(input.from) : services.now()
-          const to = new Date(
-            from.getTime() + input.days * 24 * 60 * 60 * 1000
-          )
-          const [jobs, publications, remote] = await Promise.all([
-            services.listJobs({ limit: 500 }),
-            readMcpPublications(services, "schedule"),
-            services
-              .postfastRequest("/social-posts", {
-                query: {
-                  from: from.toISOString(),
-                  to: to.toISOString(),
-                  page: 0,
-                  limit: 200,
-                },
-              })
-              .catch(() => []),
-          ])
-          return {
-            from: from.toISOString(),
-            to: to.toISOString(),
-            calendarItems: buildCalendarLifecycleItems({
-              jobs,
-              publications,
-              remote,
-              from,
-              to,
-              limit: input.limit,
-            }),
+      run(async () => {
+        const result = validateSpec(input.spec, input.slotValues !== undefined ? { slotValues: input.slotValues } : {})
+        const body: Record<string, unknown> = { ok: result.ok, errors: result.errors, warnings: result.warnings }
+        if (result.ok && result.spec && input.resolve) {
+          try {
+            body.resolvedSpec = await resolveTemplate(result.spec, (input.slotValues ?? {}) as SlotValues, {
+              resolveCollection: (ref) => collectionMediaIds(repos(), workspaceId, ref),
+            })
+          } catch (error) {
+            if (!(error instanceof SpecError)) throw error
+            body.ok = false
+            body.errors = error.errors
           }
-        })
-      )
+        }
+        return body
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_fonts_list",
+    {
+      title: "List fonts",
+      description: "Lists the bundled font families, weights and styles a spec may reference. Fonts cannot be uploaded.",
+      inputSchema: {},
+      annotations: READ_ONLY,
+    },
+    async () => run(async () => ({ families: listFontFamilies(), fonts: listFonts().map((f) => ({ ...f })) }))
+  )
+
+  server.registerTool(
+    "lumenclip_templates_list",
+    {
+      title: "List slideshow templates",
+      description:
+        "Lists starter templates and this workspace's saved templates. Pass templateId to get one template with its full spec, slot definitions and example slot values.",
+      inputSchema: {
+        templateId: z.string().optional().describe('Template id, e.g. "starter-listicle".'),
+        ...cursorInput,
+      },
+      annotations: READ_ONLY,
+    },
+    async (input) =>
+      run(async () => {
+        if (input.templateId) {
+          const template = await loadTemplateSpec(repos(), workspaceId, input.templateId)
+          if (!template) throw new DataNotFoundError("template", input.templateId)
+          const starter = getStarterTemplate(template.id)
+          return {
+            template: {
+              id: template.id,
+              name: template.name,
+              starter: !!starter,
+              ...templateShape(template.spec),
+              slots: template.spec.slots ?? {},
+              exampleSlotValues: starter?.exampleSlotValues ?? null,
+              spec: template.spec,
+            },
+          }
+        }
+        const page = await repos().templates.list(workspaceId, { cursor: input.cursor, limit: input.limit })
+        const starters = input.cursor
+          ? []
+          : listStarterTemplates().map((s) => ({ id: s.id, name: s.name, starter: true, ...templateShape(s.spec) }))
+        return {
+          templates: [
+            ...starters,
+            ...page.items.map((t) => ({
+              id: t.id,
+              name: t.name,
+              starter: false,
+              aspectRatio: t.aspectRatio,
+              slideCount: t.slideCount,
+              imageSlotCount: t.imageSlotCount,
+            })),
+          ],
+          nextCursor: page.nextCursor,
+        }
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_slideshow_render",
+    {
+      title: "Render a slideshow",
+      description:
+        "Renders a spec, or a template (templateId) filled with slotValues, to one image per slide. Image slots take {media: id}, {url}, or {collection, pick: \"random\", seed}. Renders with at most 10 slides finish inline; larger ones (or wait=false) are queued and can be polled with lumenclip_render_get. Returns slide URLs, not bytes.",
+      inputSchema: {
+        templateId: z.string().optional().describe("Starter or saved template id. Exactly one of templateId or spec."),
+        spec: z.record(z.string(), z.unknown()).optional().describe("Inline slideshow spec v1."),
+        slotValues: z.record(z.string(), z.unknown()).optional().describe("Values for the template's slots."),
+        output: z
+          .object({
+            format: z.enum(["png", "jpeg", "webp"]).optional(),
+            quality: z.number().min(0).max(1).optional(),
+            scale: z.number().min(0.5).max(2).optional(),
+          })
+          .optional()
+          .describe("Output format (default png) and scale (0.5..2, default 1)."),
+        title: z.string().max(512).optional().describe("Used for file names."),
+        wait: z.boolean().optional().describe("false always queues the render."),
+        idempotencyKey: z
+          .string()
+          .min(1)
+          .max(128)
+          .optional()
+          .describe("Repeat-safe key; also seeds random collection picks."),
+      },
+      annotations: { ...WRITE, openWorldHint: true },
+    },
+    async (input) =>
+      run(async () => {
+        const r = repos()
+        const result = await submitRender(
+          {
+            repos: r,
+            renderSpec: services.renderSpec,
+            assetLoader: services.assetLoader ? (ws) => services.assetLoader!(r, ws) : undefined,
+          },
+          workspaceId,
+          stripUndefined(input),
+          { source: "mcp", createdBy: ctx.apiKeyId ? `api-key:${ctx.apiKeyId}` : workspaceId, apiKeyId: ctx.apiKeyId }
+        )
+        const render = renderView(result.render, services.apiBaseUrl())
+        return {
+          mode: result.mode,
+          jobId: result.jobId,
+          render,
+          ...(result.error ? { errors: issuesForRenderError(result.error) } : {}),
+        }
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_render_get",
+    {
+      title: "Get a render",
+      description: "Returns a render's status, slide URLs, warnings and the frozen resolved spec.",
+      inputSchema: { renderId: z.string().min(1).describe("Render id from lumenclip_slideshow_render.") },
+      annotations: READ_ONLY,
+    },
+    async (input) =>
+      run(async () => {
+        const render = await repos().renders.get(workspaceId, input.renderId)
+        if (!render) throw new DataNotFoundError("render", input.renderId)
+        return { render: renderView(render, services.apiBaseUrl(), { includeSpec: true }) }
+      })
   )
 }
 
-function registerCollectionTools(
-  server: McpServer,
-  ownerId: string,
-  services: LumenClipMcpServices
-) {
-  const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
+// ─────────────────────────────── collections ───────────────────────────────
+
+function collectionSummary(collection: Collection) {
+  return {
+    id: collection.id,
+    name: collection.name,
+    mediaKind: collection.mediaKind,
+    pinned: collection.pinned,
+    itemCount: collection.itemCount,
+    coverMediaId: collection.coverMediaId,
+    deletedAt: collection.deletedAt,
+    updatedAt: collection.updatedAt,
+  }
+}
+
+function registerCollectionTools(server: McpServer, ctx: ToolContext) {
+  const { services, workspaceId } = ctx
+  const repos = () => services.repositories()
 
   server.registerTool(
     "lumenclip_collections_list",
     {
-      title: "List collections",
+      title: "List image collections",
       description:
-        "Lists caller-owned image and video collections with stable IDs and item counts.",
+        "Lists image collections. Use a collection's id or exact name in image slots as {collection, pick}.",
       inputSchema: {
-        query: z
-          .string()
-          .trim()
-          .max(200)
-          .optional()
-          .describe(
-            'Optional case-insensitive search over collection name, e.g. "hdb interiors".'
-          ),
-        mediaType: z
-          .enum(["image", "video"])
-          .optional()
-          .describe('Optional collection media type filter, e.g. "image".'),
-        minimumItemCount: z
-          .number()
-          .int()
-          .min(0)
-          .default(0)
-          .describe(
-            "Only return collections with at least this many items, e.g. 5."
-          ),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(20)
-          .describe(
-            "Maximum number of collection summaries to return, e.g. 20."
-          ),
+        includeDeleted: z.boolean().default(false).describe("Include collections in the 30-day trash."),
+        ...cursorInput,
       },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY,
     },
     async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const query = clean(input.query).toLowerCase()
-          const items = (await services.listImageCollections())
-            .map(mediaCollectionSummary)
-            .filter(
-              (item) => !input.mediaType || item.mediaType === input.mediaType
-            )
-            .filter((item) => item.itemCount >= input.minimumItemCount)
-            .filter(
-              (item) => !query || item.name.toLowerCase().includes(query)
-            )
-          return {
-            items: items.slice(0, input.limit),
-            hasMore: items.length > input.limit,
-            total: items.length,
-          }
+      run(async () => {
+        const page = await repos().collections.list(workspaceId, {
+          includeDeleted: input.includeDeleted,
+          cursor: input.cursor,
+          limit: input.limit,
         })
-      )
+        return { collections: page.items.map(collectionSummary), nextCursor: page.nextCursor }
+      })
   )
 
   server.registerTool(
     "lumenclip_assets_list",
     {
-      title: "List media-library assets",
+      title: "List images",
       description:
-        "Lists uploaded AssetRecord entries together with media-library items.",
+        "Lists images in a collection, in the uploads library (collectionId \"uploads\"), or everywhere. Use an image id in slots as {media: id}.",
       inputSchema: {
-        kind: z.enum(["image", "video", "audio", "text"]).optional(),
-        query: z.string().trim().max(200).optional(),
-        limit: z.number().int().min(1).max(200).default(50),
+        collectionId: z.string().optional().describe('Collection id, or "uploads" for unfiled images.'),
+        ...cursorInput,
       },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY,
     },
     async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const [records, library] = await Promise.all([
-            services.listAssetRecords({ kind: input.kind }),
-            services.listMediaLibraryAssets(),
-          ])
-          const query = clean(input.query).toLowerCase()
-          const items = [
-            ...records.map((asset) => ({
-              recordType: "asset_record" as const,
-              ...asset,
-            })),
-            ...library
-              .filter((asset) => !input.kind || asset.kind === input.kind)
-              .map((asset) => ({
-                recordType: "media_library" as const,
-                ...asset,
-              })),
-          ].filter(
-            (asset) =>
-              !query ||
-              `${asset.name} ${"caption" in asset ? asset.caption : ""} ${
-                "text" in asset ? (asset.text ?? "") : ""
-              }`
-                .toLowerCase()
-                .includes(query)
-          )
-          return {
-            items: items.slice(0, input.limit),
-            total: items.length,
-            hasMore: items.length > input.limit,
-          }
+      run(async () => {
+        const page = await repos().media.list(workspaceId, {
+          cursor: input.cursor,
+          limit: input.limit,
+          ...(input.collectionId === undefined
+            ? {}
+            : { collectionId: input.collectionId === "uploads" ? null : input.collectionId }),
         })
-      )
+        const base = services.apiBaseUrl()
+        return {
+          assets: page.items.map((m) => ({ ...mediaView(m), url: `${base}/media/${m.id}/file` })),
+          nextCursor: page.nextCursor,
+        }
+      })
   )
 
   server.registerTool(
     "lumenclip_collection_save",
     {
-      title: "Create or save a media collection",
+      title: "Create or update an image collection",
       description:
-        "Creates an empty caller-owned image or video collection, or updates an existing collection's pinned state without replacing its assets. Returns the saved collection summary and warnings for empty new collections.",
+        "Creates a collection by name, or renames/pins an existing one when collectionId is given. Collection names are unique.",
       inputSchema: {
-        collectionId: z
-          .string()
-          .trim()
-          .min(1)
-          .optional()
-          .describe(
-            'Existing media collection ID or alias to update, e.g. "collection_123"; omit to create by name.'
-          ),
-        name: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          .describe(
-            'Collection display name, e.g. "HDB resale chart screenshots".'
-          ),
-        mediaType: z
-          .enum(["image", "video"])
-          .describe(
-            'Media kind for the collection, either "image" or "video". Existing collections cannot change type.'
-          ),
-        pinned: z
-          .boolean()
-          .optional()
-          .describe(
-            "Whether the collection should be pinned in the app, e.g. true."
-          ),
-        requestId: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          .describe(
-            'Caller-generated idempotency key for this save, e.g. "collection-hdb-create-001".'
-          ),
+        collectionId: z.string().optional().describe("Existing collection to update."),
+        name: z.string().trim().min(1).max(128).optional().describe('Collection name, e.g. "Bedroom aesthetic".'),
+        pinned: z.boolean().optional(),
+        requestId: z.string().optional().describe("Echoed back for client correlation."),
       },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: WRITE,
     },
     async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const collections = await services.listImageCollections()
-          const byId = input.collectionId
-            ? findMediaCollection(collections, input.collectionId)
-            : null
-          if (input.collectionId && !byId) {
-            throw new Error("Media collection not found")
+      run(async () => {
+        const r = repos()
+        let collection: Collection
+        let created = false
+        if (input.collectionId) {
+          const existing = await r.collections.get(workspaceId, input.collectionId)
+          if (!existing) throw new DataNotFoundError("collection", input.collectionId)
+          collection = existing
+          if (input.name && input.name !== existing.name) {
+            collection = await r.collections.rename(workspaceId, existing.id, input.name)
           }
-          const byName = collections.find(
-            (collection) =>
-              collection.name.toLowerCase() === input.name.toLowerCase()
-          )
-          const existing = byId ?? byName ?? null
-          if (
-            existing &&
-            (existing.mediaType === "video" ? "video" : "image") !==
-              input.mediaType
-          ) {
-            throw new Error("A collection's media type cannot be changed")
+          if (existing.deletedAt) collection = await r.collections.restore(workspaceId, existing.id)
+        } else {
+          if (!input.name) throw new McpInputError("Give the collection a name.")
+          const existing = await r.collections.getByName(workspaceId, input.name)
+          if (existing) {
+            collection = existing.deletedAt ? await r.collections.restore(workspaceId, existing.id) : existing
+          } else {
+            collection = await r.collections.create(workspaceId, {
+              name: input.name,
+              mediaKind: "image",
+              createdBy: workspaceId,
+            })
+            created = true
           }
-          if (byId && byId.name !== input.name) {
-            throw new Error(
-              "Renaming media collections is not supported because the collection ID is derived from its name"
-            )
-          }
-          const created = !existing
-          const saved = await services.upsertImageCollection(
-            existing
-              ? {
-                  ...existing,
-                  pinned: input.pinned ?? existing.pinned,
-                }
-              : {
-                  name: input.name,
-                  created_at: services.now().toISOString(),
-                  pinned: input.pinned === true,
-                  ...(input.mediaType === "video"
-                    ? { mediaType: "video" as const }
-                    : {}),
-                  images: [],
-                }
-          )
-          return {
-            requestId: input.requestId,
-            created,
-            collection: mediaCollectionSummary(saved),
-            warnings: created
-              ? ["The collection is empty. Add assets before using it."]
-              : [],
-          }
-        })
-      )
+        }
+        if (input.pinned !== undefined && input.pinned !== collection.pinned) {
+          collection = await r.collections.setPinned(workspaceId, collection.id, input.pinned)
+        }
+        return { requestId: input.requestId ?? null, created, collection: collectionSummary(collection) }
+      })
   )
 
   server.registerTool(
     "lumenclip_collection_add_assets",
     {
-      title: "Add assets to a collection",
+      title: "Add images to a collection from URLs",
       description:
-        "Downloads validated HTTPS image or video assets into one existing caller-owned media collection. Returns the updated collection summary plus added/duplicate counts.",
+        "Downloads public image URLs (http/https, at most 25 MB each, png/jpeg/webp/gif/avif) into a collection. Private-network URLs are refused. Identical images are not duplicated.",
       inputSchema: {
-        collectionId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'Existing image/video collection ID, name, or alias to append assets to, e.g. "collection_123".'
-          ),
-        assets: z
-          .array(
-            z.object({
-              httpsUrl: z
-                .string()
-                .url()
-                .refine((value) => value.startsWith("https://"), {
-                  message: "Asset URLs must use HTTPS",
-                })
-                .describe(
-                  'Public HTTPS media URL to download, e.g. "https://example.com/photo.jpg".'
-                ),
-              caption: z
-                .string()
-                .trim()
-                .max(5000)
-                .optional()
-                .describe(
-                  'Optional plain-language caption/alt text for the asset, e.g. "Chart of 4-room HDB resale prices".'
-                ),
-              sourceUrl: z
-                .string()
-                .url()
-                .optional()
-                .describe(
-                  'Optional attribution/source page URL, e.g. "https://data.gov.sg/...".'
-                ),
-            })
-          )
-          .min(1)
-          .max(80)
-          .describe(
-            'Assets to import, e.g. [{"httpsUrl":"https://example.com/photo.jpg","caption":"HDB price chart","sourceUrl":"https://example.com"}].'
-          ),
-        requestId: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          .describe(
-            'Caller-generated idempotency key for this import, e.g. "collection-hdb-assets-001".'
-          ),
+        collectionId: z.string().min(1).describe("Target collection id."),
+        urls: z.array(z.string().url()).min(1).max(20).describe("Public image URLs."),
       },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
+      annotations: { ...WRITE, openWorldHint: true },
     },
     async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const collections = await services.listImageCollections()
-          const collection = findMediaCollection(
-            collections,
-            input.collectionId
-          )
-          if (!collection) throw new Error("Media collection not found")
-          const before = collection.images.length
-          await Promise.all(
-            input.assets.map((asset) => assertPublicHttpUrl(asset.httpsUrl))
-          )
-          const result = await services.importRemoteImagesToCollection({
-            collectionName: collection.name,
-            collectionCreatedAt: collection.created_at,
-            mediaType: collection.mediaType,
-            images: input.assets.map((asset) => ({
-              url: asset.httpsUrl,
-              caption: asset.caption,
-              sourceUrl: asset.sourceUrl,
-            })),
-            fetchImpl: fetchPublicMcpAsset,
-          })
-          const after = result.collection.images.length
-          const added = Math.max(0, after - before)
-          return {
-            requestId: input.requestId,
-            collection: mediaCollectionSummary(result.collection),
-            added,
-            duplicates: Math.max(0, input.assets.length - added),
-            failures: [],
+      run(async () => {
+        const r = repos()
+        const collection = await r.collections.get(workspaceId, input.collectionId)
+        if (!collection || collection.deletedAt) throw new DataNotFoundError("collection", input.collectionId)
+        const added: unknown[] = []
+        const failed: { url: string; error: string }[] = []
+        for (const url of input.urls) {
+          try {
+            const { media, created } = await importMediaFromUrl(
+              r,
+              workspaceId,
+              { url, collectionId: collection.id, createdBy: workspaceId },
+              services.remoteFetch
+            )
+            added.push({ ...mediaView(media), created })
+          } catch (error) {
+            failed.push({ url, error: error instanceof Error ? error.message : "Import failed" })
           }
-        })
-      )
+        }
+        const updated = await r.collections.get(workspaceId, collection.id)
+        return { collection: collectionSummary(updated ?? collection), added, failed }
+      })
   )
 
   server.registerTool(
     "lumenclip_collection_delete",
     {
-      title: "Delete a media collection",
+      title: "Delete an image collection",
       description:
-        "Soft-deletes one caller-owned image or video collection for 30 days. Returns deletion timestamps.",
+        "Moves a collection to the 30-day trash. Renders already made keep their images. Requires confirm=true.",
       inputSchema: {
-        collectionId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'Existing image/video collection ID, name, or alias to soft-delete, e.g. "collection_123".'
-          ),
-        requestId: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          .describe(
-            'Caller-generated idempotency key for this delete, e.g. "delete-collection-001".'
-          ),
-        confirmDelete: z
-          .literal(true)
-          .describe("Must be literal true to confirm this soft-delete action."),
+        collectionId: z.string().min(1),
+        confirm: z.literal(true).describe("Must be true."),
       },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    async ({ confirmDelete, ...input }) => {
-      void confirmDelete
-      return mcpResult(
-        await owned(async () => {
-          const collections = await services.listImageCollections({
-            includeDeleted: true,
-          })
-          const collection = findMediaCollection(
-            collections,
-            input.collectionId
-          )
-          if (!collection) throw new Error("Media collection not found")
-          const summary = mediaCollectionSummary(collection)
-          if (collection.deletedAt) {
-            return {
-              requestId: input.requestId,
-              collectionId: summary.id,
-              deletedAt: collection.deletedAt,
-              deletedUntil: collection.deletedUntil,
-              alreadyDeleted: true,
-            }
-          }
-          const deleted = await services.deleteImageCollections([
-            {
-              name: collection.name,
-              created_at: collection.created_at,
-            },
-          ])
-          return {
-            requestId: input.requestId,
-            collectionId: summary.id,
-            deletedAt: deleted.deletedAt,
-            deletedUntil: deleted.deletedUntil,
-            alreadyDeleted: false,
-          }
-        })
-      )
-    }
+    async (input) =>
+      run(async () => {
+        await repos().collections.softDelete(workspaceId, input.collectionId)
+        return { deleted: true, collectionId: input.collectionId, restorableForDays: 30 }
+      })
   )
 }
 
-function registerOutputTools(
-  server: McpServer,
-  ownerId: string,
-  services: LumenClipMcpServices
-) {
-  const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
+// ─────────────────────────────── outputs + operations ───────────────────────────────
+
+function jobSummary(job: Job) {
+  return {
+    id: job.id,
+    type: job.type,
+    status: job.status,
+    payload: job.payload,
+    result: job.result,
+    error: job.error,
+    attempt: job.attempt,
+    maxAttempts: job.maxAttempts,
+    runAt: job.runAt,
+    completedAt: job.completedAt,
+    createdAt: job.createdAt,
+  }
+}
+
+function registerOutputTools(server: McpServer, ctx: ToolContext) {
+  const { services, workspaceId } = ctx
+  const repos = () => services.repositories()
 
   server.registerTool(
     "lumenclip_outputs_list",
     {
       title: "List rendered outputs",
-      description:
-        "Lists caller-owned rendered slideshows with readiness, publication state, and signed public viewer/download URLs when sharing is configured.",
+      description: "Lists renders (outputs), newest first, with slide URLs.",
       inputSchema: {
-        status: z
-          .enum(["ready", "failed"])
-          .optional()
-          .describe('Optional render status filter, e.g. "ready".'),
-        publicationState: z
-          .enum([
-            "not_published",
-            "draft",
-            "scheduled",
-            "published",
-            "published_unlinked",
-            "failed",
-          ])
-          .optional()
-          .describe('Optional publication state filter, e.g. "not_published".'),
-        createdFrom: z
-          .string()
-          .datetime({ offset: true })
-          .optional()
-          .describe(
-            'Inclusive ISO datetime lower bound for output creation, e.g. "2026-07-01T00:00:00+08:00".'
-          ),
-        createdTo: z
-          .string()
-          .datetime({ offset: true })
-          .optional()
-          .describe(
-            'Inclusive ISO datetime upper bound for output creation, e.g. "2026-07-31T23:59:59+08:00".'
-          ),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(20)
-          .describe("Maximum number of output summaries to return, e.g. 20."),
-        cursor: z
-          .string()
-          .trim()
-          .regex(/^\d+$/)
-          .optional()
-          .describe(
-            'Opaque pagination cursor returned by a prior call, e.g. "20".'
-          ),
+        status: z.enum(["queued", "rendering", "succeeded", "failed"]).optional(),
+        ...cursorInput,
       },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY,
     },
     async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const [slideshows, publications] = await Promise.all([
-            services.listSlideshowRecords({ limit: OUTPUT_LIST_LIMIT }),
-            readMcpPublications(services, "output_summaries"),
-          ])
-          const createdFrom = input.createdFrom
-            ? Date.parse(input.createdFrom)
-            : undefined
-          const createdTo = input.createdTo
-            ? Date.parse(input.createdTo)
-            : undefined
-          const filtered = slideshows
-            .map((slideshow) =>
-              outputSummary(slideshow, publications, ownerId)
-            )
-            .filter((item) => !input.status || item.status === input.status)
-            .filter(
-              (item) =>
-                !input.publicationState ||
-                item.publicationState === input.publicationState
-            )
-            .filter(
-              (item) =>
-                createdFrom === undefined ||
-                Date.parse(item.createdAt) >= createdFrom
-            )
-            .filter(
-              (item) =>
-                createdTo === undefined ||
-                Date.parse(item.createdAt) <= createdTo
-            )
-            .sort((left, right) =>
-              right.createdAt.localeCompare(left.createdAt)
-            )
-          const offset = input.cursor ? Number(input.cursor) : 0
-          const page = filtered.slice(offset, offset + input.limit)
-          const nextOffset = offset + page.length
-          return {
-            items: page,
-            nextCursor:
-              nextOffset < filtered.length ? String(nextOffset) : undefined,
-            hasMore: nextOffset < filtered.length,
-            total: filtered.length,
-          }
+      run(async () => {
+        const page = await repos().renders.list(workspaceId, {
+          status: input.status,
+          cursor: input.cursor,
+          limit: input.limit,
         })
-      )
+        const base = services.apiBaseUrl()
+        return { outputs: page.items.map((r) => renderView(r, base)), nextCursor: page.nextCursor }
+      })
   )
 
   server.registerTool(
     "lumenclip_output_get",
     {
-      title: "Inspect a rendered output",
-      description:
-        "Returns one caller-owned rendered slideshow with its per-slide text, source and rendered image URLs, settings, caption, publication state, and signed public viewer/direct-download URLs when sharing is configured.",
-      inputSchema: {
-        outputId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'Output ID returned by outputs_list, e.g. "slideshow-123".'
-          ),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      title: "Get a rendered output",
+      description: "Returns one render with its slide URLs, resolved spec and the posts created from it.",
+      inputSchema: { outputId: z.string().min(1).describe("Render id.") },
+      annotations: READ_ONLY,
     },
-    async ({ outputId }) =>
-      mcpResult(
-        await owned(async () => {
-          const slideshow = await findSlideshow(services, outputId)
-          if (!slideshow) throw new Error("Output not found")
-          const publications = await readMcpPublications(
-            services,
-            "output_get",
-            { sourceIds: [slideshow.id] }
-          )
-          return {
-            ...outputSummary(slideshow, publications, ownerId),
-            caption: slideshow.caption,
-            hashtags: slideshow.hashtags,
-            settings: slideshow.settings,
-            updatedAt: slideshow.updated_at,
-            slides: slideshow.images.map((slide, index) => {
-              const sourcePath = clean(
-                slide.source_image_url ?? slide.image_url
-              )
-              const renderedPath = clean(slideshow.output_images[index])
-              return {
-                index: index + 1,
-                textItems: (slide.textItems ?? []).map((item) => ({
-                  id: item.id,
-                  text: item.text,
-                })),
-                sourceImageUrl: sourcePath
-                  ? absoluteAssetUrl(sourcePath)
-                  : undefined,
-                renderedImageUrl: renderedPath
-                  ? absoluteAssetUrl(renderedPath)
-                  : undefined,
-              }
-            }),
-            publications: publications
-              .filter((publication) =>
-                isPostLinkedToSlideshow(publication, {
-                  slideshowId: slideshow.id,
-                })
-              )
-              .map(publicationSummary),
-          }
-        })
-      )
+    async (input) =>
+      run(async () => {
+        const r = repos()
+        const render = await r.renders.get(workspaceId, input.outputId)
+        if (!render) throw new DataNotFoundError("render", input.outputId)
+        const posts = await r.posts.listByRender(workspaceId, render.id)
+        return {
+          output: renderView(render, services.apiBaseUrl(), { includeSpec: true }),
+          posts: posts.map(postView),
+        }
+      })
   )
 
   server.registerTool(
     "lumenclip_output_delete",
     {
-      title: "Delete an unpublished output",
+      title: "Delete a rendered output",
       description:
-        "Permanently deletes one caller-owned rendered slideshow and its local draft publication records. Published and scheduled outputs are never deleted.",
-      inputSchema: {
-        outputId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe('Output ID returned by outputs_list, e.g. "slideshow-123".'),
-        requestId: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          .describe(
-            'Caller-generated idempotency/audit key for this delete, e.g. "delete-output-001".'
-          ),
-        confirmDelete: z
-          .literal(true)
-          .describe(
-            "Must be literal true to confirm permanent deletion of this unpublished output."
-          ),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: false,
-        openWorldHint: false,
-      },
+        "Deletes a render. Refused while it has scheduled or publishing posts. Requires confirm=true.",
+      inputSchema: { outputId: z.string().min(1), confirm: z.literal(true).describe("Must be true.") },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    async ({ confirmDelete, ...input }) => {
-      void confirmDelete
-      return mcpResult(await owned(() => deleteOutput(services, input)))
-    }
+    async (input) =>
+      run(async () => {
+        const r = repos()
+        const render = await r.renders.get(workspaceId, input.outputId)
+        if (!render) throw new DataNotFoundError("render", input.outputId)
+        const posts = await r.posts.listByRender(workspaceId, render.id)
+        if (posts.some((p) => p.status === "scheduled" || p.status === "publishing")) {
+          throw new McpInputError("Cancel this output's scheduled posts before deleting it.")
+        }
+        await r.renders.softDelete(workspaceId, render.id)
+        return { deleted: true, outputId: render.id }
+      })
   )
 
   server.registerTool(
     "lumenclip_operations_list",
     {
       title: "List background operations",
-      description:
-        "Lists queue jobs with status, attempts, timestamps, errors, payload, and result.",
-      inputSchema: {
-        status: z
-          .enum(["queued", "processing", "completed", "failed", "dead"])
-          .optional(),
-        type: z.string().trim().min(1).max(100).optional(),
-        limit: z.number().int().min(1).max(200).default(50),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      description: "Lists this workspace's background jobs (queued renders, publishing), newest first.",
+      inputSchema: cursorInput,
+      annotations: READ_ONLY,
     },
     async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const jobs = await services.listJobs({
-            status: input.status,
-            type: input.type,
-            limit: input.limit,
-          })
-          const operations = jobs.map(jobOperation)
-          return {
-            items: operations.slice(0, input.limit),
-            total: operations.length,
-            hasMore: operations.length > input.limit,
-          }
-        })
-      )
+      run(async () => {
+        const page = await repos().jobs.listForWorkspace(workspaceId, { cursor: input.cursor, limit: input.limit })
+        return { operations: page.items.map(jobSummary), nextCursor: page.nextCursor }
+      })
   )
 
   server.registerTool(
     "lumenclip_operation_get",
     {
-      title: "Get background operation",
-      description:
-        "Reads current or terminal status for one queue job. Returns status, attempts, timestamps, payload, result, and error.",
-      inputSchema: {
-        operationId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'Job ID returned by operations_list or another tool, e.g. "job_123".'
-          ),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      title: "Get a background operation",
+      description: "Returns one background job's status, attempts, result and error.",
+      inputSchema: { operationId: z.string().min(1).describe("Job id, e.g. from lumenclip_slideshow_render.") },
+      annotations: READ_ONLY,
     },
-    async ({ operationId }) =>
-      mcpResult(
-        await owned(async () => {
-          const job = await services.getJob(operationId)
-          if (!job) throw new Error("Operation not found")
-          return jobOperation(job)
-        })
-      )
+    async (input) =>
+      run(async () => {
+        const job = await repos().jobs.get(workspaceId, input.operationId)
+        if (!job) throw new DataNotFoundError("operation", input.operationId)
+        return { operation: jobSummary(job) }
+      })
   )
 }
 
-function registerPublishingTools(
-  server: McpServer,
-  ownerId: string,
-  services: LumenClipMcpServices
-) {
-  const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
+// ─────────────────────────────── publishing ───────────────────────────────
+
+function registerPublishingTools(server: McpServer, ctx: ToolContext) {
+  const { services, workspaceId } = ctx
+  const repos = () => services.repositories()
 
   server.registerTool(
     "lumenclip_accounts_list",
     {
-      title: "List connected publishing accounts",
+      title: "List publishing accounts",
       description:
-        "Reads safe connected-account metadata and the publishing capabilities exposed by the current publishing bridge. Returns account IDs, provider/profile metadata, and capabilities; credentials are never returned.",
-      inputSchema: {
-        provider: z
-          .string()
-          .trim()
-          .min(1)
-          .optional()
-          .describe(
-            'Optional provider/platform filter such as "tiktok", "instagram", "x", "threads", or "linkedin".'
-          ),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(50)
-          .describe("Maximum number of account summaries to return, e.g. 50."),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
+        'Lists the SocialBu accounts renders can be published to. Returns connected=false with "SocialBu not connected" when publishing is not configured.',
+      inputSchema: {},
+      annotations: { ...READ_ONLY, openWorldHint: true },
     },
-    async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const provider = normalizeProvider(input.provider)
-          const accounts = (await services.listAccounts(ownerId))
-            .filter(
-              (account) =>
-                !provider || normalizeProvider(account.provider) === provider
-            )
-            .map(accountSummary)
-          return {
-            items: accounts.slice(0, input.limit),
-            hasMore: accounts.length > input.limit,
-            total: accounts.length,
-          }
-        })
-      )
+    async () =>
+      run(async () => {
+        const publisher = services.publisher()
+        if (!publisher.configured) return { connected: false, message: PUBLISHER_NOT_CONNECTED_MESSAGE, accounts: [] }
+        const accounts = await listPublishableAccounts(repos(), publisher, workspaceId)
+        return {
+          connected: true,
+          message: null,
+          accounts: accounts.map(({ id, provider, name, active }) => ({ id, provider, name, active })),
+        }
+      })
   )
 
   server.registerTool(
     "lumenclip_output_publish",
     {
-      title: "Publish or schedule an output",
+      title: "Publish or schedule a rendered output",
       description:
-        "Uploads a ready caller-owned rendered slideshow and creates a publication for explicitly selected connected accounts. Requires literal confirmation and suppresses duplicate successful publications per output/account.",
+        "Uploads a succeeded render's slides to SocialBu and publishes them as a photo/carousel post to each account, now or at publishAt. Repeat-safe with idempotencyKey. Only call after the user confirms the accounts, caption and time.",
       inputSchema: {
-        outputId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'Ready output ID returned by outputs_list, e.g. "slideshow-123".'
-          ),
-        targets: z
-          .array(
-            z.object({
-              accountId: z
-                .string()
-                .trim()
-                .min(1)
-                .describe(
-                  'Connected account ID returned by accounts_list, e.g. "pf_account_123".'
-                ),
-              mode: z
-                .enum(["now", "schedule"])
-                .describe(
-                  'Publish timing: "now" publishes immediately, "schedule" uses scheduledAt.'
-                ),
-              scheduledAt: z
-                .string()
-                .datetime({ offset: true })
-                .optional()
-                .describe(
-                  'Future ISO datetime with timezone offset, required when mode is "schedule", e.g. "2026-07-24T09:00:00+08:00".'
-                ),
-            })
-          )
-          .min(1)
-          .max(20)
-          .describe(
-            'Explicit publish targets, e.g. [{"accountId":"pf_account_123","mode":"schedule","scheduledAt":"2026-07-24T09:00:00+08:00"}].'
-          ),
-        caption: z
-          .string()
-          .trim()
-          .max(100000)
+        outputId: z.string().min(1).describe("Render id."),
+        accountIds: z.array(z.string().min(1)).min(1).max(20).describe("SocialBu account ids from lumenclip_accounts_list."),
+        caption: z.string().max(5000).default(""),
+        publishAt: z.iso.datetime({ offset: true })
           .optional()
-          .describe(
-            "Optional caption override. Omit to use the output's saved caption and hashtags."
-          ),
-        requestId: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          .describe(
-            'Caller-generated idempotency key for this publish request, e.g. "publish-slideshow-001".'
-          ),
-        confirmPublish: z
-          .literal(true)
-          .describe(
-            "Must be literal true after the selected accounts and caption have been reviewed."
-          ),
+          .describe('ISO time with offset, e.g. "2026-10-10T18:00:00+08:00". Omit to publish now.'),
+        platformOptions: z
+          .record(z.string(), z.record(z.string(), z.unknown()))
+          .optional()
+          .describe('SocialBu options per provider, e.g. {"tiktok": {"privacy_status": "PUBLIC_TO_EVERYONE"}}.'),
+        idempotencyKey: z.string().min(1).max(128).optional(),
       },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
-    async ({ confirmPublish, ...input }) => {
-      void confirmPublish
-      return mcpResult(
-        await owned(() => publishOutput(services, ownerId, input))
-      )
-    }
+    async (input) =>
+      run(async () => {
+        const result = await scheduleRenderPost(
+          repos(),
+          services.publisher(),
+          workspaceId,
+          stripUndefined({
+            renderId: input.outputId,
+            accountIds: input.accountIds,
+            caption: input.caption,
+            publishAt: input.publishAt,
+            platformOptions: input.platformOptions,
+            idempotencyKey: input.idempotencyKey,
+          }),
+          { createdBy: workspaceId, now: services.now }
+        )
+        return { posts: result.posts.map(postView) }
+      })
   )
 
   server.registerTool(
     "lumenclip_output_mark_published",
     {
-      title: "Record a manually published output",
+      title: "Record a manual publication",
       description:
-        "Links an existing public platform post to a caller-owned output without sending content externally. The platform URL is normalized and conflict-checked.",
+        "Records that a render was published outside LumenClip (e.g. posted by hand), so it shows on the calendar. Does not post anything.",
       inputSchema: {
-        outputId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'Output ID to mark as manually published, e.g. "slideshow-123".'
-          ),
-        platform: z
-          .string()
-          .trim()
-          .min(1)
-          .max(100)
-          .describe(
-            'Publishing platform name, e.g. "tiktok", "instagram", "x", "threads", or "linkedin".'
-          ),
-        publishedUrl: z
-          .string()
-          .url()
-          .describe(
-            'Public URL of the already-published platform post, e.g. "https://www.tiktok.com/@user/photo/123".'
-          ),
-        publishedAt: z
-          .string()
-          .datetime({ offset: true })
-          .describe(
-            'Actual publication time as an ISO datetime with timezone offset, e.g. "2026-07-23T21:15:00+08:00".'
-          ),
-        accountId: z
-          .string()
-          .trim()
-          .min(1)
+        outputId: z.string().min(1).describe("Render id."),
+        provider: z.string().min(1).describe('Network, e.g. "tiktok" or "instagram".'),
+        accountId: z.string().min(1).default("manual").describe("SocialBu account id, or \"manual\"."),
+        permalink: z.string().url().optional(),
+        publishedAt: z.iso.datetime({ offset: true }).optional().describe("Defaults to now."),
+        caption: z.string().max(5000).default(""),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async (input) =>
+      run(async () => {
+        const r = repos()
+        const render = await r.renders.get(workspaceId, input.outputId)
+        if (!render) throw new DataNotFoundError("render", input.outputId)
+        const publishedAt = (input.publishedAt ? new Date(input.publishedAt) : services.now()).toISOString()
+        const { value } = await r.posts.upsertIntent(workspaceId, {
+          renderId: render.id,
+          provider: input.provider,
+          accountId: input.accountId,
+          status: "publishing",
+          publishAt: publishedAt,
+          caption: input.caption,
+          intentKey: `manual:${render.id}:${input.provider}:${input.accountId}`,
+          createdBy: workspaceId,
+        })
+        const post = await r.posts.update(workspaceId, value.id, {
+          status: "published",
+          publishedAt,
+          permalink: input.permalink ?? value.permalink,
+        })
+        return { post: postView(post) }
+      })
+  )
+}
+
+// ─────────────────────────────── schedule ───────────────────────────────
+
+function registerScheduleTools(server: McpServer, ctx: ToolContext) {
+  const { services, workspaceId } = ctx
+  const repos = () => services.repositories()
+
+  server.registerTool(
+    "lumenclip_schedule_get",
+    {
+      title: "Check the publishing schedule",
+      description:
+        "Returns scheduled, publishing, published, failed and canceled posts in a time window, with their render titles. Never publishes.",
+      inputSchema: {
+        from: z.iso.datetime({ offset: true })
           .optional()
-          .describe(
-            "Optional connected account ID returned by accounts_list; omit for provider-only manual links."
-          ),
-        requestId: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          .describe(
-            'Caller-generated idempotency key for this manual link, e.g. "manual-link-tiktok-001".'
-          ),
-        confirmLink: z
-          .literal(true)
-          .describe(
-            "Must be literal true after verifying the URL belongs to this output."
-          ),
+          .describe('Window start with offset, e.g. "2026-10-09T09:00:00+08:00". Defaults to now.'),
+        days: z.number().int().min(1).max(90).default(14).describe("Days to include, e.g. 14."),
       },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY,
     },
-    async ({ confirmLink, ...input }) => {
-      void confirmLink
-      return mcpResult(
-        await owned(() => markOutputPublished(services, ownerId, input))
-      )
-    }
+    async (input) =>
+      run(async () => {
+        const r = repos()
+        const from = input.from ? new Date(input.from) : services.now()
+        const to = new Date(from.getTime() + input.days * 86_400_000)
+        const posts = await r.posts.listRange(workspaceId, { from: from.toISOString(), to: to.toISOString() })
+        const titles = new Map<string, string | null>()
+        for (const post of posts) {
+          if (!titles.has(post.renderId)) {
+            titles.set(post.renderId, (await r.renders.get(workspaceId, post.renderId))?.title ?? null)
+          }
+        }
+        return {
+          from: from.toISOString(),
+          to: to.toISOString(),
+          items: posts.map((p) => ({ ...postView(p), renderTitle: titles.get(p.renderId) ?? null })),
+        }
+      })
   )
 }
 
-type OutputPublicationState =
-  | "not_published"
-  | "draft"
-  | "scheduled"
-  | "published"
-  | "published_unlinked"
-  | "failed"
+// ─────────────────────────────── plumbing ───────────────────────────────
 
-function outputSummary(
-  slideshow: SlideshowRecord,
-  publications: PostFastPostRecord[],
-  ownerId: string
-) {
-  const related = publications.filter((publication) =>
-    isPostLinkedToSlideshow(publication, { slideshowId: slideshow.id })
-  )
-  const preview = clean(slideshow.thumbnail_url ?? slideshow.output_images[0])
+class McpInputError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "McpInputError"
+  }
+}
+
+function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as Partial<T>
+}
+
+function toolError(message: string, details?: Record<string, unknown>) {
+  const payload = { error: message, ...details }
   return {
-    id: slideshow.id,
-    outputType: "slideshow" as const,
-    status:
-      slideshow.status === "failed" ? ("failed" as const) : ("ready" as const),
-    publicationState: publicationState(related),
-    title: slideshow.title,
-    slideCount: slideshow.images.length,
-    previewUri: preview ? absoluteAssetUrl(preview) : undefined,
-    ...slideshowDeliveryFields(ownerId, slideshow.id),
-    createdAt: slideshow.created_at,
-    resourceUri: `lumenclip://outputs/${encodeURIComponent(slideshow.id)}`,
+    isError: true,
+    content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
   }
 }
 
-function publicationState(
-  publications: PostFastPostRecord[]
-): OutputPublicationState {
-  const published = publications.find((item) => item.status === "published")
-  if (published) {
-    return resolvedPublicationLinkState(published).state === "unlinked"
-      ? "published_unlinked"
-      : "published"
-  }
-  if (publications.some((item) => item.status === "scheduled"))
-    return "scheduled"
-  if (
-    publications.some((item) =>
-      ["draft", "ready_for_review", "awaiting_manual_post"].includes(
-        item.status
-      )
-    )
-  ) {
-    return "draft"
-  }
-  if (publications.some((item) => item.status === "failed")) return "failed"
-  return "not_published"
-}
-
-async function findSlideshow(
-  services: Pick<LumenClipMcpServices, "listSlideshowRecords">,
-  outputId: string
-) {
-  const [slideshow] = await services.listSlideshowRecords({
-    id: outputId,
-    limit: 1,
-  })
-  return slideshow ?? null
-}
-
-async function deleteOutput(
-  services: LumenClipMcpServices,
-  input: { outputId: string; requestId: string }
-) {
-  const slideshow = await findSlideshow(services, input.outputId)
-  if (!slideshow) throw new Error("Output not found")
-  const publications = await readMcpPublications(
-    services,
-    "output_deletion_guard",
-    { sourceIds: [slideshow.id] }
-  )
-  const blocked = slideshowDeletionBlockReason({
-    slideshowStatus: slideshow.status,
-    slideshowId: slideshow.id,
-    posts: publications,
-  })
-  if (blocked === "published" || blocked === "scheduled") {
-    throw new Error(`${capitalize(blocked)} outputs cannot be deleted`)
-  }
-  await services.deleteSlideshowRecord({ id: slideshow.id })
-  await services.deletePostFastPostRecords({
-    sourceType: "slideshow",
-    sourceIds: [slideshow.id],
-  })
-  return {
-    requestId: input.requestId,
-    outputId: slideshow.id,
-    outputType: "slideshow",
-    deleted: true,
-    recoverable: false,
-  }
-}
-
-function capitalize(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-async function getPublishableSlideshow(
-  services: LumenClipMcpServices,
-  outputId: string
-) {
-  const slideshow = await findSlideshow(services, outputId)
-  if (!slideshow) throw new Error("Output not found")
-  if (slideshow.status !== "exported" || !slideshow.output_images.length) {
-    throw new Error("Output is not ready to publish")
-  }
-  const content = [slideshow.caption || slideshow.title, slideshow.hashtags]
-    .map(clean)
-    .filter(Boolean)
-    .join("\n\n")
-  return {
-    slideshow,
-    content: content || "Slideshow",
-    mediaUrls: slideshow.output_images,
-  }
-}
-
-async function publishOutput(
-  services: LumenClipMcpServices,
-  ownerId: string,
-  input: {
-    outputId: string
-    targets: Array<{
-      accountId: string
-      mode: "now" | "schedule"
-      scheduledAt?: string
-    }>
-    caption?: string
-    requestId: string
-  }
-) {
-  const output = await getPublishableSlideshow(services, input.outputId)
-  const warnings: string[] = []
-  const [accounts, existingPublications] = await Promise.all([
-    services.listAccounts(ownerId),
-    readMcpPublications(services, "output_publish_lookup", {
-      sourceIds: [output.slideshow.id],
-    }),
-  ])
-  const uniqueTargets = [
-    ...new Map(
-      input.targets.map((target) => [target.accountId, target])
-    ).values(),
-  ]
-  const resolved = uniqueTargets.map((target) => {
-    const account = accounts.find(
-      (candidate) => candidate.integration_id === target.accountId
-    )
-    if (!account)
-      throw new Error(`Publishing account not found: ${target.accountId}`)
-    if (target.mode === "schedule") {
-      const timestamp = Date.parse(target.scheduledAt ?? "")
-      if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
-        throw new Error("Scheduled targets require a future scheduledAt")
-      }
-    }
-    return { target, account }
-  })
-
-  const existingForTarget = new Map(
-    resolved.flatMap(({ account }) => {
-      const existing = existingPublications.find(
-        (publication) =>
-          isPostLinkedToSlideshow(publication, {
-            slideshowId: output.slideshow.id,
-          }) &&
-          publication.integrationId === account.integration_id &&
-          publication.status !== "failed"
-      )
-      return existing ? [[account.integration_id, existing] as const] : []
-    })
-  )
-  const media =
-    output.mediaUrls.length && existingForTarget.size < resolved.length
-      ? await services.uploadPostFastMediaSources({ urls: output.mediaUrls })
-      : []
-  const records: PostFastPostRecord[] = []
-  let failed = 0
-  let reused = 0
-  for (const { target, account } of resolved) {
-    const existing = existingForTarget.get(account.integration_id)
-    if (existing) {
-      records.push(existing)
-      reused += 1
-      warnings.push(
-        `Skipped duplicate publication for ${account.name}; an existing ${existing.status} record already exists.`
-      )
-      continue
-    }
-    const type: PostFastCreatePostType =
-      target.mode === "schedule" ? "schedule" : "now"
-    const result = await services.publishPost({
-      type,
-      date: target.mode === "schedule" ? target.scheduledAt : undefined,
-      integrationId: account.integration_id,
-      provider: account.provider,
-      content: clean(input.caption) || output.content,
-      media,
-      sourceType: "slideshow",
-      sourceId: output.slideshow.id,
-    })
-    records.push(result.record)
-    if (!result.ok) failed += 1
-  }
-
-  const succeeded = records.length - failed
-  return {
-    operation: {
-      id: input.requestId,
-      kind: "output.publish",
-      status: failed > 0 && succeeded === 0 ? "failed" : "succeeded",
-      progress: 100,
-      stage: "complete",
-      createdAt: services.now().toISOString(),
-      updatedAt: services.now().toISOString(),
-      nextPollAfterMs: null,
-      resourceUri: `lumenclip://operations/${encodeURIComponent(input.requestId)}`,
-    },
-    output: {
-      id: output.slideshow.id,
-      outputType: "slideshow",
-      resourceUri: `lumenclip://outputs/${encodeURIComponent(output.slideshow.id)}`,
-    },
-    published: records.filter((record) => record.status === "published").length,
-    scheduled: records.filter((record) => record.status === "scheduled").length,
-    failed,
-    reused,
-    publications: records.map(publicationSummary),
-    warnings,
-  }
-}
-
-async function markOutputPublished(
-  services: LumenClipMcpServices,
-  ownerId: string,
-  input: {
-    outputId: string
-    platform: string
-    publishedUrl: string
-    publishedAt: string
-    accountId?: string
-    requestId: string
-  }
-) {
-  const output = await getPublishableSlideshow(services, input.outputId)
-  const platform = normalizeProvider(input.platform)
-  if (!platform) throw new Error("A valid platform is required")
-  const publishedAt = new Date(input.publishedAt)
-  if (!Number.isFinite(publishedAt.getTime())) {
-    throw new Error("publishedAt must be a valid datetime")
-  }
-  let account: PostFastSocialIntegration | undefined
-  if (input.accountId) {
-    account = (await services.listAccounts(ownerId)).find(
-      (candidate) => candidate.integration_id === input.accountId
-    )
-    if (!account) throw new Error("Publishing account not found")
-    if (normalizeProvider(account.provider) !== platform) {
-      throw new Error("The selected account does not match the platform")
-    }
-  }
-
-  const publication = await services.linkPublishedOutput({
-    sourceType: "slideshow",
-    sourceId: output.slideshow.id,
-    integrationId: account?.integration_id ?? `manual-${platform}`,
-    provider: account?.provider ?? platform,
-    releaseUrl: input.publishedUrl,
-    publishedAt: publishedAt.toISOString(),
-    content: output.content,
-    media: [],
-  })
-
-  return {
-    requestId: input.requestId,
-    output: {
-      id: output.slideshow.id,
-      outputType: "slideshow",
-      publicationState: "published",
-      resourceUri: `lumenclip://outputs/${encodeURIComponent(output.slideshow.id)}`,
-    },
-    publication: publicationSummary(publication),
-  }
-}
-
-function jobOperation(job: Job) {
-  return {
-    id: job.id,
-    kind: job.type,
-    status: job.status,
-    attempts: job.attempts,
-    maxAttempts: job.maxAttempts,
-    availableAt: job.availableAt,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    error: job.error,
-    payload: job.payload,
-    result: job.result,
-    resourceUri: `lumenclip://operations/${encodeURIComponent(job.id)}`,
-  }
-}
-
-function publicationSummary(record: PostFastPostRecord) {
-  return {
-    id: record.id,
-    accountId: record.integrationId,
-    provider: record.provider,
-    status: record.status,
-    scheduledAt: record.scheduledAt,
-    publishedAt: record.publishedAt,
-    releaseUrl: record.releaseUrl,
-    externalPostId: record.externalPostId,
-    error: record.error,
-  }
-}
-
-function accountSummary(account: PostFastSocialIntegration) {
-  const provider = normalizeProvider(account.provider)
-  return {
-    id: account.integration_id,
-    provider: account.provider,
-    platform: provider,
-    displayName: account.name,
-    profile: account.profile,
-    picture: account.picture,
-    connected: account.disabled !== true,
-    capabilities: {
-      publishSingle: true,
-      publishGallery: provider !== "linkedin",
-      schedule: true,
-    },
-  }
-}
-
-function normalizeProvider(value: unknown) {
-  const provider = clean(value).toLowerCase().replace(/_/g, "-")
-  if (!provider) return ""
-  if (provider === "twitter") return "x"
-  if (provider.startsWith("tiktok")) return "tiktok"
-  return provider
-}
-
-function mediaCollectionSummary(collection: StoredImageCollection) {
-  const normalized = storedToCollection(collection)
-  const captioned = collection.images.filter((image) =>
-    clean(image.caption)
-  ).length
-  return {
-    id: normalized.id,
-    name: collection.name,
-    mediaType:
-      collection.mediaType === "video"
-        ? ("video" as const)
-        : ("image" as const),
-    itemCount: collection.images.length,
-    captionCoverage:
-      collection.images.length > 0 ? captioned / collection.images.length : 0,
-    pinned: collection.pinned === true,
-    createdAt: collection.created_at,
-    resourceUri: `lumenclip://collections/${encodeURIComponent(normalized.id)}`,
-  }
-}
-
-function findMediaCollection(collections: StoredImageCollection[], id: string) {
-  const requested = clean(id)
-  return (
-    collections.find((collection) =>
-      collectionMatchesId(storedToCollection(collection), requested)
-    ) ??
-    collections.find(
-      (collection) => collection.name.toLowerCase() === requested.toLowerCase()
-    ) ??
-    null
-  )
-}
-
-async function fetchPublicMcpAsset(
-  input: string | URL | Request,
-  init?: RequestInit
-): Promise<Response> {
-  return fetchPublicMcpAssetRedirect(inputUrl(input), init, 0)
-}
-
-async function fetchPublicMcpAssetRedirect(
-  url: string,
-  init: RequestInit | undefined,
-  redirectCount: number
-): Promise<Response> {
-  const parsed = await assertPublicHttpUrl(url)
-  if (parsed.protocol !== "https:") {
-    throw new Error("Collection asset redirects must stay on HTTPS")
-  }
-  const response = await fetch(parsed, { ...init, redirect: "manual" })
-  if (response.status < 300 || response.status >= 400) return response
-  if (redirectCount >= 3) {
-    throw new Error("Too many collection asset redirects")
-  }
-  const location = response.headers.get("location")
-  if (!location) throw new Error("Collection asset redirect has no location")
-  return fetchPublicMcpAssetRedirect(
-    new URL(location, parsed).toString(),
-    init,
-    redirectCount + 1
-  )
-}
-
-function inputUrl(input: string | URL | Request) {
-  return typeof input === "string"
-    ? input
-    : input instanceof URL
-      ? input.toString()
-      : input.url
-}
-
-function slideshowDeliveryFields(ownerId: string, outputId: string) {
-  if (!ownerId || !outputId) return {}
-  const delivery = slideshowDeliveryLinks({ ownerId, outputId })
-  return delivery
-    ? {
-        previewUrl: delivery.previewUrl,
-        downloadUrl: delivery.downloadUrl,
-      }
-    : {}
-}
-
-function buildCalendarLifecycleItems(input: {
-  jobs: Job[]
-  publications: PostFastPostRecord[]
-  remote: unknown
-  from: Date
-  to: Date
-  limit: number
-}) {
-  const inRange = (value: string | null | undefined) => {
-    const timestamp = Date.parse(clean(value))
-    return (
-      Number.isFinite(timestamp) &&
-      timestamp >= input.from.getTime() &&
-      timestamp <= input.to.getTime()
-    )
-  }
-  const jobItems = input.jobs.flatMap((job) => {
-    const datetime = clean(job.availableAt || job.createdAt)
-    if (!inRange(datetime)) return []
-    const status =
-      job.status === "failed" || job.status === "dead"
-        ? ("render_failed" as const)
-        : job.status === "queued" || job.status === "processing"
-          ? ("rendering" as const)
-          : null
-    if (!status) return []
-    return [
-      {
-        id: `job:${job.id}`,
-        status,
-        sourceStatus: job.status,
-        datetime,
-        source: "job" as const,
-        sourceType: job.type,
-        sourceId: job.id,
-        title:
-          status === "render_failed" ? "Background job failed" : "Job queued",
-        error: job.error,
-        timestamps: {
-          createdAt: job.createdAt,
-          updatedAt: job.updatedAt,
-        },
-      },
-    ]
-  })
-  const publicationItems = input.publications.flatMap((publication) => {
-    const status = calendarStatusForPublication(publication.status)
-    if (!status) return []
-    const datetime =
-      clean(publication.publishedAt) ||
-      clean(publication.scheduledAt) ||
-      publication.updatedAt ||
-      publication.createdAt
-    if (!inRange(datetime)) return []
-    return [
-      {
-        id: `publication:${publication.id}`,
-        status,
-        sourceStatus: publication.status,
-        datetime,
-        slot: clean(publication.scheduledAt) || undefined,
-        source: "local_post" as const,
-        sourceType: publication.sourceType,
-        sourceId: publication.sourceId,
-        title: publication.content || `${publication.provider} publication`,
-        releaseUrl: publication.releaseUrl,
-        targets: [
-          {
-            integrationId: publication.integrationId,
-            provider: publication.provider,
-            status,
-          },
-        ],
-        timestamps: {
-          createdAt: publication.createdAt,
-          updatedAt: publication.updatedAt,
-          scheduledAt: publication.scheduledAt,
-          publishedAt: publication.publishedAt,
-        },
-      },
-    ]
-  })
-  const localByRemoteId = new Map(
-    input.publications.flatMap((publication) =>
-      publication.postfastPostId
-        ? [[publication.postfastPostId, publication] as const]
-        : []
-    )
-  )
-  const remoteRecord = isRecord(input.remote) ? input.remote : {}
-  const remotePosts = Array.isArray(remoteRecord.data)
-    ? remoteRecord.data
-    : Array.isArray(remoteRecord.posts)
-      ? remoteRecord.posts
-      : Array.isArray(input.remote)
-        ? input.remote
-        : []
-  const remoteItems = remotePosts.flatMap((value: unknown, index: number) => {
-    const post = isRecord(value) ? value : {}
-    const status = calendarStatusForRemotePost(clean(post.status))
-    if (!status) return []
-    const id = clean(post.id)
-    const local = id ? localByRemoteId.get(id) : undefined
-    const scheduledAt = clean(post.scheduledAt) || local?.scheduledAt
-    const publishedAt = clean(post.publishedAt) || local?.publishedAt
-    const datetime =
-      status === "published"
-        ? publishedAt || scheduledAt || clean(post.createdAt)
-        : scheduledAt || clean(post.createdAt)
-    if (!inRange(datetime)) return []
-    const integration = isRecord(post.integration) ? post.integration : {}
-    return [
-      {
-        id: `postfast:${id || index}`,
-        localId: local?.id,
-        status,
-        sourceStatus: clean(post.status),
-        datetime,
-        slot: scheduledAt || undefined,
-        source: "postfast" as const,
-        sourceType: local?.sourceType || clean(post.sourceType) || "external",
-        sourceId: local?.sourceId || id || `remote-${index}`,
-        title:
-          clean(post.content) ||
-          local?.content ||
-          (status === "published" ? "Published post" : "Scheduled post"),
-        releaseUrl: clean(
-          post.releaseURL || post.releaseUrl || local?.releaseUrl
-        ),
-        targets: [
-          {
-            integrationId:
-              clean(
-                integration.id || local?.integrationId || post.socialMediaId
-              ) || undefined,
-            provider:
-              clean(
-                integration.providerIdentifier ||
-                  local?.provider ||
-                  post.provider
-              ).toLowerCase() || "unknown",
-            status,
-          },
-        ],
-        timestamps: {
-          createdAt: clean(post.createdAt) || local?.createdAt,
-          updatedAt: clean(post.updatedAt) || local?.updatedAt,
-          scheduledAt: scheduledAt || undefined,
-          publishedAt: publishedAt || undefined,
-        },
-      },
-    ]
-  })
-  const remoteLocalIds = new Set(
-    remoteItems.flatMap((item) => (item.localId ? [item.localId] : []))
-  )
-  const dedupedPublicationItems = publicationItems.filter(
-    (item) => !remoteLocalIds.has(item.id.replace(/^publication:/, ""))
-  )
-  const items = [
-    ...jobItems,
-    ...dedupedPublicationItems,
-    ...remoteItems.map(({ localId, ...item }) => {
-      void localId
-      return item
-    }),
-  ]
-    .sort((left, right) => left.datetime.localeCompare(right.datetime))
-    .slice(0, input.limit)
-  return {
-    items,
-    summary: Object.fromEntries(
-      [
-        "rendering",
-        "render_failed",
-        "needs_action",
-        "draft",
-        "failed",
-        "scheduled",
-        "published",
-      ].map((status) => [
-        status,
-        items.filter((item) => item.status === status).length,
-      ])
-    ),
-  }
-}
-
-function calendarStatusForPublication(status: PostFastPostRecord["status"]) {
-  if (status === "awaiting_manual_post" || status === "ready_for_review") {
-    return "needs_action" as const
-  }
-  if (status === "draft") return "draft" as const
-  if (status === "failed") return "failed" as const
-  if (status === "scheduled") return "scheduled" as const
-  if (status === "published") return "published" as const
-  return null
-}
-
-function calendarStatusForRemotePost(status: string) {
-  const normalized = status.toUpperCase()
-  if (normalized === "PUBLISHED" || normalized === "POSTED") {
-    return "published" as const
-  }
-  if (normalized === "SCHEDULED" || normalized === "QUEUE") {
-    return "scheduled" as const
-  }
-  return null
-}
-
-function mcpResult(value: Record<string, unknown> | unknown[]) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-    structuredContent: Array.isArray(value) ? { items: value } : value,
-  }
-}
-
-async function ownedMcpTask<T>(ownerId: string, task: () => T): Promise<T> {
+/** Runs a tool body; known failures become `isError` results with a readable message. */
+async function run(task: () => Promise<Record<string, unknown>>) {
   try {
-    return await withSystemOwner(ownerId, task)
+    const value = await task()
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
+      structuredContent: value,
+    }
   } catch (error) {
-    throw toLumenClipDataError(error)
+    if (error instanceof RenderRequestError) {
+      return toolError(error.status === 404 ? error.message : "The spec or slot values are invalid.", {
+        errors: error.errors,
+        warnings: error.warnings,
+      })
+    }
+    if (error instanceof PublisherNotConfiguredError) return toolError(PUBLISHER_NOT_CONNECTED_MESSAGE)
+    if (error instanceof PublisherRequestError) return toolError(`SocialBu: ${error.message}`)
+    if (
+      error instanceof PublishRequestError ||
+      error instanceof MediaInputError ||
+      error instanceof McpInputError ||
+      error instanceof DataNotFoundError ||
+      error instanceof DataConflictError
+    ) {
+      return toolError(error.message)
+    }
+    throw error
   }
 }

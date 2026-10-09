@@ -1,20 +1,38 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
 
+import { authenticateApiKey, createDefaultRateLimiter, parseBearerToken } from "@/lib/api-keys"
+import { getRepositories } from "@/lib/data"
 import { createLumenClipMcpServer } from "@/lib/mcp/lumenclip-server"
 import { getDisabledMcpToolNames } from "@/lib/mcp/tool-access"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+const rateLimiter = createDefaultRateLimiter()
+
+/**
+ * Streamable HTTP MCP endpoint. Authenticates with a workspace API key
+ * (`Authorization: Bearer lc_…`), which selects the workspace.
+ */
 async function handle(request: Request) {
-  const ownerId = mcpOwnerId()
-  if (!ownerId) {
-    return Response.json(
-      {
-        error:
-          "MCP owner is not configured. Set LUMENCLIP_MCP_OWNER_ID or LUMENCLIP_SYSTEM_OWNER_ID.",
-      },
-      { status: 503 }
+  const token = parseBearerToken(request.headers.get("authorization"))
+  const repos = getRepositories()
+  const principal = token ? await authenticateApiKey(repos, token) : null
+  if (!principal) {
+    return withCors(
+      Response.json(
+        { error: "Authentication required: send a workspace API key as a Bearer token." },
+        { status: 401, headers: { "www-authenticate": 'Bearer realm="lumenclip"' } }
+      )
+    )
+  }
+  const decision = rateLimiter.take(`key:${principal.apiKeyId}`)
+  if (!decision.allowed) {
+    return withCors(
+      Response.json(
+        { error: "Rate limit exceeded." },
+        { status: 429, headers: { "retry-after": String(decision.retryAfterSeconds) } }
+      )
     )
   }
   const transport = new WebStandardStreamableHTTPServerTransport({
@@ -22,22 +40,15 @@ async function handle(request: Request) {
     enableJsonResponse: true,
   })
   const server = createLumenClipMcpServer(
-    ownerId,
-    {},
+    principal.workspaceId,
+    { apiBaseUrl: () => `${new URL(request.url).origin}/api/v1` },
     {
-      disabledToolNames: await getDisabledMcpToolNames(ownerId),
+      apiKeyId: principal.apiKeyId,
+      disabledToolNames: await getDisabledMcpToolNames(principal.workspaceId, repos),
     }
   )
   await server.connect(transport)
   return withCors(await transport.handleRequest(request))
-}
-
-function mcpOwnerId() {
-  return (
-    process.env.LUMENCLIP_MCP_OWNER_ID?.trim() ||
-    process.env.LUMENCLIP_SYSTEM_OWNER_ID?.trim() ||
-    ""
-  )
 }
 
 export const GET = handle

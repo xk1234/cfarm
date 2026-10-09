@@ -1,16 +1,20 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
 import { NextResponse, type NextRequest } from "next/server"
 
-const PUBLIC_API_PATHS = [
-  "/api/search",
-  "/api/v1/health",
-  "/api/v1/openapi.json",
-] as const
+const PUBLIC_API_PATHS = ["/api/search"] as const
+
+/**
+ * Paths that authenticate themselves: `/api/v1/**` accepts a workspace API key
+ * or the Clerk session (Hono middleware in lib/openapi-app.ts), `/mcp` accepts
+ * an API key, and `/api/public/**` verifies signed share tokens.
+ */
+const SELF_AUTHENTICATED_PREFIXES = ["/api/v1/", "/api/public/"] as const
 
 function isPublicApi(pathname: string) {
   return (
     PUBLIC_API_PATHS.includes(pathname as (typeof PUBLIC_API_PATHS)[number]) ||
-    pathname.startsWith("/api/public/")
+    pathname === "/mcp" ||
+    SELF_AUTHENTICATED_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   )
 }
 
