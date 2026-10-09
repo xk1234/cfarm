@@ -3,10 +3,14 @@
  *
  * Backend selection (`LUMENCLIP_DATA_BACKEND`):
  * - `memory`: in-process repositories (forced by vitest.setup.ts).
- * - `appwrite` (default outside tests): Appwrite Cloud TablesDB + Storage.
- *   Not implemented yet; the backend builder replaces
- *   `createAppwriteRepositories` with `lib/data/appwrite/*`.
+ * - `appwrite` (default outside tests): Appwrite Cloud TablesDB + Storage
+ *   (`lib/data/appwrite/*`, configured by APPWRITE_ENDPOINT,
+ *   APPWRITE_PROJECT_ID and APPWRITE_API_KEY).
  */
+import {
+  createAppwriteRepositories as createAppwriteBackend,
+  type AppwriteRepositoryOptions,
+} from "./appwrite"
 import { createMemoryRepositories } from "./memory"
 import type { Repositories } from "./repositories"
 
@@ -22,6 +26,16 @@ export {
   newId,
   sha256Hex,
 } from "./crypto"
+export {
+  appBaseUrl,
+  createFileToken,
+  filePath,
+  signedFileUrl,
+  verifyFileToken,
+  MAX_FILE_TOKEN_SECONDS,
+  type FileTokenClaims,
+} from "./file-tokens"
+export { AppwriteNotConfiguredError, isAppwriteConfigured, type AppwriteRepositoryOptions } from "./appwrite"
 
 export type DataBackend = Repositories["backend"]
 
@@ -39,9 +53,9 @@ export function dataBackendFromEnv(env: Record<string, string | undefined> = pro
   return env.VITEST || env.NODE_ENV === "test" ? "memory" : "appwrite"
 }
 
-/** Placeholder until the Appwrite adapter lands (doc 03 §6). */
-export function createAppwriteRepositories(): Repositories {
-  throw new DataBackendNotImplementedError("appwrite")
+/** Appwrite Cloud repositories (doc 03 §6). Throws AppwriteNotConfiguredError without credentials. */
+export function createAppwriteRepositories(options?: AppwriteRepositoryOptions): Repositories {
+  return createAppwriteBackend(options)
 }
 
 let cached: Repositories | null = null
