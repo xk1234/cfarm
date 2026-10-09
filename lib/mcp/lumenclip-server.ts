@@ -4,7 +4,7 @@ import { z } from "zod"
 import { absoluteAssetUrl, slideshowDeliveryLinks } from "@/lib/asset-urls"
 import { listAssetRecords } from "@/lib/assets"
 import { toLumenClipDataError } from "@/lib/data-store-errors"
-import { clean, isRecord } from "@/lib/guards"
+import { clean } from "@/lib/guards"
 import {
   deleteImageCollections,
   importRemoteImagesToCollection,
@@ -12,26 +12,16 @@ import {
   upsertImageCollection,
   type StoredImageCollection,
 } from "@/lib/image-collections"
-import { linkPublishedOutput } from "@/lib/manual-publication-linking"
 import { listMediaLibraryAssets } from "@/lib/media-library"
+import { listCalendarItems } from "@/lib/calendar-feed"
+import type { CalendarItem } from "@/lib/calendar-items"
+import { getRepositories, type Post } from "@/lib/data"
 import {
-  postfastRequest,
-  type PostFastCreatePostType,
-  type PostFastSocialIntegration,
-} from "@/lib/postfast-client"
-import { listConnectedPostFastIntegrations } from "@/lib/postfast-integrations"
-import { uploadPostFastMediaSources } from "@/lib/postfast-media-upload"
-import {
-  listPostFastPostRecords,
-  type PostFastPostRecord,
-} from "@/lib/postfast-posts"
-import {
-  deletePosts as deletePostFastPostRecords,
-  listPublicationRecordsForRead,
-  type PublicationReadFilters,
-} from "@/lib/post-repository"
-import { publicationLinkState as resolvedPublicationLinkState } from "@/lib/publication-link-state"
-import { publishPost } from "@/lib/publishing"
+  listPublishingAccounts,
+  publishRender,
+  type PublishingAccount,
+  type PublishingAccounts,
+} from "@/lib/publishing/service"
 import { getJob, listJobs, type Job } from "@/lib/queue"
 import {
   collectionMatchesId,
@@ -57,17 +47,36 @@ export type LumenClipMcpServices = {
   importRemoteImagesToCollection: typeof importRemoteImagesToCollection
   listAssetRecords: typeof listAssetRecords
   listMediaLibraryAssets: typeof listMediaLibraryAssets
-  listAccounts: (ownerId: string) => Promise<PostFastSocialIntegration[]>
-  listPostFastPostRecords: typeof listPostFastPostRecords
-  deletePostFastPostRecords: typeof deletePostFastPostRecords
+  /** SocialBu accounts for the workspace (empty when SocialBu is not connected). */
+  listPublishingAccounts: (ownerId: string) => Promise<PublishingAccounts>
+  /** `posts` rows, optionally only those for the given render ids. */
+  listPosts: (ownerId: string, renderIds?: readonly string[]) => Promise<Post[]>
+  listCalendarItems: (
+    ownerId: string,
+    range: { from: string; to: string }
+  ) => Promise<{ items: CalendarItem[] }>
+  publishRender: typeof publishRender
   listSlideshowRecords: typeof listSlideshowRecords
   deleteSlideshowRecord: typeof deleteSlideshowRecord
-  uploadPostFastMediaSources: typeof uploadPostFastMediaSources
-  publishPost: typeof publishPost
-  linkPublishedOutput: typeof linkPublishedOutput
   getJob: typeof getJob
   listJobs: typeof listJobs
-  postfastRequest: typeof postfastRequest
+}
+
+const ALL_TIME = {
+  from: "1970-01-01T00:00:00.000Z",
+  to: "2100-01-01T00:00:00.000Z",
+}
+
+async function listWorkspacePosts(
+  ownerId: string,
+  renderIds?: readonly string[]
+): Promise<Post[]> {
+  const repos = getRepositories()
+  if (!renderIds) return repos.posts.listRange(ownerId, ALL_TIME)
+  const lists = await Promise.all(
+    renderIds.map((id) => repos.posts.listByRender(ownerId, id))
+  )
+  return lists.flat()
 }
 
 const defaultServices: LumenClipMcpServices = {
@@ -78,32 +87,18 @@ const defaultServices: LumenClipMcpServices = {
   importRemoteImagesToCollection,
   listAssetRecords,
   listMediaLibraryAssets,
-  listAccounts: listConnectedPostFastIntegrations,
-  listPostFastPostRecords,
-  deletePostFastPostRecords,
+  listPublishingAccounts: (ownerId) => listPublishingAccounts(ownerId),
+  listPosts: listWorkspacePosts,
+  listCalendarItems: (ownerId, range) => listCalendarItems(ownerId, range),
+  publishRender,
   listSlideshowRecords,
   deleteSlideshowRecord,
-  uploadPostFastMediaSources,
-  publishPost,
-  linkPublishedOutput,
   getJob,
   listJobs,
-  postfastRequest,
 }
 
 const OUTPUT_LIST_LIMIT = 500
 
-function readMcpPublications(
-  services: Pick<LumenClipMcpServices, "listPostFastPostRecords">,
-  surface: string,
-  filters?: PublicationReadFilters
-) {
-  return listPublicationRecordsForRead({
-    surface: `mcp_${surface}`,
-    filters,
-    legacy: () => services.listPostFastPostRecords(filters),
-  })
-}
 
 export function createLumenClipMcpServer(
   ownerId: string,
@@ -145,7 +140,7 @@ function registerScheduleTools(
     {
       title: "Check the publishing schedule",
       description:
-        "Returns scheduled, published, draft, and failed publications plus queued render jobs in a time window. This never renders or publishes content.",
+        "Returns scheduled, publishing, published, and failed SocialBu posts plus queued render jobs in a time window. This never renders or publishes content.",
       inputSchema: {
         from: z
           .string()
@@ -183,27 +178,19 @@ function registerScheduleTools(
           const to = new Date(
             from.getTime() + input.days * 24 * 60 * 60 * 1000
           )
-          const [jobs, publications, remote] = await Promise.all([
+          const [jobs, calendar] = await Promise.all([
             services.listJobs({ limit: 500 }),
-            readMcpPublications(services, "schedule"),
-            services
-              .postfastRequest("/social-posts", {
-                query: {
-                  from: from.toISOString(),
-                  to: to.toISOString(),
-                  page: 0,
-                  limit: 200,
-                },
-              })
-              .catch(() => []),
+            services.listCalendarItems(ownerId, {
+              from: from.toISOString(),
+              to: to.toISOString(),
+            }),
           ])
           return {
             from: from.toISOString(),
             to: to.toISOString(),
             calendarItems: buildCalendarLifecycleItems({
               jobs,
-              publications,
-              remote,
+              posts: calendar.items,
               from,
               to,
               limit: input.limit,
@@ -647,7 +634,6 @@ function registerOutputTools(
             "draft",
             "scheduled",
             "published",
-            "published_unlinked",
             "failed",
           ])
           .optional()
@@ -694,7 +680,7 @@ function registerOutputTools(
         await owned(async () => {
           const [slideshows, publications] = await Promise.all([
             services.listSlideshowRecords({ limit: OUTPUT_LIST_LIMIT }),
-            readMcpPublications(services, "output_summaries"),
+            services.listPosts(ownerId),
           ])
           const createdFrom = input.createdFrom
             ? Date.parse(input.createdFrom)
@@ -766,11 +752,9 @@ function registerOutputTools(
         await owned(async () => {
           const slideshow = await findSlideshow(services, outputId)
           if (!slideshow) throw new Error("Output not found")
-          const publications = await readMcpPublications(
-            services,
-            "output_get",
-            { sourceIds: [slideshow.id] }
-          )
+          const publications = await services.listPosts(ownerId, [
+            slideshow.id,
+          ])
           return {
             ...outputSummary(slideshow, publications, ownerId),
             caption: slideshow.caption,
@@ -813,7 +797,7 @@ function registerOutputTools(
     {
       title: "Delete an unpublished output",
       description:
-        "Permanently deletes one caller-owned rendered slideshow and its local draft publication records. Published and scheduled outputs are never deleted.",
+        "Permanently deletes one caller-owned rendered slideshow. Published and scheduled outputs are never deleted.",
       inputSchema: {
         outputId: z
           .string()
@@ -843,7 +827,9 @@ function registerOutputTools(
     },
     async ({ confirmDelete, ...input }) => {
       void confirmDelete
-      return mcpResult(await owned(() => deleteOutput(services, input)))
+      return mcpResult(
+        await owned(() => deleteOutput(services, ownerId, input))
+      )
     }
   )
 
@@ -930,7 +916,7 @@ function registerPublishingTools(
     {
       title: "List connected publishing accounts",
       description:
-        "Reads safe connected-account metadata and the publishing capabilities exposed by the current publishing bridge. Returns account IDs, provider/profile metadata, and capabilities; credentials are never returned.",
+        "Reads safe SocialBu account metadata and publishing capabilities. Returns account IDs, provider/profile metadata, and capabilities; credentials are never returned. When SocialBu is not connected the list is empty and status explains why.",
       inputSchema: {
         provider: z
           .string()
@@ -959,13 +945,17 @@ function registerPublishingTools(
       mcpResult(
         await owned(async () => {
           const provider = normalizeProvider(input.provider)
-          const accounts = (await services.listAccounts(ownerId))
+          const { status, accounts: all } =
+            await services.listPublishingAccounts(ownerId)
+          const accounts = all
+            .filter((account) => !account.disabled)
             .filter(
               (account) =>
                 !provider || normalizeProvider(account.provider) === provider
             )
             .map(accountSummary)
           return {
+            status,
             items: accounts.slice(0, input.limit),
             hasMore: accounts.length > input.limit,
             total: accounts.length,
@@ -979,14 +969,14 @@ function registerPublishingTools(
     {
       title: "Publish or schedule an output",
       description:
-        "Uploads a ready caller-owned rendered slideshow and creates a publication for explicitly selected connected accounts. Requires literal confirmation and suppresses duplicate successful publications per output/account.",
+        "Uploads a finished render's slides to SocialBu and creates one post per explicitly selected account, now or at a scheduled time. Requires literal confirmation; repeating the same requestId never creates duplicate posts.",
       inputSchema: {
         outputId: z
           .string()
           .trim()
           .min(1)
           .describe(
-            'Ready output ID returned by outputs_list, e.g. "slideshow-123".'
+            'Finished render ID returned by outputs_list, e.g. "render-123".'
           ),
         targets: z
           .array(
@@ -996,7 +986,7 @@ function registerPublishingTools(
                 .trim()
                 .min(1)
                 .describe(
-                  'Connected account ID returned by accounts_list, e.g. "pf_account_123".'
+                  'SocialBu account ID returned by accounts_list, e.g. "4821".'
                 ),
               mode: z
                 .enum(["now", "schedule"])
@@ -1015,7 +1005,7 @@ function registerPublishingTools(
           .min(1)
           .max(20)
           .describe(
-            'Explicit publish targets, e.g. [{"accountId":"pf_account_123","mode":"schedule","scheduledAt":"2026-07-24T09:00:00+08:00"}].'
+            'Explicit publish targets, e.g. [{"accountId":"4821","mode":"schedule","scheduledAt":"2026-07-24T09:00:00+08:00"}].'
           ),
         caption: z
           .string()
@@ -1029,7 +1019,7 @@ function registerPublishingTools(
           .string()
           .trim()
           .min(1)
-          .max(200)
+          .max(100)
           .describe(
             'Caller-generated idempotency key for this publish request, e.g. "publish-slideshow-001".'
           ),
@@ -1053,77 +1043,6 @@ function registerPublishingTools(
       )
     }
   )
-
-  server.registerTool(
-    "lumenclip_output_mark_published",
-    {
-      title: "Record a manually published output",
-      description:
-        "Links an existing public platform post to a caller-owned output without sending content externally. The platform URL is normalized and conflict-checked.",
-      inputSchema: {
-        outputId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'Output ID to mark as manually published, e.g. "slideshow-123".'
-          ),
-        platform: z
-          .string()
-          .trim()
-          .min(1)
-          .max(100)
-          .describe(
-            'Publishing platform name, e.g. "tiktok", "instagram", "x", "threads", or "linkedin".'
-          ),
-        publishedUrl: z
-          .string()
-          .url()
-          .describe(
-            'Public URL of the already-published platform post, e.g. "https://www.tiktok.com/@user/photo/123".'
-          ),
-        publishedAt: z
-          .string()
-          .datetime({ offset: true })
-          .describe(
-            'Actual publication time as an ISO datetime with timezone offset, e.g. "2026-07-23T21:15:00+08:00".'
-          ),
-        accountId: z
-          .string()
-          .trim()
-          .min(1)
-          .optional()
-          .describe(
-            "Optional connected account ID returned by accounts_list; omit for provider-only manual links."
-          ),
-        requestId: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          .describe(
-            'Caller-generated idempotency key for this manual link, e.g. "manual-link-tiktok-001".'
-          ),
-        confirmLink: z
-          .literal(true)
-          .describe(
-            "Must be literal true after verifying the URL belongs to this output."
-          ),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async ({ confirmLink, ...input }) => {
-      void confirmLink
-      return mcpResult(
-        await owned(() => markOutputPublished(services, ownerId, input))
-      )
-    }
-  )
 }
 
 type OutputPublicationState =
@@ -1131,12 +1050,11 @@ type OutputPublicationState =
   | "draft"
   | "scheduled"
   | "published"
-  | "published_unlinked"
   | "failed"
 
 function outputSummary(
   slideshow: SlideshowRecord,
-  publications: PostFastPostRecord[],
+  publications: Post[],
   ownerId: string
 ) {
   const related = publications.filter((publication) =>
@@ -1158,26 +1076,16 @@ function outputSummary(
   }
 }
 
-function publicationState(
-  publications: PostFastPostRecord[]
-): OutputPublicationState {
-  const published = publications.find((item) => item.status === "published")
-  if (published) {
-    return resolvedPublicationLinkState(published).state === "unlinked"
-      ? "published_unlinked"
-      : "published"
-  }
-  if (publications.some((item) => item.status === "scheduled"))
-    return "scheduled"
+function publicationState(publications: Post[]): OutputPublicationState {
+  if (publications.some((item) => item.status === "published"))
+    return "published"
   if (
-    publications.some((item) =>
-      ["draft", "ready_for_review", "awaiting_manual_post"].includes(
-        item.status
-      )
+    publications.some(
+      (item) => item.status === "scheduled" || item.status === "publishing"
     )
-  ) {
-    return "draft"
-  }
+  )
+    return "scheduled"
+  if (publications.some((item) => item.status === "draft")) return "draft"
   if (publications.some((item) => item.status === "failed")) return "failed"
   return "not_published"
 }
@@ -1195,15 +1103,12 @@ async function findSlideshow(
 
 async function deleteOutput(
   services: LumenClipMcpServices,
+  ownerId: string,
   input: { outputId: string; requestId: string }
 ) {
   const slideshow = await findSlideshow(services, input.outputId)
   if (!slideshow) throw new Error("Output not found")
-  const publications = await readMcpPublications(
-    services,
-    "output_deletion_guard",
-    { sourceIds: [slideshow.id] }
-  )
+  const publications = await services.listPosts(ownerId, [slideshow.id])
   const blocked = slideshowDeletionBlockReason({
     slideshowStatus: slideshow.status,
     slideshowId: slideshow.id,
@@ -1213,10 +1118,6 @@ async function deleteOutput(
     throw new Error(`${capitalize(blocked)} outputs cannot be deleted`)
   }
   await services.deleteSlideshowRecord({ id: slideshow.id })
-  await services.deletePostFastPostRecords({
-    sourceType: "slideshow",
-    sourceIds: [slideshow.id],
-  })
   return {
     requestId: input.requestId,
     outputId: slideshow.id,
@@ -1228,26 +1129,6 @@ async function deleteOutput(
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-async function getPublishableSlideshow(
-  services: LumenClipMcpServices,
-  outputId: string
-) {
-  const slideshow = await findSlideshow(services, outputId)
-  if (!slideshow) throw new Error("Output not found")
-  if (slideshow.status !== "exported" || !slideshow.output_images.length) {
-    throw new Error("Output is not ready to publish")
-  }
-  const content = [slideshow.caption || slideshow.title, slideshow.hashtags]
-    .map(clean)
-    .filter(Boolean)
-    .join("\n\n")
-  return {
-    slideshow,
-    content: content || "Slideshow",
-    mediaUrls: slideshow.output_images,
-  }
 }
 
 async function publishOutput(
@@ -1264,81 +1145,50 @@ async function publishOutput(
     requestId: string
   }
 ) {
-  const output = await getPublishableSlideshow(services, input.outputId)
-  const warnings: string[] = []
-  const [accounts, existingPublications] = await Promise.all([
-    services.listAccounts(ownerId),
-    readMcpPublications(services, "output_publish_lookup", {
-      sourceIds: [output.slideshow.id],
-    }),
-  ])
-  const uniqueTargets = [
-    ...new Map(
-      input.targets.map((target) => [target.accountId, target])
-    ).values(),
-  ]
-  const resolved = uniqueTargets.map((target) => {
-    const account = accounts.find(
-      (candidate) => candidate.integration_id === target.accountId
-    )
-    if (!account)
-      throw new Error(`Publishing account not found: ${target.accountId}`)
+  const slideshow = await findSlideshow(services, input.outputId)
+  const caption =
+    clean(input.caption) ||
+    [slideshow?.caption || slideshow?.title, slideshow?.hashtags]
+      .map(clean)
+      .filter(Boolean)
+      .join("\n\n")
+
+  // One SocialBu request per distinct publish time.
+  const groups = new Map<string, string[]>()
+  for (const target of input.targets) {
     if (target.mode === "schedule") {
       const timestamp = Date.parse(target.scheduledAt ?? "")
-      if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
+      if (
+        !Number.isFinite(timestamp) ||
+        timestamp <= services.now().getTime()
+      ) {
         throw new Error("Scheduled targets require a future scheduledAt")
       }
     }
-    return { target, account }
-  })
-
-  const existingForTarget = new Map(
-    resolved.flatMap(({ account }) => {
-      const existing = existingPublications.find(
-        (publication) =>
-          isPostLinkedToSlideshow(publication, {
-            slideshowId: output.slideshow.id,
-          }) &&
-          publication.integrationId === account.integration_id &&
-          publication.status !== "failed"
-      )
-      return existing ? [[account.integration_id, existing] as const] : []
-    })
-  )
-  const media =
-    output.mediaUrls.length && existingForTarget.size < resolved.length
-      ? await services.uploadPostFastMediaSources({ urls: output.mediaUrls })
-      : []
-  const records: PostFastPostRecord[] = []
-  let failed = 0
-  let reused = 0
-  for (const { target, account } of resolved) {
-    const existing = existingForTarget.get(account.integration_id)
-    if (existing) {
-      records.push(existing)
-      reused += 1
-      warnings.push(
-        `Skipped duplicate publication for ${account.name}; an existing ${existing.status} record already exists.`
-      )
-      continue
-    }
-    const type: PostFastCreatePostType =
-      target.mode === "schedule" ? "schedule" : "now"
-    const result = await services.publishPost({
-      type,
-      date: target.mode === "schedule" ? target.scheduledAt : undefined,
-      integrationId: account.integration_id,
-      provider: account.provider,
-      content: clean(input.caption) || output.content,
-      media,
-      sourceType: "slideshow",
-      sourceId: output.slideshow.id,
-    })
-    records.push(result.record)
-    if (!result.ok) failed += 1
+    const key =
+      target.mode === "schedule"
+        ? new Date(target.scheduledAt!).toISOString()
+        : "now"
+    const accounts = groups.get(key) ?? []
+    if (!accounts.includes(target.accountId)) accounts.push(target.accountId)
+    groups.set(key, accounts)
   }
 
-  const succeeded = records.length - failed
+  const posts: Post[] = []
+  for (const [key, accountIds] of groups) {
+    const result = await services.publishRender(ownerId, {
+      renderId: input.outputId,
+      accountIds,
+      caption,
+      publishAt: key === "now" ? null : key,
+      idempotencyKey: `${input.requestId}:${key}`,
+      createdBy: ownerId,
+    })
+    posts.push(...result.posts)
+  }
+
+  const failed = posts.filter((post) => post.status === "failed").length
+  const succeeded = posts.length - failed
   return {
     operation: {
       id: input.requestId,
@@ -1352,69 +1202,16 @@ async function publishOutput(
       resourceUri: `lumenclip://operations/${encodeURIComponent(input.requestId)}`,
     },
     output: {
-      id: output.slideshow.id,
+      id: input.outputId,
       outputType: "slideshow",
-      resourceUri: `lumenclip://outputs/${encodeURIComponent(output.slideshow.id)}`,
+      resourceUri: `lumenclip://outputs/${encodeURIComponent(input.outputId)}`,
     },
-    published: records.filter((record) => record.status === "published").length,
-    scheduled: records.filter((record) => record.status === "scheduled").length,
+    published: posts.filter((post) => post.status === "published").length,
+    scheduled: posts.filter((post) => post.status === "scheduled").length,
+    publishing: posts.filter((post) => post.status === "publishing").length,
     failed,
-    reused,
-    publications: records.map(publicationSummary),
-    warnings,
-  }
-}
-
-async function markOutputPublished(
-  services: LumenClipMcpServices,
-  ownerId: string,
-  input: {
-    outputId: string
-    platform: string
-    publishedUrl: string
-    publishedAt: string
-    accountId?: string
-    requestId: string
-  }
-) {
-  const output = await getPublishableSlideshow(services, input.outputId)
-  const platform = normalizeProvider(input.platform)
-  if (!platform) throw new Error("A valid platform is required")
-  const publishedAt = new Date(input.publishedAt)
-  if (!Number.isFinite(publishedAt.getTime())) {
-    throw new Error("publishedAt must be a valid datetime")
-  }
-  let account: PostFastSocialIntegration | undefined
-  if (input.accountId) {
-    account = (await services.listAccounts(ownerId)).find(
-      (candidate) => candidate.integration_id === input.accountId
-    )
-    if (!account) throw new Error("Publishing account not found")
-    if (normalizeProvider(account.provider) !== platform) {
-      throw new Error("The selected account does not match the platform")
-    }
-  }
-
-  const publication = await services.linkPublishedOutput({
-    sourceType: "slideshow",
-    sourceId: output.slideshow.id,
-    integrationId: account?.integration_id ?? `manual-${platform}`,
-    provider: account?.provider ?? platform,
-    releaseUrl: input.publishedUrl,
-    publishedAt: publishedAt.toISOString(),
-    content: output.content,
-    media: [],
-  })
-
-  return {
-    requestId: input.requestId,
-    output: {
-      id: output.slideshow.id,
-      outputType: "slideshow",
-      publicationState: "published",
-      resourceUri: `lumenclip://outputs/${encodeURIComponent(output.slideshow.id)}`,
-    },
-    publication: publicationSummary(publication),
+    publications: posts.map(publicationSummary),
+    warnings: [] as string[],
   }
 }
 
@@ -1435,30 +1232,29 @@ function jobOperation(job: Job) {
   }
 }
 
-function publicationSummary(record: PostFastPostRecord) {
+function publicationSummary(post: Post) {
   return {
-    id: record.id,
-    accountId: record.integrationId,
-    provider: record.provider,
-    status: record.status,
-    scheduledAt: record.scheduledAt,
-    publishedAt: record.publishedAt,
-    releaseUrl: record.releaseUrl,
-    externalPostId: record.externalPostId,
-    error: record.error,
+    id: post.id,
+    accountId: post.accountId,
+    provider: post.provider,
+    status: post.status,
+    scheduledAt: post.publishAt,
+    publishedAt: post.publishedAt,
+    releaseUrl: post.permalink,
+    externalPostId: post.providerPostId,
+    error: post.error,
   }
 }
 
-function accountSummary(account: PostFastSocialIntegration) {
+function accountSummary(account: PublishingAccount) {
   const provider = normalizeProvider(account.provider)
   return {
-    id: account.integration_id,
+    id: account.id,
     provider: account.provider,
     platform: provider,
     displayName: account.name,
-    profile: account.profile,
-    picture: account.picture,
-    connected: account.disabled !== true,
+    picture: account.avatarUrl ?? undefined,
+    connected: account.active,
     capabilities: {
       publishSingle: true,
       publishGallery: provider !== "linkedin",
@@ -1560,8 +1356,7 @@ function slideshowDeliveryFields(ownerId: string, outputId: string) {
 
 function buildCalendarLifecycleItems(input: {
   jobs: Job[]
-  publications: PostFastPostRecord[]
-  remote: unknown
+  posts: CalendarItem[]
   from: Date
   to: Date
   limit: number
@@ -1603,128 +1398,21 @@ function buildCalendarLifecycleItems(input: {
       },
     ]
   })
-  const publicationItems = input.publications.flatMap((publication) => {
-    const status = calendarStatusForPublication(publication.status)
-    if (!status) return []
-    const datetime =
-      clean(publication.publishedAt) ||
-      clean(publication.scheduledAt) ||
-      publication.updatedAt ||
-      publication.createdAt
-    if (!inRange(datetime)) return []
-    return [
-      {
-        id: `publication:${publication.id}`,
-        status,
-        sourceStatus: publication.status,
-        datetime,
-        slot: clean(publication.scheduledAt) || undefined,
-        source: "local_post" as const,
-        sourceType: publication.sourceType,
-        sourceId: publication.sourceId,
-        title: publication.content || `${publication.provider} publication`,
-        releaseUrl: publication.releaseUrl,
-        targets: [
-          {
-            integrationId: publication.integrationId,
-            provider: publication.provider,
-            status,
-          },
-        ],
-        timestamps: {
-          createdAt: publication.createdAt,
-          updatedAt: publication.updatedAt,
-          scheduledAt: publication.scheduledAt,
-          publishedAt: publication.publishedAt,
-        },
-      },
-    ]
-  })
-  const localByRemoteId = new Map(
-    input.publications.flatMap((publication) =>
-      publication.postfastPostId
-        ? [[publication.postfastPostId, publication] as const]
-        : []
-    )
-  )
-  const remoteRecord = isRecord(input.remote) ? input.remote : {}
-  const remotePosts = Array.isArray(remoteRecord.data)
-    ? remoteRecord.data
-    : Array.isArray(remoteRecord.posts)
-      ? remoteRecord.posts
-      : Array.isArray(input.remote)
-        ? input.remote
-        : []
-  const remoteItems = remotePosts.flatMap((value: unknown, index: number) => {
-    const post = isRecord(value) ? value : {}
-    const status = calendarStatusForRemotePost(clean(post.status))
-    if (!status) return []
-    const id = clean(post.id)
-    const local = id ? localByRemoteId.get(id) : undefined
-    const scheduledAt = clean(post.scheduledAt) || local?.scheduledAt
-    const publishedAt = clean(post.publishedAt) || local?.publishedAt
-    const datetime =
-      status === "published"
-        ? publishedAt || scheduledAt || clean(post.createdAt)
-        : scheduledAt || clean(post.createdAt)
-    if (!inRange(datetime)) return []
-    const integration = isRecord(post.integration) ? post.integration : {}
-    return [
-      {
-        id: `postfast:${id || index}`,
-        localId: local?.id,
-        status,
-        sourceStatus: clean(post.status),
-        datetime,
-        slot: scheduledAt || undefined,
-        source: "postfast" as const,
-        sourceType: local?.sourceType || clean(post.sourceType) || "external",
-        sourceId: local?.sourceId || id || `remote-${index}`,
-        title:
-          clean(post.content) ||
-          local?.content ||
-          (status === "published" ? "Published post" : "Scheduled post"),
-        releaseUrl: clean(
-          post.releaseURL || post.releaseUrl || local?.releaseUrl
-        ),
-        targets: [
-          {
-            integrationId:
-              clean(
-                integration.id || local?.integrationId || post.socialMediaId
-              ) || undefined,
-            provider:
-              clean(
-                integration.providerIdentifier ||
-                  local?.provider ||
-                  post.provider
-              ).toLowerCase() || "unknown",
-            status,
-          },
-        ],
-        timestamps: {
-          createdAt: clean(post.createdAt) || local?.createdAt,
-          updatedAt: clean(post.updatedAt) || local?.updatedAt,
-          scheduledAt: scheduledAt || undefined,
-          publishedAt: publishedAt || undefined,
-        },
-      },
-    ]
-  })
-  const remoteLocalIds = new Set(
-    remoteItems.flatMap((item) => (item.localId ? [item.localId] : []))
-  )
-  const dedupedPublicationItems = publicationItems.filter(
-    (item) => !remoteLocalIds.has(item.id.replace(/^publication:/, ""))
-  )
-  const items = [
-    ...jobItems,
-    ...dedupedPublicationItems,
-    ...remoteItems.map(({ localId, ...item }) => {
-      void localId
-      return item
-    }),
-  ]
+  const postItems = input.posts.map((item) => ({
+    id: `post:${item.id}`,
+    status: item.status,
+    sourceStatus: item.status,
+    datetime: item.datetime,
+    source: "post" as const,
+    sourceType: item.sourceType,
+    sourceId: item.sourceId,
+    title: item.title,
+    releaseUrl: item.links.live,
+    error: item.error,
+    targets: item.targets,
+    timestamps: item.timestamps,
+  }))
+  const items = [...jobItems, ...postItems]
     .sort((left, right) => left.datetime.localeCompare(right.datetime))
     .slice(0, input.limit)
   return {
@@ -1733,10 +1421,10 @@ function buildCalendarLifecycleItems(input: {
       [
         "rendering",
         "render_failed",
-        "needs_action",
         "draft",
         "failed",
         "scheduled",
+        "publishing",
         "published",
       ].map((status) => [
         status,
@@ -1744,28 +1432,6 @@ function buildCalendarLifecycleItems(input: {
       ])
     ),
   }
-}
-
-function calendarStatusForPublication(status: PostFastPostRecord["status"]) {
-  if (status === "awaiting_manual_post" || status === "ready_for_review") {
-    return "needs_action" as const
-  }
-  if (status === "draft") return "draft" as const
-  if (status === "failed") return "failed" as const
-  if (status === "scheduled") return "scheduled" as const
-  if (status === "published") return "published" as const
-  return null
-}
-
-function calendarStatusForRemotePost(status: string) {
-  const normalized = status.toUpperCase()
-  if (normalized === "PUBLISHED" || normalized === "POSTED") {
-    return "published" as const
-  }
-  if (normalized === "SCHEDULED" || normalized === "QUEUE") {
-    return "scheduled" as const
-  }
-  return null
 }
 
 function mcpResult(value: Record<string, unknown> | unknown[]) {

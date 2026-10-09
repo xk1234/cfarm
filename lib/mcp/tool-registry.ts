@@ -12,7 +12,6 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_operation_get", category: "outputs" },
   { name: "lumenclip_accounts_list", category: "publishing" },
   { name: "lumenclip_output_publish", category: "publishing" },
-  { name: "lumenclip_output_mark_published", category: "publishing" },
 ] as const
 
 export const LUMENCLIP_MCP_TOOL_NAMES = LUMENCLIP_MCP_TOOLS.map(

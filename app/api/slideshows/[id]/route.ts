@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 
 import { withHandler, readRouteId } from "@/lib/api"
-import {
-  deletePosts,
-  listPublicationRecordsForRead,
-} from "@/lib/post-repository"
+import { getCurrentUser } from "@/lib/auth"
+import { getRepositories } from "@/lib/data"
 import { slideshowDeletionBlockReason } from "@/lib/slideshow-lifecycle"
 import {
   deleteSlideshowRecord,
@@ -13,6 +11,15 @@ import {
 } from "@/lib/slideshows"
 
 export const dynamic = "force-dynamic"
+
+/** SocialBu posts (`posts` rows) created from this render. */
+async function postsForRender(id: string) {
+  const user = await getCurrentUser()
+  if (!user) return []
+  return getRepositories()
+    .posts.listByRender(user.$id, id)
+    .catch(() => [])
+}
 
 export const GET = withHandler<{ params: Promise<{ id: string }> }>(
   async (_request, { params }) => {
@@ -62,10 +69,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
       )
     }
 
-    const posts = await listPublicationRecordsForRead({
-      surface: "slideshow_edit_guard",
-      filters: { sourceIds: [id] },
-    }).catch(() => [])
+    const posts = await postsForRender(id)
     const blocked = slideshowDeletionBlockReason({
       slideshowStatus: "exported",
       slideshowId: id,
@@ -130,10 +134,7 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
       )
     }
 
-    const posts = await listPublicationRecordsForRead({
-      surface: "slideshow_deletion_guard",
-      filters: { sourceIds: [id] },
-    }).catch(() => [])
+    const posts = await postsForRender(id)
     const blocked = slideshowDeletionBlockReason({
       slideshowStatus: slideshow.status,
       slideshowId: id,
@@ -156,11 +157,6 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
         { status: 404 }
       )
     }
-
-    await deletePosts({
-      sourceType: "slideshow",
-      sourceIds: [id],
-    })
 
     return NextResponse.json({ slideshow: deletedSlideshow })
   }

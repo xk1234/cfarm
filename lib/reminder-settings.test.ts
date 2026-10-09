@@ -1,116 +1,56 @@
 import { describe, expect, it } from "vitest"
 
+import { createMemoryRepositories } from "@/lib/data"
 import {
+  applyReminderSettingsInput,
   getReminderSettings,
-  normalizeReminderSettings,
+  ReminderSettingsInputSchema,
   saveReminderSettings,
 } from "@/lib/reminder-settings"
-import { deleteJsonArrayRecord } from "@/lib/json-store"
-import { withSystemOwner } from "@/lib/system-owner-context"
-import path from "node:path"
 
 describe("reminder settings", () => {
-  it("ignores legacy global-channel and boolean events without losing modern siblings", () => {
-    expect(
-      normalizeReminderSettings({
-        channel: "telegram",
-        events: {
-          generated: true,
-          ready_to_post: { channel: "in_app" },
-          scheduled_to_post: false,
-          unknown_event: true,
-        },
-      })
-    ).toEqual({
-      id: "reminders",
-      notificationDefaultsApplied: false,
+  it("defaults to in-app with a one-hour lead", async () => {
+    const repos = createMemoryRepositories()
+    expect(await getReminderSettings("u1", repos)).toEqual({
+      channel: "in_app",
+      leadMinutes: [60],
+      notificationDefaultsApplied: true,
       events: {
-        generated: { channel: "none" },
-        ready_to_post: { channel: "in_app" },
-        scheduled_to_post: { channel: "none" },
-        respond_to_comments: {
-          channel: "none",
-          offsetsHours: [24, 72],
-        },
-        publish_failed: { channel: "none" },
-      },
-      updatedAt: new Date(0).toISOString(),
-    })
-  })
-
-  it("maps legacy Telegram routing to in-app delivery and drops Telegram fields", () => {
-    const settings = normalizeReminderSettings({
-      telegramChatId: "123456",
-      telegramBotToken: "secret",
-      events: { ready_to_post: { channel: "telegram" } },
-    })
-    expect(settings?.events.ready_to_post).toEqual({ channel: "in_app" })
-    expect(settings).not.toHaveProperty("telegramChatId")
-    expect(settings).not.toHaveProperty("telegramBotToken")
-  })
-
-  it("ignores offsets for events that do not support delays", () => {
-    expect(
-      normalizeReminderSettings({
-        events: {
-          generated: { channel: "in_app", offsetsHours: [24] },
-          respond_to_comments: {
-            channel: "in_app",
-            offsetsHours: [72, -1, 24, 72],
-          },
-        },
-      })
-    ).toMatchObject({
-      events: {
-        generated: { channel: "in_app" },
-        respond_to_comments: {
-          channel: "in_app",
-          offsetsHours: [24, 72],
-        },
+        render_finished: { channel: "in_app" },
+        post_upcoming: { channel: "in_app", offsetsHours: [1] },
+        post_published: { channel: "in_app" },
+        publish_failed: { channel: "in_app" },
       },
     })
-    expect(
-      normalizeReminderSettings({
-        events: {
-          generated: { channel: "in_app", offsetsHours: [24] },
-        },
-      })?.events.generated
-    ).not.toHaveProperty("offsetsHours")
   })
 
-  it("persists one private reminder policy", async () => {
-    const ownerId = `reminder-test-${Date.now()}`.slice(0, 36)
-    const rootDir = path.join(process.cwd(), "data", "settings")
-    await withSystemOwner(ownerId, async () => {
-      try {
-        await saveReminderSettings({
+  it("saves channel and lead minutes", async () => {
+    const repos = createMemoryRepositories()
+    const saved = await saveReminderSettings("u1", { channel: "none", leadMinutes: [15, 15, 1440] }, repos)
+    expect(saved).toMatchObject({ channel: "none", leadMinutes: [15, 1440] })
+    expect((await repos.settings.get("u1")).reminders).toEqual({ enabled: false, leadMinutes: [15, 1440] })
+  })
+
+  it("accepts the per-event form from the settings panel", () => {
+    expect(
+      applyReminderSettingsInput(
+        { enabled: false, leadMinutes: [60] },
+        {
           events: {
-            generated: { channel: "none" },
-            ready_to_post: { channel: "in_app" },
-            scheduled_to_post: { channel: "none" },
-            respond_to_comments: {
-              channel: "in_app",
-              offsetsHours: [24, 72],
-            },
-            publish_failed: { channel: "none" },
+            render_finished: { channel: "none" },
+            post_upcoming: { channel: "in_app", offsetsHours: [2, 24] },
           },
-        })
-        await expect(getReminderSettings()).resolves.toMatchObject({
-          id: "reminders",
-          events: {
-            generated: { channel: "none" },
-            ready_to_post: { channel: "in_app" },
-            scheduled_to_post: { channel: "none" },
-          },
-        })
-      } finally {
-        await deleteJsonArrayRecord({
-          rootDir,
-          fileName: "reminders.json",
-          key: "settings",
-          id: "reminders",
-        })
-      }
-    })
+        }
+      )
+    ).toEqual({ enabled: true, leadMinutes: [120, 1440] })
+    expect(
+      applyReminderSettingsInput({ enabled: true, leadMinutes: [60] }, { events: { a: { channel: "none" } } })
+    ).toEqual({ enabled: false, leadMinutes: [60] })
+  })
+
+  it("rejects unknown channels and empty input", () => {
+    expect(ReminderSettingsInputSchema.safeParse({ channel: "telegram" }).success).toBe(false)
+    expect(ReminderSettingsInputSchema.safeParse({}).success).toBe(false)
+    expect(ReminderSettingsInputSchema.safeParse({ leadMinutes: [0] }).success).toBe(false)
   })
 })

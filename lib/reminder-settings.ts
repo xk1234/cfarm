@@ -1,21 +1,25 @@
-import "server-only"
+/**
+ * Notification settings: one workspace-wide channel (`in_app` or `none`) plus
+ * the lead times for "post coming up" reminders. Stored in
+ * `workspace_settings.reminders` ({ enabled, leadMinutes }).
+ *
+ * The HTTP shape also carries a per-event `events` view so the existing
+ * settings panel keeps working; every event shares the one channel.
+ */
+import { z } from "zod"
 
-import path from "node:path"
+import {
+  getRepositories,
+  type ReminderSettings as StoredReminderSettings,
+  type Repositories,
+  type WorkspaceId,
+} from "@/lib/data"
 
-import { clean } from "@/lib/guards"
-import { readJsonArrayRecord, upsertJsonArrayRecord } from "@/lib/json-store"
+export const REMINDER_CHANNELS = ["in_app", "none"] as const
+export type ReminderChannel = (typeof REMINDER_CHANNELS)[number]
 
-export const reminderEvents = [
-  "generated",
-  "ready_to_post",
-  "scheduled_to_post",
-  "respond_to_comments",
-  "publish_failed",
-] as const
-
+export const reminderEvents = ["render_finished", "post_upcoming", "post_published", "publish_failed"] as const
 export type ReminderEvent = (typeof reminderEvents)[number]
-// Notifications are delivered in-app only; there is no external channel.
-export type ReminderChannel = "none" | "in_app"
 
 export type ReminderEventMetadata = {
   label: string
@@ -24,176 +28,121 @@ export type ReminderEventMetadata = {
   defaultOffsetsHours?: readonly number[]
 }
 
-export const reminderEventMetadata: Record<
-  ReminderEvent,
-  ReminderEventMetadata
-> = {
-  generated: {
-    label: "Slideshow rendered",
-    description: "Notify as soon as a slideshow finishes rendering.",
+export const reminderEventMetadata: Record<ReminderEvent, ReminderEventMetadata> = {
+  render_finished: {
+    label: "Render finished",
+    description: "When a slideshow render succeeds or fails.",
     supportsOffsets: false,
   },
-  ready_to_post: {
-    label: "Ready to post",
-    description:
-      "Send at the post's due time when a review or manual post is ready.",
-    supportsOffsets: false,
-  },
-  scheduled_to_post: {
-    label: "Scheduled to post",
-    description: "Send when a post is successfully scheduled with PostFast.",
-    supportsOffsets: false,
-  },
-  respond_to_comments: {
-    label: "Respond to comments",
-    description: "Follow up after publishing while the conversation is active.",
+  post_upcoming: {
+    label: "Post coming up",
+    description: "Before a scheduled post goes out.",
     supportsOffsets: true,
-    defaultOffsetsHours: [24, 72],
+    defaultOffsetsHours: [1],
+  },
+  post_published: {
+    label: "Post published",
+    description: "When SocialBu confirms a post is live.",
+    supportsOffsets: false,
   },
   publish_failed: {
     label: "Publishing failed",
-    description: "Send when LumenClip cannot publish a post.",
+    description: "When SocialBu cannot publish a post.",
     supportsOffsets: false,
   },
 }
 
-export type ReminderEventSettings = {
-  channel: ReminderChannel
-  offsetsHours?: number[]
-}
+export type ReminderEventSettings = { channel: ReminderChannel; offsetsHours?: number[] }
 
-export type ReminderSettings = {
-  id: "reminders"
+export type PublicReminderSettings = {
+  channel: ReminderChannel
+  /** Minutes before a scheduled post. */
+  leadMinutes: number[]
   notificationDefaultsApplied: boolean
   events: Record<ReminderEvent, ReminderEventSettings>
-  updatedAt: string
 }
 
-export type ReminderSettingsInput = Pick<
-  ReminderSettings,
-  "events"
-> & {
-  notificationDefaultsApplied?: boolean
-}
+const MAX_LEAD_MINUTES = 7 * 24 * 60
+const MAX_LEADS = 5
 
-const rootDir = path.join(process.cwd(), "data", "settings")
-const store = {
-  rootDir,
-  fileName: "reminders.json",
-  key: "settings",
-}
+const leadMinutesSchema = z
+  .array(z.number().int().positive().max(MAX_LEAD_MINUTES))
+  .max(MAX_LEADS)
 
-export function defaultReminderSettings(): ReminderSettings {
-  return {
-    id: "reminders",
-    notificationDefaultsApplied: false,
-    events: Object.fromEntries(
-      reminderEvents.map((event) => [
-        event,
-        {
-          channel: "none",
-          ...(reminderEventMetadata[event].supportsOffsets
-            ? {
-                offsetsHours: [
-                  ...(reminderEventMetadata[event].defaultOffsetsHours ?? []),
-                ],
-              }
-            : {}),
-        },
-      ])
-    ) as Record<ReminderEvent, ReminderEventSettings>,
-    updatedAt: new Date(0).toISOString(),
-  }
-}
-
-export function normalizeReminderSettings(
-  value: unknown
-): ReminderSettings | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null
-  const input = value as Record<string, unknown>
-  const rawEvents =
-    input.events &&
-    typeof input.events === "object" &&
-    !Array.isArray(input.events)
-      ? (input.events as Record<string, unknown>)
-      : {}
-  const defaults = defaultReminderSettings()
-  const notificationDefaultsApplied = input.notificationDefaultsApplied === true
-  const events = Object.fromEntries(
-    reminderEvents.map((event) => {
-      const metadata = reminderEventMetadata[event]
-      const raw = rawEvents[event]
-      const rawEvent =
-        raw && typeof raw === "object" && !Array.isArray(raw)
-          ? (raw as Record<string, unknown>)
-          : null
-      // Legacy Telegram routing becomes in-app delivery.
-      const channel: ReminderChannel =
-        rawEvent?.channel === "in_app" || rawEvent?.channel === "telegram"
-          ? "in_app"
-          : "none"
-      const offsetsHours = metadata.supportsOffsets
-        ? normalizeOffsets(
-            rawEvent?.offsetsHours,
-            defaults.events[event].offsetsHours ?? []
-          )
-        : undefined
-      return [
-        event,
-        {
-          channel,
-          ...(offsetsHours ? { offsetsHours } : {}),
-        },
-      ]
-    })
-  ) as Record<ReminderEvent, ReminderEventSettings>
-
-  return {
-    id: "reminders",
-    notificationDefaultsApplied,
-    events,
-    updatedAt: clean(input.updatedAt) || defaults.updatedAt,
-  }
-}
-
-function normalizeOffsets(value: unknown, fallback: number[]) {
-  if (!Array.isArray(value)) return [...fallback]
-  return [
-    ...new Set(
-      value.filter(
-        (offset): offset is number =>
-          typeof offset === "number" &&
-          Number.isInteger(offset) &&
-          offset > 0 &&
-          offset <= 24 * 365
+export const ReminderSettingsInputSchema = z
+  .object({
+    channel: z.enum(REMINDER_CHANNELS).optional(),
+    leadMinutes: leadMinutesSchema.optional(),
+    notificationDefaultsApplied: z.boolean().optional(),
+    /** Legacy per-event form from the settings panel. */
+    events: z
+      .record(
+        z.string(),
+        z.object({
+          channel: z.string(),
+          offsetsHours: z.array(z.number().int().positive().max(MAX_LEAD_MINUTES / 60)).optional(),
+        })
       )
-    ),
-  ].sort((left, right) => left - right)
+      .optional(),
+  })
+  .refine((value) => value.channel || value.events || value.leadMinutes, {
+    message: "Choose a notification setting.",
+  })
+
+export type ReminderSettingsInput = z.infer<typeof ReminderSettingsInputSchema>
+
+function normalizeLeads(values: readonly number[]): number[] {
+  return [...new Set(values.filter((v) => Number.isInteger(v) && v > 0 && v <= MAX_LEAD_MINUTES))]
+    .sort((a, b) => a - b)
+    .slice(0, MAX_LEADS)
 }
 
-export async function getReminderSettings(): Promise<ReminderSettings> {
-  return (
-    (await readJsonArrayRecord<ReminderSettings>({
-      ...store,
-      id: "reminders",
-      normalize: normalizeReminderSettings,
-    })) ?? defaultReminderSettings()
-  )
+export function toPublicReminderSettings(stored: StoredReminderSettings): PublicReminderSettings {
+  const channel: ReminderChannel = stored.enabled ? "in_app" : "none"
+  const leadMinutes = normalizeLeads(stored.leadMinutes)
+  const offsetsHours = leadMinutes.filter((m) => m % 60 === 0).map((m) => m / 60)
+  const events = Object.fromEntries(
+    reminderEvents.map((event) => [
+      event,
+      reminderEventMetadata[event].supportsOffsets ? { channel, offsetsHours } : { channel },
+    ])
+  ) as Record<ReminderEvent, ReminderEventSettings>
+  return { channel, leadMinutes, notificationDefaultsApplied: true, events }
+}
+
+/** Applies an input onto stored settings. */
+export function applyReminderSettingsInput(
+  current: StoredReminderSettings,
+  input: ReminderSettingsInput
+): StoredReminderSettings {
+  let enabled = current.enabled
+  let leadMinutes = current.leadMinutes
+  if (input.events) {
+    const channels = Object.values(input.events).map((event) => event.channel)
+    enabled = channels.some((channel) => channel === "in_app" || channel === "telegram")
+    const upcoming = input.events.post_upcoming
+    if (upcoming?.offsetsHours) leadMinutes = upcoming.offsetsHours.map((hours) => hours * 60)
+  }
+  if (input.channel) enabled = input.channel === "in_app"
+  if (input.leadMinutes) leadMinutes = input.leadMinutes
+  return { enabled, leadMinutes: normalizeLeads(leadMinutes) }
+}
+
+export async function getReminderSettings(
+  workspaceId: WorkspaceId,
+  repos: Repositories = getRepositories()
+): Promise<PublicReminderSettings> {
+  const settings = await repos.settings.get(workspaceId)
+  return toPublicReminderSettings(settings.reminders)
 }
 
 export async function saveReminderSettings(
-  input: ReminderSettingsInput
-): Promise<ReminderSettings> {
-  const settings = normalizeReminderSettings({
-    id: "reminders",
-    ...input,
-    updatedAt: new Date().toISOString(),
-  })
-  if (!settings) throw new Error("Invalid reminder settings")
-  await upsertJsonArrayRecord({ ...store, record: settings })
-  return settings
-}
-
-export function publicReminderSettings(settings: ReminderSettings) {
-  return { ...settings }
+  workspaceId: WorkspaceId,
+  input: ReminderSettingsInput,
+  repos: Repositories = getRepositories()
+): Promise<PublicReminderSettings> {
+  const current = await repos.settings.get(workspaceId)
+  const reminders = applyReminderSettingsInput(current.reminders, input)
+  const saved = await repos.settings.patch(workspaceId, { reminders })
+  return toPublicReminderSettings(saved.reminders)
 }

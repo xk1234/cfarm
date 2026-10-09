@@ -1,156 +1,131 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  calendarItemFromPost,
   calendarItemMatchesFilters,
-  calendarLifecycleForJob,
-  calendarLifecycleForLocalPost,
-  calendarLifecycleForPostFast,
+  calendarSummary,
   calendarTimingEntries,
-  dedupeCalendarItems,
-  reconcileCalendarFilterValue,
-  reconcileCalendarFilterValues,
-  type CalendarItem,
 } from "@/lib/calendar-items"
+import { listCalendarItems } from "@/lib/calendar-feed"
+import { calendarAlertSummary } from "@/lib/calendar-summary"
+import { createMemoryRepositories, type Post } from "@/lib/data"
+import { NotConfiguredPublisher } from "@/lib/publishing/publisher"
+import type { ResolvedSpec } from "@/lib/render/spec"
 
-describe("calendar lifecycle mapping", () => {
-  it("maps queue, local post, and PostFast states to the canonical lifecycle", () => {
-    expect(calendarLifecycleForJob("queued")).toBe("generating")
-    expect(calendarLifecycleForJob("processing")).toBe("generating")
-    expect(calendarLifecycleForJob("dead")).toBe("generation_failed")
-    expect(calendarLifecycleForJob("completed")).toBeNull()
-    expect(calendarLifecycleForLocalPost("awaiting_manual_post")).toBe(
-      "needs_action"
-    )
-    expect(calendarLifecycleForLocalPost("draft")).toBe("draft")
-    expect(calendarLifecycleForLocalPost("failed")).toBe("failed")
-    expect(calendarLifecycleForLocalPost("scheduled")).toBeNull()
-    expect(calendarLifecycleForPostFast("SCHEDULED")).toBe("scheduled")
-    expect(calendarLifecycleForPostFast("PUBLISHED")).toBe("published")
-    expect(calendarLifecycleForPostFast("FAILED")).toBeNull()
-  })
-})
-
-describe("calendar hover timing", () => {
-  it("prefers actual generation and publication timestamps", () => {
-    const item = calendarItem({
-      source: "postfast",
-      timestamps: {
-        generatedAt: "2026-07-15T00:32:00.000Z",
-        expectedGenerationAt: "2026-07-15T00:30:00.000Z",
-        publishedAt: "2026-07-15T01:01:00.000Z",
-        expectedPublishedAt: "2026-07-15T01:00:00.000Z",
-      },
-    })
-
-    expect(calendarTimingEntries(item)).toEqual([
-      { label: "Generated on", at: "2026-07-15T00:32:00.000Z" },
-      { label: "Published on", at: "2026-07-15T01:01:00.000Z" },
-    ])
-  })
-
-  it("uses expected scheduler timestamps before generation and publishing", () => {
-    const item = calendarItem({
-      source: "projection",
-      timestamps: {
-        expectedGenerationAt: "2026-07-15T00:30:00.000Z",
-        expectedPublishedAt: "2026-07-15T01:00:00.000Z",
-      },
-    })
-
-    expect(calendarTimingEntries(item)).toEqual([
-      {
-        label: "Expected to be generated on",
-        at: "2026-07-15T00:30:00.000Z",
-      },
-      {
-        label: "Expected to be published on",
-        at: "2026-07-15T01:00:00.000Z",
-      },
-    ])
-  })
-})
-
-describe("calendar item merging", () => {
-  it("replaces only the exact projected automation slot", () => {
-    const first = calendarItem({ id: "planned:first", source: "projection" })
-    const second = calendarItem({
-      id: "planned:second",
-      source: "projection",
-      slot: "2026-07-15T01:01:00.000Z",
-      datetime: "2026-07-15T01:01:00.000Z",
-    })
-    const actual = calendarItem({
-      id: "job:1",
-      source: "job",
-      status: "generating",
-    })
-
-    expect(dedupeCalendarItems([first, second, actual])).toEqual([
-      actual,
-      second,
-    ])
-  })
-
-  it("matches multi-value account, platform, lifecycle, automation, and source filters", () => {
-    const item = calendarItem({
-      source: "local_post",
-      sourceType: "automation",
-      status: "needs_action",
-      targets: [
-        {
-          integrationId: "account-1",
-          integrationName: "Creator",
-          provider: "tiktok",
-          status: "needs_action",
-        },
-      ],
-    })
-    expect(
-      calendarItemMatchesFilters(item, {
-        accounts: new Set(["account-1", "account-2"]),
-        platforms: new Set(["instagram", "tiktok"]),
-        statuses: new Set(["needs_action"]),
-        automations: new Set(["automation-1"]),
-        sourceTypes: new Set(["automation"]),
-      })
-    ).toBe(true)
-  })
-})
-
-describe("calendar filter availability", () => {
-  it("replaces stale single values and removes stale multi-select values", () => {
-    expect(
-      reconcileCalendarFilterValue("deleted-automation", ["automation-1"])
-    ).toBe("all")
-    expect(reconcileCalendarFilterValue("automation-1", ["automation-1"])).toBe(
-      "automation-1"
-    )
-    expect(
-      reconcileCalendarFilterValues(
-        ["deleted-account", "account-1"],
-        ["account-1", "account-2"]
-      )
-    ).toEqual(["account-1"])
-  })
-})
-
-function calendarItem(
-  overrides: Partial<CalendarItem> & Pick<CalendarItem, "source">
-): CalendarItem {
+function post(overrides: Partial<Post> = {}): Post {
   return {
-    id: "planned:first",
-    status: "planned",
-    datetime: "2026-07-15T01:00:00.000Z",
-    slot: "2026-07-15T01:00:00.000Z",
-    timezone: "Asia/Singapore",
-    automationId: "automation-1",
-    automationName: "Morning posts",
-    targets: [],
-    sourceType: "automation",
-    sourceId: "automation-1",
-    title: "Planned content slot",
-    links: {},
-    timestamps: {},
+    id: "post-1",
+    workspaceId: "u1",
+    renderId: "render-1",
+    provider: "tiktok",
+    accountId: "101",
+    status: "scheduled",
+    publishAt: "2026-10-10T09:00:00.000Z",
+    publishedAt: null,
+    caption: "First line\nsecond",
+    platformOptions: {},
+    providerPostId: "9001",
+    externalPostId: null,
+    permalink: null,
+    error: null,
+    intentKey: "k",
+    createdBy: "u1",
+    createdAt: "2026-10-09T00:00:00.000Z",
+    updatedAt: "2026-10-09T00:00:00.000Z",
     ...overrides,
   }
 }
+
+describe("calendar items", () => {
+  it("projects scheduled posts with cancel/reschedule links", () => {
+    const item = calendarItemFromPost(post(), { accountName: "Creator", timezone: "Asia/Singapore" })!
+    expect(item).toMatchObject({
+      id: "post-1",
+      status: "scheduled",
+      datetime: "2026-10-10T09:00:00.000Z",
+      timezone: "Asia/Singapore",
+      title: "First line",
+      source: "post",
+      targets: [{ integrationId: "101", integrationName: "Creator", provider: "tiktok", status: "scheduled" }],
+      links: {
+        cancel: "/api/publishing/posts/post-1",
+        reschedule: "/api/publishing/posts/post-1",
+      },
+    })
+    expect(calendarTimingEntries(item)[1]).toEqual({ label: "Expected to be published on", at: "2026-10-10T09:00:00.000Z" })
+  })
+
+  it("uses the publish time for published posts and offers retry for failures", () => {
+    const published = calendarItemFromPost(
+      post({ status: "published", publishedAt: "2026-10-10T09:01:00.000Z", permalink: "https://t.co/x" })
+    )!
+    expect(published).toMatchObject({ datetime: "2026-10-10T09:01:00.000Z", links: { live: "https://t.co/x" } })
+    expect(published.links.cancel).toBeUndefined()
+    expect(calendarItemFromPost(post({ status: "failed", error: "Nope" }))!.links.retry).toBe(
+      "/api/publishing/posts/post-1/retry"
+    )
+    expect(calendarItemFromPost(post({ status: "canceled" }))).toBeNull()
+  })
+
+  it("filters and summarises", () => {
+    const items = [
+      calendarItemFromPost(post())!,
+      calendarItemFromPost(post({ id: "p2", status: "failed", provider: "instagram", accountId: "202" }))!,
+    ]
+    expect(calendarSummary(items)).toEqual({ needsAction: 0, failed: 1, planned: 1 })
+    expect(items.filter((item) => calendarItemMatchesFilters(item, { platforms: new Set(["instagram"]) }))).toHaveLength(1)
+  })
+
+  it("reads posts in range joined with their render, and summarises alerts", async () => {
+    const repos = createMemoryRepositories({ now: () => new Date("2026-10-09T12:00:00.000Z") })
+    const { value: render } = await repos.renders.create("u1", {
+      spec: { canvas: { width: 1080, height: 1350 }, slides: [{}] } as unknown as ResolvedSpec,
+      source: "ui",
+      title: "Quote carousel",
+      createdBy: "u1",
+    })
+    await repos.renders.markSucceeded("u1", render.id, {
+      slides: [{ index: 0, slideId: "s0", fileId: "f0", mime: "image/png", sizeBytes: 1, width: 1080, height: 1350 }],
+      coverFileId: "f0",
+    })
+    for (const [key, publishAt, status] of [
+      ["a", "2026-10-10T09:00:00.000Z", "scheduled"],
+      ["b", "2026-11-20T09:00:00.000Z", "scheduled"],
+      ["c", "2026-10-08T09:00:00.000Z", "publishing"],
+    ] as const) {
+      await repos.posts.upsertIntent("u1", {
+        renderId: render.id,
+        provider: "tiktok",
+        accountId: "101",
+        status,
+        publishAt,
+        caption: "",
+        intentKey: key,
+        createdBy: "u1",
+      })
+    }
+    const failed = (await repos.posts.listByRender("u1", render.id)).find((p) => p.intentKey === "c")!
+    await repos.posts.update("u1", failed.id, { status: "failed", error: "x" })
+
+    const { items, summary } = await listCalendarItems(
+      "u1",
+      { from: "2026-10-01T00:00:00.000Z", to: "2026-11-01T00:00:00.000Z" },
+      { repos, publisher: new NotConfiguredPublisher() }
+    )
+    expect(items.map((item) => [item.status, item.title, item.previewUrl])).toEqual([
+      ["failed", "Quote carousel", "/api/files/f0"],
+      ["scheduled", "Quote carousel", "/api/files/f0"],
+    ])
+    expect(summary).toEqual({ needsAction: 0, failed: 1, planned: 1 })
+    expect(await listCalendarItems("other", { from: "2026-10-01T00:00:00.000Z", to: "2026-11-01T00:00:00.000Z" }, { repos, publisher: new NotConfiguredPublisher() })).toEqual({
+      items: [],
+      summary: { needsAction: 0, failed: 0, planned: 0 },
+    })
+
+    expect(await calendarAlertSummary("u1", { repos, now: () => new Date("2026-10-09T12:00:00.000Z") })).toEqual({
+      needsAction: 0,
+      failed: 1,
+      upcoming: 1,
+    })
+  })
+})

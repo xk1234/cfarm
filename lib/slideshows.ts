@@ -25,7 +25,6 @@ import {
   type ResultRecord,
   type ResultSlideshowPayload,
 } from "@/lib/results"
-import { upsertGeneratedPostIntents } from "@/lib/post-writer"
 import {
   defaultSlideshowDuration,
   defaultSlideshowTransition,
@@ -112,11 +111,6 @@ export type CreateSlideshowInput = {
   video_url?: string
   thumbnail_url?: string
   createdAt?: string
-  postIntentDestinations?: Array<{
-    integrationId: string
-    provider: string
-  }>
-  publishMode?: "auto" | "review" | "manual"
 }
 
 type RawSlideshowRecord = Omit<Partial<SlideshowRecord>, "images"> & {
@@ -207,7 +201,6 @@ export async function createSlideshowResultRecord(input: CreateSlideshowInput) {
     createdAt: recordWithOutputs.created_at,
     updatedAt: recordWithOutputs.updated_at,
   })
-  await recordSlideshowPostIntents(recordWithOutputs, result, input)
 
   return {
     slideshow: resultRecordToSlideshowRecord(result) ?? recordWithOutputs,
@@ -463,40 +456,6 @@ function assertSlideshowScratch(scratchDir: string) {
     throw new Error("Unsupported slideshow scratch directory")
   }
   return resolved
-}
-
-export async function recordSlideshowPostIntents(
-  slideshow: SlideshowRecord,
-  result: Pick<ResultRecord, "runId">,
-  input: Pick<CreateSlideshowInput, "postIntentDestinations" | "publishMode">
-) {
-  if (slideshow.status !== "exported") return []
-  return upsertGeneratedPostIntents({
-    sourceType: "slideshow",
-    sourceId: slideshow.id,
-    outputId: slideshow.id,
-    automationId: slideshow.automationId,
-    runId: result.runId,
-    sourceEntityId: slideshow.id,
-    publishMode: input.publishMode,
-    destinations: input.postIntentDestinations,
-    content: [slideshow.caption, slideshow.hashtags]
-      .filter(Boolean)
-      .join("\n\n"),
-    media: [
-      ...slideshow.output_images.map((url) => ({
-        kind: "image" as const,
-        url,
-      })),
-      ...(slideshow.video_url
-        ? [{ kind: "video" as const, url: slideshow.video_url }]
-        : []),
-      ...(slideshow.thumbnail_url
-        ? [{ kind: "thumbnail" as const, url: slideshow.thumbnail_url }]
-        : []),
-    ],
-    generatedAt: slideshow.updated_at,
-  })
 }
 
 export async function removeSlideshowSlide(input: {

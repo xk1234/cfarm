@@ -8,7 +8,8 @@ import {
   type LumenClipMcpServices,
 } from "@/lib/mcp/lumenclip-server"
 import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
-import type { PostFastPostRecord } from "@/lib/postfast-posts"
+import type { CalendarItem } from "@/lib/calendar-items"
+import type { Post } from "@/lib/data"
 import type { Job } from "@/lib/queue"
 import { verifySlideshowShareToken } from "@/lib/slideshow-share"
 import type { SlideshowRecord } from "@/lib/slideshows"
@@ -156,9 +157,7 @@ describe("LumenClip MCP server", () => {
     const slideshow = slideshowRecord()
     const client = await connectClient({
       listSlideshowRecords: vi.fn(async () => [slideshow]),
-      listPostFastPostRecords: vi.fn(async () => [
-        publicationRecord({ status: "scheduled" }),
-      ]),
+      listPosts: vi.fn(async () => [postRecord({ status: "scheduled" })]),
     })
 
     const result = await client.callTool({
@@ -242,11 +241,9 @@ describe("LumenClip MCP server", () => {
   it("permanently deletes an unpublished slideshow output", async () => {
     const slideshow = slideshowRecord()
     const deleteSlideshow = vi.fn(async () => slideshow)
-    const deletePublications = vi.fn(async () => [])
     const client = await connectClient({
       listSlideshowRecords: vi.fn(async () => [slideshow]),
       deleteSlideshowRecord: deleteSlideshow,
-      deletePostFastPostRecords: deletePublications,
     })
 
     const result = await client.callTool({
@@ -260,10 +257,6 @@ describe("LumenClip MCP server", () => {
 
     expect(result.isError).not.toBe(true)
     expect(deleteSlideshow).toHaveBeenCalledWith({ id: slideshow.id })
-    expect(deletePublications).toHaveBeenCalledWith({
-      sourceType: "slideshow",
-      sourceIds: [slideshow.id],
-    })
     expect(result.structuredContent).toEqual({
       requestId: "delete-output-1",
       outputId: slideshow.id,
@@ -277,9 +270,7 @@ describe("LumenClip MCP server", () => {
     const deleteSlideshow = vi.fn()
     const client = await connectClient({
       listSlideshowRecords: vi.fn(async () => [slideshowRecord()]),
-      listPostFastPostRecords: vi.fn(async () => [
-        publicationRecord({ status: "published" }),
-      ]),
+      listPosts: vi.fn(async () => [postRecord({ status: "published" })]),
       deleteSlideshowRecord: deleteSlideshow,
     })
 
@@ -337,141 +328,137 @@ describe("LumenClip MCP server", () => {
     expect(missing.isError).toBe(true)
   })
 
-  it("routes a manual link through the shared writer", async () => {
+  it("publishes a reviewed output through the SocialBu publishing service", async () => {
     const slideshow = slideshowRecord()
-    const publication = publicationRecord({
-      id: "publication-manual-1",
-      integrationId: "manual-tiktok",
-      status: "published",
-      publishedAt: "2026-07-30T12:00:00.000Z",
-      releaseUrl: "https://www.tiktok.com/@creator/photo/7662360324313517330",
-      linkState: "manually_linked",
-    })
-    const link = vi.fn(async () => publication)
+    const publish = vi.fn(async () => ({
+      posts: [postRecord({ id: "post-2", status: "publishing" })],
+    }))
     const client = await connectClient({
+      now: () => new Date("2026-07-20T00:00:00.000Z"),
       listSlideshowRecords: vi.fn(async () => [slideshow]),
-      linkPublishedOutput: link,
-    })
-
-    const result = await client.callTool({
-      name: "lumenclip_output_mark_published",
-      arguments: {
-        outputId: slideshow.id,
-        platform: "tiktok",
-        publishedUrl: publication.releaseUrl,
-        publishedAt: publication.publishedAt,
-        requestId: "manual-link-1",
-        confirmLink: true,
-      },
-    })
-
-    expect(result.isError).not.toBe(true)
-    expect(link).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceType: "slideshow",
-        sourceId: slideshow.id,
-        integrationId: "manual-tiktok",
-      })
-    )
-  })
-
-  it("publishes a reviewed output only after explicit confirmation", async () => {
-    const slideshow = slideshowRecord()
-    const publication = publicationRecord({
-      id: "publication-2",
-      status: "published",
-      media: [{ key: "uploaded-1", type: "IMAGE" }],
-    })
-    const publish = vi.fn(async () => ({ ok: true, record: publication }))
-    const upload = vi.fn(async () => publication.media)
-    const client = await connectClient({
-      listSlideshowRecords: vi.fn(async () => [slideshow]),
-      listAccounts: vi.fn(async () => [
-        {
-          integration_id: "account-1",
-          provider: "tiktok" as const,
-          name: "TikTok account",
-        },
-      ]),
-      uploadPostFastMediaSources: upload,
-      publishPost: publish as unknown as LumenClipMcpServices["publishPost"],
+      publishRender: publish,
     })
 
     const result = await client.callTool({
       name: "lumenclip_output_publish",
       arguments: {
         outputId: slideshow.id,
-        targets: [{ accountId: "account-1", mode: "now" }],
+        targets: [
+          { accountId: "account-1", mode: "now" },
+          {
+            accountId: "account-2",
+            mode: "schedule",
+            scheduledAt: "2026-07-24T09:00:00+08:00",
+          },
+        ],
         requestId: "publish-2",
         confirmPublish: true,
       },
     })
 
-    expect(upload).toHaveBeenCalledWith({ urls: slideshow.output_images })
+    expect(result.isError).not.toBe(true)
+    expect(publish).toHaveBeenCalledTimes(2)
+    expect(publish).toHaveBeenCalledWith("owner-1", {
+      renderId: slideshow.id,
+      accountIds: ["account-1"],
+      caption: "Caption\n\n#topic",
+      publishAt: null,
+      idempotencyKey: "publish-2:now",
+      createdBy: "owner-1",
+    })
     expect(publish).toHaveBeenCalledWith(
+      "owner-1",
       expect.objectContaining({
-        type: "now",
-        integrationId: "account-1",
-        content: "Caption\n\n#topic",
-        sourceType: "slideshow",
-        sourceId: slideshow.id,
+        accountIds: ["account-2"],
+        publishAt: "2026-07-24T01:00:00.000Z",
       })
     )
     expect(result.structuredContent).toMatchObject({
-      published: 1,
-      reused: 0,
+      publishing: 2,
       failed: 0,
     })
   })
 
-  it("suppresses a duplicate publication for the same output and account", async () => {
-    const existing = publicationRecord({
-      integrationId: "account-1",
-      status: "scheduled",
-    })
+  it("rejects scheduled targets in the past", async () => {
     const publish = vi.fn()
     const client = await connectClient({
-      listSlideshowRecords: vi.fn(async () => [slideshowRecord()]),
-      listPostFastPostRecords: vi.fn(async () => [existing]),
-      listAccounts: vi.fn(async () => [
-        {
-          integration_id: "account-1",
-          provider: "tiktok" as const,
-          name: "TikTok account",
-        },
-      ]),
-      publishPost: publish,
+      now: () => new Date("2026-07-20T00:00:00.000Z"),
+      publishRender: publish,
     })
 
     const result = await client.callTool({
       name: "lumenclip_output_publish",
       arguments: {
         outputId: "slideshow-1",
-        targets: [{ accountId: "account-1", mode: "now" }],
+        targets: [
+          {
+            accountId: "account-1",
+            mode: "schedule",
+            scheduledAt: "2026-07-19T09:00:00+00:00",
+          },
+        ],
         requestId: "publish-3",
         confirmPublish: true,
       },
     })
 
+    expect(result.isError).toBe(true)
     expect(publish).not.toHaveBeenCalled()
-    expect(result.structuredContent).toMatchObject({ reused: 1, failed: 0 })
   })
 
-  it("reads scheduled and published items in the schedule window", async () => {
+  it("lists SocialBu accounts and reports when SocialBu is not connected", async () => {
+    const connected = await connectClient({
+      listPublishingAccounts: vi.fn(async () => ({
+        status: { configured: true as const, provider: "socialbu" as const },
+        accounts: [
+          {
+            id: "4821",
+            provider: "tiktok",
+            name: "TikTok account",
+            active: true,
+            avatarUrl: null,
+            extra: {},
+            disabled: false,
+          },
+          {
+            id: "4822",
+            provider: "instagram",
+            name: "Hidden",
+            active: true,
+            avatarUrl: null,
+            extra: {},
+            disabled: true,
+          },
+        ],
+      })),
+    })
+    const list = await connected.callTool({
+      name: "lumenclip_accounts_list",
+      arguments: {},
+    })
+    expect(list.structuredContent).toMatchObject({
+      total: 1,
+      items: [{ id: "4821", platform: "tiktok", connected: true }],
+    })
+
+    const disconnected = await connectClient()
+    const empty = await disconnected.callTool({
+      name: "lumenclip_accounts_list",
+      arguments: {},
+    })
+    expect(empty.structuredContent).toMatchObject({
+      total: 0,
+      status: { configured: false, message: "SocialBu not connected" },
+    })
+  })
+
+  it("reads scheduled and published posts in the schedule window", async () => {
+    const listCalendar = vi.fn(async () => ({
+      items: [calendarItem()],
+    }))
     const client = await connectClient({
       now: () => new Date("2026-07-20T00:00:00.000Z"),
-      listPostFastPostRecords: vi.fn(async () => [
-        publicationRecord({
-          id: "pub-scheduled",
-          status: "scheduled",
-          scheduledAt: "2026-07-22T09:00:00.000Z",
-        }),
-        publicationRecord({
-          id: "pub-outside",
-          status: "scheduled",
-          scheduledAt: "2026-09-22T09:00:00.000Z",
-        }),
-      ]),
+      listCalendarItems: listCalendar,
     })
 
     const result = await client.callTool({
@@ -479,11 +466,15 @@ describe("LumenClip MCP server", () => {
       arguments: { days: 7 },
     })
 
+    expect(listCalendar).toHaveBeenCalledWith("owner-1", {
+      from: "2026-07-20T00:00:00.000Z",
+      to: "2026-07-27T00:00:00.000Z",
+    })
     expect(result.structuredContent).toMatchObject({
       from: "2026-07-20T00:00:00.000Z",
       to: "2026-07-27T00:00:00.000Z",
       calendarItems: {
-        items: [{ id: "publication:pub-scheduled", status: "scheduled" }],
+        items: [{ id: "post:post-1", status: "scheduled" }],
         summary: { scheduled: 1 },
       },
     })
@@ -498,9 +489,16 @@ async function connectClient(
     "owner-1",
     {
       listSlideshowRecords: vi.fn(async () => []),
-      listPostFastPostRecords: vi.fn(async () => []),
+      listPosts: vi.fn(async () => []),
       listJobs: vi.fn(async () => []),
-      postfastRequest: vi.fn(async () => []) as never,
+      listCalendarItems: vi.fn(async () => ({ items: [] })),
+      listPublishingAccounts: vi.fn(async () => ({
+        status: {
+          configured: false as const,
+          message: "SocialBu not connected" as const,
+        },
+        accounts: [],
+      })),
       ...overrides,
     },
     options
@@ -515,23 +513,43 @@ async function connectClient(
   return client
 }
 
-function publicationRecord(
-  overrides: Partial<PostFastPostRecord> = {}
-): PostFastPostRecord {
+function postRecord(overrides: Partial<Post> = {}): Post {
   return {
-    id: "publication-1",
-    sourceType: "slideshow",
-    sourceId: "slideshow-1",
-    integrationId: "account-1",
+    id: "post-1",
+    workspaceId: "owner-1",
+    renderId: "slideshow-1",
     provider: "tiktok",
+    accountId: "account-1",
     status: "draft",
-    linkState: "postfast_published",
-    statsSources: [],
-    content: "Caption",
-    media: [],
+    publishAt: null,
+    publishedAt: null,
+    caption: "Caption",
+    platformOptions: {},
+    providerPostId: null,
+    externalPostId: null,
+    permalink: null,
+    error: null,
+    intentKey: "intent-1",
+    createdBy: "owner-1",
     createdAt: "2026-07-18T01:00:00.000Z",
     updatedAt: "2026-07-18T01:01:00.000Z",
     ...overrides,
+  }
+}
+
+function calendarItem(): CalendarItem {
+  return {
+    id: "post-1",
+    status: "scheduled",
+    datetime: "2026-07-22T09:00:00.000Z",
+    timezone: "UTC",
+    targets: [{ integrationId: "account-1", provider: "tiktok", status: "scheduled" }],
+    source: "post",
+    sourceType: "slideshow",
+    sourceId: "slideshow-1",
+    title: "Rendered title",
+    links: {},
+    timestamps: { scheduledAt: "2026-07-22T09:00:00.000Z" },
   }
 }
 

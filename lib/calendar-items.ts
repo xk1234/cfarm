@@ -1,20 +1,26 @@
-import type { JobStatus } from "@/lib/queue"
-import type { PostFastPostStatus } from "@/lib/postfast-posts"
+/**
+ * Calendar items are projections of `posts` rows (scheduled, publishing,
+ * published and failed SocialBu posts). Shared by the calendar API and the
+ * calendar view, so this module stays client-safe (no server imports).
+ */
+import type { Post, PostStatus, RenderSummary } from "@/lib/data/types"
 
 export type CalendarLifecycleStatus =
+  | "draft"
+  | "scheduled"
+  | "publishing"
+  | "published"
+  | "failed"
+  /** @deprecated Automation-era states; no longer produced. */
   | "planned"
   | "generating"
   | "generation_failed"
   | "needs_action"
-  | "draft"
-  | "failed"
-  | "scheduled"
-  | "published"
 
-export type CalendarItemSource =
-  "projection" | "job" | "local_post" | "postfast"
+export type CalendarItemSource = "post"
 
 export type CalendarTarget = {
+  /** SocialBu account id. */
   integrationId?: string
   integrationName?: string
   provider: string
@@ -25,11 +31,7 @@ export type CalendarItem = {
   id: string
   status: CalendarLifecycleStatus
   datetime: string
-  /** Exact automation slot ISO used in the queue dedupe key. */
-  slot?: string
   timezone: string
-  automationId?: string
-  automationName?: string
   targets: CalendarTarget[]
   source: CalendarItemSource
   sourceType: string
@@ -37,8 +39,12 @@ export type CalendarItem = {
   title: string
   excerpt?: string
   previewUrl?: string
-  paused?: boolean
   error?: string
+  /** @deprecated Automation-era fields; never set. */
+  slot?: string
+  automationId?: string
+  automationName?: string
+  paused?: boolean
   links: {
     content?: string
     automation?: string
@@ -71,115 +77,104 @@ export type CalendarFilters = {
   sourceTypes?: Set<string>
 }
 
-export function automationSlotDedupeKey(automationId: string, slotISO: string) {
-  return `auto:${automationId}:${slotISO}`
+export type CalendarSummary = { needsAction: number; failed: number; planned: number }
+
+export function calendarLifecycleForPost(status: PostStatus): CalendarLifecycleStatus | null {
+  if (status === "canceled") return null
+  return status
 }
 
-export function calendarItemSlotKey(item: CalendarItem) {
-  return item.automationId && item.slot
-    ? automationSlotDedupeKey(item.automationId, item.slot)
-    : null
+export type CalendarRenderContext = Pick<RenderSummary, "id" | "title" | "createdAt" | "completedAt"> & {
+  previewUrl?: string
 }
 
-export function dedupeCalendarItems(items: CalendarItem[]) {
-  const materializedKeys = new Set(
-    items.flatMap((item) => {
-      if (item.source === "projection") return []
-      const key = calendarItemSlotKey(item)
-      return key ? [key] : []
-    })
-  )
-  const seen = new Set<string>()
-  return items
-    .filter((item) => {
-      if (item.source !== "projection") return true
-      const key = calendarItemSlotKey(item)
-      return !key || !materializedKeys.has(key)
-    })
-    .filter((item) => {
-      const key = `${item.source}:${item.id}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-    .sort(
-      (first, second) =>
-        Date.parse(first.datetime) - Date.parse(second.datetime)
-    )
-}
-
-export function calendarLifecycleForJob(
-  status: JobStatus | "leased"
-): CalendarLifecycleStatus | null {
-  if (status === "queued" || status === "processing" || status === "leased") {
-    return "generating"
+export function calendarItemFromPost(
+  post: Post,
+  options: {
+    render?: CalendarRenderContext | null
+    accountName?: string
+    timezone?: string
+  } = {}
+): CalendarItem | null {
+  const status = calendarLifecycleForPost(post.status)
+  const datetime = post.publishedAt ?? post.publishAt
+  if (!status || !datetime) return null
+  const render = options.render ?? null
+  const caption = post.caption.trim()
+  const postUrl = `/api/publishing/posts/${encodeURIComponent(post.id)}`
+  return {
+    id: post.id,
+    status,
+    datetime,
+    timezone: options.timezone ?? "UTC",
+    targets: [
+      {
+        integrationId: post.accountId,
+        integrationName: options.accountName,
+        provider: post.provider,
+        status,
+      },
+    ],
+    source: "post",
+    sourceType: "slideshow",
+    sourceId: post.renderId,
+    title: render?.title?.trim() || firstLine(caption) || "Slideshow",
+    ...(caption ? { excerpt: caption.slice(0, 280) } : {}),
+    ...(render?.previewUrl ? { previewUrl: render.previewUrl } : {}),
+    ...(post.error ? { error: post.error } : {}),
+    links: {
+      content: `/app/renders/${encodeURIComponent(post.renderId)}`,
+      ...(post.permalink ? { live: post.permalink } : {}),
+      ...(status === "scheduled" ? { cancel: postUrl, reschedule: postUrl } : {}),
+      ...(status === "failed" ? { retry: `${postUrl}/retry` } : {}),
+    },
+    timestamps: {
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      ...(post.publishAt ? { scheduledAt: post.publishAt, expectedPublishedAt: post.publishAt } : {}),
+      ...(post.publishedAt ? { publishedAt: post.publishedAt } : {}),
+      ...(render?.completedAt ? { generatedAt: render.completedAt } : {}),
+    },
   }
-  if (status === "failed" || status === "dead") return "generation_failed"
-  return null
 }
 
-export function calendarTimingEntries(
-  item: CalendarItem
-): CalendarTimingEntry[] {
+function firstLine(text: string): string {
+  return text.split("\n")[0]?.trim().slice(0, 80) ?? ""
+}
+
+export function calendarSummary(items: readonly CalendarItem[]): CalendarSummary {
+  return {
+    needsAction: items.filter((item) => item.status === "needs_action").length,
+    failed: items.filter((item) => item.status === "failed").length,
+    planned: items.filter((item) => item.status === "scheduled" || item.status === "publishing").length,
+  }
+}
+
+export function sortCalendarItems(items: CalendarItem[]): CalendarItem[] {
+  return [...items].sort((a, b) => Date.parse(a.datetime) - Date.parse(b.datetime))
+}
+
+export function calendarTimingEntries(item: CalendarItem): CalendarTimingEntry[] {
   const generatedAt = item.timestamps.generatedAt
   const publishedAt = item.timestamps.publishedAt
   return [
     generatedAt
-      ? { label: "Generated on", at: generatedAt }
-      : {
-          label: "Expected to be generated on",
-          at: item.timestamps.expectedGenerationAt,
-        },
+      ? { label: "Rendered on", at: generatedAt }
+      : { label: "Expected to be rendered on", at: item.timestamps.expectedGenerationAt },
     publishedAt
       ? { label: "Published on", at: publishedAt }
-      : {
-          label: "Expected to be published on",
-          at: item.timestamps.expectedPublishedAt,
-        },
+      : { label: "Expected to be published on", at: item.timestamps.expectedPublishedAt },
   ]
 }
 
-export function calendarLifecycleForLocalPost(
-  status: PostFastPostStatus
-): CalendarLifecycleStatus | null {
-  if (status === "awaiting_manual_post" || status === "ready_for_review") {
-    return "needs_action"
-  }
-  if (status === "draft") return "draft"
-  if (status === "failed") return "failed"
-  if (status === "published") return "published"
-  return null
-}
-
-export function calendarLifecycleForPostFast(
-  status: string
-): CalendarLifecycleStatus | null {
-  const normalized = status.trim().toUpperCase()
-  if (normalized === "PUBLISHED" || normalized === "POSTED") {
-    return "published"
-  }
-  if (normalized === "SCHEDULED" || normalized === "QUEUE") {
-    return "scheduled"
-  }
-  return null
-}
-
-export function calendarItemMatchesFilters(
-  item: CalendarItem,
-  filters: CalendarFilters
-) {
+export function calendarItemMatchesFilters(item: CalendarItem, filters: CalendarFilters) {
   return (
     matches(filters.statuses, [item.status]) &&
-    matches(
-      filters.automations,
-      item.automationId ? [item.automationId] : []
-    ) &&
+    matches(filters.automations, item.automationId ? [item.automationId] : []) &&
     matches(filters.sourceTypes, [item.sourceType]) &&
     matches(
       filters.accounts,
-      item.targets.flatMap((target) =>
-        target.integrationId ? [target.integrationId] : []
-      )
+      item.targets.flatMap((target) => (target.integrationId ? [target.integrationId] : []))
     ) &&
     matches(
       filters.platforms,
@@ -188,18 +183,12 @@ export function calendarItemMatchesFilters(
   )
 }
 
-export function reconcileCalendarFilterValue(
-  value: string,
-  availableValues: Iterable<string>
-) {
+export function reconcileCalendarFilterValue(value: string, availableValues: Iterable<string>) {
   if (value === "all") return value
   return new Set(availableValues).has(value) ? value : "all"
 }
 
-export function reconcileCalendarFilterValues(
-  values: string[],
-  availableValues: Iterable<string>
-) {
+export function reconcileCalendarFilterValues(values: string[], availableValues: Iterable<string>) {
   const available = new Set(availableValues)
   return values.filter((value) => available.has(value))
 }

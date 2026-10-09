@@ -11,17 +11,13 @@ const RAILWAY_BOUND_TESTS = [
   "app/api/image-collections/import/route.test.ts",
   "app/api/image-collections/route.test.ts",
   "app/api/local-assets/**",
-  "app/api/postfast/posts/route.test.ts",
   "app/api/results/route.test.ts",
   "app/api/slideshows/route.test.ts",
   "lib/assets-delete.test.ts",
   "lib/assets.test.ts",
   "lib/image-collections-delete.test.ts",
   "lib/image-collections-import.test.ts",
-  "lib/postfast-posts.test.ts",
-  "lib/publishing.test.ts",
   "lib/queue.test.ts",
-  "lib/reminder-settings.test.ts",
   "lib/results.test.ts",
   "lib/slideshows.test.ts",
   "scripts/run-railway-function.test.ts",
@@ -31,7 +27,6 @@ const RAILWAY_BOUND_TESTS = [
 // before the data-layer switch (they assert on code the strip deleted or on
 // the Railway post-repository read modes). Delete with their modules.
 const PREEXISTING_BROKEN_TESTS = [
-  "lib/calendar-summary.test.ts",
   "lib/clerk-auth-migration.test.ts",
 ]
 

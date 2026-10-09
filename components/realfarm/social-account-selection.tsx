@@ -7,7 +7,7 @@ import { AccountGridSkeleton } from "@/components/ui/loading-skeleton"
 import { getApiErrorMessage } from "@/lib/client-api"
 import { clientQueryFetcher } from "@/lib/client-fetcher"
 import { useAppQuery } from "@/lib/client-query"
-import { normalizePostFastSocialIntegration } from "@/lib/social/postfast-adapter"
+import { normalizeSocialBuSocialIntegration } from "@/lib/social/socialbu-adapter"
 import type {
   SocialIntegration,
   SocialPlatformKey,
@@ -23,21 +23,22 @@ import {
 
 const acceptAllProviders = () => true
 
-export function usePostFastIntegrations({
+/** SocialBu accounts from `/api/publishing/accounts`. */
+export function usePublishingIntegrations({
   includeDisabled = false,
   acceptsProvider = acceptAllProviders,
 }: {
   includeDisabled?: boolean
   acceptsProvider?: (provider: SocialPlatformKey) => boolean
 } = {}) {
-  const { data, error, isLoading } = useAppQuery<{ integrations?: unknown[] }>(
-    "/api/postfast/integrations",
-    clientQueryFetcher
-  )
+  const { data, error, isLoading } = useAppQuery<{
+    integrations?: unknown[]
+    status?: { configured: boolean; message?: string }
+  }>("/api/publishing/accounts", clientQueryFetcher)
   const integrations = useMemo(
     () =>
       (data?.integrations ?? []).flatMap((value) => {
-        const integration = normalizePostFastSocialIntegration(value)
+        const integration = normalizeSocialBuSocialIntegration(value)
         return integration &&
           (includeDisabled || !integration.disabled) &&
           acceptsProvider(integration.provider)
@@ -47,12 +48,17 @@ export function usePostFastIntegrations({
     [acceptsProvider, data, includeDisabled]
   )
 
+  const notConnected =
+    data?.status && !data.status.configured
+      ? data.status.message || "SocialBu not connected"
+      : ""
   return {
     integrations,
     loading: isLoading,
+    configured: data?.status?.configured ?? null,
     error: error
       ? getApiErrorMessage(error, "Failed to load social accounts")
-      : "",
+      : notConnected,
   }
 }
 

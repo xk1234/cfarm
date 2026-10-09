@@ -1,58 +1,33 @@
 import { NextResponse } from "next/server"
-import { z } from "zod"
 
-import { getCurrentUser } from "@/lib/auth"
+import { validate } from "@/lib/api"
+import { publishingRoute, readJson, requireWorkspace } from "@/lib/publishing/http"
 import {
   getReminderSettings,
-  publicReminderSettings,
   reminderEventMetadata,
-  reminderEvents,
+  ReminderSettingsInputSchema,
   saveReminderSettings,
 } from "@/lib/reminder-settings"
 
 export const dynamic = "force-dynamic"
 
-const eventSettingsSchema = z.object({
-  channel: z.enum(["none", "in_app"]),
-  offsetsHours: z.array(z.number().int().positive()).optional(),
-})
-
-const settingsSchema = z.object({
-  notificationDefaultsApplied: z.boolean().optional(),
-  events: z.object(
-    Object.fromEntries(
-      reminderEvents.map((event) => [event, eventSettingsSchema])
-    ) as Record<(typeof reminderEvents)[number], typeof eventSettingsSchema>
-  ),
-})
-
-export async function GET() {
-  const user = await getCurrentUser()
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const settings = await getReminderSettings()
+/**
+ * In-app notification settings: `{ channel: "in_app" | "none", leadMinutes }`.
+ * The response also carries a per-event `events` view for the settings panel.
+ */
+export const GET = publishingRoute(async () => {
+  const { workspaceId } = await requireWorkspace()
   return NextResponse.json({
-    settings: publicReminderSettings(settings),
+    settings: await getReminderSettings(workspaceId),
     eventMetadata: reminderEventMetadata,
   })
-}
+})
 
-export async function PUT(request: Request) {
-  const user = await getCurrentUser()
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const parsed = settingsSchema.safeParse(
-    await request.json().catch(() => null)
-  )
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Choose a notification setting for each event." },
-      { status: 400 }
-    )
-  }
-  const settings = await saveReminderSettings(parsed.data)
+export const PUT = publishingRoute(async (request) => {
+  const { workspaceId } = await requireWorkspace()
+  const input = validate(ReminderSettingsInputSchema, await readJson(request))
   return NextResponse.json({
-    settings: publicReminderSettings(settings),
+    settings: await saveReminderSettings(workspaceId, input),
     eventMetadata: reminderEventMetadata,
   })
-}
+})

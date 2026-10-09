@@ -1,4 +1,10 @@
-import type { PostFastPostRecord } from "@/lib/postfast-posts"
+/** A post linked to a slideshow: a `posts` row (`renderId`) or a legacy source link. */
+export type SlideshowLinkedPost = {
+  status: string
+  renderId?: string
+  sourceType?: string
+  sourceId?: string
+}
 
 export type SlideshowStage = "generating" | "completed"
 
@@ -15,10 +21,12 @@ export function slideshowStageForRunStatus(
 }
 
 export function isPostLinkedToSlideshow(
-  post: Pick<PostFastPostRecord, "sourceType" | "sourceId">,
+  post: Omit<SlideshowLinkedPost, "status">,
   input: { slideshowId: string; runId?: string }
 ) {
+  if (post.renderId === input.slideshowId) return true
   if (
+    post.sourceId &&
     post.sourceType === "slideshow" &&
     sourceIdMatches(post.sourceId, input.slideshowId)
   ) {
@@ -26,6 +34,7 @@ export function isPostLinkedToSlideshow(
   }
   return Boolean(
     input.runId &&
+    post.sourceId &&
     post.sourceType === "automation" &&
     sourceIdMatches(post.sourceId, input.runId)
   )
@@ -36,7 +45,7 @@ export function slideshowDeletionBlockReason(input: {
   runStatus?: unknown
   slideshowId: string
   runId?: string
-  posts: Array<Pick<PostFastPostRecord, "sourceType" | "sourceId" | "status">>
+  posts: SlideshowLinkedPost[]
 }): "not_completed" | "published" | "scheduled" | null {
   if (
     input.slideshowStatus !== "exported" ||

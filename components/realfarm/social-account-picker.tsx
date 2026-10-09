@@ -9,7 +9,7 @@ import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
 
 import {
   SocialAccountSelectionGrid,
-  usePostFastIntegrations,
+  usePublishingIntegrations,
 } from "./social-account-selection"
 import { socialIntegrationKey } from "./social-platform"
 
@@ -22,7 +22,7 @@ export function SocialAccountPickerModal({
   onSelect: (integrations: SocialIntegration[]) => void
   onClose: () => void
 }) {
-  const { integrations, error, loading } = usePostFastIntegrations({
+  const { integrations, error, loading } = usePublishingIntegrations({
     acceptsProvider: isSlideshowSocialProvider,
   })
   const selectedSlideshowIntegrations = useMemo(

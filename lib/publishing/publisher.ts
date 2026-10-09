@@ -5,6 +5,8 @@
  * `NotConfiguredPublisher` and shows "SocialBu not connected".
  */
 
+import { SocialBuPublisher } from "./socialbu"
+
 export const SOCIALBU_BASE_URL = "https://socialbu.com/api/v1"
 export const SOCIALBU_TOKEN_ENV = "SOCIALBU_API_TOKEN"
 export const PUBLISHER_NOT_CONNECTED_MESSAGE = "SocialBu not connected"
@@ -80,6 +82,10 @@ export interface Publisher {
   /** One SocialBu post per account. */
   createPost(input: CreatePostInput): Promise<CreatedPosts>
   getPost(id: string): Promise<PublisherPost>
+  /** Deletes a scheduled/draft post on SocialBu (optional; added by the publishing builder). */
+  deletePost?(id: string): Promise<void>
+  /** Moves a scheduled post to a new ISO time (optional; added by the publishing builder). */
+  reschedulePost?(id: string, publishAt: string): Promise<PublisherPost>
 }
 
 export class PublisherNotConfiguredError extends Error {
@@ -120,6 +126,12 @@ export class NotConfiguredPublisher implements Publisher {
   async getPost(_id: string): Promise<PublisherPost> {
     throw new PublisherNotConfiguredError()
   }
+  async deletePost(_id: string): Promise<void> {
+    throw new PublisherNotConfiguredError()
+  }
+  async reschedulePost(_id: string, _publishAt: string): Promise<PublisherPost> {
+    throw new PublisherNotConfiguredError()
+  }
 }
 
 /** Minimal fetch signature so tests can inject a mocked HTTP layer. */
@@ -129,8 +141,18 @@ export type SocialBuPublisherOptions = {
   token: string
   baseUrl?: string
   fetch?: FetchLike
+  /** Retries after the first attempt on 429/5xx (default 3). */
+  maxRetries?: number
+  /** Base backoff in ms (default 500). */
+  retryBaseMs?: number
+  /** Injectable for tests. */
+  sleep?: (ms: number) => Promise<void>
+  /** Signed-URL upload status polling. */
+  uploadPollAttempts?: number
+  uploadPollIntervalMs?: number
 }
 
+/** Kept for contract compatibility; no longer thrown. */
 export class PublisherNotImplementedError extends Error {
   constructor() {
     super("The SocialBu publisher is not implemented yet")
@@ -138,10 +160,9 @@ export class PublisherNotImplementedError extends Error {
   }
 }
 
-/** Placeholder until the publishing builder implements the SocialBu client. */
+/** SocialBu-backed publisher (`lib/publishing/socialbu.ts`). */
 export function createSocialBuPublisher(options: SocialBuPublisherOptions): Publisher {
-  void options
-  throw new PublisherNotImplementedError()
+  return new SocialBuPublisher(options)
 }
 
 /** SocialBu `publish_at` format: `Y-m-d H:i:s` in UTC. */

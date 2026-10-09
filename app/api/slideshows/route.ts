@@ -8,7 +8,6 @@ import {
   type CreateSlideshowInput,
 } from "@/lib/slideshows"
 import { countResultRecords } from "@/lib/results"
-import { enqueueReminder } from "@/lib/reminders"
 
 export const dynamic = "force-dynamic"
 
@@ -36,13 +35,6 @@ export const POST = withHandler(async (request: Request) => {
   const { slideshow, result } = await createSlideshowResultRecord(
     isRecord(payload) ? (payload as CreateSlideshowInput) : {}
   )
-  await enqueueReminder({
-    event: "generated",
-    sourceType: "slideshow",
-    sourceId: slideshow.id,
-    text: `Slideshow rendered\n${slideshow.title}`,
-  }).catch(() => undefined)
-
   return NextResponse.json(
     {
       slideshow,

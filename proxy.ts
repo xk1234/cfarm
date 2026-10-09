@@ -5,6 +5,8 @@ const PUBLIC_API_PATHS = [
   "/api/search",
   "/api/v1/health",
   "/api/v1/openapi.json",
+  // HMAC-signed SocialBu postbacks (lib/publishing/postback.ts).
+  "/api/publishing/postback",
 ] as const
 
 function isPublicApi(pathname: string) {

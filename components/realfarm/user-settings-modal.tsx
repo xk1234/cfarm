@@ -19,7 +19,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import { ListSkeleton } from "@/components/ui/loading-skeleton"
-import { normalizePostFastSocialIntegration } from "@/lib/social/postfast-adapter"
+import { normalizeSocialBuSocialIntegration } from "@/lib/social/socialbu-adapter"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 import { clientQueryFetcher } from "@/lib/client-fetcher"
 import { useAppQuery } from "@/lib/client-query"
@@ -407,9 +407,11 @@ function AccountsPanel({
     isLoading: loading,
     mutate,
   } = useAppQuery<{
+    status?: { configured: boolean; message?: string }
+    manageUrl?: string
     integrations?: unknown[]
     disconnectedIntegrations?: unknown[]
-  }>("/api/postfast/integrations", clientQueryFetcher)
+  }>("/api/publishing/accounts", clientQueryFetcher)
   const accounts = normalizedIntegrations(data?.integrations)
   const disconnectedAccounts = normalizedIntegrations(
     data?.disconnectedIntegrations
@@ -418,18 +420,22 @@ function AccountsPanel({
   const [pendingId, setPendingId] = useState("")
   const [disconnectingAccount, setDisconnectingAccount] =
     useState<SocialIntegration | null>(null)
-  const error = loadError ? "Could not load accounts." : actionError
-  async function connect() {
-    const r = await fetch("/api/postfast/connect-url")
-    const p = await r.json().catch(() => null)
-    if (r.ok && p?.url) window.open(p.url, "_blank", "noopener,noreferrer")
-    else setActionError(p?.error || "Could not create a connection link.")
+  const notConnected =
+    data?.status && !data.status.configured
+      ? data.status.message || "SocialBu not connected"
+      : ""
+  const error = loadError
+    ? "Could not load accounts."
+    : actionError || notConnected
+  const manageUrl = data?.manageUrl || "https://socialbu.com"
+  function connect() {
+    window.open(manageUrl, "_blank", "noopener,noreferrer")
   }
   async function disconnect(account: SocialIntegration) {
     setPendingId(account.integration_id)
     setActionError("")
     try {
-      await fetchJsonWithTimeout("/api/postfast/integrations", {
+      await fetchJsonWithTimeout("/api/publishing/accounts", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ integrationId: account.integration_id }),
@@ -452,7 +458,7 @@ function AccountsPanel({
     setPendingId(account.integration_id)
     setActionError("")
     try {
-      await fetchJsonWithTimeout("/api/postfast/integrations", {
+      await fetchJsonWithTimeout("/api/publishing/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ integrationId: account.integration_id }),
@@ -479,13 +485,13 @@ function AccountsPanel({
           Add social account
         </button>
         <a
-          href="https://app.postfa.st"
+          href={manageUrl}
           target="_blank"
           rel="noreferrer"
           className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dddde5] px-4 text-sm font-semibold text-[#4f4f5b] hover:bg-[#f7f7fa]"
         >
           <IconExternalLink className="size-4" />
-          Manage authorization in PostFast
+          Manage accounts in SocialBu
         </a>
       </div>
       {error ? (
@@ -580,7 +586,7 @@ function AccountsPanel({
       {disconnectingAccount ? (
         <ConfirmDialog
           title={`Disconnect ${disconnectingAccount.name || disconnectingAccount.profile || disconnectingAccount.provider}?`}
-          description="This removes the account from saved destination selections. Its PostFast authorization is not revoked."
+          description="This hides the account from the publish dialog. Its SocialBu connection is not revoked."
           confirmLabel="Disconnect account"
           pendingLabel="Disconnecting…"
           onCancel={() => setDisconnectingAccount(null)}
@@ -593,7 +599,7 @@ function AccountsPanel({
 
 function normalizedIntegrations(values: unknown[] | undefined) {
   return (values ?? []).flatMap((value) => {
-    const integration = normalizePostFastSocialIntegration(value)
+    const integration = normalizeSocialBuSocialIntegration(value)
     return integration ? [integration] : []
   })
 }
