@@ -5,10 +5,6 @@ description: Authenticated workspace chrome and responsive content framing for C
 
 Route: `/app?view=home`
 
-![Desktop dashboard](../assets/screenshots/desktop-dashboard.png)
-
-![Mobile dashboard](../assets/screenshots/mobile-dashboard.png)
-
 ## Layout
 
 Owner: `components/realfarm/routes/workspace-route.tsx` loads the authenticated

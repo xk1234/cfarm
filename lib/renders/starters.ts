@@ -1,6 +1,9 @@
 /**
  * Built-in starter templates (doc 01 §3). They are read-only, shared by every
  * workspace, and addressable by `templateId` exactly like stored templates.
+ *
+ * The engine's house-style starters (lib/render/templates) come first; the
+ * doc 01 example fixtures fill in ids the engine set does not define.
  */
 import collageTemplate from "@/lib/render/fixtures/collage.template.json"
 import collageValues from "@/lib/render/fixtures/collage.values.json"
@@ -9,12 +12,14 @@ import listicleValues from "@/lib/render/fixtures/listicle.values.json"
 import quoteTemplate from "@/lib/render/fixtures/quote-carousel.template.json"
 import quoteValues from "@/lib/render/fixtures/quote-carousel.values.json"
 import { canvasSize, type SlideshowSpec, type SlotValues } from "@/lib/render/spec"
+import { listStarterTemplates as listEngineStarters, STARTER_TEMPLATE_PREFIX } from "@/lib/render/templates"
 
-export const STARTER_TEMPLATE_PREFIX = "starter-"
+export { STARTER_TEMPLATE_PREFIX }
 
 export type StarterTemplate = {
   id: string
   name: string
+  description: string
   spec: SlideshowSpec
   /** Illustrative slot values (media ids are placeholders). */
   exampleSlotValues: SlotValues
@@ -25,15 +30,29 @@ function starter(slug: string, template: unknown, values: unknown): StarterTempl
   return {
     id: `${STARTER_TEMPLATE_PREFIX}${slug}`,
     name: spec.name ?? slug,
+    description: spec.description ?? "",
     spec,
     exampleSlotValues: values as SlotValues,
   }
 }
 
-const STARTERS: readonly StarterTemplate[] = Object.freeze([
+const ENGINE_STARTERS: StarterTemplate[] = listEngineStarters().map((t) => ({
+  id: t.id,
+  name: t.name,
+  description: t.description,
+  spec: t.spec,
+  exampleSlotValues: t.sampleValues,
+}))
+
+const FIXTURE_STARTERS: StarterTemplate[] = [
   starter("listicle", listicleTemplate, listicleValues),
   starter("quote-carousel", quoteTemplate, quoteValues),
   starter("collage", collageTemplate, collageValues),
+]
+
+const STARTERS: readonly StarterTemplate[] = Object.freeze([
+  ...ENGINE_STARTERS,
+  ...FIXTURE_STARTERS.filter((f) => !ENGINE_STARTERS.some((e) => e.id === f.id)),
 ])
 
 export function listStarterTemplates(): readonly StarterTemplate[] {

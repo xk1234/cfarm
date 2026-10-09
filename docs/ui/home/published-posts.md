@@ -5,10 +5,6 @@ description: Slideshow template workspace for inspecting and linking published T
 
 Route: `/app?view=templates&template=<id>`
 
-![Desktop published posts](../assets/screenshots/desktop-home-published-posts.png)
-
-![Mobile published posts](../assets/screenshots/mobile-home-published-posts.png)
-
 ## Layout
 
 Owner: `components/realfarm/automation-settings/tiktok-publication-import-panel.tsx`.

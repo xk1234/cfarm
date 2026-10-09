@@ -9,9 +9,10 @@ import Link from "next/link"
 import {
   IconBook,
   IconCalendar,
-  IconHome,
+  IconLayoutGrid,
   IconMenu2,
   IconPhoto,
+  IconPlus,
   IconSettings,
   IconX,
 } from "@tabler/icons-react"
@@ -24,9 +25,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { NotificationBell } from "@/components/realfarm/notification-bell"
 import type { RealFarmData } from "@/lib/realfarm-data"
-import { clientQueryFetcher } from "@/lib/client-fetcher"
-import { useAppQuery } from "@/lib/client-query"
 import { cn } from "@/lib/utils"
 import {
   workspaceViewHref,
@@ -42,38 +42,38 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { key: "home", label: "Home", icon: IconHome },
+  { key: "home", label: "Renders", icon: IconLayoutGrid },
+  { key: "new", label: "New render", icon: IconPlus },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
   { key: "collections", label: "Collections", icon: IconPhoto },
 ]
+
+/** The nav item that is current for a view (render details live under Renders). */
+export function activeNavKey(view: ViewKey): ViewKey {
+  return view === "render" ? "home" : view
+}
 
 export function Sidebar({
   data,
   view,
   onViewChange,
   onSettings,
+  onOpenRender,
 }: {
   data: RealFarmData
   view: ViewKey
   onViewChange: (view: ViewKey) => void
   onSettings: () => void
+  onOpenRender?: (renderId: string) => void
 }) {
-  const { data: calendarStatus } = useAppQuery<{
-    summary: { needsAction: number; failed: number }
-  }>("/api/calendar/summary", clientQueryFetcher, {
-    refreshInterval: 10 * 60_000,
-    refreshWhenHidden: false,
-    refreshWhenOffline: false,
-  })
-  const scheduleBadge = calendarStatus
-    ? calendarStatus.summary.needsAction + calendarStatus.summary.failed
-    : 0
+  const current = activeNavKey(view)
   return (
     <aside className="hidden h-svh w-56 shrink-0 overflow-y-auto border-r border-app-panel-border bg-[#fbfbfd] px-3 py-5 md:flex md:flex-col">
+      <div className="mb-6 flex items-center justify-between gap-2">
       <Link
         href="/app"
         aria-label="LumenClip home"
-        className="lc-focus-ring mb-6 flex items-center gap-2.5 rounded-lg px-2 text-left text-[15px] font-semibold tracking-[-0.025em] text-app-text"
+        className="lc-focus-ring flex min-w-0 items-center gap-2.5 rounded-lg px-2 text-left text-[15px] font-semibold tracking-[-0.025em] text-app-text"
       >
         <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
           <Image
@@ -84,17 +84,18 @@ export function Sidebar({
             className="size-7 object-contain"
           />
         </span>
-        {data.brand.name}
+        <span className="truncate">{data.brand.name}</span>
       </Link>
+      <NotificationBell onOpenRender={onOpenRender} />
+      </div>
       <nav className="space-y-1">
         {navItems.map((item) => (
           <SidebarButton
             key={item.key}
             item={item}
-            active={item.key === view}
+            active={item.key === current}
             onClick={() => onViewChange(item.key)}
             href={workspaceViewHref(item.key)}
-            badge={item.key === "schedule" ? scheduleBadge : 0}
           />
         ))}
       </nav>
@@ -133,8 +134,10 @@ export function MobileNavigation({
   view,
   onViewChange,
   onSettings,
+  onOpenRender,
 }: {
   view: ViewKey
+  onOpenRender?: (renderId: string) => void
   /**
    * Omit on pages outside the workspace shell: each item then behaves as a
    * plain link, which is what those pages need -- they have no view state.
@@ -166,6 +169,8 @@ export function MobileNavigation({
             LumenClip
           </span>
         </Link>
+        <div className="flex items-center gap-1">
+        {onViewChange ? <NotificationBell onOpenRender={onOpenRender} /> : null}
         <SheetTrigger asChild>
           <button
             type="button"
@@ -175,6 +180,7 @@ export function MobileNavigation({
             <IconMenu2 className="size-5" />
           </button>
         </SheetTrigger>
+        </div>
       </header>
 
       <SheetContent
@@ -222,7 +228,7 @@ export function MobileNavigation({
           <div className="flex flex-col gap-1 p-3">
             {items.map((item) => {
               const Icon = item.icon
-              const current = view === item.key
+              const current = activeNavKey(view) === item.key
               return (
                 <Link
                   key={item.key}
@@ -280,13 +286,11 @@ function SidebarButton({
   active,
   onClick,
   href,
-  badge = 0,
 }: {
   item: NavItem
   active: boolean
   onClick: () => void
   href?: string
-  badge?: number
 }) {
   const Icon = item.icon
   const className = cn(
@@ -299,18 +303,6 @@ function SidebarButton({
     <>
       <Icon className="size-4" />
       <span className="truncate">{item.label}</span>
-      {badge > 0 ? (
-        <span
-          title={`${badge} outstanding items across all dates`}
-          aria-label={`${badge} outstanding items across all dates`}
-          className={cn(
-            "ml-auto grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold tabular-nums",
-            active ? "bg-white/15 text-white" : "bg-[#fde9e5] text-[#9b342a]"
-          )}
-        >
-          {badge > 99 ? "99+" : badge}
-        </span>
-      ) : null}
     </>
   )
   return href ? (

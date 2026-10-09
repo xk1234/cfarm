@@ -8,6 +8,7 @@ import { loadRealFarmData } from "@/lib/realfarm-data"
 export type WorkspaceNavigation = {
   view: ViewKey
   collectionId?: string
+  renderId?: string
 }
 
 export async function WorkspaceRoute({

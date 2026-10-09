@@ -549,6 +549,43 @@ export async function listRenderPosts(
   return resolve(deps).repos.posts.listByRender(workspaceId, renderId)
 }
 
+export type PostView = Post & {
+  renderTitle: string | null
+  accountName: string | null
+  coverUrl: string | null
+}
+
+/** Posts in `[from, to)` joined with render titles/covers and account names (calendar). */
+export async function listPostsInRange(
+  workspaceId: WorkspaceId,
+  range: { from: string; to: string },
+  deps: PublishingDeps = {}
+): Promise<PostView[]> {
+  const { repos, publisher } = resolve(deps)
+  const posts = await repos.posts.listRange(workspaceId, range)
+  const renders = new Map<string, Render | null>()
+  await Promise.all(
+    [...new Set(posts.map((post) => post.renderId))].map(async (id) => {
+      renders.set(id, await repos.renders.get(workspaceId, id))
+    })
+  )
+  const accountNames = new Map<string, string>()
+  if (posts.length && publisher.configured) {
+    const accounts = await publisher.listAccounts().catch(() => [] as PublisherAccount[])
+    for (const account of accounts) accountNames.set(account.id, account.name)
+  }
+  return posts.map((post) => {
+    const render = renders.get(post.renderId) ?? null
+    const cover = render?.output?.coverFileId
+    return {
+      ...post,
+      renderTitle: render?.title ?? null,
+      accountName: accountNames.get(post.accountId) ?? null,
+      coverUrl: cover ? `/api/files/renders/${encodeURIComponent(cover)}` : null,
+    }
+  })
+}
+
 export async function getPost(workspaceId: WorkspaceId, postId: string, deps: PublishingDeps = {}): Promise<Post> {
   const post = await resolve(deps).repos.posts.get(workspaceId, postId)
   if (!post) throw new PublishingInputError("Post not found.", 404)

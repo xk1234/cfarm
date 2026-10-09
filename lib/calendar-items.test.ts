@@ -113,8 +113,8 @@ describe("calendar items", () => {
       { repos, publisher: new NotConfiguredPublisher() }
     )
     expect(items.map((item) => [item.status, item.title, item.previewUrl])).toEqual([
-      ["failed", "Quote carousel", "/api/files/f0"],
-      ["scheduled", "Quote carousel", "/api/files/f0"],
+      ["failed", "Quote carousel", "/api/files/renders/f0"],
+      ["scheduled", "Quote carousel", "/api/files/renders/f0"],
     ])
     expect(summary).toEqual({ needsAction: 0, failed: 1, planned: 1 })
     expect(await listCalendarItems("other", { from: "2026-10-01T00:00:00.000Z", to: "2026-11-01T00:00:00.000Z" }, { repos, publisher: new NotConfiguredPublisher() })).toEqual({

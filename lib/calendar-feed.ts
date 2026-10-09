@@ -44,7 +44,7 @@ export async function listCalendarItems(
         createdAt: render.createdAt,
         completedAt: render.completedAt,
         ...(render.output?.coverFileId
-          ? { previewUrl: `/api/files/${encodeURIComponent(render.output.coverFileId)}` }
+          ? { previewUrl: `/api/files/renders/${encodeURIComponent(render.output.coverFileId)}` }
           : {}),
       })
     })

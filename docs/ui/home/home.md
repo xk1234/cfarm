@@ -5,10 +5,6 @@ description: Workspace dashboard for posting activity, generated output, and reu
 
 Route: `/app?view=home`
 
-![Desktop dashboard](../assets/screenshots/desktop-dashboard.png)
-
-![Mobile dashboard](../assets/screenshots/mobile-dashboard.png)
-
 ## Layout
 
 Owner: `components/realfarm/home-view.tsx`.

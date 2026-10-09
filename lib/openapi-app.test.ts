@@ -168,11 +168,11 @@ describe("/api/v1 specs and templates", () => {
     const key = await newKey()
     const app = makeApp()
     const list = await (await call(app, "/templates", { key })).json()
-    expect(list.templates.map((t: { id: string }) => t.id)).toEqual([
-      "starter-listicle",
-      "starter-quote-carousel",
-      "starter-collage",
-    ])
+    const ids = list.templates.map((t: { id: string }) => t.id)
+    // Engine house-style starters first, then doc 01 fixtures not already defined.
+    expect(ids).toEqual(expect.arrayContaining(["starter-photo-outline", "starter-listicle", "starter-quote-carousel", "starter-collage"]))
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(list.templates.every((t: { spec?: unknown }) => typeof t.spec === "object")).toBe(true)
     const one = await (await call(app, "/templates/starter-collage", { key })).json()
     expect(one.template.slots.photos.type).toBe("list")
     expect((await call(app, "/templates/nope", { key })).status).toBe(404)

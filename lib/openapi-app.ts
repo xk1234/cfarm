@@ -143,6 +143,7 @@ const TemplateSummarySchema = z
   .object({
     id: z.string(),
     name: z.string(),
+    description: z.string().nullable().optional(),
     starter: z.boolean(),
     aspectRatio: z.string(),
     width: z.number().int().nullable(),
@@ -334,8 +335,11 @@ const listTemplatesRoute = route({
   request: { query: PageQuery },
   responses: {
     200: json(
-      z.object({ templates: z.array(TemplateSummarySchema), nextCursor: z.string().nullable() }),
-      "Starter templates first (first page only), then workspace templates."
+      z.object({
+        templates: z.array(TemplateSummarySchema.extend({ spec: SpecBody.optional() })),
+        nextCursor: z.string().nullable(),
+      }),
+      "Starter templates first (first page only, spec inline), then workspace templates (fetch the spec by id)."
     ),
     ...authResponses,
   },
@@ -872,9 +876,11 @@ export function createOpenApiApp(overrides: Partial<ApiAppDeps> = {}) {
       : listStarterTemplates().map((s) => ({
           id: s.id,
           name: s.name,
+          description: s.description || null,
           starter: true,
           ...templateShape(s.spec),
           updatedAt: null,
+          spec: s.spec as unknown as Record<string, unknown>,
         }))
     const stored = page.items.map((t) => ({
       id: t.id,

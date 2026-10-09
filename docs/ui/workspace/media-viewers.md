@@ -5,8 +5,6 @@ description: Modal review and editing surfaces for collection images, generated 
 
 Route: Modal state from `/app?view=home`, `/app?view=templates`, and `/app/collections/[id]`.
 
-![Desktop dashboard slideshow viewer](../assets/screenshots/desktop-dashboard-slideshow-viewer.png)
-
 ## Layout
 
 Owners: `components/realfarm/image-viewer-modal.tsx` and

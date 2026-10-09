@@ -5,10 +5,6 @@ description: Desktop and mobile access to the six CFarm workspace destinations.
 
 Route: `/app?view=<destination>`
 
-![Desktop dashboard navigation](../assets/screenshots/desktop-dashboard.png)
-
-![Mobile dashboard navigation](../assets/screenshots/mobile-dashboard.png)
-
 ## Layout
 
 Owner: `components/realfarm/navigation.tsx`.

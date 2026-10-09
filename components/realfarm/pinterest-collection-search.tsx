@@ -26,6 +26,7 @@ import {
   type PinterestSearchResult,
 } from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
+import { apiRoutes } from "@/components/realfarm/api-client"
 
 export function PinterestCollectionSearch({
   onCancel,
@@ -78,7 +79,7 @@ export function PinterestCollectionSearch({
       const payload = await fetchJsonWithTimeout<{
         source?: "pinterest" | "pexels" | "fallback" | "pexels-fallback"
         results?: PinterestSearchResult[]
-      }>(`/api/${searchSource}/search?limit=${nextLimit}`, {
+      }>(apiRoutes.stockSearch(searchSource, nextLimit), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -535,7 +536,7 @@ async function importSelectedImages(input: {
 }) {
   const payload = await fetchJsonWithTimeout<{
     collection?: StoredImageCollection
-  }>("/api/image-collections/import", {
+  }>(apiRoutes.imageCollectionsImport, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

@@ -27,6 +27,7 @@ import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { AssetRecord } from "@/lib/assets"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
+import { apiRoutes } from "@/components/realfarm/api-client"
 
 const INITIAL_VISIBLE_ROWS = 3
 const LOAD_MORE_ROWS = 3
@@ -135,7 +136,7 @@ export function CollectionDetailView({
           formData.set("category", "reference")
           formData.set("name", file.name.replace(/\.[^.]+$/, ""))
           const payload = await fetchJsonWithTimeout<{ asset: AssetRecord }>(
-            "/api/assets/upload",
+            apiRoutes.collectionAssetUpload,
             { method: "POST", body: formData }
           )
           if (!payload.asset.fileUrl) {
