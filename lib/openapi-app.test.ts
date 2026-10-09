@@ -214,7 +214,7 @@ describe("/api/v1 renders", () => {
     expect(render).toMatchObject({ status: "succeeded", slideCount: 2, source: "api", title: "Sleep habits #12" })
     expect(render.slides).toHaveLength(2)
     expect(render.slides[1].url).toBe(`http://localhost/api/v1/renders/${render.id}/slides/1`)
-    expect(render.renderHash).toMatch(/^sha256:/)
+    expect(render.renderHash).toMatch(/^[0-9a-f]{64}$/)
 
     const slide = await call(app, `/renders/${render.id}/slides/1`, { key })
     expect(slide.status).toBe(200)
