@@ -15,8 +15,10 @@ import type { Job, JobType, Repositories } from "@/lib/data"
 import { deliverNotification } from "@/lib/notifications"
 import type { Publisher } from "@/lib/publishing/publisher"
 import { runPublishPostJob } from "@/lib/publishing/service"
+import type { RenderEngine, RenderServiceDeps } from "@/lib/renders/service"
 
 import { JobHandlerNotRegisteredError, PermanentJobError } from "./errors"
+import { runRenderSlideshowJob } from "./render-slideshow"
 
 export {
   isPermanentJobError,
@@ -42,6 +44,8 @@ export type JobContext = {
   /** Test seams; production handlers resolve their own defaults. */
   publisher?: Publisher
   now?: () => Date
+  renderSpec?: RenderEngine
+  assetLoader?: RenderServiceDeps["assetLoader"]
 }
 
 export type JobHandler<T extends JobType = JobType> = (job: Job<T>, context: JobContext) => Promise<unknown>
@@ -55,6 +59,13 @@ export function placeholderJobHandler<T extends JobType>(type: T): JobHandler<T>
   }
 }
 
+export const renderSlideshowHandler: JobHandler<"render-slideshow"> = (job, context) =>
+  runRenderSlideshowJob(job, {
+    repos: context.repos,
+    renderSpec: context.renderSpec,
+    assetLoader: context.assetLoader,
+  })
+
 export const publishPostHandler: JobHandler<"publish-post"> = (job, context) =>
   runPublishPostJob(job, { repos: context.repos, publisher: context.publisher, now: context.now })
 
@@ -67,7 +78,7 @@ export const notifyHandler: JobHandler<"notify"> = async (job, context) => {
 }
 
 export const DEFAULT_JOB_HANDLERS: JobHandlers = {
-  "render-slideshow": placeholderJobHandler("render-slideshow"),
+  "render-slideshow": renderSlideshowHandler,
   "publish-post": publishPostHandler,
   notify: notifyHandler,
 }

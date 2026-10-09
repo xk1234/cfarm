@@ -1,21 +1,23 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { resetMemoryRepositories, type Repositories } from "@/lib/data"
-import {
-  createLumenClipMcpServer,
-  type LumenClipMcpServices,
-} from "@/lib/mcp/lumenclip-server"
+import { createMemoryRepositories, type Repositories } from "@/lib/data"
+import { createLumenClipMcpServer, type LumenClipMcpServices } from "@/lib/mcp/lumenclip-server"
 import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
+import { NotConfiguredPublisher } from "@/lib/publishing/publisher"
+import { TINY_PNG, createFakePublisher, createFakeRenderSpec } from "@/lib/renders/test-fakes"
 
-const OWNER = "user_mcp"
+const WS = "user_mcp"
+
 const clients: Client[] = []
 const servers: ReturnType<typeof createLumenClipMcpServer>[] = []
 let repos: Repositories
+let fake: ReturnType<typeof createFakeRenderSpec>
 
 beforeEach(() => {
-  repos = resetMemoryRepositories()
+  repos = createMemoryRepositories()
+  fake = createFakeRenderSpec()
 })
 
 afterEach(async () => {
@@ -25,98 +27,207 @@ afterEach(async () => {
   ])
 })
 
-async function connectClient(
-  overrides: Partial<LumenClipMcpServices> = {},
-  options: { disabledToolNames?: string[] } = {}
-) {
-  const server = createLumenClipMcpServer(OWNER, overrides, options)
+async function connect(overrides: Partial<LumenClipMcpServices> = {}, disabledToolNames: string[] = []) {
+  const server = createLumenClipMcpServer(
+    WS,
+    {
+      repositories: () => repos,
+      renderSpec: fake.renderSpec,
+      publisher: () => new NotConfiguredPublisher(),
+      apiBaseUrl: () => "https://app.test/api/v1",
+      now: () => new Date("2026-10-09T08:00:00Z"),
+      ...overrides,
+    },
+    { disabledToolNames, apiKeyId: "key-1" }
+  )
   const client = new Client({ name: "test", version: "1.0.0" })
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)])
-  clients.push(client)
   servers.push(server)
+  clients.push(client)
   return client
 }
 
+async function callTool(client: Client, name: string, args: Record<string, unknown> = {}) {
+  const result = await client.callTool({ name, arguments: args })
+  // Tool results are untyped JSON; tests assert on their shape directly.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return result as { isError?: boolean; structuredContent?: Record<string, any>; content: { text: string }[] }
+}
+
+const spec = (slides = 2) => ({
+  version: 1,
+  canvas: { preset: "9:16" },
+  slides: Array.from({ length: slides }, (_, i) => ({
+    id: `s${i}`,
+    layers: [{ id: "t", type: "text", frame: { inset: 40 }, text: "Hello" }],
+  })),
+})
+
 describe("LumenClip MCP server", () => {
   it("registers exactly the tools in the registry", async () => {
-    const client = await connectClient()
-    const toolNames = (await client.listTools()).tools.map((tool) => tool.name)
-    expect(toolNames.sort()).toEqual([...LUMENCLIP_MCP_TOOL_NAMES].sort())
+    const client = await connect()
+    const names = (await client.listTools()).tools.map((tool) => tool.name)
+
+    expect(names.sort()).toEqual([...LUMENCLIP_MCP_TOOL_NAMES].sort())
+    expect(names).not.toContain("lumenclip_slideshow_generate")
+    expect(names).not.toContain("lumenclip_workspace_members_list")
   })
 
-  it("removes disabled APIs from MCP discovery", async () => {
-    const client = await connectClient({}, { disabledToolNames: ["lumenclip_collection_delete"] })
-    const toolNames = (await client.listTools()).tools.map((tool) => tool.name)
-    expect(toolNames).not.toContain("lumenclip_collection_delete")
+  it("removes disabled tools from discovery", async () => {
+    const client = await connect({}, ["lumenclip_output_delete"])
+    const names = (await client.listTools()).tools.map((tool) => tool.name)
+    expect(names).not.toContain("lumenclip_output_delete")
   })
 
-  it("creates, lists and soft-deletes collections in the caller's workspace", async () => {
-    const client = await connectClient({ now: () => new Date("2026-10-09T12:00:00.000Z") })
+  it("serves the spec schema, fonts and starter templates", async () => {
+    const client = await connect()
+    const schema = await callTool(client, "lumenclip_spec_schema_get")
+    expect(schema.structuredContent?.schema.$id).toContain("slideshow-spec-v1")
 
-    const saved = await client.callTool({
-      name: "lumenclip_collection_save",
-      arguments: { name: "Mystical Pictures", mediaType: "image", requestId: "c-1" },
-    })
-    expect(saved.structuredContent).toMatchObject({
-      created: true,
-      collection: { name: "Mystical Pictures", mediaType: "image", itemCount: 0 },
-    })
-    expect((await repos.collections.getByName(OWNER, "Mystical Pictures"))?.workspaceId).toBe(OWNER)
-    expect(await repos.collections.getByName("someone_else", "Mystical Pictures")).toBeNull()
+    const fonts = await callTool(client, "lumenclip_fonts_list")
+    expect(fonts.structuredContent?.families).toContain("Inter")
 
-    const listed = await client.callTool({ name: "lumenclip_collections_list", arguments: { query: "mystic" } })
-    expect(listed.structuredContent).toMatchObject({ total: 1, items: [{ name: "Mystical Pictures" }] })
-
-    const collectionId = (saved.structuredContent as { collection: { id: string } }).collection.id
-    const deleted = await client.callTool({
-      name: "lumenclip_collection_delete",
-      arguments: { collectionId, requestId: "d-1", confirmDelete: true },
-    })
-    expect(deleted.structuredContent).toMatchObject({ alreadyDeleted: false })
-    expect((await repos.collections.getByName(OWNER, "Mystical Pictures"))?.deletedAt).toBeTruthy()
+    const list = await callTool(client, "lumenclip_templates_list")
+    expect(list.structuredContent?.templates.map((t: { id: string }) => t.id)).toContain("starter-listicle")
+    const one = await callTool(client, "lumenclip_templates_list", { templateId: "starter-quote-carousel" })
+    expect(one.structuredContent?.template.slots).toHaveProperty("quotes")
   })
 
-  it("imports assets into an existing collection through the guarded importer", async () => {
-    await repos.collections.create(OWNER, { name: "Charts", createdBy: OWNER })
-    const importRemote = vi.fn<LumenClipMcpServices["importRemoteImagesToCollection"]>(async (_ws, input) => ({
-      collection: {
-        name: input.collectionName ?? "",
-        created_at: "2026-10-09T12:00:00.000Z",
-        images: [{ image_link: "/api/files/media/f1", caption: "Chart" }],
-      },
-      imported: 1,
-    }))
-    const client = await connectClient({ importRemoteImagesToCollection: importRemote })
-    const result = await client.callTool({
-      name: "lumenclip_collection_add_assets",
-      arguments: {
-        collectionId: "Charts",
-        assets: [{ httpsUrl: "https://images.example.com/chart.png", caption: "Chart" }],
-        requestId: "a-1",
-      },
-    })
-    expect(importRemote).toHaveBeenCalledWith(OWNER, expect.objectContaining({ collectionName: "Charts" }))
-    expect(result.structuredContent).toMatchObject({ added: 1, duplicates: 0 })
+  it("validates specs with JSON-pointer issues", async () => {
+    const client = await connect()
+    const ok = await callTool(client, "lumenclip_spec_validate", { spec: spec() })
+    expect(ok.structuredContent).toMatchObject({ ok: true, errors: [] })
+    const bad = await callTool(client, "lumenclip_spec_validate", { spec: { version: 1, slides: [] } })
+    expect(bad.structuredContent?.ok).toBe(false)
+    expect(bad.structuredContent?.errors[0].path).toBe("/canvas")
   })
 
-  it("lists uploads-library assets", async () => {
-    const client = await connectClient({
-      listAssetRecords: vi.fn(async () => [
-        {
-          id: "m1",
-          kind: "image" as const,
-          source: "upload" as const,
-          status: "ready" as const,
-          scope: "global" as const,
-          name: "Kitchen",
-          caption: "",
-          createdAt: "2026-10-09T12:00:00.000Z",
-          updatedAt: "2026-10-09T12:00:00.000Z",
+  it("renders a spec inline and reads it back", async () => {
+    const client = await connect()
+    const rendered = await callTool(client, "lumenclip_slideshow_render", { spec: spec(2), title: "Hello" })
+    expect(rendered.isError).toBeFalsy()
+    const render = rendered.structuredContent?.render
+    expect(rendered.structuredContent?.mode).toBe("sync")
+    expect(render).toMatchObject({ status: "succeeded", source: "mcp", slideCount: 2 })
+    expect(render.slides[0].url).toBe(`https://app.test/api/v1/renders/${render.id}/slides/0`)
+
+    const got = await callTool(client, "lumenclip_render_get", { renderId: render.id })
+    expect(got.structuredContent?.render.resolvedSpec.slides).toHaveLength(2)
+    const stored = await repos.renders.get(WS, render.id)
+    expect(stored?.apiKeyId).toBe("key-1")
+  })
+
+  it("queues large renders and exposes the job as an operation", async () => {
+    const client = await connect()
+    const rendered = await callTool(client, "lumenclip_slideshow_render", { spec: spec(12) })
+    expect(rendered.structuredContent?.mode).toBe("async")
+    const jobId = rendered.structuredContent?.jobId
+    const op = await callTool(client, "lumenclip_operation_get", { operationId: jobId })
+    expect(op.structuredContent?.operation).toMatchObject({ type: "render-slideshow", status: "queued" })
+    const ops = await callTool(client, "lumenclip_operations_list")
+    expect(ops.structuredContent?.operations).toHaveLength(1)
+  })
+
+  it("returns slot errors as a tool error", async () => {
+    const client = await connect()
+    const result = await callTool(client, "lumenclip_slideshow_render", {
+      templateId: "starter-collage",
+      slotValues: {},
+    })
+    expect(result.isError).toBe(true)
+    expect(JSON.parse(result.content[0].text).errors.length).toBeGreaterThan(0)
+  })
+
+  it("creates, lists and deletes collections", async () => {
+    const client = await connect()
+    const saved = await callTool(client, "lumenclip_collection_save", { name: "Mystical", requestId: "r1" })
+    expect(saved.structuredContent).toMatchObject({ requestId: "r1", created: true, collection: { name: "Mystical" } })
+    const again = await callTool(client, "lumenclip_collection_save", { name: "Mystical" })
+    expect(again.structuredContent?.created).toBe(false)
+
+    const id = saved.structuredContent?.collection.id
+    const list = await callTool(client, "lumenclip_collections_list")
+    expect(list.structuredContent?.collections).toHaveLength(1)
+
+    const deleted = await callTool(client, "lumenclip_collection_delete", { collectionId: id, confirm: true })
+    expect(deleted.structuredContent?.deleted).toBe(true)
+    expect((await callTool(client, "lumenclip_collections_list")).structuredContent?.collections).toHaveLength(0)
+  })
+
+  it("imports URL images into a collection through the guarded fetcher", async () => {
+    const fetched: string[] = []
+    const client = await connect({
+      remoteFetch: {
+        guard: async (url) => {
+          if (url.includes("10.0.0.1")) throw new Error("private address")
         },
-      ]),
+        fetch: async (url) => {
+          fetched.push(url)
+          return new Response(TINY_PNG, { headers: { "content-type": "image/png" } })
+        },
+      },
     })
-    const result = await client.callTool({ name: "lumenclip_assets_list", arguments: { query: "kitch" } })
-    expect(result.structuredContent).toMatchObject({ total: 1, items: [{ id: "m1", recordType: "asset_record" }] })
+    const saved = await callTool(client, "lumenclip_collection_save", { name: "Imports" })
+    const id = saved.structuredContent?.collection.id
+    const result = await callTool(client, "lumenclip_collection_add_assets", {
+      collectionId: id,
+      urls: ["https://images.example/a.png", "http://10.0.0.1/secret.png"],
+    })
+    expect(result.structuredContent?.added).toHaveLength(1)
+    expect(result.structuredContent?.failed[0].url).toBe("http://10.0.0.1/secret.png")
+    expect(fetched).toEqual(["https://images.example/a.png"])
+
+    const assets = await callTool(client, "lumenclip_assets_list", { collectionId: id })
+    expect(assets.structuredContent?.assets).toHaveLength(1)
+  })
+
+  it('reports "SocialBu not connected" for publishing without a token', async () => {
+    const client = await connect()
+    const accounts = await callTool(client, "lumenclip_accounts_list")
+    expect(accounts.structuredContent).toMatchObject({ connected: false, message: "SocialBu not connected" })
+    const rendered = await callTool(client, "lumenclip_slideshow_render", { spec: spec(1) })
+    const publish = await callTool(client, "lumenclip_output_publish", {
+      outputId: rendered.structuredContent?.render.id,
+      accountIds: ["101"],
+    })
+    expect(publish.isError).toBe(true)
+    expect(publish.content[0].text).toContain("SocialBu not connected")
+  })
+
+  it("schedules a render through the publisher and shows it on the schedule", async () => {
+    const fakePublisher = createFakePublisher()
+    const client = await connect({ publisher: () => fakePublisher.publisher })
+    const rendered = await callTool(client, "lumenclip_slideshow_render", { spec: spec(2), title: "Deck" })
+    const outputId = rendered.structuredContent?.render.id
+    const publish = await callTool(client, "lumenclip_output_publish", {
+      outputId,
+      accountIds: ["101"],
+      caption: "Hi",
+      publishAt: "2026-10-10T18:00:00+00:00",
+    })
+    expect(publish.structuredContent?.posts[0]).toMatchObject({ status: "scheduled", accountId: "101" })
+    expect(fakePublisher.uploads).toHaveLength(2)
+
+    const schedule = await callTool(client, "lumenclip_schedule_get", { days: 7 })
+    expect(schedule.structuredContent?.items).toHaveLength(1)
+    expect(schedule.structuredContent?.items[0].renderTitle).toBe("Deck")
+
+    const blocked = await callTool(client, "lumenclip_output_delete", { outputId, confirm: true })
+    expect(blocked.isError).toBe(true)
+  })
+
+  it("records manual publications", async () => {
+    const client = await connect()
+    const rendered = await callTool(client, "lumenclip_slideshow_render", { spec: spec(1) })
+    const outputId = rendered.structuredContent?.render.id
+    const marked = await callTool(client, "lumenclip_output_mark_published", {
+      outputId,
+      provider: "tiktok",
+      permalink: "https://www.tiktok.com/@me/photo/1",
+    })
+    expect(marked.structuredContent?.post).toMatchObject({ status: "published", provider: "tiktok" })
+    const output = await callTool(client, "lumenclip_output_get", { outputId })
+    expect(output.structuredContent?.posts).toHaveLength(1)
   })
 })

@@ -9,13 +9,20 @@ const PUBLIC_API_PATHS = [
   "/api/publishing/postback",
 ] as const
 
+/**
+ * Paths that authenticate themselves: `/api/v1/**` accepts a workspace API key
+ * or the Clerk session (Hono middleware in lib/openapi-app.ts), `/mcp` accepts
+ * an API key, `/api/public/**` verifies signed share tokens, and
+ * `/api/files/**` authorises per request (signed token, API key or Clerk
+ * session) and checks file ownership itself (lib/files/serve.ts).
+ */
+const SELF_AUTHENTICATED_PREFIXES = ["/api/v1/", "/api/public/", "/api/files/"] as const
+
 function isPublicApi(pathname: string) {
   return (
     PUBLIC_API_PATHS.includes(pathname as (typeof PUBLIC_API_PATHS)[number]) ||
-    pathname.startsWith("/api/public/") ||
-    // Authorises per request (signed token, API key or Clerk session) and
-    // checks file ownership itself; see lib/files/serve.ts.
-    pathname.startsWith("/api/files/")
+    pathname === "/mcp" ||
+    SELF_AUTHENTICATED_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   )
 }
 
