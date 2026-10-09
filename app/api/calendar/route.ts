@@ -1,19 +1,6 @@
 import { NextResponse } from "next/server"
 
 import {
-  automationSlotsInRange,
-  generationExpectedAt,
-  slideshowGenerationLeadMinutes,
-} from "@/lib/automation-slots"
-import {
-  listAutomationRuns,
-  type AutomationRunRecord,
-} from "@/lib/automation-runner"
-import {
-  automationRecordToSummary,
-  listAutomationRecords,
-} from "@/lib/automations"
-import {
   calendarItemMatchesFilters,
   calendarLifecycleForJob,
   calendarLifecycleForLocalPost,
@@ -21,34 +8,23 @@ import {
   dedupeCalendarItems,
   type CalendarFilters,
   type CalendarItem,
-  type CalendarLifecycleStatus,
   type CalendarTarget,
 } from "@/lib/calendar-items"
 import { clean, isRecord } from "@/lib/guards"
 import { postfastRequest } from "@/lib/postfast-client"
-import {
-  type PostFastPostRecord,
-} from "@/lib/postfast-posts"
+import { type PostFastPostRecord } from "@/lib/postfast-posts"
 import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import { listJobs, type Job } from "@/lib/queue"
-import type { Automation } from "@/lib/realfarm-data"
 import { listResultRecords, type ResultRecord } from "@/lib/results"
-import {
-  xAutomationToAutomation,
-  type XAutomationRun,
-} from "@/lib/x-automation"
-import { listXAutomationRuns, listXAutomations } from "@/lib/x-automation-store"
 
 export const dynamic = "force-dynamic"
 
-type RunContext = {
-  automationId: string
-  slot: string
-  sourceId: string
+const RENDER_JOB_TYPE = "render-slideshow"
+const DEFAULT_TIMEZONE = "UTC"
+
+type SourceContext = {
   excerpt?: string
   previewUrl?: string
-  createdAt?: string
-  updatedAt?: string
   generatedAt?: string
 }
 
@@ -75,53 +51,29 @@ export async function GET(request: Request) {
     )
   }
 
-  const [
-    automationRecords,
-    xAutomations,
-    runs,
-    xRuns,
-    results,
-    localPosts,
-    jobs,
-  ] = await Promise.all([
-    listAutomationRecords(),
-    listXAutomations(),
-    listAutomationRuns({ limit: 500 }),
-    listXAutomationRuns(),
+  const [results, localPosts, jobs] = await Promise.all([
     listResultRecords({ limit: 500 }),
     listPublicationRecordsForRead({ surface: "calendar" }),
-    listJobs({ limit: 500 }).catch(() => []),
+    listJobs({ type: RENDER_JOB_TYPE, limit: 500 }).catch(() => []),
   ])
-  const automations = [
-    ...automationRecords.map(automationRecordToSummary),
-    ...xAutomations.map(xAutomationToAutomation),
-  ]
-  const automationById = new Map(
-    automations.map((automation) => [automation.id, automation])
-  )
-  const runContexts = runContextMap(runs, xRuns, results)
+  const sourceContexts = sourceContextMap(results)
   const localByPostFastId = new Map(
     localPosts.flatMap((post) =>
       post.postfastPostId ? [[post.postfastPostId, post] as const] : []
     )
   )
 
-  const projected = projectionItems(automations, from, to, now)
-  const jobItems = jobs.flatMap((job) =>
-    jobCalendarItem(job, automationById, from, to)
-  )
+  const jobItems = jobs.flatMap((job) => jobCalendarItem(job, from, to))
   const localItems = localPosts.flatMap((post) =>
-    localPostCalendarItem(post, runContexts, automationById, from, to)
+    localPostCalendarItem(post, sourceContexts, from, to)
   )
   const remoteItems = await remoteCalendarItems({
     from,
     to,
     localByPostFastId,
-    runContexts,
-    automationById,
+    sourceContexts,
   }).catch(() => [])
   const mergedItems = dedupeCalendarItems([
-    ...projected,
     ...jobItems,
     ...localItems,
     ...remoteItems,
@@ -138,113 +90,33 @@ export async function GET(request: Request) {
   })
 }
 
-function projectionItems(
-  automations: Automation[],
-  from: Date,
-  to: Date,
-  now: Date
-) {
-  return automations.flatMap((automation) => {
-    if (automation.status !== "live" || automation.schedule?.paused === true) {
-      return []
-    }
-    return automationSlotsInRange(automation, from, to).flatMap<CalendarItem>(
-      (slot) => {
-        if (Date.parse(slot.scheduledFor) < now.getTime()) return []
-        const targets = automationTargets(automation, "planned")
-        return [
-          {
-            id: `planned:${slot.automationId}:${slot.scheduledFor}`,
-            status: "planned",
-            datetime: slot.scheduledFor,
-            slot: slot.scheduledFor,
-            timezone: slot.timezone,
-            automationId: slot.automationId,
-            automationName: slot.automationName,
-            targets,
-            source: "projection",
-            sourceType: "automation",
-            sourceId: slot.automationId,
-            title: "Planned content slot",
-            links: {
-              automation: automationLink(slot.automationId),
-            },
-            timestamps: {
-              scheduledAt: slot.scheduledFor,
-              expectedGenerationAt: expectedGenerationAt(
-                automation,
-                slot.scheduledFor
-              ),
-              expectedPublishedAt: slot.scheduledFor,
-            },
-          },
-        ]
-      }
-    )
-  })
-}
-
-function jobCalendarItem(
-  job: Job,
-  automationById: Map<string, Automation>,
-  from: Date,
-  to: Date
-): CalendarItem[] {
-  if (job.type !== "run-automation" && job.type !== "run-x-automation" && job.type !== "run-ugc-automation") {
-    return []
-  }
+function jobCalendarItem(job: Job, from: Date, to: Date): CalendarItem[] {
+  if (job.type !== RENDER_JOB_TYPE) return []
   const status = calendarLifecycleForJob(job.status)
   if (!status) return []
-  const payload = isRecord(job.payload) ? job.payload : {}
-  const slot = clean(payload.scheduledFor)
-  const datetime = slot || clean(job.availableAt || job.createdAt)
+  const datetime = clean(job.availableAt || job.createdAt)
   if (!inRange(datetime, from, to)) return []
-  const automationId = clean(payload.automationId)
-  const automation = automationById.get(automationId)
-  const result = isRecord(job.result) ? job.result : {}
-  const runId = clean(result.runId)
   return [
     {
       id: `job:${job.id}`,
       status,
       datetime,
-      slot: slot || undefined,
-      timezone: automationTimezone(automation),
-      automationId: automationId || undefined,
-      automationName: automation?.name,
-      targets: automationTargets(automation, status),
+      timezone: DEFAULT_TIMEZONE,
+      targets: [],
       source: "job",
-      sourceType:
-        job.type === "run-x-automation" ? "x_automation" : "automation",
+      sourceType: "slideshow",
       sourceId: job.id,
       title:
         status === "generation_failed"
-          ? "Generation failed"
+          ? "Render failed"
           : job.status === "processing"
-            ? "Generating content"
-            : job.attempts > 0
-              ? `Generation retry ${job.attempts + 1}`
-              : "Generation queued",
+            ? "Rendering slideshow"
+            : "Render queued",
       error: job.error || undefined,
-      links: {
-        automation: automationId ? automationLink(automationId) : undefined,
-        content:
-          automationId && runId ? contentLink(automationId, runId) : undefined,
-        retry:
-          status === "generation_failed"
-            ? `/api/jobs/${encodeURIComponent(job.id)}/retry`
-            : undefined,
-      },
+      links: {},
       timestamps: {
         createdAt: job.createdAt || undefined,
         updatedAt: job.updatedAt || undefined,
-        scheduledAt: slot || undefined,
-        expectedGenerationAt: expectedGenerationAt(
-          automation,
-          slot || datetime,
-          job.type === "run-x-automation"
-        ),
-        expectedPublishedAt: slot || undefined,
       },
     },
   ]
@@ -252,8 +124,7 @@ function jobCalendarItem(
 
 function localPostCalendarItem(
   post: PostFastPostRecord,
-  runContexts: Map<string, RunContext>,
-  automationById: Map<string, Automation>,
+  sourceContexts: Map<string, SourceContext>,
   from: Date,
   to: Date
 ): CalendarItem[] {
@@ -263,28 +134,24 @@ function localPostCalendarItem(
   // /social-posts feed. Only surface local publications the remote feed omits
   // (e.g. manually linked posts) so published posts are not double-counted.
   if (status === "published" && post.postfastPostId) return []
-  const context = runContexts.get(post.sourceId)
-  const automationId =
-    context?.automationId ||
-    (automationById.has(post.sourceId) ? post.sourceId : undefined)
-  const automation = automationId ? automationById.get(automationId) : undefined
+  const context = sourceContexts.get(post.sourceId)
   const datetime =
     status === "published"
-      ? clean(post.publishedAt) ||
-        context?.slot ||
-        clean(post.scheduledAt || post.createdAt)
-      : context?.slot || clean(post.scheduledAt || post.createdAt)
+      ? clean(post.publishedAt) || clean(post.scheduledAt || post.createdAt)
+      : clean(post.scheduledAt || post.createdAt)
   if (!inRange(datetime, from, to)) return []
-  const target = postTarget(post, status, automation)
+  const target: CalendarTarget = {
+    integrationId: post.integrationId,
+    provider: post.provider,
+    status,
+  }
   return [
     {
       id: `local:${post.id}`,
       status,
       datetime,
-      slot: context?.slot || post.scheduledAt,
-      timezone: automationTimezone(automation),
-      automationId,
-      automationName: automation?.name,
+      slot: post.scheduledAt,
+      timezone: DEFAULT_TIMEZONE,
       targets: [target],
       source: "local_post",
       sourceType: post.sourceType,
@@ -294,27 +161,14 @@ function localPostCalendarItem(
       previewUrl: context?.previewUrl,
       error: post.error,
       links: {
-        automation: automationId ? automationLink(automationId) : undefined,
-        content: automationId
-          ? contentLink(automationId, post.sourceId)
-          : undefined,
         live: clean(post.releaseUrl),
       },
       timestamps: {
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
-        scheduledAt: post.scheduledAt || context?.slot,
+        scheduledAt: post.scheduledAt,
         generatedAt: context?.generatedAt,
-        expectedGenerationAt: context?.generatedAt
-          ? undefined
-          : expectedGenerationAt(
-              automation,
-              context?.slot || post.scheduledAt || datetime,
-              post.sourceType === "x_automation"
-            ),
-        expectedPublishedAt: post.publishedAt
-          ? undefined
-          : post.scheduledAt || context?.slot,
+        expectedPublishedAt: post.publishedAt ? undefined : post.scheduledAt,
         publishedAt: post.publishedAt,
       },
     },
@@ -325,8 +179,7 @@ async function remoteCalendarItems(input: {
   from: Date
   to: Date
   localByPostFastId: Map<string, PostFastPostRecord>
-  runContexts: Map<string, RunContext>
-  automationById: Map<string, Automation>
+  sourceContexts: Map<string, SourceContext>
 }) {
   const payload = await postfastRequest("/social-posts", {
     query: {
@@ -350,11 +203,7 @@ async function remoteCalendarItems(input: {
     if (!status) return []
     const postId = clean(post.id)
     const local = input.localByPostFastId.get(postId)
-    const context = local ? input.runContexts.get(local.sourceId) : undefined
-    const automationId = context?.automationId
-    const automation = automationId
-      ? input.automationById.get(automationId)
-      : undefined
+    const context = local ? input.sourceContexts.get(local.sourceId) : undefined
     const scheduledAt = clean(post.scheduledAt) || local?.scheduledAt
     const publishedAt = clean(post.publishedAt)
     const datetime =
@@ -369,20 +218,10 @@ async function remoteCalendarItems(input: {
     const integrationId = clean(
       integration.id || local?.integrationId || post.socialMediaId
     )
-    const targetAutomation =
-      automation ||
-      automationForIntegration(input.automationById, integrationId)
     const target: CalendarTarget = {
       integrationId: integrationId || undefined,
-      integrationName:
-        clean(integration.name) ||
-        integrationName(targetAutomation, integrationId),
-      provider:
-        provider ||
-        targetAutomation?.socialIntegrations.find(
-          (candidate) => candidate.integration_id === integrationId
-        )?.provider ||
-        "unknown",
+      integrationName: clean(integration.name) || undefined,
+      provider: provider || "unknown",
       status,
     }
     return [
@@ -390,10 +229,8 @@ async function remoteCalendarItems(input: {
         id: `postfast:${postId || index}`,
         status,
         datetime,
-        slot: context?.slot || scheduledAt || undefined,
-        timezone: automationTimezone(targetAutomation),
-        automationId,
-        automationName: automation?.name,
+        slot: scheduledAt || undefined,
+        timezone: DEFAULT_TIMEZONE,
         targets: [target],
         source: "postfast",
         sourceType: local?.sourceType || clean(post.sourceType) || "external",
@@ -402,11 +239,6 @@ async function remoteCalendarItems(input: {
         excerpt: clean(post.content) || local?.content || context?.excerpt,
         previewUrl: context?.previewUrl,
         links: {
-          automation: automationId ? automationLink(automationId) : undefined,
-          content:
-            automationId && local
-              ? contentLink(automationId, local.sourceId)
-              : undefined,
           live: clean(post.releaseURL || post.releaseUrl || local?.releaseUrl),
           cancel:
             status === "scheduled" && postId
@@ -423,125 +255,30 @@ async function remoteCalendarItems(input: {
           scheduledAt: scheduledAt || undefined,
           publishedAt: publishedAt || undefined,
           generatedAt: context?.generatedAt,
-          expectedGenerationAt: context?.generatedAt
-            ? undefined
-            : expectedGenerationAt(
-                targetAutomation,
-                context?.slot || scheduledAt || datetime,
-                local?.sourceType === "x_automation"
-              ),
           expectedPublishedAt: publishedAt
             ? undefined
-            : scheduledAt || context?.slot || undefined,
+            : scheduledAt || undefined,
         },
       },
     ]
   })
 }
 
-function runContextMap(
-  runs: AutomationRunRecord[],
-  xRuns: XAutomationRun[],
-  results: ResultRecord[]
-) {
-  const contexts = new Map<string, RunContext>()
-  const resultByRunId = new Map(
-    results.map((result) => [result.runId, result] as const)
-  )
-  for (const run of runs) {
-    const result = resultByRunId.get(run.id)
-    const context = {
-      automationId: run.automationId,
-      slot: run.scheduledFor,
-      sourceId: run.id,
-      excerpt: run.plan?.caption || run.plan?.hook,
-      previewUrl: run.thumbnailUrl,
-      createdAt: run.createdAt,
-      updatedAt: run.updatedAt,
-      generatedAt: result?.createdAt,
+function sourceContextMap(results: ResultRecord[]) {
+  const contexts = new Map<string, SourceContext>()
+  for (const result of results) {
+    const context: SourceContext = {
+      excerpt: result.title,
+      previewUrl:
+        result.artifacts.thumbnailUrl || result.artifacts.outputImages?.[0],
+      generatedAt: result.createdAt,
     }
-    contexts.set(run.id, context)
-    if (run.slideshowId) contexts.set(run.slideshowId, context)
-  }
-  for (const run of xRuns) {
-    contexts.set(run.id, {
-      automationId: run.automationId,
-      slot: run.scheduledFor || run.createdAt,
-      sourceId: run.id,
-      excerpt: run.posts[0]?.text || run.hook,
-      createdAt: run.createdAt,
-      updatedAt: run.updatedAt,
-      generatedAt: run.createdAt,
-    })
+    contexts.set(result.id, context)
+    if (result.artifacts.slideshowId) {
+      contexts.set(result.artifacts.slideshowId, context)
+    }
   }
   return contexts
-}
-
-function automationTargets(
-  automation: Automation | undefined,
-  status: CalendarLifecycleStatus
-): CalendarTarget[] {
-  return (automation?.socialIntegrations || [])
-    .filter((integration) => !integration.disabled)
-    .map((integration) => ({
-      integrationId: integration.integration_id,
-      integrationName: integration.name,
-      provider: integration.provider,
-      status,
-    }))
-}
-
-function postTarget(
-  post: PostFastPostRecord,
-  status: CalendarLifecycleStatus,
-  automation: Automation | undefined
-): CalendarTarget {
-  return {
-    integrationId: post.integrationId,
-    integrationName: integrationName(automation, post.integrationId),
-    provider: post.provider,
-    status,
-  }
-}
-
-function integrationName(
-  automation: Automation | undefined,
-  integrationId: string
-) {
-  return automation?.socialIntegrations.find(
-    (integration) => integration.integration_id === integrationId
-  )?.name
-}
-
-function automationForIntegration(
-  automationById: Map<string, Automation>,
-  integrationId: string
-) {
-  if (!integrationId) return undefined
-  return [...automationById.values()].find((automation) =>
-    automation.socialIntegrations.some(
-      (integration) => integration.integration_id === integrationId
-    )
-  )
-}
-
-function automationTimezone(automation: Automation | undefined) {
-  return automation?.schedule?.timezone || automation?.timezone || "UTC"
-}
-
-function expectedGenerationAt(
-  automation: Automation | undefined,
-  publishedAt: string,
-  xThreads = false
-) {
-  const leadMinutes =
-    xThreads || automation?.automationKind === "x_threads"
-      ? 0
-      : slideshowGenerationLeadMinutes({
-          posting_mode: automation?.postingMode,
-          generation_lead_minutes: automation?.generationLeadMinutes,
-        })
-  return generationExpectedAt(publishedAt, leadMinutes)
 }
 
 function localPostTitle(status: PostFastPostRecord["status"]) {
@@ -552,20 +289,11 @@ function localPostTitle(status: PostFastPostRecord["status"]) {
   return "Draft post"
 }
 
-function automationLink(automationId: string) {
-  return `/app?view=templates&template=${encodeURIComponent(automationId)}`
-}
-
-function contentLink(automationId: string, runId: string) {
-  return `${automationLink(automationId)}&run=${encodeURIComponent(runId)}`
-}
-
 function calendarFilters(searchParams: URLSearchParams): CalendarFilters {
   return {
     accounts: filterSet(searchParams, "accounts"),
     platforms: filterSet(searchParams, "platforms", true),
     statuses: filterSet(searchParams, "statuses"),
-    automations: filterSet(searchParams, "automations"),
     sourceTypes: filterSet(searchParams, "sourceType"),
   }
 }
