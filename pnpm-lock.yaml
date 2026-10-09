@@ -110,9 +110,6 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
-      konva:
-        specifier: ^9.3.22
-        version: 9.3.22
       luxon:
         specifier: ^3.7.2
         version: 3.7.2
@@ -149,9 +146,6 @@ importers:
       react-icons:
         specifier: ^5.7.0
         version: 5.7.0(react@19.2.4)
-      react-konva:
-        specifier: ^19.2.5
-        version: 19.2.5(@types/react@19.2.17)(konva@9.3.22)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       recharts:
         specifier: ^3.9.1
         version: 3.9.1(@types/react@19.2.17)(react-dom@19.2.4(react@19.2.4))(react-is@18.3.1)(react@19.2.4)(redux@5.0.1)
@@ -3462,16 +3456,6 @@ packages:
     peerDependencies:
       '@types/react': ^19.2.0
 
-  '@types/react-reconciler@0.28.9':
-    resolution: {integrity: sha512-HHM3nxyUZ3zAylX8ZEyrDNd2XZOnQ0D5XfunJF5FLQnZbHHYq4UWvW1QfelQNXv1ICNkwYhfxjwfnqivYB6bFg==}
-    peerDependencies:
-      '@types/react': '*'
-
-  '@types/react-reconciler@0.33.0':
-    resolution: {integrity: sha512-HZOXsKT0tGI9LlUw2LuedXsVeB88wFa536vVL0M6vE8zN63nI+sSr1ByxmPToP5K5bukaVscyeCJcF9guVNJ1g==}
-    peerDependencies:
-      '@types/react': '*'
-
   '@types/react@19.2.17':
     resolution: {integrity: sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==}
 
@@ -3761,56 +3745,67 @@ packages:
     resolution: {integrity: sha512-xhM6mCZ94kx7L5D4fJEVqqeXS4eGAz+ngWhbM2y7r8Ix2Lc43j6Osyw4KGGTQi1XTy3MKgs6x5DaCe1vw0i3tQ==}
     cpu: [arm64]
     os: [darwin]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-darwin-x64@0.6.4':
     resolution: {integrity: sha512-y2uohdKpLzpT9hQyAbdNngeUiUXc9AtF05vyiPS4RmA03+HGCM7BG+bvU1nRIbNcQzf0moU7fasH1RBkoGIjjg==}
     cpu: [x64]
     os: [darwin]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-freebsd-x64@0.6.4':
     resolution: {integrity: sha512-O9lh8SUb+jfQ/unwTHhicqMcMZiziB1j9uh4/LDjipFS/H5JeI7QEDq0bPg5ufRXAmLj8eFb0cA6NKeam8rnYA==}
     cpu: [x64]
     os: [freebsd]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-linux-arm-gnu@0.6.4':
     resolution: {integrity: sha512-0mBy8yD3heZycZtJtINwnMFlxt3k7FF8T8ZHgHwW/q7YpC0IAKca8W3ozlZnZJhLZ0DLorIdyiQpcLdcRy74BA==}
     cpu: [arm]
     os: [linux]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-linux-arm-musl@0.6.4':
     resolution: {integrity: sha512-XSmsvd2J0QqZn+792b417zoF6qSl001pPFgZxcuqHWnefnnU75rmv4GhvgouH4AEn/b9T5uYxUzQwj6XQOXPuA==}
     cpu: [arm]
     os: [linux]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-linux-arm64-gnu@0.6.4':
     resolution: {integrity: sha512-tGuTry4bjDwoTVZglNtvOlA5WFh4O49LieTuwF2K/DYTQbx1ej7giXsTj7qCT7vikn3G6eddtrCS90jt0ZGmcw==}
     cpu: [arm64]
     os: [linux]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-linux-arm64-musl@0.6.4':
     resolution: {integrity: sha512-0aKQC3ypiBdNEj8F34dAttkbJxe+Xtvt+LGY1c1kPTtvUw1p0CQpjRgw6AtWVPDlHnNzGKIJhDNHCqKulD2umg==}
     cpu: [arm64]
     os: [linux]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-linux-x64-gnu@0.6.4':
     resolution: {integrity: sha512-UeA7WWPRW7JsTNUbXKOzkCsEsd+LmK6q/hyZN4qR01kSqI+0VhSFIEKh1At89Nga6dUVPY9lyij9PNw3TTYq4Q==}
     cpu: [x64]
     os: [linux]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-linux-x64-musl@0.6.4':
     resolution: {integrity: sha512-bcvB1F1zHfrxcVfmegsJY5K11FccXpNN2dfO255YVtfPb65kwxUitb9lBGQCEN99EHpZpiwNGwd7KsINJrOhKw==}
     cpu: [x64]
     os: [linux]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-win32-arm64@0.6.4':
     resolution: {integrity: sha512-4Uy1fZH+vGZE1jjZLj67kHUotQmxWYYoouZ5Bn9SrpH0N0j4dDQxF96Nc5Lu/7UwDk4SqysvsA3xylp/3ybzgw==}
     cpu: [arm64]
     os: [win32]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-analyzer/binding-win32-x64@0.6.4':
     resolution: {integrity: sha512-0AVv8l/lq7WEXvVhafYJiyJQhGVsNCgvYBaRw/cWSoxCoPAW2QJ9SnVFYohKl8NPsGC8KOAeE8tsSGVOeA+O3w==}
     cpu: [x64]
     os: [win32]
+    deprecated: yuku-analyzer runs on yuku-core since 0.14
 
   '@yuku-toolchain/types@0.5.43':
     resolution: {integrity: sha512-kSpvPntnXw5+lYjO71ffBEnQ5ycQ74KGIYknh0TS4xeyCuBkOqxyJumxZkMhLBBUCLjDAbx2+Icnr3Zh4ftjpQ==}
@@ -5785,11 +5780,6 @@ packages:
     resolution: {integrity: sha512-H0dkQoCa3b2VEeKQBOxFph+JAbcrQdE7KC0UkqwpLmv2EC4P41QXP+rqo9wYodACiG5/WM5s9oDApTU8utwj9g==}
     engines: {node: '>= 0.4'}
 
-  its-fine@2.0.0:
-    resolution: {integrity: sha512-KLViCmWx94zOvpLwSlsx6yOCeMhZYaxrJV87Po5k/FoZzcPSahvK5qJ7fYhS61sZi5ikmh2S3Hz55A2l3U69ng==}
-    peerDependencies:
-      react: ^19.0.0
-
   javascript-natural-sort@0.7.1:
     resolution: {integrity: sha512-nO6jcEfZWQXDhOiBtG2KvKyEptz7RVbpGP4vTD2hLBdmNQSsCiicO2Ioinv6UI4y9ukqnBpy+XZ9H6uLNgJTlw==}
 
@@ -5916,9 +5906,6 @@ packages:
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
-
-  konva@9.3.22:
-    resolution: {integrity: sha512-yQI5d1bmELlD/fowuyfOp9ff+oamg26WOCkyqUyc+nczD/lhRa3EvD2MZOoc4c1293TAubW9n34fSQLgSeEgSw==}
 
   language-subtag-registry@0.3.23:
     resolution: {integrity: sha512-0K65Lea881pHotoGEa5gDlMxt3pctLi2RplBb7Ezh4rRdLEOtgi7n4EwK9lamnUCkKBqaeKRVebTq6BAxSkpXQ==}
@@ -7011,13 +6998,6 @@ packages:
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
-  react-konva@19.2.5:
-    resolution: {integrity: sha512-AdsuDB59GdB86QdenTAqRzr6Tfw3z9x9Opxo4BoqDjdNLsjekF9a1VhN4FlMPvg0qtrMl3d4dNmagaUTGH7fSA==}
-    peerDependencies:
-      konva: ^8.0.1 || ^7.2.5 || ^9.0.0 || ^10.0.0
-      react: ^19.2.0
-      react-dom: ^19.2.0
-
   react-native@0.86.2:
     resolution: {integrity: sha512-zbJXGZpwfZGA79Z9ob6Atvfx4nAQL8yJBa35s58E4Oo+khPykfQP2sTeumkKbjwajFYfVayg8pj7Il9nIfTk7A==}
     engines: {node: ^20.19.4 || ^22.13.0 || ^24.3.0 || >= 25.0.0}
@@ -7037,12 +7017,6 @@ packages:
     peerDependencies:
       react: ^0.14 || ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^0.14 || ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  react-reconciler@0.33.0:
-    resolution: {integrity: sha512-KetWRytFv1epdpJc3J4G75I4WrplZE5jOL7Yq0p34+OVOKF4Se7WrdIdVC45XsSSmUTlht2FM/fM1FZb1mfQeA==}
-    engines: {node: '>=0.10.0'}
-    peerDependencies:
-      react: ^19.2.0
 
   react-redux@9.3.0:
     resolution: {integrity: sha512-KQopgqFo/p/fgmAs5qz6p5RWaNAzq40WAu7fJIXnQpYxFPbJYtsJPWvGeF2rOBaY/kEuV77AVsX8TsQzKm+A/g==}
@@ -11714,14 +11688,6 @@ snapshots:
     dependencies:
       '@types/react': 19.2.17
 
-  '@types/react-reconciler@0.28.9(@types/react@19.2.17)':
-    dependencies:
-      '@types/react': 19.2.17
-
-  '@types/react-reconciler@0.33.0(@types/react@19.2.17)':
-    dependencies:
-      '@types/react': 19.2.17
-
   '@types/react@19.2.17':
     dependencies:
       csstype: 3.2.3
@@ -14200,13 +14166,6 @@ snapshots:
       has-symbols: 1.1.0
       set-function-name: 2.0.2
 
-  its-fine@2.0.0(@types/react@19.2.17)(react@19.2.4):
-    dependencies:
-      '@types/react-reconciler': 0.28.9(@types/react@19.2.17)
-      react: 19.2.4
-    transitivePeerDependencies:
-      - '@types/react'
-
   javascript-natural-sort@0.7.1: {}
 
   jayson@4.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
@@ -14366,8 +14325,6 @@ snapshots:
   kleur@3.0.3: {}
 
   kleur@4.1.5: {}
-
-  konva@9.3.22: {}
 
   language-subtag-registry@0.3.23: {}
 
@@ -15814,18 +15771,6 @@ snapshots:
 
   react-is@18.3.1: {}
 
-  react-konva@19.2.5(@types/react@19.2.17)(konva@9.3.22)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
-    dependencies:
-      '@types/react-reconciler': 0.33.0(@types/react@19.2.17)
-      its-fine: 2.0.0(@types/react@19.2.17)(react@19.2.4)
-      konva: 9.3.22
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-      react-reconciler: 0.33.0(react@19.2.4)
-      scheduler: 0.27.0
-    transitivePeerDependencies:
-      - '@types/react'
-
   react-native@0.86.2(@babel/core@7.29.7)(@types/react@19.2.17)(bufferutil@4.1.0)(react@19.2.4)(utf-8-validate@6.0.6):
     dependencies:
       '@react-native/assets-registry': 0.86.2
@@ -15875,11 +15820,6 @@ snapshots:
     dependencies:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-
-  react-reconciler@0.33.0(react@19.2.4):
-    dependencies:
-      react: 19.2.4
-      scheduler: 0.27.0
 
   react-redux@9.3.0(@types/react@19.2.17)(react@19.2.4)(redux@5.0.1):
     dependencies:

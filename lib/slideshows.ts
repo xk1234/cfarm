@@ -10,7 +10,6 @@ import {
 import os from "node:os"
 import path from "node:path"
 
-import { toDataUrl } from "@/lib/data-url"
 import {
   deleteStoredAsset,
   persistStoredAssetsInDir,
@@ -37,14 +36,14 @@ import {
   type SlideshowOvalIconLayout,
   type SlideshowSlide,
   type SlideshowTextItem,
-} from "@/lib/slideshow-renderer"
+} from "@/lib/render/legacy/slideshow-record"
 import { fetchWithTimeout } from "@/lib/http"
 export type {
   SlideshowOverlayImage,
   SlideshowOvalIconLayout,
   SlideshowSlide,
   SlideshowTextItem,
-} from "@/lib/slideshow-renderer"
+} from "@/lib/render/legacy/slideshow-record"
 
 export type SlideshowStatus = "exported" | "failed"
 
@@ -361,29 +360,20 @@ export async function renderOneStagedSlideshowSlide(input: {
   assertSlideshowScratch(input.scratchDir)
   const slide = input.record.images[input.slideIndex]
   if (!slide) throw new Error("Slide index is out of range")
-  const { configureFontconfig } = await import("@/lib/font-config")
-  configureFontconfig()
-  const { renderSlideshowSlideBuffers } =
-    await import("@/lib/slideshow-raster-renderer")
-  const { svg, png } = await renderSlideshowSlideBuffers({
+  const { renderLegacySlidePng } =
+    await import("@/lib/render/legacy/render-legacy-slide")
+  const png = await renderLegacySlidePng({
     slide,
-    sourceUrl: await imageDataUri(
-      input.source.filePath,
-      input.source.extension
-    ),
-    overlayUrl: input.overlay
-      ? await imageDataUri(input.overlay.filePath, input.overlay.extension)
+    settings: input.record.settings,
+    source: await readImageBytes(input.source.filePath),
+    overlay: input.overlay
+      ? await readImageBytes(input.overlay.filePath)
       : undefined,
-    aspectRatio: input.record.settings.aspect_ratio,
-    font: input.record.settings.font,
-    iconUrls: await Promise.all(
-      (input.icons ?? []).map((icon) =>
-        imageDataUri(icon.filePath, icon.extension)
-      )
+    icons: await Promise.all(
+      (input.icons ?? []).map((icon) => readImageBytes(icon.filePath))
     ),
   })
   const base = `slide-${String(input.slideIndex + 1).padStart(3, "0")}`
-  await writeFile(path.join(input.scratchDir, `${base}.svg`), svg)
   await writeFile(path.join(input.scratchDir, `${base}.png`), png)
   return {
     publicUrl: outputFileUrl(input.record.id, `${base}.png`),
@@ -1034,6 +1024,7 @@ async function writeSlideshowOutputs(
         sourceUrl,
         aspectRatio: record.settings.aspect_ratio,
         font: record.settings.font,
+        backgroundColor: record.settings.background_color,
       })
       outputs.push(output)
       outputImages.push(output.publicUrl)
@@ -1101,6 +1092,7 @@ async function writeSlideshowSlideOutput(
       sourceUrl: slide.source_image_url || slide.image_url,
       aspectRatio: record.settings.aspect_ratio,
       font: record.settings.font,
+      backgroundColor: record.settings.background_color,
     })
     await persistStoredAssetsInDir(scratchDir, logicalOutputDir)
     return {
@@ -1176,6 +1168,7 @@ async function materializeSlideImage(input: {
   sourceUrl: string
   aspectRatio: string
   font: string
+  backgroundColor?: string
 }) {
   const source = await materializeSlideSource(input)
   const overlaySourceUrl =
@@ -1197,26 +1190,25 @@ async function materializeSlideImage(input: {
       })
     )
   )
-  const fileName = `slide-${String(input.slideIndex + 1).padStart(3, "0")}.svg`
-  const { configureFontconfig } = await import("@/lib/font-config")
-  configureFontconfig()
-  const { renderSlideshowSlideBuffers } =
-    await import("@/lib/slideshow-raster-renderer")
-  const { svg, png } = await renderSlideshowSlideBuffers({
+  const { renderLegacySlidePng } =
+    await import("@/lib/render/legacy/render-legacy-slide")
+  const png = await renderLegacySlidePng({
     slide: input.slide,
-    sourceUrl: await imageDataUri(source.filePath, source.extension),
-    overlayUrl: overlaySource
-      ? await imageDataUri(overlaySource.filePath, overlaySource.extension)
+    settings: {
+      aspect_ratio: input.aspectRatio,
+      font: input.font,
+      background_color: input.backgroundColor,
+    },
+    source: await readImageBytes(source.filePath),
+    overlay: overlaySource
+      ? await readImageBytes(overlaySource.filePath)
       : undefined,
-    aspectRatio: input.aspectRatio,
-    font: input.font,
-    iconUrls: await Promise.all(
-      iconSources.map((icon) => imageDataUri(icon.filePath, icon.extension))
+    icons: await Promise.all(
+      iconSources.map((icon) => readImageBytes(icon.filePath))
     ),
   })
-  const svgPath = path.join(input.outputDir, fileName)
-  await writeFile(svgPath, svg)
   const rasterFileName = `slide-${String(input.slideIndex + 1).padStart(3, "0")}.png`
+  const fileName = rasterFileName
   const rasterPath = path.join(input.outputDir, rasterFileName)
   await writeFile(rasterPath, png)
 
@@ -1313,33 +1305,8 @@ async function normalizeMaterializedImageSource(input: {
   }
 }
 
-async function imageDataUri(filePath: string, extension: string) {
-  const bytes = await readFile(/* turbopackIgnore: true */ filePath)
-  if ([".avif", ".gif", ".webp"].includes(extension.toLowerCase())) {
-    const sharp = (await import("sharp")).default
-    const png = await sharp(bytes, { animated: false }).png().toBuffer()
-    return toDataUrl(png, "image/png")
-  }
-  return toDataUrl(bytes, imageMimeType(extension))
-}
-
-function imageMimeType(extension: string) {
-  switch (extension.toLowerCase()) {
-    case ".avif":
-      return "image/avif"
-    case ".gif":
-      return "image/gif"
-    case ".png":
-      return "image/png"
-    case ".svg":
-      return "image/svg+xml"
-    case ".webp":
-      return "image/webp"
-    case ".jpeg":
-    case ".jpg":
-    default:
-      return "image/jpeg"
-  }
+async function readImageBytes(filePath: string) {
+  return new Uint8Array(await readFile(/* turbopackIgnore: true */ filePath))
 }
 
 async function copyLocalAsset(sourceUrl: string, filePath: string) {
