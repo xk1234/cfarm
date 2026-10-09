@@ -36,11 +36,8 @@ timezone, timestamps, publishing targets, and error details.
 
 ## Interactions
 
-The calendar has no form for creating a post. A manually composed scheduled
-item is created through [Compose](/docs/ui/compose/compose) by choosing a future
-time and selecting Schedule. Template cadence is configured separately in
-[Template schedule](/docs/ui/templates/schedule); the Templates action
-opens that workspace rather than duplicating its controls here.
+The calendar has no form for creating a post. Scheduled items come from the
+slideshow publish dialog.
 
 Month, week, today, previous, and next controls change the requested date
 range. Filters narrow both the events and summary counts and persist in browser

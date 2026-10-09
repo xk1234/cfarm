@@ -1,12 +1,4 @@
 {
   "title": "Public and system",
-  "pages": [
-    "index",
-    "landing",
-    "auth",
-    "public-slideshow",
-    "public-generated-video",
-    "docs",
-    "legal"
-  ]
+  "pages": ["index", "landing", "auth", "public-slideshow", "docs", "legal"]
 }

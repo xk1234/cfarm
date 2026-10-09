@@ -11,7 +11,7 @@ const nextConfig = {
     optimizePackageImports: ["radix-ui"],
   },
   outputFileTracingIncludes: {
-    "/*": ["assets/fonts/Inter-Variable.ttf"],
+    "/*": ["assets/fonts/**"],
   },
   serverExternalPackages: ["canvas", "fabric"],
   async headers() {

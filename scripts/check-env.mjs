@@ -12,7 +12,6 @@ const verbose = process.argv.includes("--verbose")
 const pruneUnused = process.argv.includes("--prune-unused")
 const requiredLocal = new Set([
   "DATABASE_URL",
-  "OPENROUTER_API_KEY",
 ])
 const runtimeProvided = new Set([
   "NODE_ENV",

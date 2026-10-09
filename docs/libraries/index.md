@@ -81,9 +81,8 @@ third-party SDK dependencies.
 | `@aws-sdk/s3-request-presigner` |      `^3.1103.0` | Produces short-lived direct download URLs for private Railway objects.                                                                           | `lib/railway/object-storage.ts`                                                  |
 | `node-railway`                 |        `^26.2.0` | Temporary source adapter for TablesDB rows, Storage files, and one-time migration reads. Authentication and user preferences are owned by Clerk. | `lib/railway.ts`, `lib/json-store.ts`, `railway/functions/`, migration scripts |
 
-Railway remains the runtime default during the additive migration. The target
-topology, parity gates, and removal sequence are in
-[Railway migration](/docs/data/railway-migration). Local Railway behavior is
+Railway remains the runtime default until the backend moves to Appwrite. Local
+Railway behavior is
 documented in [Local Railway](/docs/data/local-railway) and remains available
 until the cutover is complete.
 
@@ -137,7 +136,7 @@ not through a direct npm video-encoding library.
 
 | Library                       | Declared version | Role in LumenClip                                                      | Representative usage                                |
 | ----------------------------- | ---------------: | ---------------------------------------------------------------------- | --------------------------------------------------- |
-| `typescript`                  |             `^5` | Static typing, `tsc` checks, and TypeScript-aware maintenance scripts. | `tsconfig.json`, `scripts/sync-function-shared.mjs` |
+| `typescript`                  |             `^5` | Static typing, `tsc` checks, and TypeScript-aware maintenance scripts. | `tsconfig.json`                                     |
 | `@types/node`                 |            `^20` | Node.js API declarations.                                              | Server code, scripts, tests                         |
 | `@types/react`                |            `^19` | React declarations.                                                    | TSX components                                      |
 | `@types/react-dom`            |            `^19` | React DOM declarations.                                                | React rendering boundary                            |
