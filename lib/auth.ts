@@ -11,7 +11,6 @@ export type AuthUser = {
 }
 
 export type LumenClipUserPreferences = Record<string, unknown> & {
-  postfastDisconnectedIntegrationIds?: string[]
   disabledMcpToolNames?: string[]
 }
 

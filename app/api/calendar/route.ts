@@ -1,87 +1,41 @@
 import { NextResponse } from "next/server"
 
-import { withHandler } from "@/lib/api"
-import { calendarItems } from "@/lib/calendar-feed"
-import {
-  calendarItemMatchesFilters,
-  type CalendarFilters,
-  type CalendarItem,
-} from "@/lib/calendar-items"
-import { getRepositories } from "@/lib/data"
-import { clean } from "@/lib/guards"
-import { requireWorkspaceId } from "@/lib/workspace"
+import { ApiError } from "@/lib/api"
+import { listCalendarItems, MAX_CALENDAR_RANGE_DAYS } from "@/lib/calendar-feed"
+import { publishingRoute, requireWorkspace } from "@/lib/publishing/http"
 
 export const dynamic = "force-dynamic"
 
-export const GET = withHandler(async (request: Request) => {
-  const workspaceId = await requireWorkspaceId()
-  const { searchParams } = new URL(request.url)
-  const now = new Date()
-  const parsedFrom = validDate(searchParams.get("from"))
-  const parsedTo = validDate(searchParams.get("to"))
-  if (
-    (searchParams.has("from") && !parsedFrom) ||
-    (searchParams.has("to") && !parsedTo)
-  ) {
-    return NextResponse.json(
-      { error: "from and to must be valid ISO dates" },
-      { status: 400 }
-    )
-  }
-  const from = parsedFrom ?? startOfMonth(now)
-  const to = parsedTo ?? endOfMonth(now)
-  if (to < from) {
-    return NextResponse.json({ error: "to must be after from" }, { status: 400 })
-  }
+const DAY_MS = 24 * 60 * 60 * 1000
 
-  const items = await calendarItems(getRepositories(), workspaceId, from, to)
-  const filtered = items.filter((item) =>
-    calendarItemMatchesFilters(item, calendarFilters(searchParams))
-  )
-  return NextResponse.json({
-    items: filtered,
-    summary: calendarSummary(filtered),
-    range: { from: from.toISOString(), to: to.toISOString() },
-  })
-})
-
-function calendarFilters(searchParams: URLSearchParams): CalendarFilters {
-  return {
-    accounts: filterSet(searchParams, "accounts"),
-    platforms: filterSet(searchParams, "platforms", true),
-    statuses: filterSet(searchParams, "statuses"),
-    sourceTypes: filterSet(searchParams, "sourceType"),
-  }
-}
-
-function filterSet(searchParams: URLSearchParams, key: string, lowercase = false) {
-  const values = searchParams
-    .getAll(key)
-    .flatMap((value) => value.split(","))
-    .map((value) => clean(value))
-    .filter(Boolean)
-    .map((value) => (lowercase ? value.toLowerCase() : value))
-  return values.length ? new Set(values) : undefined
-}
-
-function calendarSummary(items: CalendarItem[]) {
-  return {
-    needsAction: items.filter((item) => item.status === "needs_action" || item.status === "draft").length,
-    failed: items.filter((item) => ["generation_failed", "failed"].includes(item.status)).length,
-    planned: items.filter((item) => item.status === "planned").length,
-  }
-}
-
-function validDate(value: string | null) {
+function parseDate(value: string | null): Date | null {
   if (!value) return null
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) ? date : null
+  const ms = Date.parse(value)
+  return Number.isFinite(ms) ? new Date(ms) : null
 }
 
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
-function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999)
-}
+/**
+ * Scheduled, publishing, published and failed posts in `[from, to)`
+ * (defaults to the current UTC month).
+ */
+export const GET = publishingRoute(async (request) => {
+  const { workspaceId } = await requireWorkspace()
+  const params = new URL(request.url).searchParams
+  const from = parseDate(params.get("from"))
+  const to = parseDate(params.get("to"))
+  if ((params.has("from") && !from) || (params.has("to") && !to)) {
+    throw new ApiError(400, "from and to must be valid ISO dates")
+  }
+  const now = new Date()
+  const start = from ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const end = to ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  if (end <= start) throw new ApiError(400, "to must be after from")
+  if (end.getTime() - start.getTime() > MAX_CALENDAR_RANGE_DAYS * DAY_MS) {
+    throw new ApiError(400, `The range can span at most ${MAX_CALENDAR_RANGE_DAYS} days`)
+  }
+  const { items, summary } = await listCalendarItems(workspaceId, {
+    from: start.toISOString(),
+    to: end.toISOString(),
+  })
+  return NextResponse.json({ from: start.toISOString(), to: end.toISOString(), items, summary })
+})

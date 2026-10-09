@@ -36,7 +36,7 @@ describe("SlideshowPublishActions", () => {
     const html = renderActionLabels("https://www.tiktok.com/@account/video/1")
 
     expect(html).toContain("Open live post")
-    expect(html).toContain("Link published post")
+    expect(html).not.toContain("Link published post")
     expect(html).toContain("Post to social")
   })
 

@@ -1,105 +1,57 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { resetMemoryRepositories, type Repositories } from "@/lib/data"
-import type { ResolvedSpec } from "@/lib/render/spec"
 
-import { DELETE, PATCH } from "./items/[id]/route"
+import { GET as getSummary } from "./summary/route"
 import { GET } from "./route"
 
-// vitest.setup.ts signs everyone in as workspace "vitest-user".
 const WS = "vitest-user"
-const spec: ResolvedSpec = {
-  version: 1,
-  canvas: { width: 1080, height: 1350, background: "#000000" },
-  fonts: [],
-  slides: [{ id: "s1", background: "#000000", layers: [] }],
-}
-
 let repos: Repositories
+
 beforeEach(() => {
   repos = resetMemoryRepositories()
+  vi.stubEnv("SOCIALBU_API_TOKEN", "")
 })
 
-const future = () => new Date(Date.now() + 3 * 24 * 3600 * 1000)
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
-async function seed() {
-  const { value: render } = await repos.renders.create(WS, { spec, source: "ui", createdBy: WS, title: "Kitchen tips" })
-  await repos.renders.markSucceeded(WS, render.id, {
-    slides: [{ index: 0, slideId: "s1", fileId: `${render.id}-01`, mime: "image/png", sizeBytes: 1, width: 1080, height: 1350 }],
-    coverFileId: `${render.id}-01`,
-  })
-  const at = future()
-  const { value: post } = await repos.posts.upsertIntent(WS, {
-    renderId: render.id,
-    provider: "tiktok",
-    accountId: "42",
-    caption: "Three kitchen tips",
-    publishAt: at.toISOString(),
-    intentKey: `${render.id}:42`,
-    createdBy: WS,
-  })
-  await repos.jobs.enqueue({ workspaceId: WS, type: "render-slideshow", payload: { renderId: "r-queued" } })
-  return { render, post, at }
+async function calendar(query: string) {
+  return GET(new Request(`http://localhost/api/calendar${query}`), undefined)
 }
 
-const ctx = (id: string) => ({ params: Promise.resolve({ id }) })
-
-describe("GET /api/calendar", () => {
-  it("lists the workspace's scheduled posts and queued renders", async () => {
-    const { render, post, at } = await seed()
-    const from = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
-    const to = new Date(at.getTime() + 24 * 3600 * 1000).toISOString()
-    const res = await GET(new Request(`http://localhost/api/calendar?from=${from}&to=${to}`))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    const postItem = body.items.find((item: { id: string }) => item.id === `post:${post.id}`)
-    expect(postItem).toMatchObject({
-      status: "scheduled",
-      sourceId: render.id,
-      excerpt: "Three kitchen tips",
-      previewUrl: `/api/files/renders/${render.id}-01`,
-      targets: [{ integrationId: "42", provider: "tiktok", status: "scheduled" }],
-    })
-    expect(body.items.some((item: { status: string }) => item.status === "generating")).toBe(true)
+describe("/api/calendar", () => {
+  it("validates the range", async () => {
+    expect((await calendar("?from=nope")).status).toBe(400)
+    expect((await calendar("?from=2026-10-10T00:00:00Z&to=2026-10-01T00:00:00Z")).status).toBe(400)
+    expect((await calendar("?from=2026-01-01T00:00:00Z&to=2026-12-01T00:00:00Z")).status).toBe(400)
   })
 
-  it("rejects invalid ranges", async () => {
-    expect((await GET(new Request("http://localhost/api/calendar?from=nope"))).status).toBe(400)
-  })
-})
+  it("returns posts in the range for this workspace only", async () => {
+    for (const [ws, key, publishAt] of [
+      [WS, "a", "2026-10-05T09:00:00.000Z"],
+      [WS, "b", "2026-12-05T09:00:00.000Z"],
+      ["other", "c", "2026-10-06T09:00:00.000Z"],
+    ] as const) {
+      await repos.posts.upsertIntent(ws, {
+        renderId: "render-1",
+        provider: "tiktok",
+        accountId: "101",
+        status: "scheduled",
+        publishAt,
+        caption: "Hello",
+        intentKey: key,
+        createdBy: ws,
+      })
+    }
+    const response = await calendar("?from=2026-10-01T00:00:00Z&to=2026-11-01T00:00:00Z")
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as { items: Array<{ datetime: string; status: string }>; summary: unknown }
+    expect(payload.items.map((item) => [item.datetime, item.status])).toEqual([["2026-10-05T09:00:00.000Z", "scheduled"]])
+    expect(payload.summary).toEqual({ needsAction: 0, failed: 0, planned: 1 })
 
-describe("/api/calendar/items/[id]", () => {
-  it("reschedules and cancels a locally scheduled post", async () => {
-    const { post } = await seed()
-    const later = new Date(future().getTime() + 3600_000).toISOString()
-    const patched = await PATCH(
-      new Request("http://localhost", { method: "PATCH", body: JSON.stringify({ scheduledAt: later }) }),
-      ctx(`post:${post.id}`)
-    )
-    expect(patched.status).toBe(200)
-    expect((await repos.posts.get(WS, post.id))?.publishAt).toBe(later)
-
-    const removed = await DELETE(new Request("http://localhost", { method: "DELETE" }), ctx(post.id))
-    expect(removed.status).toBe(200)
-    expect((await repos.posts.get(WS, post.id))?.status).toBe("canceled")
-  })
-
-  it("refuses posts already handed to SocialBu", async () => {
-    const { post } = await seed()
-    await repos.posts.update(WS, post.id, { providerPostId: "sb-1" })
-    expect((await DELETE(new Request("http://localhost", { method: "DELETE" }), ctx(post.id))).status).toBe(409)
-  })
-
-  it("returns 404 for other workspaces' posts", async () => {
-    const { value: foreign } = await repos.posts.upsertIntent("user_other", {
-      renderId: "r",
-      provider: "tiktok",
-      accountId: "1",
-      caption: "",
-      publishAt: future().toISOString(),
-      intentKey: "x",
-      createdBy: "user_other",
-    })
-    expect((await DELETE(new Request("http://localhost", { method: "DELETE" }), ctx(foreign.id))).status).toBe(404)
+    const summary = await getSummary(new Request("http://localhost/api/calendar/summary"), undefined)
+    expect(await summary.json()).toMatchObject({ summary: { needsAction: 0, failed: 0 } })
   })
 })

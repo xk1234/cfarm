@@ -18,12 +18,8 @@ import { randomBytes } from "node:crypto"
 
 import type { Job, JobType, Repositories } from "@/lib/data"
 
-import {
-  getJobHandler,
-  PermanentJobError,
-  RetryJobError,
-  type JobLogger,
-} from "./handlers"
+import { isPermanentJobError, PermanentJobError, RetryJobError } from "./errors"
+import { getJobHandler, type JobLogger } from "./handlers"
 
 export type WorkerOptions = {
   repos: Repositories
@@ -98,8 +94,7 @@ export function createWorker(options: WorkerOptions) {
     const started = Date.now()
     try {
       if (!handler) throw new PermanentJobError(`No handler for job type "${job.type}".`)
-      const result = await handler(job.payload as never, {
-        job: job as never,
+      const result = await handler(job as never, {
         repos,
         workerId,
         renewLease,
@@ -117,7 +112,7 @@ export function createWorker(options: WorkerOptions) {
       const message = errorMessage(error)
       try {
         const failed = await repos.jobs.fail(job.id, workerId, message, {
-          permanent: error instanceof PermanentJobError,
+          permanent: isPermanentJobError(error),
           retryAt: error instanceof RetryJobError ? error.retryAt.toISOString() : undefined,
         })
         log.warn("job failed", { jobId: job.id, type: job.type, attempt: job.attempt, status: failed.status, error: message })

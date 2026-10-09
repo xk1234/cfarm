@@ -1,126 +1,70 @@
 /**
- * Calendar feed on the Appwrite data layer: scheduled/published posts
- * (`posts`) plus queued or failed render jobs, in the CalendarItem shape the
- * content calendar renders.
+ * Server-side calendar projection: `posts` rows in a date range, joined with
+ * their renders (title, cover) and SocialBu account names.
  */
+import "server-only"
+
+import { getRepositories, type Repositories, type WorkspaceId } from "@/lib/data"
 import {
-  calendarLifecycleForJob,
-  calendarLifecycleForLocalPost,
-  dedupeCalendarItems,
+  calendarItemFromPost,
+  calendarSummary,
+  sortCalendarItems,
   type CalendarItem,
+  type CalendarRenderContext,
+  type CalendarSummary,
 } from "@/lib/calendar-items"
-import type { Job, Post, RenderSummary, Repositories, WorkspaceId } from "@/lib/data"
-import { clean } from "@/lib/guards"
+import { getPublisher, type Publisher } from "@/lib/publishing/publisher"
 
-const DEFAULT_TIMEZONE = "UTC"
+export type CalendarFeedDeps = { repos?: Repositories; publisher?: Publisher }
 
-/** Scheduled/published posts plus queued or failed render jobs in [from, to]. */
-export async function calendarItems(
-  repos: Repositories,
+/** Longest range one request may ask for. */
+export const MAX_CALENDAR_RANGE_DAYS = 62
+
+export async function listCalendarItems(
   workspaceId: WorkspaceId,
-  from: Date,
-  to: Date
-): Promise<CalendarItem[]> {
-  const [posts, jobs] = await Promise.all([
-    repos.posts.listRange(workspaceId, {
-      from: from.toISOString(),
-      to: new Date(to.getTime() + 1).toISOString(),
-    }),
-    repos.jobs.listForWorkspace(workspaceId, { limit: 100 }),
+  range: { from: string; to: string },
+  deps: CalendarFeedDeps = {}
+): Promise<{ items: CalendarItem[]; summary: CalendarSummary }> {
+  const repos = deps.repos ?? getRepositories()
+  const publisher = deps.publisher ?? getPublisher()
+  const [posts, settings] = await Promise.all([
+    repos.posts.listRange(workspaceId, range),
+    repos.settings.get(workspaceId),
   ])
+
   const renderIds = [...new Set(posts.map((post) => post.renderId))]
-  const renders = new Map<string, RenderSummary>()
-  for (const id of renderIds) {
-    const render = await repos.renders.get(workspaceId, id)
-    if (render) renders.set(id, render)
+  const renders = new Map<string, CalendarRenderContext>()
+  await Promise.all(
+    renderIds.map(async (id) => {
+      const render = await repos.renders.get(workspaceId, id)
+      if (!render) return
+      renders.set(id, {
+        id: render.id,
+        title: render.title,
+        createdAt: render.createdAt,
+        completedAt: render.completedAt,
+        ...(render.output?.coverFileId
+          ? { previewUrl: `/api/files/${encodeURIComponent(render.output.coverFileId)}` }
+          : {}),
+      })
+    })
+  )
+
+  const accountNames = new Map<string, string>()
+  if (posts.length && publisher.configured) {
+    const accounts = await publisher.listAccounts().catch(() => [])
+    for (const account of accounts) accountNames.set(account.id, account.name)
   }
-  return dedupeCalendarItems([
-    ...jobs.items.flatMap((job) => jobCalendarItem(job, from, to)),
-    ...posts.flatMap((post) => postCalendarItem(post, renders.get(post.renderId), from, to)),
-  ])
-}
 
-function jobCalendarItem(job: Job, from: Date, to: Date): CalendarItem[] {
-  if (job.type !== "render-slideshow") return []
-  const status = calendarLifecycleForJob(job.status)
-  if (!status) return []
-  const datetime = clean(job.runAt || job.createdAt)
-  if (!inRange(datetime, from, to)) return []
-  return [
-    {
-      id: `job:${job.id}`,
-      status,
-      datetime,
-      timezone: DEFAULT_TIMEZONE,
-      targets: [],
-      source: "job",
-      sourceType: "render",
-      sourceId: "renderId" in job.payload ? job.payload.renderId : job.id,
-      title:
-        status === "generation_failed"
-          ? "Render failed"
-          : job.status === "running"
-            ? "Rendering slideshow"
-            : "Render queued",
-      error: job.error || undefined,
-      links: {},
-      timestamps: { createdAt: job.createdAt, updatedAt: job.updatedAt },
-    },
-  ]
-}
-
-function postCalendarItem(
-  post: Post,
-  render: RenderSummary | undefined,
-  from: Date,
-  to: Date
-): CalendarItem[] {
-  const status = calendarLifecycleForLocalPost(post.status)
-  if (!status) return []
-  const datetime = clean(post.publishedAt ?? post.publishAt ?? post.createdAt)
-  if (!inRange(datetime, from, to)) return []
-  const cover = render?.output?.coverFileId ?? render?.output?.slides[0]?.fileId
-  const editable = post.status === "scheduled" && !post.providerPostId
-  return [
-    {
-      id: `post:${post.id}`,
-      status,
-      datetime,
-      slot: post.publishAt ?? undefined,
-      timezone: DEFAULT_TIMEZONE,
-      targets: [{ integrationId: post.accountId, provider: post.provider, status }],
-      source: "local_post",
-      sourceType: "render",
-      sourceId: post.renderId,
-      title:
-        status === "published"
-          ? "Published post"
-          : status === "failed"
-            ? "Publish failed"
-            : status === "draft"
-              ? "Draft post"
-              : "Scheduled post",
-      excerpt: post.caption || render?.title || undefined,
-      previewUrl: cover ? `/api/files/renders/${encodeURIComponent(cover)}` : undefined,
-      error: post.error ?? undefined,
-      links: {
-        live: post.permalink ?? undefined,
-        cancel: editable ? `/api/calendar/items/${encodeURIComponent(post.id)}` : undefined,
-        reschedule: editable ? `/api/calendar/items/${encodeURIComponent(post.id)}` : undefined,
-      },
-      timestamps: {
-        createdAt: post.createdAt,
-        updatedAt: post.updatedAt,
-        scheduledAt: post.publishAt ?? undefined,
-        publishedAt: post.publishedAt ?? undefined,
-        generatedAt: render?.completedAt ?? undefined,
-        expectedPublishedAt: post.publishedAt ? undefined : (post.publishAt ?? undefined),
-      },
-    },
-  ]
-}
-
-function inRange(value: string, from: Date, to: Date) {
-  const timestamp = Date.parse(value)
-  return Number.isFinite(timestamp) && timestamp >= from.getTime() && timestamp <= to.getTime()
+  const items = sortCalendarItems(
+    posts.flatMap((post) => {
+      const item = calendarItemFromPost(post, {
+        render: renders.get(post.renderId) ?? null,
+        accountName: accountNames.get(post.accountId),
+        timezone: settings.timezone,
+      })
+      return item ? [item] : []
+    })
+  )
+  return { items, summary: calendarSummary(items) }
 }

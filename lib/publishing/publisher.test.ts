@@ -6,9 +6,9 @@ import {
   NotConfiguredPublisher,
   PUBLISHER_NOT_CONNECTED_MESSAGE,
   PublisherNotConfiguredError,
-  PublisherNotImplementedError,
   toSocialBuDateTime,
 } from "./publisher"
+import { SocialBuPublisher } from "./socialbu"
 
 describe("publisher", () => {
   it("degrades to a not-configured publisher without a token", async () => {
@@ -24,7 +24,10 @@ describe("publisher", () => {
   })
 
   it("selects the SocialBu client when a token is set", () => {
-    expect(() => getPublisher({ SOCIALBU_API_TOKEN: "t" })).toThrow(PublisherNotImplementedError)
+    const publisher = getPublisher({ SOCIALBU_API_TOKEN: "t" })
+    expect(publisher).toBeInstanceOf(SocialBuPublisher)
+    expect(publisher.configured).toBe(true)
+    expect(publisher.status()).toEqual({ configured: true, provider: "socialbu" })
   })
 
   it("formats publish_at as UTC Y-m-d H:i:s", () => {

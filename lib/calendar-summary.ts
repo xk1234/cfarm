@@ -1,42 +1,36 @@
+/**
+ * Home-screen alert counts: failed posts and posts scheduled in the next week.
+ */
 import "server-only"
 
-import { getCurrentUser } from "@/lib/auth"
 import { getRepositories, type Repositories, type WorkspaceId } from "@/lib/data"
 
 export type CalendarAlertSummary = {
-  /** Draft posts waiting for the user to schedule or publish them. */
+  /** Kept for the home view; nothing needs manual action with SocialBu. */
   needsAction: number
-  /** Failed posts and failed renders in the summary window. */
+  /** Failed posts in the last 30 days. */
   failed: number
+  /** Posts scheduled in the next 7 days. */
+  upcoming: number
 }
 
-const WINDOW_BACK_MS = 30 * 24 * 3600 * 1000
-const WINDOW_AHEAD_MS = 90 * 24 * 3600 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
 
-export async function calendarAlertSummaryFor(
+export async function calendarAlertSummary(
   workspaceId: WorkspaceId,
-  options: { repos?: Repositories; now?: Date } = {}
+  deps: { repos?: Repositories; now?: () => Date } = {}
 ): Promise<CalendarAlertSummary> {
-  const repos = options.repos ?? getRepositories()
-  const now = options.now ?? new Date()
-  const [posts, failedRenders] = await Promise.all([
-    repos.posts.listRange(workspaceId, {
-      from: new Date(now.getTime() - WINDOW_BACK_MS).toISOString(),
-      to: new Date(now.getTime() + WINDOW_AHEAD_MS).toISOString(),
-    }),
-    repos.renders.list(workspaceId, { status: "failed", limit: 100 }),
-  ])
-  const recentFailedRenders = failedRenders.items.filter(
-    (render) => Date.parse(render.createdAt) >= now.getTime() - WINDOW_BACK_MS
-  ).length
+  const repos = deps.repos ?? getRepositories()
+  const now = (deps.now ?? (() => new Date()))().getTime()
+  const posts = await repos.posts.listRange(workspaceId, {
+    from: new Date(now - 30 * DAY_MS).toISOString(),
+    to: new Date(now + 7 * DAY_MS).toISOString(),
+  })
   return {
-    needsAction: posts.filter((post) => post.status === "draft").length,
-    failed: posts.filter((post) => post.status === "failed").length + recentFailedRenders,
+    needsAction: 0,
+    failed: posts.filter((post) => post.status === "failed").length,
+    upcoming: posts.filter(
+      (post) => post.status === "scheduled" && !!post.publishAt && Date.parse(post.publishAt) >= now
+    ).length,
   }
-}
-
-export async function calendarAlertSummary(): Promise<CalendarAlertSummary> {
-  const user = await getCurrentUser()
-  if (!user) return { needsAction: 0, failed: 0 }
-  return calendarAlertSummaryFor(user.$id)
 }

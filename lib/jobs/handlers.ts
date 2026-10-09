@@ -1,17 +1,29 @@
 /**
- * Job handler registry for the Railway worker (scripts/worker.mts).
+ * Job handler registry for the Railway worker (scripts/worker.mts →
+ * lib/jobs/worker.ts), which claims rows from the Appwrite `jobs` table with
+ * lease rows (docs/refactor/03 §4) and calls the handler for `job.type`.
  *
- * One handler per `JobType`. Feature owners replace the placeholder entries in
- * `DEFAULT_JOB_HANDLERS` with their implementation (import it here), or call
- * `registerJobHandler` at startup. Handlers must be idempotent: a job can run
- * again after a crash or an expired lease (renders overwrite `<renderId>-NN`).
+ * Handlers must be idempotent: a job can run again after a crash or an expired
+ * lease. Return a JSON-serialisable result. Errors are classified by
+ * lib/jobs/errors.ts (`PermanentJobError`, `RetryJobError`, anything else
+ * retries with backoff).
  *
- * Errors:
- * - throw `PermanentJobError` to stop retrying (the job becomes `dead`),
- * - throw `RetryJobError` to choose the next attempt time,
- * - any other error retries with exponential backoff until `maxAttempts`.
+ * Registered: `render-slideshow` (lib/jobs/render-slideshow.ts),
+ * `publish-post` (lib/publishing/service.ts), `notify` (lib/notifications.ts).
  */
-import type { Job, JobPayloads, JobType, Repositories } from "@/lib/data"
+import type { Job, JobType, Repositories } from "@/lib/data"
+import { deliverNotification } from "@/lib/notifications"
+import type { Publisher } from "@/lib/publishing/publisher"
+import { runPublishPostJob } from "@/lib/publishing/service"
+
+import { JobHandlerNotRegisteredError, PermanentJobError } from "./errors"
+
+export {
+  isPermanentJobError,
+  JobHandlerNotRegisteredError,
+  PermanentJobError,
+  RetryJobError,
+} from "./errors"
 
 export type JobLogger = {
   info(message: string, fields?: Record<string, unknown>): void
@@ -19,74 +31,48 @@ export type JobLogger = {
   error(message: string, fields?: Record<string, unknown>): void
 }
 
-export type JobContext<T extends JobType = JobType> = {
-  job: Job<T>
+export type JobContext = {
   repos: Repositories
   workerId: string
   /** Extends the lease; false means another worker now owns the job — stop. */
-  renewLease(): Promise<boolean>
-  log: JobLogger
+  renewLease?: () => Promise<boolean>
+  log?: JobLogger
   /** Aborted when the worker shuts down or loses the lease. */
-  signal: AbortSignal
+  signal?: AbortSignal
+  /** Test seams; production handlers resolve their own defaults. */
+  publisher?: Publisher
+  now?: () => Date
 }
 
-export type JobHandler<T extends JobType = JobType> = (
-  payload: JobPayloads[T],
-  context: JobContext<T>
-) => Promise<unknown>
+export type JobHandler<T extends JobType = JobType> = (job: Job<T>, context: JobContext) => Promise<unknown>
 
-export class PermanentJobError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = "PermanentJobError"
-  }
-}
+export type JobHandlers = { [K in JobType]?: JobHandler<K> }
 
-export class RetryJobError extends Error {
-  readonly retryAt: Date
-  constructor(message: string, retryAt: Date) {
-    super(message)
-    this.name = "RetryJobError"
-    this.retryAt = retryAt
-  }
-}
-
-/** A placeholder ran: the owning feature has not registered its handler yet. */
-export class JobHandlerNotRegisteredError extends RetryJobError {
-  constructor(type: JobType) {
-    super(`No handler is registered for "${type}" jobs yet.`, new Date(Date.now() + 15 * 60_000))
-    this.name = "JobHandlerNotRegisteredError"
-  }
-}
-
-function placeholder<T extends JobType>(type: T): JobHandler<T> {
+/** A handler that keeps the job queued (retry in 15 minutes) instead of losing it. */
+export function placeholderJobHandler<T extends JobType>(type: T): JobHandler<T> {
   return async () => {
     throw new JobHandlerNotRegisteredError(type)
   }
 }
 
-/** `notify`: in-app delivery flips a pending notification to delivered. */
-export const deliverNotification: JobHandler<"notify"> = async ({ notificationId }, { job, repos }) => {
-  if (!job.workspaceId) throw new PermanentJobError("notify jobs must belong to a workspace")
-  const notification = await repos.notifications.get(job.workspaceId, notificationId)
-  if (!notification) throw new PermanentJobError(`notification ${notificationId} not found`)
-  if (notification.status !== "pending") return { status: notification.status, skipped: true }
-  const delivered = await repos.notifications.markDelivered(job.workspaceId, notificationId)
-  return { status: delivered.status }
+export const publishPostHandler: JobHandler<"publish-post"> = (job, context) =>
+  runPublishPostJob(job, { repos: context.repos, publisher: context.publisher, now: context.now })
+
+export const notifyHandler: JobHandler<"notify"> = async (job, context) => {
+  if (!job.workspaceId) throw new PermanentJobError("notify jobs need a workspace")
+  return deliverNotification(job.workspaceId, job.payload.notificationId, {
+    repos: context.repos,
+    now: context.now,
+  })
 }
 
-export const DEFAULT_JOB_HANDLERS: { [K in JobType]: JobHandler<K> } = {
-  // Owner: render engine builder (renders the frozen ResolvedSpec, writes
-  // `<renderId>-NN` to the `renders` bucket, calls renders.markSucceeded).
-  "render-slideshow": placeholder("render-slideshow"),
-  // Owner: publishing builder (uploads the render to SocialBu, creates the post).
-  "publish-post": placeholder("publish-post"),
-  notify: deliverNotification,
+export const DEFAULT_JOB_HANDLERS: JobHandlers = {
+  "render-slideshow": placeholderJobHandler("render-slideshow"),
+  "publish-post": publishPostHandler,
+  notify: notifyHandler,
 }
 
-const registry = new Map<JobType, JobHandler>(
-  Object.entries(DEFAULT_JOB_HANDLERS) as [JobType, JobHandler][]
-)
+const registry = new Map<JobType, JobHandler>(Object.entries(DEFAULT_JOB_HANDLERS) as [JobType, JobHandler][])
 
 export function registerJobHandler<T extends JobType>(type: T, handler: JobHandler<T>): void {
   registry.set(type, handler as unknown as JobHandler)

@@ -5,6 +5,7 @@ import { createMemoryRepositories } from "@/lib/data"
 import {
   JobHandlerNotRegisteredError,
   PermanentJobError,
+  placeholderJobHandler,
   registerJobHandler,
   resetJobHandlers,
   RetryJobError,
@@ -26,9 +27,10 @@ describe("worker", () => {
     const c = clock()
     const repos = createMemoryRepositories({ now: c.now })
     const seen: string[] = []
-    registerJobHandler("render-slideshow", async ({ renderId }, ctx) => {
+    registerJobHandler("render-slideshow", async (job, ctx) => {
+      const { renderId } = job.payload
       seen.push(renderId)
-      expect(await ctx.renewLease()).toBe(true)
+      expect(await ctx.renewLease?.()).toBe(true)
       return { rendered: renderId }
     })
     const { value: job } = await repos.jobs.enqueue({ workspaceId: WS, type: "render-slideshow", payload: { renderId: "r1" } })
@@ -66,6 +68,7 @@ describe("worker", () => {
   it("keeps placeholder jobs queued for a later deploy instead of losing them", async () => {
     const c = clock()
     const repos = createMemoryRepositories({ now: c.now })
+    registerJobHandler("render-slideshow", placeholderJobHandler("render-slideshow"))
     const { value: job } = await repos.jobs.enqueue({ workspaceId: WS, type: "render-slideshow", payload: { renderId: "r1" } })
     await createWorker({ repos, workerId: "w1", now: c.now, log: quiet }).tick()
     const after = await repos.jobs.get(WS, job.id)

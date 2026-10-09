@@ -63,10 +63,7 @@ const GROUPS = {
   publishing: {
     title: "Publishing, calendar, and analytics",
     sections: [
-      "PostFastSocialIntegration",
-      "PostFastPostRecord",
       "CalendarItem",
-      "PostFastMetricSnapshot",
       "TikTokStudioAnalytics",
       "AccountFollowerSnapshot",
     ],
