@@ -94,10 +94,10 @@ export default function LandingPage() {
                 Create account <IconArrowRight className="size-4" />
               </Link>
               <Link
-                href="/product"
+                href="/docs"
                 className="inline-flex items-center gap-2 rounded-app-control border border-brand-border-strong bg-white px-5 py-3 text-sm font-semibold hover:bg-brand-accent-soft"
               >
-                <IconPlayerPlay className="size-4" /> See the product
+                <IconPlayerPlay className="size-4" /> Read the docs
               </Link>
             </div>
           </div>
@@ -298,10 +298,10 @@ export default function LandingPage() {
                     {body}
                   </p>
                   <Link
-                    href="/solutions"
+                    href="/docs"
                     className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-brand-accent"
                   >
-                    See the workflow <IconArrowRight className="size-4" />
+                    Read the docs <IconArrowRight className="size-4" />
                   </Link>
                 </article>
               ))}
@@ -405,10 +405,10 @@ export default function LandingPage() {
                   assisted migration are being shaped with early teams.
                 </p>
                 <Link
-                  href="/pricing"
+                  href="/sign-up"
                   className="mt-9 inline-flex rounded-app-control bg-white px-5 py-3 text-sm font-semibold text-brand-ink"
                 >
-                  Compare plans
+                  Create account
                 </Link>
               </div>
             </div>

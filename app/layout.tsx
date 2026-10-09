@@ -6,7 +6,6 @@ import { Geist, Geist_Mono } from "next/font/google"
 
 import "@mantine/core/styles.layer.css"
 import "@mantine/notifications/styles.layer.css"
-import "@xyflow/react/dist/style.css"
 
 import "./globals.css"
 import { AppProviders } from "@/components/app-providers"

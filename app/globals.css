@@ -4,7 +4,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@clerk/ui/themes/shadcn.css";
-@import "jsoneditor/dist/jsoneditor.min.css";
 
 @media (min-width: 768px) {
   .docs-body > p:has(> img[alt^="Desktop" i]):has(+ p > img[alt^="Mobile" i]) {

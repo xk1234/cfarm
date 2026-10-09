@@ -5,11 +5,7 @@ import Link from "next/link";
 import { MarketingMobileMenu } from "@/components/marketing/marketing-mobile-menu";
 
 const navigation = [
-  ["Product", "/product"],
-  ["Solutions", "/solutions"],
-  ["Pricing", "/pricing"],
   ["Docs", "/docs"],
-  ["Careers", "/careers"],
 ] as const;
 
 export function MarketingNav() {
@@ -141,8 +137,8 @@ export function PageHero({
           <Link href="/sign-up" className="brand-button brand-button-primary">
             Create account
           </Link>
-          <Link href="/product" className="brand-button brand-button-secondary">
-            See the product
+          <Link href="/docs" className="brand-button brand-button-secondary">
+            Read the docs
           </Link>
         </div>
       ) : null}

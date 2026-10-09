@@ -19,7 +19,6 @@ import {
   IconDots,
   IconFocusCentered,
   IconLoader2,
-  IconPhotoEdit,
   IconTrash,
   IconX,
   IconZoomIn,
@@ -28,9 +27,8 @@ import {
 import { DropdownMenu } from "radix-ui"
 
 import { DeleteSlideshowDialog } from "@/components/realfarm/delete-slideshow-dialog"
-import { TemplateGeneratedPreview } from "@/components/realfarm/template-showcase-preview"
+import { SlidePreview } from "@/components/realfarm/slide-preview"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import { exportSlideshowAsPngZip } from "@/lib/slideshow-export"
 import {
@@ -66,14 +64,6 @@ export type SlideshowViewerDetails = {
   language: string
 }
 
-export type SlideshowViewerImageOption = {
-  id: string
-  imageUrl: string
-  caption: string
-  collectionName: string
-  usedInSlideIndexes: number[]
-}
-
 export type SlideshowViewerMetadata = {
   title: string
   caption: string
@@ -96,9 +86,6 @@ export function SlideshowViewerModal({
   publicationStatusControl,
   actions = [],
   onDelete,
-  onDeleteSlide,
-  onLoadSlideImages,
-  onReplaceSlideImage,
   onUpdateMetadata,
   onClose,
 }: {
@@ -110,15 +97,6 @@ export function SlideshowViewerModal({
   publicationStatusControl?: ReactNode
   actions?: SlideshowViewerAction[]
   onDelete?: () => Promise<void>
-  onDeleteSlide?: (slideshowItemId: string, slideIndex: number) => Promise<void>
-  onLoadSlideImages?: (
-    slideshowItemId: string
-  ) => Promise<SlideshowViewerImageOption[]>
-  onReplaceSlideImage?: (
-    slideshowItemId: string,
-    slideIndex: number,
-    imageUrl: string
-  ) => Promise<void>
   onUpdateMetadata?: (
     slideshowItemId: string,
     metadata: SlideshowViewerMetadata
@@ -159,27 +137,6 @@ export function SlideshowViewerModal({
             publicationStatusControl={publicationStatusControl}
             actions={actions}
             onDelete={onDelete}
-            onDeleteSlide={
-              onDeleteSlide && selectedSlideshow
-                ? (slideIndex) =>
-                    onDeleteSlide(selectedSlideshow.id, slideIndex)
-                : undefined
-            }
-            onLoadSlideImages={
-              onLoadSlideImages && selectedSlideshow
-                ? () => onLoadSlideImages(selectedSlideshow.id)
-                : undefined
-            }
-            onReplaceSlideImage={
-              onReplaceSlideImage && selectedSlideshow
-                ? (slideIndex, imageUrl) =>
-                    onReplaceSlideImage(
-                      selectedSlideshow.id,
-                      slideIndex,
-                      imageUrl
-                    )
-                : undefined
-            }
             onUpdateMetadata={
               onUpdateMetadata && selectedSlideshow
                 ? (metadata) => onUpdateMetadata(selectedSlideshow.id, metadata)
@@ -207,9 +164,6 @@ function SlideshowViewerContent({
   publicationStatusControl,
   actions,
   onDelete,
-  onDeleteSlide,
-  onLoadSlideImages,
-  onReplaceSlideImage,
   onUpdateMetadata,
   onDirtyChange,
   onClose,
@@ -225,9 +179,6 @@ function SlideshowViewerContent({
   publicationStatusControl?: ReactNode
   actions: SlideshowViewerAction[]
   onDelete?: () => Promise<void>
-  onDeleteSlide?: (slideIndex: number) => Promise<void>
-  onLoadSlideImages?: () => Promise<SlideshowViewerImageOption[]>
-  onReplaceSlideImage?: (slideIndex: number, imageUrl: string) => Promise<void>
   onUpdateMetadata?: (metadata: SlideshowViewerMetadata) => Promise<void>
   onDirtyChange: (dirty: boolean) => void
   onClose: () => void
@@ -239,14 +190,6 @@ function SlideshowViewerContent({
   const [detailsHidden, setDetailsHidden] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteSlideOpen, setDeleteSlideOpen] = useState(false)
-  const [deletingSlide, setDeletingSlide] = useState(false)
-  const [imagePickerOpen, setImagePickerOpen] = useState(false)
-  const [imageOptions, setImageOptions] = useState<
-    SlideshowViewerImageOption[]
-  >([])
-  const [imageOptionsLoading, setImageOptionsLoading] = useState(false)
-  const [replacingImage, setReplacingImage] = useState(false)
   const initialMetadata = {
     title: slideshowTitle ?? "",
     caption: caption ?? "",
@@ -302,56 +245,6 @@ function SlideshowViewerContent({
       })
     } finally {
       setExporting(false)
-    }
-  }
-
-  async function deleteActiveSlide() {
-    if (!onDeleteSlide || slides.length === 0 || deletingSlide) return
-    setDeletingSlide(true)
-    try {
-      await onDeleteSlide(boundedActiveSlide)
-      setActiveSlide((current) => Math.max(0, current - 1))
-      toast.success(`Slide ${boundedActiveSlide + 1} deleted`)
-    } finally {
-      setDeletingSlide(false)
-    }
-  }
-
-  async function openImagePicker() {
-    if (!onLoadSlideImages || imageOptionsLoading) return
-    setImagePickerOpen(true)
-    setImageOptionsLoading(true)
-    try {
-      setImageOptions(await onLoadSlideImages())
-    } catch (error) {
-      setImagePickerOpen(false)
-      toast.error("Images could not be loaded", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      })
-    } finally {
-      setImageOptionsLoading(false)
-    }
-  }
-
-  async function replaceActiveSlideImage(imageUrl: string) {
-    if (!onReplaceSlideImage || replacingImage) return
-    setReplacingImage(true)
-    const toastId = toast.loading(
-      `Rerendering slide ${boundedActiveSlide + 1}…`
-    )
-    try {
-      await onReplaceSlideImage(boundedActiveSlide, imageUrl)
-      setImagePickerOpen(false)
-      toast.success(`Slide ${boundedActiveSlide + 1} updated`, { id: toastId })
-    } catch (error) {
-      toast.error("The slide image could not be changed", {
-        id: toastId,
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      })
-    } finally {
-      setReplacingImage(false)
     }
   }
 
@@ -418,8 +311,8 @@ function SlideshowViewerContent({
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="relative flex min-h-0 flex-1 items-center justify-center px-3 pt-4 pb-16 sm:px-10 sm:pt-7 sm:pb-20">
             {slides.length === 0 ? (
-              <TemplateGeneratedPreview
-                exampleSlides={fallbackSlides}
+              <SlidePreview
+                slides={fallbackSlides}
                 tileCount={3}
                 className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
               />
@@ -444,11 +337,6 @@ function SlideshowViewerContent({
                     `${title} slide ${boundedActiveSlide + 1}`
                   }
                   label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
-                  slideNumber={boundedActiveSlide + 1}
-                  canDelete={Boolean(onDeleteSlide && slides.length > 1)}
-                  canReplace={Boolean(onReplaceSlideImage)}
-                  onDelete={() => setDeleteSlideOpen(true)}
-                  onReplace={() => void openImagePicker()}
                 />
                 <button
                   type="button"
@@ -532,28 +420,6 @@ function SlideshowViewerContent({
         <DeleteSlideshowDialog
           onCancel={() => setDeleteOpen(false)}
           onConfirm={onDelete}
-        />
-      ) : null}
-      {deleteSlideOpen && onDeleteSlide ? (
-        <ConfirmDialog
-          title={`Delete slide ${boundedActiveSlide + 1}?`}
-          description="This permanently removes the slide from this slideshow."
-          confirmLabel="Delete slide"
-          pendingLabel="Deleting…"
-          onCancel={() => setDeleteSlideOpen(false)}
-          onConfirm={deleteActiveSlide}
-        />
-      ) : null}
-      {imagePickerOpen ? (
-        <SlideImagePickerModal
-          slideIndex={boundedActiveSlide}
-          images={imageOptions}
-          loading={imageOptionsLoading}
-          replacing={replacingImage}
-          onSelect={(imageUrl) => void replaceActiveSlideImage(imageUrl)}
-          onClose={() => {
-            if (!replacingImage) setImagePickerOpen(false)
-          }}
         />
       ) : null}
     </>
@@ -646,20 +512,10 @@ export function InteractiveSlideStage({
   slide,
   alt,
   label,
-  slideNumber,
-  canDelete,
-  canReplace,
-  onDelete,
-  onReplace,
 }: {
   slide: SlideshowViewerSlide
   alt: string
   label: string
-  slideNumber: number
-  canDelete: boolean
-  canReplace: boolean
-  onDelete: () => void
-  onReplace: () => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -968,36 +824,6 @@ export function InteractiveSlideStage({
             Scroll to zoom · drag to pan
           </div>
 
-          {canReplace || canDelete ? (
-            <div
-              data-slide-media-actions
-              className="absolute top-2 right-2 z-20 flex gap-1.5"
-            >
-              {canReplace ? (
-                <button
-                  type="button"
-                  className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-app-action disabled:opacity-50"
-                  aria-label={`Edit picture for slide ${slideNumber}`}
-                  title="Edit picture"
-                  onClick={onReplace}
-                >
-                  <IconPhotoEdit className="size-4" />
-                </button>
-              ) : null}
-              {canDelete ? (
-                <button
-                  type="button"
-                  className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-600 disabled:opacity-50"
-                  aria-label={`Delete slide ${slideNumber}`}
-                  title="Delete this slide"
-                  onClick={onDelete}
-                >
-                  <IconTrash className="size-4" />
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
           <div
             className="absolute bottom-2 left-2 z-20 flex items-center gap-0.5 rounded-full bg-white/92 p-1 text-app-text shadow-md backdrop-blur"
             role="toolbar"
@@ -1063,129 +889,6 @@ function pointerMidpoint(
     x: (first.x + second.x) / 2,
     y: (first.y + second.y) / 2,
   }
-}
-
-function SlideImagePickerModal({
-  slideIndex,
-  images,
-  loading,
-  replacing,
-  onSelect,
-  onClose,
-}: {
-  slideIndex: number
-  images: SlideshowViewerImageOption[]
-  loading: boolean
-  replacing: boolean
-  onSelect: (imageUrl: string) => void
-  onClose: () => void
-}) {
-  const [selectedImageUrl, setSelectedImageUrl] = useState("")
-  const selected = images.find((image) => image.imageUrl === selectedImageUrl)
-  const usedByAnotherSlide = (image: SlideshowViewerImageOption) =>
-    image.usedInSlideIndexes.some((index) => index !== slideIndex)
-
-  return (
-    <AppModal className="z-[90] p-0 sm:p-4" onClose={onClose}>
-      <AppModalPanel
-        accessibleTitle="Choose a replacement image"
-        className="flex h-dvh max-w-none flex-col rounded-none bg-app-surface-subtle sm:h-[min(680px,90vh)] sm:max-w-[900px] sm:rounded-[10px]"
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-app-panel-border bg-app-surface px-4 py-4 sm:px-5">
-          <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-app-text sm:text-[18px]">
-            Choose a replacement image
-          </h3>
-          <button
-            type="button"
-            className="grid size-8 shrink-0 place-items-center rounded-[6px] text-app-muted-text transition hover:bg-app-surface-subtle"
-            onClick={onClose}
-            disabled={replacing}
-            aria-label="Close image picker"
-          >
-            <IconX className="size-5" />
-          </button>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {loading ? (
-            <div
-              className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5"
-              role="status"
-              aria-label="Loading template images"
-            >
-              {Array.from({ length: 15 }, (_, index) => (
-                <div
-                  key={index}
-                  className="aspect-[4/5] animate-pulse rounded-[8px] bg-[#deddd7]"
-                />
-              ))}
-            </div>
-          ) : images.length ? (
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-              {images.map((image) => {
-                const unavailable = usedByAnotherSlide(image)
-                const active = image.imageUrl === selectedImageUrl
-                return (
-                  <button
-                    key={image.id}
-                    type="button"
-                    className={cn(
-                      "group relative aspect-[4/5] overflow-hidden rounded-[8px] bg-[#deddd7] text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action",
-                      active && "ring-3 ring-app-action ring-offset-2",
-                      unavailable
-                        ? "cursor-not-allowed opacity-35"
-                        : "hover:-translate-y-0.5 hover:shadow-md"
-                    )}
-                    disabled={unavailable || replacing}
-                    onClick={() => setSelectedImageUrl(image.imageUrl)}
-                    aria-label={`${unavailable ? "Already used: " : "Select "}${image.caption || image.collectionName}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element -- User collection assets may be local or remote. */}
-                    <img
-                      src={image.imageUrl}
-                      alt={image.caption || image.collectionName}
-                      className="h-full w-full object-cover"
-                    />
-                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-2 text-[10px] leading-3 font-semibold text-white">
-                      {unavailable ? "Already used" : image.collectionName}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="grid h-full min-h-[320px] place-items-center text-center">
-              <div>
-                <div className="text-[15px] font-semibold text-app-text">
-                  No replacement images available
-                </div>
-                <p className="mt-1 text-[12px] text-app-muted-text">
-                  Add images to this automation’s selected photo collections
-                  first.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <footer className="flex items-center justify-between gap-4 border-t border-app-panel-border bg-app-surface px-5 py-3">
-          <p className="min-w-0 truncate text-[12px] font-medium text-app-muted-text">
-            {selected
-              ? selected.caption || selected.collectionName
-              : `Editing slide ${slideIndex + 1}`}
-          </p>
-          <button
-            type="button"
-            className="h-9 shrink-0 rounded-[7px] bg-app-action px-4 text-[13px] font-semibold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
-            disabled={!selected || replacing}
-            onClick={() => selected && onSelect(selected.imageUrl)}
-          >
-            {replacing ? "Rerendering…" : "Use image"}
-          </button>
-        </footer>
-      </AppModalPanel>
-    </AppModal>
-  )
 }
 
 function SlideshowInformationPanel({

@@ -103,11 +103,7 @@ const lifecycleOptions: CalendarFilterOption[] = [
   { value: "published", label: "Published", status: "published" },
 ]
 
-export function ContentCalendarView({
-  onGoAutomations,
-}: {
-  onGoAutomations: () => void
-}) {
+export function ContentCalendarView() {
   const calendarRef = useRef<FullCalendar | null>(null)
   const [visibleRange, setVisibleRange] = useState(() => {
     const range = monthRange(DateTime.local())
@@ -387,14 +383,6 @@ export function ContentCalendarView({
               className={cn("size-4", isValidating && "animate-spin")}
             />
             Refresh
-          </Button>
-          <Button
-            variant="action"
-            size="compact"
-            className="h-9"
-            onClick={onGoAutomations}
-          >
-            <IconSparkles className="size-4" /> Templates
           </Button>
         </div>
       </header>

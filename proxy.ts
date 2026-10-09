@@ -1,15 +1,8 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
 import { NextResponse, type NextRequest } from "next/server"
 
-import { internalToolsEnabled } from "@/lib/internal-tools"
-
-const INTERNAL_PATH_PREFIXES = ["/debug", "/api/debug"] as const
-
 const PUBLIC_API_PATHS = [
   "/api/search",
-  "/api/telegram/webhook",
-  "/api/tiktok-studio-analytics/capture",
-  "/api/tiktok-studio-analytics/cloud-sync",
   "/api/v1/health",
   "/api/v1/openapi.json",
 ] as const
@@ -31,26 +24,10 @@ function isAuthPage(pathname: string) {
 }
 
 function isProtectedPage(pathname: string) {
-  return (
-    pathname === "/app" ||
-    pathname.startsWith("/app/") ||
-    pathname === "/debug" ||
-    pathname.startsWith("/debug/")
-  )
+  return pathname === "/app" || pathname.startsWith("/app/")
 }
 
 export default clerkMiddleware(async (auth, request: NextRequest) => {
-  if (
-    !internalToolsEnabled() &&
-    INTERNAL_PATH_PREFIXES.some(
-      (prefix) =>
-        request.nextUrl.pathname === prefix ||
-        request.nextUrl.pathname.startsWith(`${prefix}/`)
-    )
-  ) {
-    return new NextResponse(null, { status: 404 })
-  }
-
   const pathname = request.nextUrl.pathname
 
   if (pathname.startsWith("/__clerk/") || isPublicApi(pathname)) {

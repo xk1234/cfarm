@@ -31,10 +31,8 @@ describe("in-app heading conventions", () => {
   })
 
   it("does not stack small uppercase kickers above app headings", () => {
-    const offenders = [
-      ...appRoots.flatMap(tsxFiles),
-      join(projectRoot, "components", "x-automation-studio.tsx"),
-    ]
+    const offenders = appRoots
+      .flatMap(tsxFiles)
       .filter((file) => {
         const source = readFileSync(file, "utf8")
         return /<(?:p|span|div)[^>]*className="[^"]*(?:uppercase|tracking-\[)[^"]*"[^>]*>[\s\S]{0,220}<h[12]\b/.test(

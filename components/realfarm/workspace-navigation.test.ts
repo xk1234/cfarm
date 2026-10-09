@@ -8,11 +8,8 @@ import {
 describe("workspace navigation", () => {
   it.each([
     ["home", "/app"],
-    ["compose", "/app/compose"],
     ["schedule", "/app?view=schedule"],
-    ["analytics", "/app/analytics"],
     ["collections", "/app/collections"],
-    ["templates", "/app?view=templates"],
   ] as const)("maps %s to its shareable URL", (view, href) => {
     expect(workspaceViewHref(view)).toBe(href)
   })
@@ -21,14 +18,8 @@ describe("workspace navigation", () => {
     expect(workspaceLocationFromUrl("/app", "?view=schedule")).toEqual({
       view: "schedule",
     })
-    expect(workspaceLocationFromUrl("/app/analytics")).toEqual({
-      view: "analytics",
-    })
-    expect(workspaceLocationFromUrl("/app/x-automations")).toEqual({
-      view: "templates",
-    })
-    expect(workspaceLocationFromUrl("/app", "?view=automations")).toEqual({
-      view: "templates",
+    expect(workspaceLocationFromUrl("/app/collections")).toEqual({
+      view: "collections",
     })
     expect(
       workspaceLocationFromUrl("/app/collections/mystical%20pictures")
@@ -38,11 +29,14 @@ describe("workspace navigation", () => {
     })
   })
 
-  it("falls back to home for unknown workspace URLs", () => {
+  it("falls back to home for unknown or removed workspace URLs", () => {
     expect(workspaceLocationFromUrl("/app", "?view=unknown")).toEqual({
       view: "home",
     })
-    expect(workspaceLocationFromUrl("/app", "?view=viral-tracker")).toEqual({
+    expect(workspaceLocationFromUrl("/app", "?view=templates")).toEqual({
+      view: "home",
+    })
+    expect(workspaceLocationFromUrl("/app/analytics")).toEqual({
       view: "home",
     })
   })

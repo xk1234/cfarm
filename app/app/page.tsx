@@ -1,43 +1,21 @@
 import { WorkspaceRoute } from "@/components/realfarm/routes/workspace-route"
-import type { ViewKey } from "@/components/realfarm/navigation"
+import { isWorkspaceViewKey } from "@/components/realfarm/workspace-navigation"
 
 export default async function WorkspacePage({
   searchParams,
 }: {
   searchParams: Promise<{
     view?: string | string[]
-    template?: string | string[]
-    automation?: string | string[]
-    run?: string | string[]
   }>
 }) {
   const query = await searchParams
+  const view = firstQueryValue(query.view)
 
   return (
     <WorkspaceRoute
-      navigation={{
-        view: initialView(firstQueryValue(query.view)),
-        automationId:
-          firstQueryValue(query.template) || firstQueryValue(query.automation),
-        runId: firstQueryValue(query.run),
-      }}
+      navigation={{ view: isWorkspaceViewKey(view) ? view : "home" }}
     />
   )
-}
-
-function initialView(value: string): ViewKey {
-  return [
-    "home",
-    "compose",
-    "schedule",
-    "analytics",
-    "collections",
-    "templates",
-  ].includes(value)
-    ? (value as ViewKey)
-    : value === "automations"
-      ? "templates"
-      : "home"
 }
 
 function firstQueryValue(value: string | string[] | undefined) {
