@@ -1,4 +1,7 @@
-# Railway worker
+---
+title: "Railway worker"
+description: "How the continuous Railway worker claims, runs and retries jobs from the Appwrite jobs table."
+---
 
 The production `worker` service uses `/railway.worker.json`: build runs
 `pnpm worker:check` (loads the handler registry without connecting), and the
