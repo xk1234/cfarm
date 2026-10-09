@@ -16,7 +16,6 @@ import {
 } from "@/lib/post-repository-config"
 import { PostIdentityConflictError } from "@/lib/post-repository-errors"
 import type { PostContentType } from "@/lib/post-content-type"
-import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import {
   addPostFastPostStatsSources,
   deletePostFastPostRecordById,
@@ -37,22 +36,20 @@ import {
   type PostIdentityClaim,
 } from "@/lib/posts"
 
-export type SnapshotPostSeed = Pick<
-  PostFastMetricSnapshot,
-  | "postId"
-  | "platformPostId"
-  | "integrationId"
-  | "provider"
-  | "capturedAt"
-  | "publishedAt"
-  | "content"
-  | "thumbnailUrl"
-  | "releaseUrl"
-  | "sourceType"
-  | "sourceId"
-  | "contentType"
-  | "source"
-> & {
+export type SnapshotPostSeed = {
+  postId: string
+  platformPostId?: string
+  integrationId: string
+  provider: string
+  capturedAt: string
+  publishedAt?: string
+  content?: string
+  thumbnailUrl?: string
+  releaseUrl?: string
+  sourceType?: string
+  sourceId?: string
+  contentType?: PostContentType
+  source?: "postfast" | "tiktok_studio"
   postfastPostId?: string
 }
 

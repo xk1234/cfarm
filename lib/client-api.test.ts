@@ -20,10 +20,10 @@ describe("client API helpers", () => {
     const fetchMock = vi.fn(async () => Response.json({ ok: true }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await fetchJsonWithTimeout("/api/automations/run", { method: "POST" })
+    await fetchJsonWithTimeout("/api/slideshows", { method: "POST" })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/automations/run",
+      "/api/slideshows",
       expect.objectContaining({
         credentials: "same-origin",
         method: "POST",
@@ -35,18 +35,18 @@ describe("client API helpers", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        Response.json({ error: "Image generation timed out" }, { status: 504 })
+        Response.json({ error: "Slideshow render timed out" }, { status: 504 })
       )
     )
 
     await expect(
-      fetchJsonWithTimeout("/api/image-collections/captions")
+      fetchJsonWithTimeout("/api/image-collections")
     ).rejects.toMatchObject({
-      message: "Image generation timed out",
+      message: "Slideshow render timed out",
       status: 504,
       timedOut: false,
     })
-    expect(toast.error).toHaveBeenCalledWith("Image generation timed out")
+    expect(toast.error).toHaveBeenCalledWith("Slideshow render timed out")
   })
 
   it("allows callers with managed loading toasts to suppress the default alert", async () => {

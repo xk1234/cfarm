@@ -3,10 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   absoluteAssetUrl,
   configuredBaseUrl,
-  generatedVideoDeliveryLinks,
   slideshowDeliveryLinks,
 } from "@/lib/asset-urls"
-import { verifyGeneratedVideoShareToken } from "@/lib/generated-video-share"
 import { verifySlideshowShareToken } from "@/lib/slideshow-share"
 
 const originalBaseUrl = process.env.BASE_URL
@@ -113,48 +111,6 @@ describe("slideshowDeliveryLinks", () => {
       slideshowDeliveryLinks({
         ownerId: "owner-1",
         outputId: "slideshow-1",
-      })
-    ).toBeNull()
-  })
-})
-
-describe("generatedVideoDeliveryLinks", () => {
-  it("returns a signed public viewer and direct video URL", () => {
-    vi.stubEnv("BASE_URL", "https://studio.example.com/")
-    vi.stubEnv("OUTPUT_SHARE_SECRET", "video-test-secret")
-
-    const delivery = generatedVideoDeliveryLinks({
-      ownerId: "owner-1",
-      outputId: "video-1",
-      videoUrl: "/api/local-assets/ugc_avatar_videos/owner-1/run/video.mp4",
-    })
-
-    expect(delivery?.publicViewUrl).toMatch(
-      /^https:\/\/studio\.example\.com\/share\/videos\/video-1\?token=/
-    )
-    expect(delivery?.downloadUrl).toMatch(
-      /^https:\/\/studio\.example\.com\/api\/public\/videos\/video-1\/media\?kind=video&download=1&token=/
-    )
-    const viewerToken = new URL(delivery?.publicViewUrl ?? "").searchParams.get(
-      "token"
-    )
-    const downloadToken = new URL(delivery?.downloadUrl ?? "").searchParams.get(
-      "token"
-    )
-    expect(downloadToken).toBe(viewerToken)
-    expect(
-      verifyGeneratedVideoShareToken(viewerToken ?? "", "video-1")
-    ).toMatchObject({ ownerId: "owner-1", outputId: "video-1" })
-  })
-
-  it("does not return a public link for non-proxied media", () => {
-    vi.stubEnv("OUTPUT_SHARE_SECRET", "video-test-secret")
-
-    expect(
-      generatedVideoDeliveryLinks({
-        ownerId: "owner-1",
-        outputId: "video-1",
-        videoUrl: "https://example.com/video.mp4",
       })
     ).toBeNull()
   })

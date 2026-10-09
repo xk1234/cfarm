@@ -49,34 +49,6 @@ beforeEach(async () => {
   rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-slideshows-"))
   vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(rootDir)
-  vi.doMock("@/lib/rendi-ffmpeg", async () => {
-    const { writeFile } = await import("node:fs/promises")
-    return {
-      getRendiApiKey: () => "test-rendi-key",
-      uploadLocalFileToRendi: vi.fn(
-        async ({ filePath }: { filePath: string }) => ({
-          file_id: path.basename(filePath),
-          status: "STORED",
-          storage_url: `https://rendi.test/${path.basename(filePath)}`,
-        })
-      ),
-      runRendiFfmpegAndDownload: vi.fn(
-        async ({
-          outputPath,
-          localOutputPath,
-        }: {
-          outputPath: string
-          localOutputPath?: string
-        }) => {
-          await writeFile(
-            localOutputPath ?? outputPath,
-            Buffer.from("fake mp4")
-          )
-          return outputPath
-        }
-      ),
-    }
-  })
   ;({
     createSlideshowRecord,
     deleteSlideshowRecord,
@@ -662,13 +634,12 @@ describe("slideshow persistence", () => {
     expect(record.images[0]).not.toHaveProperty("time_length_ms")
   })
 
-  it("renders slideshow PNG frames and a video into the output folder", async () => {
+  it("renders slideshow PNG frames into the output folder", async () => {
     const record = await createSlideshowRecord({
-      title: "Rendered video slideshow",
+      title: "Rendered slideshow",
       settings: {
         duration: 1,
         transition_style: "fade",
-        export_as_video: true,
       },
       images: [
         {
@@ -693,17 +664,9 @@ describe("slideshow persistence", () => {
       `/api/local-assets/slideshows/outputs/${record.id}/slide-001.${slideExt}`,
     ])
     expect(record.images[0].image_url).toBe(record.output_images[0])
-    expect(record.video_url).toBe(
-      `/api/local-assets/slideshows/outputs/${record.id}/slideshow-export.mp4`
-    )
-    expect(record.thumbnail_url).toBe(
-      `/api/local-assets/slideshows/outputs/${record.id}/slideshow-thumbnail.png`
-    )
+    expect(record.video_url).toBeUndefined()
     await expect(
       readAssetBytes(outputPath(rootDir, record, "slide-001.png"))
-    ).resolves.toBeTruthy()
-    await expect(
-      readAssetBytes(outputPath(rootDir, record, "slideshow-export.mp4"))
     ).resolves.toBeTruthy()
   })
 })

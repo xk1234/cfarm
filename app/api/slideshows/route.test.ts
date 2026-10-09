@@ -29,34 +29,6 @@ beforeEach(async () => {
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-slideshows-route-"))
   vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
-  vi.doMock("@/lib/rendi-ffmpeg", async () => {
-    const { writeFile } = await import("node:fs/promises")
-    return {
-      getRendiApiKey: () => "test-rendi-key",
-      uploadLocalFileToRendi: vi.fn(
-        async ({ filePath }: { filePath: string }) => ({
-          file_id: path.basename(filePath),
-          status: "STORED",
-          storage_url: `https://rendi.test/${path.basename(filePath)}`,
-        })
-      ),
-      runRendiFfmpegAndDownload: vi.fn(
-        async ({
-          outputPath,
-          localOutputPath,
-        }: {
-          outputPath: string
-          localOutputPath?: string
-        }) => {
-          await writeFile(
-            localOutputPath ?? outputPath,
-            Buffer.from("fake mp4")
-          )
-          return outputPath
-        }
-      ),
-    }
-  })
   await writeLocalAsset("focus.jpg", "focus image")
   await writeLocalAsset("a.jpg", "video image")
 })

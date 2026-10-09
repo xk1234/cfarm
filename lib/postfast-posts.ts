@@ -163,7 +163,6 @@ export async function upsertPostFastPostRecord(
     record,
     ...records.filter((item) => item.id !== record.id),
   ])
-  await recordHookPublication(record)
   return record
 }
 
@@ -179,7 +178,6 @@ export async function putPostFastPostRecord(
     record,
     ...records.filter((item) => item.id !== record.id),
   ])
-  await recordHookPublication(record)
   return record
 }
 
@@ -267,7 +265,6 @@ export async function patchPostFastPostRecord(input: {
     undefined,
     records.map((record) => (record.id === updated.id ? updated : record))
   )
-  await recordHookPublication(updated)
   return updated
 }
 
@@ -298,13 +295,6 @@ export async function addPostFastPostStatsSources(
   })
   if (changed > 0) await writePostFastPostRecords(undefined, next)
   return changed
-}
-
-async function recordHookPublication(record: PostFastPostRecord) {
-  if (record.status !== "published") return
-  await import("@/lib/hook-publications")
-    .then(({ recordPublishedHookUsage }) => recordPublishedHookUsage(record))
-    .catch(() => undefined)
 }
 
 export async function deletePostFastPostRecordById(id: string) {

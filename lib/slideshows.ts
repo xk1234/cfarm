@@ -1,7 +1,6 @@
 import { clean } from "@/lib/guards"
 import { createHash, randomUUID } from "node:crypto"
 import {
-  copyFile,
   mkdtemp,
   readFile,
   rename,
@@ -17,11 +16,6 @@ import {
   persistStoredAssetsInDir,
   readAssetBytes,
 } from "@/lib/asset-storage"
-import {
-  getRendiApiKey,
-  runRendiFfmpegAndDownload,
-  uploadLocalFileToRendi,
-} from "@/lib/rendi-ffmpeg"
 import {
   createResultRecord,
   deleteResultRecord,
@@ -469,105 +463,6 @@ function assertSlideshowScratch(scratchDir: string) {
     throw new Error("Unsupported slideshow scratch directory")
   }
   return resolved
-}
-
-export async function renderStoredSlideshowVideo(input: {
-  id: string
-  rootDir?: string
-  resultRootDir?: string
-  durationSeconds?: number
-}) {
-  const prepared = await prepareStoredSlideshowVideo(input)
-  try {
-    const rendered = await materializeSlideshowVideo({
-      outputDir: prepared.scratchDir,
-      storageOutputDir: prepared.storageOutputDir,
-      slideshowId: prepared.slideshowId,
-      durationSeconds: prepared.durationSeconds,
-      slideImagePaths: prepared.slideImagePaths,
-    })
-    await persistStoredAssetsInDir(prepared.scratchDir, prepared.storageOutputDir)
-    return finalizeStoredSlideshowVideo({ ...prepared, ...rendered })
-  } finally {
-    await rm(prepared.scratchDir, { recursive: true, force: true })
-  }
-}
-
-export async function prepareStoredSlideshowVideo(input: {
-  id: string
-  rootDir?: string
-  resultRootDir?: string
-  durationSeconds?: number
-}) {
-  const result = await resultRecordForSlideshow(input, input.id)
-  const slideshow = result ? resultRecordToSlideshowRecord(result) : null
-  if (!result || !slideshow) throw new Error("Rendered slideshow not found")
-  if (slideshow.output_images.length === 0) {
-    throw new Error("Video export requires rendered PNG slides")
-  }
-  const rootDir = input.rootDir ?? defaultRootDir()
-  const storageOutputDir = path.join(rootDir, "outputs", slideshow.id)
-  const scratchDir = await mkdtemp(
-    path.join(os.tmpdir(), "cfarm-slideshow-video-")
-  )
-  const slideImagePaths: string[] = []
-  for (const [index, outputImage] of slideshow.output_images.entries()) {
-    const fileName = path.basename(
-      new URL(outputImage, "http://local").pathname
-    )
-    const logicalPath = path.join(storageOutputDir, fileName)
-    const scratchPath = path.join(
-      scratchDir,
-      fileName || `slide-${String(index + 1).padStart(3, "0")}.png`
-    )
-    await writeFile(scratchPath, await readAssetBytes(logicalPath))
-    slideImagePaths.push(scratchPath)
-  }
-  const thumbnailPath = path.join(scratchDir, "slideshow-thumbnail.png")
-  await copyFile(slideImagePaths[0], thumbnailPath)
-  return {
-    slideshowId: slideshow.id,
-    resultId: result.id,
-    resultRootDir: resultRootDirFor(input),
-    scratchDir,
-    storageOutputDir,
-    slideImagePaths,
-    thumbnailPath,
-    durationSeconds: input.durationSeconds ?? slideshow.settings.duration,
-    videoUrl: outputFileUrl(slideshow.id, "slideshow-export.mp4"),
-    thumbnailUrl: outputFileUrl(slideshow.id, "slideshow-thumbnail.png"),
-  }
-}
-
-export async function finalizeStoredSlideshowVideo(input: {
-  resultId: string
-  resultRootDir?: string
-  videoUrl: string
-  thumbnailUrl: string
-}) {
-  const updated = await updateResultRecord({
-    rootDir: input.resultRootDir,
-    id: input.resultId,
-    update: (record) => ({
-      ...record,
-      updatedAt: new Date().toISOString(),
-      artifacts: {
-        ...record.artifacts,
-        videoUrl: input.videoUrl,
-        thumbnailUrl: input.thumbnailUrl,
-      },
-      payload:
-        record.payload?.type === "slideshow"
-          ? {
-              ...record.payload,
-              settings: { ...record.payload.settings, export_as_video: true },
-            }
-          : record.payload,
-    }),
-  })
-  const stored = updated ? resultRecordToSlideshowRecord(updated) : null
-  if (!stored) throw new Error("Rendered slideshow could not be updated")
-  return stored
 }
 
 export async function recordSlideshowPostIntents(
@@ -1143,29 +1038,12 @@ async function writeSlideshowOutputs(
       outputs.push(output)
       outputImages.push(output.publicUrl)
     }
-    const videoOutput = record.settings.export_as_video
-      ? await materializeSlideshowVideo({
-          outputDir: scratchDir,
-          storageOutputDir: logicalOutputDir,
-          slideshowId: record.id,
-          durationSeconds: record.settings.duration,
-          slideImagePaths: outputs.map((output) =>
-            path.join(
-              scratchDir,
-              path.basename(
-                new URL(output.rasterPublicUrl, "http://local").pathname
-              )
-            )
-          ),
-        })
-      : null
-
     const outputRecord: SlideshowRecord = {
       ...record,
       output_dir: outputDirUrl(record.id),
       output_images: outputImages,
-      video_url: record.video_url || videoOutput?.videoUrl,
-      thumbnail_url: record.thumbnail_url || videoOutput?.thumbnailUrl,
+      video_url: record.video_url,
+      thumbnail_url: record.thumbnail_url,
       images: record.images.map((slide, index) => {
         const output = outputs[index]
         return {
@@ -1350,94 +1228,6 @@ async function materializeSlideImage(input: {
     overlayPublicUrl: overlaySource?.publicUrl,
     iconPublicUrls: iconSources.map((icon) => icon.publicUrl),
   }
-}
-
-async function materializeSlideshowVideo(input: {
-  outputDir: string
-  storageOutputDir: string
-  slideshowId: string
-  durationSeconds: number
-  slideImagePaths: string[]
-}) {
-  if (input.slideImagePaths.length === 0) {
-    throw new Error("Video export requires at least one rendered slide")
-  }
-  const apiKey = getRendiApiKey()
-  if (!apiKey) {
-    throw new Error("RENDI_API_KEY is not configured")
-  }
-
-  const outputPath = path.join(input.storageOutputDir, "slideshow-export.mp4")
-  const localOutputPath = path.join(input.outputDir, "slideshow-export.mp4")
-  const thumbnailPath = path.join(input.outputDir, "slideshow-thumbnail.png")
-  await copyFile(input.slideImagePaths[0], thumbnailPath)
-  await encodePngSequenceToMp4ViaRendi({
-    apiKey,
-    outputPath,
-    localOutputPath,
-    durationSeconds: input.durationSeconds,
-    slideImagePaths: input.slideImagePaths,
-  })
-  return {
-    videoUrl: outputFileUrl(input.slideshowId, "slideshow-export.mp4"),
-    thumbnailUrl: outputFileUrl(input.slideshowId, "slideshow-thumbnail.png"),
-  }
-}
-
-// Encode the slide stills into an mp4 via the Rendi cloud ffmpeg API (no local
-// ffmpeg). Each still is looped for `durationSeconds`, then concatenated.
-async function encodePngSequenceToMp4ViaRendi(input: {
-  apiKey: string
-  outputPath: string
-  localOutputPath: string
-  durationSeconds: number
-  slideImagePaths: string[]
-}) {
-  const duration = Math.max(
-    1,
-    input.durationSeconds || defaultSlideshowDuration
-  )
-  const inputFiles: Record<string, string> = {}
-  const command: string[] = []
-  for (const [index, slidePath] of input.slideImagePaths.entries()) {
-    const stored = await uploadLocalFileToRendi({
-      filePath: slidePath,
-      apiKey: input.apiKey,
-    })
-    if (!stored.storage_url) {
-      throw new Error("Rendi did not accept a slide image")
-    }
-    const alias = `in_slide_${index + 1}`
-    inputFiles[alias] = stored.storage_url
-    command.push("-loop", "1", "-t", String(duration), "-i", `{{${alias}}}`)
-  }
-
-  const count = input.slideImagePaths.length
-  if (count === 1) {
-    command.push("-vf", "fps=12,format=yuv420p")
-  } else {
-    const labels = Array.from({ length: count }, (_, i) => `[${i}:v]`).join("")
-    command.push(
-      "-filter_complex",
-      `${labels}concat=n=${count}:v=1:a=0,fps=12,format=yuv420p[v]`,
-      "-map",
-      "[v]"
-    )
-  }
-  command.push("-movflags", "+faststart", "{{out_video}}")
-
-  await runRendiFfmpegAndDownload({
-    apiKey: input.apiKey,
-    ffmpegCommand: command.join(" "),
-    inputFiles,
-    outputFiles: { out_video: "slideshow-export.mp4" },
-    outputAlias: "out_video",
-    outputPath: input.outputPath,
-    localOutputPath: input.localOutputPath,
-    maxCommandRunSeconds: 300,
-    vcpuCount: 4,
-    metadata: { workflow: "slideshow_export" },
-  })
 }
 
 async function materializeSlideSource(input: {
