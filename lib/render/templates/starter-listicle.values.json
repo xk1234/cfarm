@@ -1,0 +1,22 @@
+{
+  "hook": "5 sleep habits that *actually* worked for me",
+  "hookImage": {
+    "media": "sample-photo-6"
+  },
+  "items": [
+    {
+      "title": "No screens after 10pm",
+      "body": "Phone charges in the kitchen. Kindle only.",
+      "image": {
+        "media": "sample-photo-7"
+      }
+    },
+    {
+      "title": "Same wake time, even Sundays",
+      "image": {
+        "media": "sample-photo-8"
+      }
+    }
+  ],
+  "cta": "Save this for tonight"
+}

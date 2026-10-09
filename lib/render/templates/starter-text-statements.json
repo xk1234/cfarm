@@ -1,0 +1,157 @@
+{
+  "$schema": "https://lumenclip.app/schemas/slideshow-spec-v1.json",
+  "version": 1,
+  "id": "starter-text-statements",
+  "name": "Bold statements",
+  "description": "Big text-only slides on a solid background with highlighted words.",
+  "canvas": {
+    "preset": "4:5",
+    "background": {
+      "slot": "bg"
+    }
+  },
+  "fonts": [
+    {
+      "family": "Inter",
+      "weights": [
+        600,
+        900
+      ]
+    }
+  ],
+  "meta": {
+    "starter": true,
+    "category": "text"
+  },
+  "slots": {
+    "bg": {
+      "type": "color",
+      "label": "Background",
+      "default": "#111111"
+    },
+    "ink": {
+      "type": "color",
+      "label": "Text colour",
+      "default": "#FFFFFF"
+    },
+    "accent": {
+      "type": "color",
+      "label": "Highlight colour",
+      "default": "#FFE066"
+    },
+    "handle": {
+      "type": "text",
+      "label": "Handle",
+      "maxLength": 40
+    },
+    "statements": {
+      "type": "list",
+      "label": "Slides",
+      "minItems": 1,
+      "maxItems": 20,
+      "item": {
+        "text": {
+          "type": "text",
+          "label": "Text",
+          "required": true,
+          "maxLength": 200,
+          "multiline": true
+        }
+      }
+    }
+  },
+  "slides": [
+    {
+      "repeat": {
+        "slot": "statements",
+        "as": "st"
+      },
+      "slide": {
+        "id": "statement-{{index1}}",
+        "layers": [
+          {
+            "id": "text",
+            "type": "text",
+            "text": "{{st.text}}",
+            "markup": "emphasis",
+            "style": {
+              "fontFamily": "Inter",
+              "fontWeight": 900,
+              "fontSize": {
+                "min": 44,
+                "max": 110
+              },
+              "color": {
+                "slot": "ink"
+              },
+              "align": "left",
+              "verticalAlign": "middle",
+              "lineHeight": 1.05,
+              "letterSpacing": -1,
+              "maxLines": 9,
+              "overflow": "shrink"
+            },
+            "emphasisStyle": {
+              "color": {
+                "slot": "accent"
+              }
+            },
+            "frame": {
+              "inset": [
+                "12%",
+                "10%",
+                "18%",
+                "10%"
+              ]
+            }
+          },
+          {
+            "id": "handle",
+            "type": "text",
+            "if": {
+              "slot": "handle"
+            },
+            "text": "{{handle}}",
+            "style": {
+              "fontFamily": "Inter",
+              "fontWeight": 600,
+              "fontSize": 30,
+              "color": {
+                "slot": "ink"
+              },
+              "align": "left"
+            },
+            "opacity": 0.7,
+            "frame": {
+              "x": "10%",
+              "y": "92%",
+              "width": "auto",
+              "anchor": "bottom-left"
+            }
+          },
+          {
+            "id": "pager",
+            "type": "text",
+            "text": "{{slideIndex1}}/{{slideCount}}",
+            "style": {
+              "fontFamily": "Inter",
+              "fontWeight": 600,
+              "fontSize": 30,
+              "color": {
+                "slot": "ink"
+              },
+              "align": "right"
+            },
+            "opacity": 0.7,
+            "frame": {
+              "x": "90%",
+              "y": "92%",
+              "width": "auto",
+              "anchor": "bottom-right"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

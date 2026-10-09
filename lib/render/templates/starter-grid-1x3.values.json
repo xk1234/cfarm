@@ -1,0 +1,20 @@
+{
+  "photos": [
+    {
+      "image": {
+        "media": "sample-strip-1"
+      }
+    },
+    {
+      "image": {
+        "media": "sample-strip-2"
+      }
+    },
+    {
+      "image": {
+        "media": "sample-strip-3"
+      }
+    }
+  ],
+  "label": "Morning routine"
+}

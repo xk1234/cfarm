@@ -5,9 +5,11 @@
  * Fabric.js 7 (`fabric/node` + node-canvas on the server; the same module
  * paints the browser preview). Server output is authoritative.
  *
- * This file freezes the interface. `renderSpec` is a stub until the engine
- * builder implements layout + painting behind it. The font registry is real
- * data: the 21 bundled faces in `assets/fonts/` plus Inter.
+ * Pipeline: `./pipeline` (assets → fonts → `./layout` → `./paint`), run on a
+ * platform from `./platform`: the server loads `./node/platform` on first use;
+ * the browser preview registers `./browser/platform` by importing
+ * `@/lib/render/browser`. The font registry is the 21 bundled faces in
+ * `assets/fonts/` plus Inter.
  *
  * Isomorphic: no Node APIs at module scope.
  */
@@ -19,7 +21,7 @@ import type {
 } from "./spec"
 
 /** Bumped whenever output pixels may change for the same input (part of renderHash). */
-export const ENGINE_VERSION = "1.0.0-stub"
+export const ENGINE_VERSION = "1.0.0"
 
 export const MIME_BY_FORMAT = {
   png: "image/png",
@@ -97,14 +99,19 @@ export class RenderError extends Error {
   }
 }
 
-/** Renders a ResolvedSpec to one image per requested slide. */
+/**
+ * Renders a ResolvedSpec to one image per requested slide.
+ * Throws `RenderError` (asset/text issues), `RangeError` (bad options).
+ */
 export async function renderSpec(
   resolved: ResolvedSpec,
   options: RenderOptions
 ): Promise<RenderResult> {
-  void resolved
-  void options
-  throw new NotImplementedError("renderSpec")
+  const [{ getRenderPlatform }, { renderWithPlatform }] = await Promise.all([
+    import("./platform"),
+    import("./pipeline"),
+  ])
+  return renderWithPlatform(await getRenderPlatform(), resolved, options)
 }
 
 // ─────────────────────────────── fonts ───────────────────────────────

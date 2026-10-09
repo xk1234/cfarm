@@ -1,0 +1,429 @@
+{
+  "$schema": "https://lumenclip.app/schemas/slideshow-spec-v1.json",
+  "version": 1,
+  "id": "starter-icon-oval",
+  "name": "Sticker oval",
+  "description": "A focal sticker card and up to six icon cards around a cream oval, with a title in the middle.",
+  "canvas": {
+    "preset": "9:16",
+    "background": "#F6F1E8"
+  },
+  "fonts": [
+    {
+      "family": "Inter",
+      "weights": [
+        800
+      ]
+    }
+  ],
+  "meta": {
+    "starter": true,
+    "category": "stickers"
+  },
+  "slots": {
+    "title": {
+      "type": "text",
+      "label": "Title",
+      "maxLength": 60
+    },
+    "focal": {
+      "type": "image",
+      "label": "Focal sticker",
+      "required": true
+    },
+    "icon1": {
+      "type": "image",
+      "label": "Icon 1"
+    },
+    "icon2": {
+      "type": "image",
+      "label": "Icon 2"
+    },
+    "icon3": {
+      "type": "image",
+      "label": "Icon 3"
+    },
+    "icon4": {
+      "type": "image",
+      "label": "Icon 4"
+    },
+    "icon5": {
+      "type": "image",
+      "label": "Icon 5"
+    },
+    "icon6": {
+      "type": "image",
+      "label": "Icon 6"
+    }
+  },
+  "slides": [
+    {
+      "id": "stickers",
+      "layers": [
+        {
+          "id": "oval",
+          "type": "shape",
+          "shape": "ellipse",
+          "fill": "#FFFDF9",
+          "stroke": {
+            "color": "#27231F",
+            "width": 7
+          },
+          "frame": {
+            "x": "50%",
+            "y": "50%",
+            "width": "74.4%",
+            "height": "63.6%",
+            "anchor": "center"
+          }
+        },
+        {
+          "id": "icon1",
+          "type": "group",
+          "rotation": -8,
+          "frame": {
+            "x": "17.78%",
+            "y": "34.1%",
+            "width": 146,
+            "height": 146,
+            "anchor": "center"
+          },
+          "children": [
+            {
+              "id": "icon1-card",
+              "type": "shape",
+              "shape": "rect",
+              "fill": "#FFFDF8",
+              "cornerRadius": "22%",
+              "stroke": {
+                "color": "#27231F",
+                "width": 5
+              },
+              "frame": {
+                "inset": 0
+              }
+            },
+            {
+              "id": "icon1-image",
+              "type": "image",
+              "src": {
+                "slot": "icon1"
+              },
+              "fit": "contain",
+              "frame": {
+                "x": "50%",
+                "y": "50%",
+                "width": "74%",
+                "height": "74%",
+                "anchor": "center"
+              }
+            }
+          ],
+          "if": {
+            "slot": "icon1"
+          }
+        },
+        {
+          "id": "icon2",
+          "type": "group",
+          "rotation": 6,
+          "frame": {
+            "x": "50.0%",
+            "y": "18.2%",
+            "width": 146,
+            "height": 146,
+            "anchor": "center"
+          },
+          "children": [
+            {
+              "id": "icon2-card",
+              "type": "shape",
+              "shape": "rect",
+              "fill": "#FFFDF8",
+              "cornerRadius": "22%",
+              "stroke": {
+                "color": "#27231F",
+                "width": 5
+              },
+              "frame": {
+                "inset": 0
+              }
+            },
+            {
+              "id": "icon2-image",
+              "type": "image",
+              "src": {
+                "slot": "icon2"
+              },
+              "fit": "contain",
+              "frame": {
+                "x": "50%",
+                "y": "50%",
+                "width": "74%",
+                "height": "74%",
+                "anchor": "center"
+              }
+            }
+          ],
+          "if": {
+            "slot": "icon2"
+          }
+        },
+        {
+          "id": "icon3",
+          "type": "group",
+          "rotation": -4,
+          "frame": {
+            "x": "82.22%",
+            "y": "34.1%",
+            "width": 146,
+            "height": 146,
+            "anchor": "center"
+          },
+          "children": [
+            {
+              "id": "icon3-card",
+              "type": "shape",
+              "shape": "rect",
+              "fill": "#FFFDF8",
+              "cornerRadius": "22%",
+              "stroke": {
+                "color": "#27231F",
+                "width": 5
+              },
+              "frame": {
+                "inset": 0
+              }
+            },
+            {
+              "id": "icon3-image",
+              "type": "image",
+              "src": {
+                "slot": "icon3"
+              },
+              "fit": "contain",
+              "frame": {
+                "x": "50%",
+                "y": "50%",
+                "width": "74%",
+                "height": "74%",
+                "anchor": "center"
+              }
+            }
+          ],
+          "if": {
+            "slot": "icon3"
+          }
+        },
+        {
+          "id": "icon4",
+          "type": "group",
+          "rotation": 9,
+          "frame": {
+            "x": "82.22%",
+            "y": "65.9%",
+            "width": 146,
+            "height": 146,
+            "anchor": "center"
+          },
+          "children": [
+            {
+              "id": "icon4-card",
+              "type": "shape",
+              "shape": "rect",
+              "fill": "#FFFDF8",
+              "cornerRadius": "22%",
+              "stroke": {
+                "color": "#27231F",
+                "width": 5
+              },
+              "frame": {
+                "inset": 0
+              }
+            },
+            {
+              "id": "icon4-image",
+              "type": "image",
+              "src": {
+                "slot": "icon4"
+              },
+              "fit": "contain",
+              "frame": {
+                "x": "50%",
+                "y": "50%",
+                "width": "74%",
+                "height": "74%",
+                "anchor": "center"
+              }
+            }
+          ],
+          "if": {
+            "slot": "icon4"
+          }
+        },
+        {
+          "id": "icon5",
+          "type": "group",
+          "rotation": -6,
+          "frame": {
+            "x": "50.0%",
+            "y": "81.8%",
+            "width": 146,
+            "height": 146,
+            "anchor": "center"
+          },
+          "children": [
+            {
+              "id": "icon5-card",
+              "type": "shape",
+              "shape": "rect",
+              "fill": "#FFFDF8",
+              "cornerRadius": "22%",
+              "stroke": {
+                "color": "#27231F",
+                "width": 5
+              },
+              "frame": {
+                "inset": 0
+              }
+            },
+            {
+              "id": "icon5-image",
+              "type": "image",
+              "src": {
+                "slot": "icon5"
+              },
+              "fit": "contain",
+              "frame": {
+                "x": "50%",
+                "y": "50%",
+                "width": "74%",
+                "height": "74%",
+                "anchor": "center"
+              }
+            }
+          ],
+          "if": {
+            "slot": "icon5"
+          }
+        },
+        {
+          "id": "icon6",
+          "type": "group",
+          "rotation": 5,
+          "frame": {
+            "x": "17.78%",
+            "y": "65.9%",
+            "width": 146,
+            "height": 146,
+            "anchor": "center"
+          },
+          "children": [
+            {
+              "id": "icon6-card",
+              "type": "shape",
+              "shape": "rect",
+              "fill": "#FFFDF8",
+              "cornerRadius": "22%",
+              "stroke": {
+                "color": "#27231F",
+                "width": 5
+              },
+              "frame": {
+                "inset": 0
+              }
+            },
+            {
+              "id": "icon6-image",
+              "type": "image",
+              "src": {
+                "slot": "icon6"
+              },
+              "fit": "contain",
+              "frame": {
+                "x": "50%",
+                "y": "50%",
+                "width": "74%",
+                "height": "74%",
+                "anchor": "center"
+              }
+            }
+          ],
+          "if": {
+            "slot": "icon6"
+          }
+        },
+        {
+          "id": "focal",
+          "type": "group",
+          "rotation": 0,
+          "frame": {
+            "x": "50%",
+            "y": "34.1%",
+            "width": 173,
+            "height": 173,
+            "anchor": "center"
+          },
+          "children": [
+            {
+              "id": "focal-card",
+              "type": "shape",
+              "shape": "rect",
+              "fill": "#EEE6F7",
+              "cornerRadius": "22%",
+              "stroke": {
+                "color": "#27231F",
+                "width": 5
+              },
+              "frame": {
+                "inset": 0
+              }
+            },
+            {
+              "id": "focal-image",
+              "type": "image",
+              "src": {
+                "slot": "focal"
+              },
+              "fit": "contain",
+              "frame": {
+                "x": "50%",
+                "y": "50%",
+                "width": "74%",
+                "height": "74%",
+                "anchor": "center"
+              }
+            }
+          ]
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "if": {
+            "slot": "title"
+          },
+          "text": "{{title}}",
+          "style": {
+            "fontFamily": "Inter",
+            "fontWeight": 800,
+            "fontSize": {
+              "min": 40,
+              "max": 64
+            },
+            "color": "#27231F",
+            "align": "center",
+            "lineHeight": 1.1,
+            "maxLines": 3,
+            "overflow": "shrink"
+          },
+          "frame": {
+            "x": "50%",
+            "y": "56%",
+            "width": "52%",
+            "anchor": "center"
+          }
+        }
+      ]
+    }
+  ]
+}
