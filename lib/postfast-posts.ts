@@ -7,26 +7,68 @@ import {
   writeOutputPublications,
 } from "@/lib/output-publications"
 import type { PostFastMedia } from "@/lib/postfast-client"
-import type {
-  PostFastAnalyticsMetric,
-  PostFastPostRecord,
-  PostFastPostStatus,
-  PostFastSourceType,
-  PostFastStatsSource,
-  PublicationLinkState,
-} from "@/lib/publication-contract"
-export type {
-  PostFastAnalyticsMetric,
-  PostFastAnalyticsPoint,
-  PostFastPostRecord,
-  PostFastPostStatus,
-  PostFastSourceType,
-  PostFastStatsSource,
-} from "@/lib/publication-contract"
+import type { PublicationLinkState } from "@/lib/publication-link-state"
 import {
   buildPublicationRecord,
   normalizePublicationRecord,
 } from "@/lib/publication-record"
+
+export type PostFastPostStatus =
+  | "awaiting_manual_post"
+  | "ready_for_review"
+  | "draft"
+  | "scheduled"
+  | "published"
+  | "failed"
+export type PostFastSourceType =
+  | "automation"
+  | "x_automation"
+  | "generated_video"
+  | "asset"
+  | "greenscreen"
+  | "ugc_ad"
+  | "image"
+  | "slideshow"
+  | "manual"
+  | "external"
+
+export type PostFastAnalyticsPoint = {
+  date: string
+  total: string | number
+}
+
+export type PostFastAnalyticsMetric = {
+  label: string
+  data: PostFastAnalyticsPoint[]
+  percentageChange?: number
+}
+
+export type PostFastStatsSource = "postfast" | "tiktok_studio"
+
+export type PostFastPostRecord = {
+  id: string
+  sourceType: PostFastSourceType
+  sourceId: string
+  postfastPostId?: string
+  integrationId: string
+  provider: string
+  status: PostFastPostStatus
+  scheduledAt?: string
+  publishedAt?: string
+  releaseUrl?: string
+  thumbnailUrl?: string
+  linkState: PublicationLinkState
+  statsSources: PostFastStatsSource[]
+  externalPostId?: string
+  content: string
+  media: PostFastMedia[]
+  createdAt: string
+  updatedAt: string
+  lastSyncedAt?: string
+  lastAnalyticsSyncedAt?: string
+  analytics?: PostFastAnalyticsMetric[]
+  error?: string
+}
 
 export async function listPostFastPostRecords(
   filters: {
@@ -100,6 +142,7 @@ export async function upsertPostFastPostRecord(
         ? (existing?.publishedAt ?? now)
         : existing?.publishedAt),
     releaseUrl: clean(input.releaseUrl) || existing?.releaseUrl,
+    thumbnailUrl: clean(input.thumbnailUrl) || existing?.thumbnailUrl,
     linkState: input.linkState ?? existing?.linkState ?? "unlinked",
     statsSources: normalizeStatsSources(
       input.statsSources ?? existing?.statsSources

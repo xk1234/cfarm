@@ -36,11 +36,7 @@ function schema(patch: Partial<AutomationSchema["ugc"]> = {}) {
       lipSyncTier: "standard" as const,
       targetDurationSeconds: 40,
       brollCount: 3,
-      captions: {
-        enabled: true,
-        style: "karaoke",
-        fallback: "drawtext" as const,
-      },
+      captions: { enabled: true, style: "karaoke", fallback: "drawtext" as const },
       hookOverlay: { enabled: true, durationMs: 3000, style: "bold" },
       ...patch,
     },
@@ -48,64 +44,23 @@ function schema(patch: Partial<AutomationSchema["ugc"]> = {}) {
 }
 
 describe("UgcAutomationFormatPanel", () => {
-  it("shows live validation without manual save controls", () => {
+  it("blocks saving a live automation without product input or voice", () => {
+    const save = vi.fn()
     const html = renderToStaticMarkup(
       <UgcAutomationFormatPanel
         config={{
           ...schema({ voiceId: "" }),
-          ugc: {
-            ...schema({ voiceId: "" }).ugc,
-            productUrl: "",
-            productBrief: "",
-          },
+          ugc: { ...schema({ voiceId: "" }).ugc, productUrl: "", productBrief: "" },
         }}
-        collections={[]}
-        onCreateCollection={vi.fn()}
         onConfigChange={vi.fn()}
         onBack={vi.fn()}
+        onSave={save}
       />
     )
 
     expect(html).toContain("Add a product URL or product brief")
     expect(html).toContain("Choose a voice before going live")
-    expect(html).not.toContain("Save changes")
-    expect(html).toContain("Back")
-  })
-
-  it("uses an image collection picker instead of exposing an asset URL", () => {
-    const html = renderToStaticMarkup(
-      <UgcAutomationFormatPanel
-        config={schema({
-          actorSource: "collection",
-          actorCollectionId: "actor-portraits",
-        })}
-        collections={[
-          {
-            id: "actor-portraits",
-            title: "Actor portraits",
-            createdAt: "2026-08-10T00:00:00.000Z",
-            source: "upload",
-            images: [
-              {
-                id: "portrait-1",
-                title: "Portrait 1",
-                description: "Portrait 1",
-                imageUrl: "/portrait-1.jpg",
-                sourceUrl: "/portrait-1.jpg",
-                dominantColor: "#ddd",
-              },
-            ],
-          },
-        ]}
-        onCreateCollection={vi.fn()}
-        onConfigChange={vi.fn()}
-        onBack={vi.fn()}
-      />
-    )
-
-    expect(html).toContain("Actor image collection")
-    expect(html).toContain("Actor portraits")
-    expect(html).not.toContain("asset URL")
-    expect(html.match(/type="url"/g)).toHaveLength(1)
+    expect(html).toContain("disabled=\"\"")
+    expect(save).not.toHaveBeenCalled()
   })
 })

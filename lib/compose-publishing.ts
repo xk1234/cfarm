@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import type {
   ComposerValue,
   ConnectedComposerAccount,
-} from "@/features/composer/domain/composer"
+} from "@/components/realfarm/composer/composer-types"
 import type { PostFastMedia } from "@/lib/postfast-client"
 import {
   composeLimitErrors,
@@ -13,7 +13,7 @@ import {
 import { publishPost, type PublishRequest } from "@/lib/publishing"
 import { getSocialProvider } from "@/lib/social/registry"
 
-export type ComposePublishMode = "now" | "schedule"
+export type ComposePublishMode = "draft" | "now" | "schedule"
 
 export type ComposePublishResult = {
   integrationId: string
@@ -32,6 +32,8 @@ export async function publishComposerValue(input: {
   uploadMedia: (url: string) => Promise<PostFastMedia>
   request?: PublishRequest
   sourceId?: string
+  sourceOutputIds?: string[]
+  postMetadata?: { title?: string; hashtags?: string[] }
   rootDir?: string
 }) {
   const sourceId = input.sourceId ?? randomUUID()
@@ -66,12 +68,15 @@ export async function publishComposerValue(input: {
         integrationId: account.integrationId,
         provider: account.platformKey,
         content: effectiveComposerText(input.value, account.platformKey),
+        title: input.postMetadata?.title,
+        hashtags: input.postMetadata?.hashtags,
         media,
         settings: input.value.perNetwork[account.platformKey]?.fields,
         sourceType: "external",
         sourceId,
-        outputId: sourceId,
-        origin: "composer",
+        outputId: input.sourceOutputIds?.[0] ?? sourceId,
+        outputIds: input.sourceOutputIds,
+        origin: input.sourceOutputIds?.length ? "publish_gate" : "composer",
         rootDir: input.rootDir,
         request: input.request,
       })

@@ -36,15 +36,12 @@ export type TempSlideTextPlaceholder = {
   fontSize: string
   textStyle: string
   textPosition: string
+  textPositionX?: number
+  textPositionY?: number
   textItemWidth: string
   textAlign: string
   textAnchor: string
   textVerticalAnchor: string
-  positionX?: number
-  positionY?: number
-  fontWeight?: number
-  backgroundMode?: "line" | "block"
-  backgroundRadius?: number
 }
 
 export type TempSlideSpec = {
@@ -58,17 +55,6 @@ export type TempSlideSpec = {
   aiImageSelection?: boolean
   displayText: boolean
   collectionId: string
-  imageItems?: Array<{
-    id: string
-    collectionId: string
-    imageId: string
-    positionX: number
-    positionY: number
-    width: number
-    height: number
-    fit: "cover" | "contain"
-    opacity: number
-  }>
   overlayImage?: {
     enabled: boolean
     collectionId: string
@@ -149,41 +135,6 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
     "Placeholders:",
     ...placeholderLines,
   ].join("\n")
-}
-
-export function buildManagedSlideshowPromptVariables(
-  input: TempSlidePromptInput
-): Record<string, string> {
-  const captionPolicy = promptUsesExactHookCaption(input.promptInstructions)
-    ? "exact_hook"
-    : "generated"
-  const block = (lines: string[]) =>
-    lines.length > 0 ? `\n${lines.join("\n")}` : ""
-  return {
-    automation_name: input.automationName,
-    hook: input.hook,
-    tone: input.tone,
-    metadata_requirements: socialPostMetadataPromptLines("slideshow", {
-      captionPolicy,
-    }).join("\n"),
-    prompt_instructions: input.promptInstructions,
-    performance_memory_block: block(
-      performanceMemoryLines(input.performanceMemory)
-    ),
-    avoid_similar_outputs_block: block(
-      avoidSimilarOutputLines(input.avoidSimilarOutputs)
-    ),
-    avoid_similar_headings_block: block(
-      avoidSimilarHeadingLines(input.avoidSimilarHeadings)
-    ),
-    strict_output_rules_block: block(strictOutputRuleLines(input.tone)),
-    placeholders: input.placeholders
-      .map(
-        (placeholder) =>
-          `- ${placeholder.id}: ${placeholder.slideId}, ${placeholder.section}, ${placeholderRequirement(placeholder)}`
-      )
-      .join("\n"),
-  }
 }
 
 function performanceMemoryLines(
@@ -308,13 +259,12 @@ export type ScheduledSlideshowPromptBundle = {
   system: string
   user: string
   schema: ReturnType<typeof buildTempSlideStructuredOutputSchema>
-  managedPromptVariables?: Record<string, string>
 }
 
 /**
  * Single source of truth for the system + user prompt and the structured-output
  * schema used by BOTH the Next app (lib/slideshow-text-generation-payload.ts) and
- * the Windmill pipeline handler (windmill/runtime/production-pipeline-handlers.ts,
+ * the Railway job-worker (Railway worker/src/slideshow-automation.js,
  * kept in sync via scripts/sync-function-shared.mjs). Feeding identical primitives
  * here yields byte-identical prompts on both paths.
  *
@@ -341,30 +291,21 @@ export function buildScheduledSlideshowPrompt(input: {
     clean(input.promptInstructions) || defaultTempSlideUserInstructions
   const systemPrompt = clean(input.systemPrompt) || defaultTempSlideSystemPrompt
   const exactHookCaption = promptUsesExactHookCaption(promptInstructions)
-  const promptInput = {
-    automationName: input.automationName,
-    hook: input.hook,
-    tone: input.tone,
-    promptInstructions,
-    placeholders: input.placeholders,
-    avoidSimilarOutputs: input.avoidSimilarOutputs,
-    avoidSimilarHeadings: input.avoidSimilarHeadings,
-    performanceMemory: input.performanceMemory,
-  }
   return {
     system: `${systemPrompt}\n${llmSlopPromptLine()}`,
-    user: buildTempSlideUserPrompt(promptInput),
+    user: buildTempSlideUserPrompt({
+      automationName: input.automationName,
+      hook: input.hook,
+      tone: input.tone,
+      promptInstructions,
+      placeholders: input.placeholders,
+      avoidSimilarOutputs: input.avoidSimilarOutputs,
+      avoidSimilarHeadings: input.avoidSimilarHeadings,
+      performanceMemory: input.performanceMemory,
+    }),
     schema: buildTempSlideStructuredOutputSchema(input.placeholders, {
       exactHookCaption,
     }),
-    ...(clean(input.systemPrompt)
-      ? {}
-      : {
-          managedPromptVariables: {
-            slop_rule: llmSlopPromptLine(),
-            ...buildManagedSlideshowPromptVariables(promptInput),
-          },
-        }),
   }
 }
 

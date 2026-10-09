@@ -2,7 +2,6 @@ import { createHash } from "node:crypto"
 
 import { clean } from "@/lib/guards"
 import { applyResolvedHookCase } from "@/lib/hook-casing"
-import type { SlideshowTextItem } from "@/lib/slideshow-renderer"
 
 type HookItem = {
   id: string
@@ -10,16 +9,6 @@ type HookItem = {
   enabled: boolean
   bodySlideCount?: number
   tone?: string
-  contentDirection?: string
-  content?: string
-  source?: {
-    provider: string
-    projectId?: string
-    projectTitle?: string
-    hookId?: string
-    scriptId?: string
-    importedAt?: string
-  }
   createdAt?: string
   updatedAt?: string
 }
@@ -30,6 +19,8 @@ type TextItem = Record<string, unknown> & {
   textMode?: string
   staticText?: string
   textPosition?: string
+  textPositionX?: number
+  textPositionY?: number
   textAlign?: string
   textAnchor?: string
   textVerticalAnchor?: string
@@ -37,11 +28,6 @@ type TextItem = Record<string, unknown> & {
   fontSize?: string
   textStyle?: string
   font?: string
-  positionX?: number
-  positionY?: number
-  fontWeight?: number
-  backgroundMode?: string
-  backgroundRadius?: number
 }
 
 type FormatSection = Record<string, unknown> & {
@@ -127,39 +113,11 @@ export function automationHookItems(
           ? { bodySlideCount: validBodySlideCount(item.bodySlideCount) }
           : {}),
         ...(clean(item.tone) ? { tone: clean(item.tone) } : {}),
-        ...(clean(item.contentDirection)
-          ? { contentDirection: clean(item.contentDirection).slice(0, 5_000) }
-          : {}),
-        ...(clean(item.content)
-          ? { content: clean(item.content).slice(0, 20_000) }
-          : {}),
-        ...(normalizeHookSource(item.source)
-          ? { source: normalizeHookSource(item.source) }
-          : {}),
         createdAt: clean(item.createdAt) || new Date(0).toISOString(),
         ...(clean(item.updatedAt) ? { updatedAt: clean(item.updatedAt) } : {}),
       },
     ]
   })
-}
-
-function normalizeHookSource(value: unknown): HookItem["source"] | undefined {
-  if (!value || typeof value !== "object") return undefined
-  const source = value as Record<string, unknown>
-  const provider = clean(source.provider)
-  if (!provider) return undefined
-  return {
-    provider,
-    ...(clean(source.projectId) ? { projectId: clean(source.projectId) } : {}),
-    ...(clean(source.projectTitle)
-      ? { projectTitle: clean(source.projectTitle) }
-      : {}),
-    ...(clean(source.hookId) ? { hookId: clean(source.hookId) } : {}),
-    ...(clean(source.scriptId) ? { scriptId: clean(source.scriptId) } : {}),
-    ...(clean(source.importedAt)
-      ? { importedAt: clean(source.importedAt) }
-      : {}),
-  }
 }
 
 function validBodySlideCount(value: unknown) {
@@ -292,20 +250,17 @@ export function slideSpecs(
   const hookSection = formatSection(schema, "hook")
   const content = formatSection(schema, "content")
   const cta = formatSection(schema, "cta")
-  const hookCount = Math.max(0, Math.round(Number(hookSection.slideCount) || 0))
-  const configuredContentCount = Math.max(
-    0,
-    Math.round(Number(bodySlideCount) || Number(content.slideCount) || 0)
-  )
-  const contentCount = configuredContentCount
+  const implied = Number(clean(hook).match(/^(\d{1,2})\s+[a-z]/i)?.[1])
+  const contentCount =
+    implied >= 1 && implied <= 10
+      ? implied
+      : Math.max(1, bodySlideCount || content.slideCount || 1)
   const ctaCount =
     Number(cta.slideCount) > 0 || schema.image_collection_ids?.cta_slide?.check
       ? Math.max(1, Number(cta.slideCount) || 1)
       : 0
   return [
-    ...Array.from({ length: hookCount }, (_, index) =>
-      specForSection(schema, hookSection, "hook", index)
-    ),
+    specForSection(schema, hookSection, "hook", 0),
     ...Array.from({ length: contentCount }, (_, index) => {
       const override = content.slideOverrides?.find(
         (item) => Number(item.slideIndex) === index + 1
@@ -328,20 +283,32 @@ export function slideSpecs(
             : {}),
         },
         "content",
-        hookCount + index,
+        index + 1,
         imageOverride?.collectionId
       )
     }),
     ...Array.from({ length: ctaCount }, (_, index) =>
-      specForSection(schema, cta, "cta", hookCount + contentCount + index)
+      specForSection(schema, cta, "cta", contentCount + index + 1)
     ),
   ]
 }
 
 export function selectedBodySlideCount(schema: PlanSchema, seedValue: number) {
-  void seedValue
   const content = formatSection(schema, "content")
-  return Math.max(0, Math.round(Number(content.slideCount) || 0))
+  if (content.slideCountMode !== "varying") {
+    return Math.max(1, Number(content.slideCount) || 1)
+  }
+  const min = Math.max(
+    1,
+    Math.round(Number(content.slideCountMin) || Number(content.slideCount) || 1)
+  )
+  const max = Math.max(
+    min,
+    Math.round(
+      Number(content.slideCountMax) || Number(content.slideCount) || min
+    )
+  )
+  return min + (Number(seedValue) % (max - min + 1))
 }
 
 export function specForSection(
@@ -388,19 +355,9 @@ export function textItemsForSpec(input: {
   const { spec, hook, generated, schema } = input
   if (!spec.displayText) return []
   if (spec.section === "hook") {
-    const hookItems: TextItem[] = spec.textItems.length ? spec.textItems : [{}]
-    return hookItems.map((item, index) =>
-      slideshowTextItem(
-        item,
-        index === 0
-          ? hook
-          : item.textMode === "static"
-            ? clean(item.staticText) || hook
-            : clean(item.id ? generated.text?.[item.id] : "") || hook,
-        schema,
-        spec.section
-      )
-    )
+    return [
+      slideshowTextItem(spec.textItems[0] || {}, hook, schema, spec.section),
+    ]
   }
   if (!spec.textItems.length) {
     throw new Error(`${spec.id} displays text but has no configured text items`)
@@ -424,7 +381,9 @@ export function slideshowTextItem(
   text: string,
   schema: Pick<PlanSchema, "font">,
   role: "hook" | "content" | "cta"
-): SlideshowTextItem {
+) {
+  const hasCustomPosition =
+    Number.isFinite(item.textPositionX) && Number.isFinite(item.textPositionY)
   const placement =
     item.textPosition === "bottom" || item.textPosition === "center"
       ? item.textPosition
@@ -435,8 +394,6 @@ export function slideshowTextItem(
       : "center"
   const textAnchor = item.textAnchor || "padded"
   const y = placement === "bottom" ? 82 : placement === "center" ? 45 : 16
-  const positionX = numericPercent(item.positionX)
-  const positionY = numericPercent(item.positionY)
   return {
     id:
       clean(item.itemId) ||
@@ -452,31 +409,19 @@ export function slideshowTextItem(
     textAlign,
     textAnchor,
     textVerticalAnchor: item.textVerticalAnchor || "padded",
-    textPlacement:
-      positionX === undefined || positionY === undefined
-        ? placement
-        : undefined,
+    textPlacement: hasCustomPosition ? undefined : placement,
     textPosition: {
-      x: positionX ?? textPositionX(textAlign, textAnchor),
-      y: positionY ?? (role === "hook" && placement === "center" ? 45 : y),
+      x: hasCustomPosition
+        ? clampPercent(Number(item.textPositionX))
+        : textPositionX(textAlign, textAnchor),
+      y: hasCustomPosition
+        ? clampPercent(Number(item.textPositionY))
+        : role === "hook" && placement === "center"
+          ? 45
+          : y,
     },
     font: item.font || schema.font,
-    fontWeight: numericValue(item.fontWeight, 800),
-    backgroundMode: item.backgroundMode === "block" ? "block" : "line",
-    backgroundRadius: numericValue(item.backgroundRadius, 6),
   }
-}
-
-function numericPercent(value: unknown) {
-  const number = Number(value)
-  return Number.isFinite(number)
-    ? Math.max(0, Math.min(100, number))
-    : undefined
-}
-
-function numericValue(value: unknown, fallback: number) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : fallback
 }
 
 export function automationFormatSection(
@@ -516,6 +461,10 @@ function textPositionX(textAlign: string, textAnchor: string) {
   if (textAlign === "left") return flush ? 1.5 : 10
   if (textAlign === "right") return flush ? 98.5 : 90
   return 50
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))
 }
 
 function textWidth(value: unknown, text: string) {

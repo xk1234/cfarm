@@ -6,6 +6,7 @@ import {
   IconBrandTelegram,
   IconBrandTiktok,
   IconBrandYoutube,
+  IconApi,
   IconCheck,
   IconCreditCard,
   IconExternalLink,
@@ -19,10 +20,8 @@ import {
   IconUsers,
   IconVideo,
 } from "@tabler/icons-react"
-import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
-import { InfluLabAccountCard } from "@/components/realfarm/influlab-account-card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
@@ -33,11 +32,14 @@ import {
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import { normalizePostFastSocialIntegration } from "@/lib/social/postfast-adapter"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
-import { clientSWRFetcher } from "@/lib/client-swr"
+import { clientQueryFetcher } from "@/lib/client-fetcher"
+import { useAppQuery } from "@/lib/client-query"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
+import { McpSettingsPanel } from "@/components/realfarm/mcp-settings-panel"
 
-type Tab = "billing" | "accounts" | "models" | "reminders" | "team" | "demos"
+export type WorkspaceSettingsTab =
+  "billing" | "accounts" | "models" | "reminders" | "team" | "demos" | "mcp"
 type Member = {
   id: string
   email: string
@@ -97,16 +99,19 @@ const tabs = [
   { id: "reminders", label: "Notifications", icon: IconBell },
   { id: "team", label: "Team members", icon: IconUsers },
   { id: "demos", label: "Demos", icon: IconVideo },
+  { id: "mcp", label: "MCP", icon: IconApi },
 ] as const
 
 export function UserSettingsModal({
   onClose,
   onSocialAccountDisconnected,
+  initialTab = "billing",
 }: {
   onClose: () => void
   onSocialAccountDisconnected?: (integrationId: string) => void
+  initialTab?: WorkspaceSettingsTab
 }) {
-  const [tab, setTab] = useState<Tab>("billing")
+  const [tab, setTab] = useState<WorkspaceSettingsTab>(initialTab)
   const [remindersDirty, setRemindersDirty] = useState(false)
   const [modelsDirty, setModelsDirty] = useState(false)
   const dirtyGuard = useDirtyGuard(remindersDirty || modelsDirty)
@@ -115,7 +120,7 @@ export function UserSettingsModal({
     dirtyGuard.run(onClose)
   }
 
-  function selectTab(nextTab: Tab) {
+  function selectTab(nextTab: WorkspaceSettingsTab) {
     if (nextTab === tab) return
     dirtyGuard.run(() => {
       setRemindersDirty(false)
@@ -127,17 +132,14 @@ export function UserSettingsModal({
   return (
     <>
       <AppModal className="z-[100] bg-[#242136]/45" onClose={requestClose}>
-        <AppModalPanel className="max-h-[calc(100dvh-1rem)] max-w-[980px] overflow-hidden p-0 sm:max-h-[calc(100dvh-2rem)]">
+        <AppModalPanel className="max-h-[calc(100vh-2rem)] max-w-[980px] overflow-hidden p-0">
           <AppModalHeader
             title="Workspace settings"
             closeLabel="Close settings"
             onClose={requestClose}
           />
-          <div className="grid h-[calc(100dvh-6rem)] max-h-[600px] min-h-0 grid-rows-[auto_minmax(0,1fr)] md:h-[calc(100dvh-7rem)] md:grid-cols-[220px_1fr] md:grid-rows-1">
-            <nav
-              aria-label="Settings sections"
-              className="flex max-w-full gap-1 overflow-x-auto border-b border-app-panel-border bg-[#fafafd] p-2 md:block md:overflow-y-auto md:border-r md:border-b-0 md:p-3"
-            >
+          <div className="grid h-[calc(100vh-7rem)] max-h-[600px] min-h-0 md:grid-cols-[220px_1fr]">
+            <nav className="flex gap-1 overflow-x-auto border-b border-app-panel-border bg-[#fafafd] p-3 md:block md:overflow-y-auto md:border-r md:border-b-0">
               {tabs.map((item) => {
                 const Icon = item.icon
                 return (
@@ -145,7 +147,7 @@ export function UserSettingsModal({
                     key={item.id}
                     onClick={() => selectTab(item.id)}
                     className={cn(
-                      "flex h-10 w-auto shrink-0 items-center gap-2.5 rounded-[10px] px-3 text-left text-sm font-medium md:mb-1 md:w-full",
+                      "flex h-10 shrink-0 items-center gap-2.5 rounded-[10px] px-3 text-left text-sm font-medium md:mb-1 md:w-full",
                       tab === item.id
                         ? "bg-app-strong text-white"
                         : "text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
@@ -157,7 +159,7 @@ export function UserSettingsModal({
                 )
               })}
             </nav>
-            <div className="min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
+            <div className="min-w-0 overflow-y-auto p-6 sm:p-8">
               {tab === "billing" && <BillingPanel />}
               {tab === "accounts" && (
                 <AccountsPanel
@@ -172,6 +174,7 @@ export function UserSettingsModal({
               )}
               {tab === "team" && <TeamPanel />}
               {tab === "demos" && <DemosPanel />}
+              {tab === "mcp" && <McpSettingsPanel />}
             </div>
           </div>
         </AppModalPanel>
@@ -199,9 +202,9 @@ function GenerationModelsPanel({
     error: loadError,
     isLoading,
     mutate,
-  } = useSWR<{
+  } = useAppQuery<{
     settings: GenerationModelSettings
-  }>("/api/settings/generation-models", clientSWRFetcher)
+  }>("/api/settings/generation-models", clientQueryFetcher)
   const [draft, setDraft] = useState<GenerationModelSettings | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
@@ -354,7 +357,10 @@ function RemindersPanel({
     error: loadError,
     isLoading,
     mutate,
-  } = useSWR<ReminderResponse>("/api/settings/reminders", clientSWRFetcher)
+  } = useAppQuery<ReminderResponse>(
+    "/api/settings/reminders",
+    clientQueryFetcher
+  )
   const [draft, setDraft] = useState<ReminderSettings | null>(null)
   const [pending, setPending] = useState<"save" | "test" | "detect" | "">("")
   const [message, setMessage] = useState("")
@@ -782,7 +788,7 @@ function BillingPanel() {
       <PanelHeading title="Billing & plans" />
       <div className="rounded-[14px] border border-[#e4d7ff] bg-[#f6f2ff] p-5">
         <div className="flex items-center justify-between">
-          <div className="flex items-baseline gap-2">
+          <div className="flex flex-wrap items-baseline gap-2">
             <h3 className="text-xl font-semibold">LumenClip Free</h3>
             <span className="text-xs font-semibold text-app-action">
               Current plan
@@ -819,10 +825,10 @@ function AccountsPanel({
     error: loadError,
     isLoading: loading,
     mutate,
-  } = useSWR<{
+  } = useAppQuery<{
     integrations?: unknown[]
     disconnectedIntegrations?: unknown[]
-  }>("/api/postfast/integrations", clientSWRFetcher)
+  }>("/api/postfast/integrations", clientQueryFetcher)
   const accounts = normalizedIntegrations(data?.integrations)
   const disconnectedAccounts = normalizedIntegrations(
     data?.disconnectedIntegrations
@@ -883,7 +889,6 @@ function AccountsPanel({
   return (
     <div>
       <PanelHeading title="Connected accounts" />
-      <InfluLabAccountCard />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           onClick={connect}
@@ -994,7 +999,7 @@ function AccountsPanel({
       {disconnectingAccount ? (
         <ConfirmDialog
           title={`Disconnect ${disconnectingAccount.name || disconnectingAccount.profile || disconnectingAccount.provider}?`}
-          description="This removes the account from every LumenClip template. Its PostFast authorization is not revoked."
+          description="This removes the account from saved destination selections. Its PostFast authorization is not revoked."
           confirmLabel="Disconnect account"
           pendingLabel="Disconnecting…"
           onCancel={() => setDisconnectingAccount(null)}
@@ -1018,6 +1023,7 @@ function TeamPanel() {
     [open, setOpen] = useState(false),
     [email, setEmail] = useState(""),
     [pending, setPending] = useState(false),
+    [inviteUrl, setInviteUrl] = useState(""),
     [error, setError] = useState("")
   async function load() {
     try {
@@ -1044,12 +1050,13 @@ function TeamPanel() {
     setPending(true)
     setError("")
     try {
-      await fetchJsonWithTimeout("/api/settings/team", {
+      const response = await fetchJsonWithTimeout<{ inviteUrl: string }>("/api/settings/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
         toastOnError: false,
       })
+      setInviteUrl(response.inviteUrl)
       setOpen(false)
       setEmail("")
       setLoading(true)
@@ -1133,11 +1140,22 @@ function TeamPanel() {
               {error ? (
                 <p className="mt-3 text-sm text-[#b43e4d]">{error}</p>
               ) : null}
+              {inviteUrl ? (
+                <label className="mt-4 block text-sm">
+                  Invitation link
+                  <input
+                    readOnly
+                    value={inviteUrl}
+                    onFocus={(event) => event.target.select()}
+                    className="mt-2 h-11 w-full rounded-[10px] border border-[#d8d8e2] px-3"
+                  />
+                </label>
+              ) : null}
               <button
                 disabled={pending}
                 className="mt-5 h-10 w-full rounded-[10px] bg-app-action text-sm font-semibold text-white disabled:opacity-60"
               >
-                {pending ? "Sending…" : "Send invitation"}
+                {pending ? "Creating link…" : "Create invitation link"}
               </button>
             </form>
           </AppModalPanel>

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { latestPublicationsByPost } from "@/features/analytics/ui/analytics-selectors"
+import { latestPublicationsByPost } from "@/components/realfarm/analytics/analytics-selectors"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
 
@@ -10,11 +10,6 @@ const mocks = vi.hoisted(() => ({
   listFollowerSnapshots: vi.fn(),
   listPostFastPostRecords: vi.fn(),
   canonicalList: vi.fn(),
-  getAutomationRunForSlideshow: vi.fn(),
-}))
-
-vi.mock("@/lib/automation-runner", () => ({
-  getAutomationRunForSlideshow: mocks.getAutomationRunForSlideshow,
 }))
 
 vi.mock("@/lib/postfast-analytics", () => ({
@@ -36,8 +31,8 @@ vi.mock("@/lib/output-publications", () => ({
   writeCanonicalPostWithLegacyProjection: vi.fn(),
 }))
 
-vi.mock("@/lib/post-repository-appwrite", () => ({
-  appwritePostRepository: {
+vi.mock("@/lib/post-repository-store", () => ({
+  railwayPostRepository: {
     listPosts: mocks.canonicalList,
   },
 }))
@@ -50,7 +45,6 @@ describe("analytics report", () => {
     delete process.env.POST_REPOSITORY_READ_MODE
     mocks.listFollowerSnapshots.mockResolvedValue([])
     mocks.canonicalList.mockResolvedValue([])
-    mocks.getAutomationRunForSlideshow.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -104,9 +98,6 @@ describe("analytics report", () => {
     ])
     mocks.listMetricSnapshots.mockResolvedValue([snapshot])
     mocks.listPostFastPostRecords.mockResolvedValue([publication])
-    mocks.getAutomationRunForSlideshow.mockResolvedValue({
-      outputImages: ["/api/assets/slide-1.png", "/api/assets/slide-2.png"],
-    })
 
     const response = await GET(
       new Request("http://localhost/api/analytics/report?days=30")
@@ -130,9 +121,6 @@ describe("analytics report", () => {
         }),
       }),
     ])
-    expect(payload.slideshowPreviews).toEqual({
-      [publication.id]: ["/api/assets/slide-1.png", "/api/assets/slide-2.png"],
-    })
   })
 
   it("joins an orphan-safe external publication to its preserved snapshot id", async () => {

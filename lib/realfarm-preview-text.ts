@@ -1,6 +1,6 @@
 import {
   defaultAutomationTextItem,
-  type TextItem,
+  type AutomationTextItem,
 } from "@/lib/realfarm-automation"
 
 const loremWords = [
@@ -30,7 +30,7 @@ export function previewTextForTextItem(
   textItem:
     | Partial<
         Pick<
-          TextItem,
+          AutomationTextItem,
           | "wordLengthMin"
           | "contentDirection"
           | "textMode"

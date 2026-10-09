@@ -12,7 +12,7 @@ import { automationCollectionIds } from "@/lib/realfarm-automation"
 import {
   collectionAliases,
   storedToCollection,
-} from "@/features/collections/domain/collections"
+} from "@/lib/realfarm-collections"
 
 export const dynamic = "force-dynamic"
 

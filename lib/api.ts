@@ -5,6 +5,9 @@
 // so adopting this is non-breaking for existing clients.
 import { NextResponse } from "next/server"
 import type { ZodType } from "zod"
+import { randomUUID } from "node:crypto"
+
+import { logger } from "@/lib/server-logger"
 
 /** Throw to return a specific status + safe message from a handler. */
 export class ApiError extends Error {
@@ -28,15 +31,8 @@ export function fail(status: number, message: string) {
  * the provider's own error is actionable for the caller — unlike `withHandler`,
  * which hides internal errors behind a generic 500.
  */
-export function providerFail(
-  error: unknown,
-  fallback: string,
-  status = 500
-) {
-  return fail(
-    status,
-    error instanceof Error ? error.message : fallback
-  )
+export function providerFail(error: unknown, fallback: string, status = 500) {
+  return fail(status, error instanceof Error ? error.message : fallback)
 }
 
 /** Read + trim a dynamic route's `id` param, returning null when empty. */
@@ -82,14 +78,62 @@ export function withHandler<Ctx>(
   handler: RouteHandler<Ctx> | ContextFreeRouteHandler
 ) {
   return async (request: Request, context: Ctx) => {
+    const requestId =
+      request.headers.get("x-request-id")?.trim() || randomUUID()
+    const startedAt = performance.now()
+    const requestLogger = logger.child({
+      requestId,
+      method: request.method,
+      path: new URL(request.url).pathname,
+    })
     try {
-      return await handler(request, context as Ctx)
+      const response = await handler(request, context as Ctx)
+      const identifiedResponse = responseWithRequestId(response, requestId)
+      requestLogger.info(
+        {
+          status: response.status,
+          durationMs: Math.round(performance.now() - startedAt),
+        },
+        "request completed"
+      )
+      return identifiedResponse
     } catch (error) {
       if (error instanceof ApiError) {
-        return fail(error.status, error.message)
+        requestLogger.warn(
+          {
+            status: error.status,
+            durationMs: Math.round(performance.now() - startedAt),
+          },
+          error.message
+        )
+        const response = fail(error.status, error.message)
+        return responseWithRequestId(response, requestId)
       }
-      console.error(`[api] ${request.method} ${request.url}`, error)
-      return fail(500, "Internal server error")
+      requestLogger.error(
+        {
+          err: error,
+          status: 500,
+          durationMs: Math.round(performance.now() - startedAt),
+        },
+        "request failed"
+      )
+      const response = fail(500, "Internal server error")
+      return responseWithRequestId(response, requestId)
     }
+  }
+}
+
+function responseWithRequestId(response: Response, requestId: string) {
+  try {
+    response.headers.set("x-request-id", requestId)
+    return response
+  } catch {
+    const headers = new Headers(response.headers)
+    headers.set("x-request-id", requestId)
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
   }
 }

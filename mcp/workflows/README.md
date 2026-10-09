@@ -1,14 +1,15 @@
 # Production generation pipelines
 
-The LumenClip pipeline MCP surface exposes the Windmill-owned generation
-workflows. Callers can queue a complete workflow. Isolated stage tests use
-Windmill MCP directly instead of duplicating stage execution in LumenClip MCP.
+The pipeline MCP surface exposes registered production handlers for the four
+live generation workflows. It is not a generic MCP-tool wrapper. Callers can
+run a complete workflow, invoke one named stage with JSON, or retain a stage
+envelope and pass it to another stage.
 
 ## Execution model
 
 `lumenclip_pipeline_catalog` returns two stage lists per workflow:
 
-- `workflowStages` is the public stage set represented by the Windmill DAG used by
+- `workflowStages` is the ordered convenience pipeline used by
   `lumenclip_pipeline_run`.
 - `stages` is the complete catalog, including every independently callable
   atomic stage used inside composites.
@@ -22,7 +23,7 @@ Every catalog entry publishes these machine-readable boundary fields:
 | `operation`          | The named provider, storage, or deterministic action.                                                                                                   |
 | `maxExternalCalls`   | `0` for deterministic/composite handlers and `1` for an atomic network/storage handler. The executor rejects a second declared boundary before it runs. |
 | `provider` / `model` | Provider and model provenance when applicable.                                                                                                          |
-| `workflowStep`       | Whether the stage participates in the public full-workflow graph.                                                                                       |
+| `workflowStep`       | Whether the stage participates in the ordered full workflow.                                                                                            |
 
 Atomic provider handlers never own retry loops. A repair or retry is another
 invocation of the same registered atomic handler by a composite. Async APIs use
@@ -30,48 +31,43 @@ separate create, one-status-read, result/download, and persistence stages. A
 composite may return a running operation so the caller can resume later with
 the retained structured output.
 
-Full workflow execution is queued in Windmill. Each stage, branch, and join is
-visible in the Windmill DAG. Windmill MCP's `runScriptByPath` invokes
-`f/lumenclip/workflow_stage_runtime` directly for isolated tests; there is no
-wrapper flow or duplicate LumenClip MCP stage tool. Decomposed convenience
-composites still call atomic handlers through the registry.
-
-Provider nodes expose their exact outbound request in a top-level
-`providerRequests` array beside `output`. Open a Windmill run and select the
-node to inspect its system prompt, user prompt, structured-output schema,
-model, and any retry attempts in order. The trace is deliberately outside
-`output`, so it is visible for diagnosis without becoming input to the next
-workflow stage. Failed nodes include the same request trace in their error.
+Full workflow execution resolves every step from the same registry used by
+`lumenclip_pipeline_stage_run`. Decomposed convenience composites likewise call
+atomic handlers through the registry. Production compatibility entry points use
+the same extracted one-request provider primitives.
 
 ## Tools
 
-| Tool                         | Purpose                                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `lumenclip_pipeline_catalog` | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance. |
-| `lumenclip_pipeline_run`     | Queue a named Windmill DAG and return its Windmill job ID.                                            |
+| Tool                           | Purpose                                                                                                                |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `lumenclip_pipeline_catalog`   | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance.                  |
+| `lumenclip_pipeline_stage_run` | Invoke one registered atomic or composite stage with explicit JSON.                                                    |
+| `lumenclip_pipeline_run`       | Invoke an ordered named workflow and pipe each complete stage output to the next registered handler.                   |
+| `lumenclip_workflow_fork`      | Replace one complete prompt input or an exact selected passage, then rerun every downstream slideshow generation step. |
 
-## Test one stage with Windmill MCP
+## Fork a slideshow workflow
 
-Use Windmill MCP's `runScriptByPath` for
-`f/lumenclip/workflow_stage_runtime`. Pass the script arguments below; Windmill
-resolves the two `$var:` references inside the workspace, so the MCP client
-never reads either value.
+`lumenclip_workflow_fork` accepts one to four named variations. Its default
+`scope` is `input`, which replaces the entire string at `inputPath` and does
+not require character offsets. Use `scope: "selection"` with
+`selectionStart`, `selectionEnd`, and `selectedText` to change only part of a
+long prompt. The tool reuses the recorded parent state before text generation,
+runs the text and slide stages again, and returns a workflow URL plus any public
+preview and download URLs for each variation.
 
 ```json
 {
-  "runtime_env_json": "$var:f/lumenclip/runtime_env_json",
-  "default_owner_id": "$var:f/lumenclip/default_owner_id",
-  "stage_id": "linkedin-generation.normalize-audience-topic",
-  "stage_input": {
-    "niche": "B2B SaaS",
-    "topic": "Activation"
-  },
-  "request_id": "stage-test-001"
+  "parentRunId": "automation-run-123",
+  "inputPath": "/messages/1/content",
+  "variations": [
+    { "name": "Concise", "replacement": "Write a concise five-slide script." },
+    {
+      "name": "Detailed",
+      "replacement": "Write a detailed seven-slide script."
+    }
+  ]
 }
 ```
-
-The result uses the same stage registry, provider tracing, persistence clients,
-and runtime bundle as the corresponding node in a complete DAG.
 
 ## Generate slideshow text for a fixed hook
 
@@ -214,10 +210,13 @@ calls OpenRouter directly.
 
 The full-workflow order remains aligned with the four production specs:
 
-- Slideshow: `validate-input` → `apply-fixed-slide-count` →
-  `select-expand-hook` → `build-text-prompt` → `generate-slide-text` →
-  `build-image-shortlists` → `select-slide-images` → `assemble-plan` →
-  `render-store-pngs` → `validate-output` → `finalize-output`.
+- Slideshow: `validate-input` → `resolve-slide-count` →
+  `select-expand-hook` → `research-hook` → `build-text-prompt` →
+  `generate-slide-text` → `retry-text-similarity` →
+  `derive-visual-concepts` → `build-image-shortlists` →
+  `select-slide-images` → `assemble-plan` → `translate-plan` →
+  `render-store-pngs` → `render-store-mp4` → `validate-output` →
+  `finalize-output`.
 - UGC: `analyze-product` → `generate-script-plan` →
   `resolve-generate-actor` → `synthesize-voice` → `animate-actor` →
   `lip-sync-performance` → `generate-broll` → `composite-output` →
@@ -234,13 +233,14 @@ Publishing is deliberately absent from all four lists.
 
 ## Atomic stage groups
 
-- Slideshow: owner-scoped template, collection, and model-setting reads, one
-  slide-text attempt, one slide-image selection, one source/overlay/icon
+- Slideshow: owner-scoped document and page reads, one hook-research attempt,
+  one slide-text attempt, one slide-image selection, one source/overlay/icon
   download, one output-object create/delete, one result create/update, one
   media-row create/delete, and one post-identity/post-intent create/update.
-  PNG rendering and result construction are local deterministic stages.
-  Pagination, replacement, result/media persistence, and post-intent
-  persistence are composites over singular registered stages.
+  PNG rendering, result construction, and video-finalization updates are local
+  deterministic stages. Pagination, replacement, result/media persistence,
+  video preparation, and post-intent persistence are composites over singular
+  registered stages.
 - UGC: one DNS lookup, one product-page HTTP response, one OpenRouter product
   analysis, one OpenRouter script attempt, one checkpoint enqueue/read, and
   fal task create/status/result. ElevenLabs synthesis is separate from its two
@@ -255,7 +255,7 @@ Publishing is deliberately absent from all four lists.
   orchestration, and batch orchestration. Each post attempt is independently
   callable.
 - X/Threads: one brief attempt, one generation/humanize/review attempt,
-  deterministic planning/validation, fixed template/run document reads,
+  deterministic planning/validation, fixed automation/run document reads,
   separate creates and updates, singular output-media page/create/delete
   stages, reminder storage, and KIE image task
   build/create/status/download/persist stages. Upsert and media
@@ -265,11 +265,12 @@ Use `lumenclip_pipeline_catalog` as the canonical source of exact stage IDs;
 the catalog includes atomic stages that are intentionally absent from the
 ordered `workflowStages` list.
 
-## Run and debug
+## Run and resume
 
 ```json
 {
   "workflowId": "linkedin-generation",
+  "requestId": "linkedin-batch-2026-08-01",
   "input": {
     "niche": "B2B SaaS onboarding",
     "persona": "practitioner",
@@ -279,30 +280,12 @@ ordered `workflowStages` list.
 }
 ```
 
-Named runs accept only the output-affecting top-level inputs shown in their
-Windmill forms. Unknown keys are rejected instead of being silently ignored or
-forwarded. Owner identity, request IDs, tracing, and persistence metadata are
-derived internally and are not caller inputs. For isolated debugging, call
-Windmill MCP's `runScriptByPath` on `f/lumenclip/workflow_stage_runtime` with
-the stage ID and explicit named artifacts. For an async atomic sequence, retain
-the complete output containing the provider
-task ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
-succeeded output to download and persistence.
-
-| Workflow         | Accepted named inputs                                                                                           |
-| ---------------- | --------------------------------------------------------------------------------------------------------------- |
-| Slideshow        | `automation_id`                                                                                                 |
-| UGC video        | `template_id`, `product`, `script`, `actor`, `actor_collection_id`, `voice`, `broll`, `render`                  |
-| React & Reveal   | `template_id`, `anticipation_collection_id`, `reveal_collection_id`, `hook_caption`, `payoff_caption`, `output` |
-| Greenscreen Meme | `template_id`, `meme_collection_id`, `background_collection_id`, `caption`, `text_placement`, `output`          |
-| LinkedIn         | `niche`, `topic`, `excluded_topics`, `proof`, `persona`, `brief`, `brief_model`, `model`, `count`               |
-| X/Threads        | `automation_id`, `topic`, `source_candidate`                                                                    |
-
-The generated flows contain no generic identity/pass-through modules. The
-dependency audit in `windmill/workflow-dependencies.ts` records each consumer's
-handler, producers, reads, and writes. Slideshow generation has no usage or
-prior-run dependency; UGC component jobs use checkpoint-specific run IDs;
-fixed-video metadata first joins after rendering.
+`startAt` resumes an ordered workflow from an envelope returned by the prior
+stage. `stopAfter` stops after a named workflow stage for inspection. For an
+async atomic sequence, retain the complete output containing the provider task
+ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
+succeeded output to download and persistence. No stage blocks in an internal
+poll loop.
 
 ## Safety
 
@@ -317,8 +300,8 @@ fixed-video metadata first joins after rendering.
 
 ## Boundary audit
 
-UGC ElevenLabs, UGC fal, and video-workflow Rendi provider calls have
-independently callable atomic stages. Rendi multipart initialization,
+All slideshow Rendi, UGC ElevenLabs, UGC fal, and UGC Rendi provider calls now
+have independently callable atomic stages. Rendi multipart initialization,
 each signed part PUT, completion, one file-status read, command submission, one
 command-status read, each output download, and each persistence action are
 separate. MCP composites resume through the registered handlers.
@@ -329,11 +312,15 @@ The storage boundary is decomposed as well:
   per-slide local render, per-file create/delete, result create/update,
   per-media create/delete, and post-identity/post-row stages. It no longer
   calls `createSlideshowResultRecord`.
-- saved UGC state exposes one-request template/run/usage/output reads,
+- slideshow video preparation reads the result through registered page/media
+  stages and stages each rendered PNG with `read-one-video-slide`.
+  Finalization builds the update locally, invokes `update-result-document`,
+  then synchronizes media through registered singular stages.
+- saved UGC state exposes one-request automation/run/usage/output reads,
   separate creates and updates, one-object inspect/read/create/delete stages,
   one output-media page/create/delete, and one notification-job create.
-- image and word pagination is driven by composites that repeatedly invoke
-  fixed-domain page stages. X/Threads create-vs-update and media
+- image/word/usage/run/result pagination is driven by composites that repeatedly
+  invoke fixed-domain page stages. X/Threads create-vs-update and media
   replacement similarly dispatch registered document and media stages.
 
 No stage accepts a physical Appwrite table/collection ID, bucket, owner, or

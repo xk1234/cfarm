@@ -2,14 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({ getRow: vi.fn(), getCurrentUser: vi.fn() }))
 
-vi.mock("@/lib/appwrite", () => ({
-  APPWRITE_DATABASE_ID: "cfarm",
-  getAppwrite: () => ({ tables: { getRow: mocks.getRow } }),
-}))
-vi.mock("@/lib/runtime-store", () => ({
-  RUNTIME_DATABASE_ID: "cfarm",
-  getRuntimeStore: () => ({ records: { getRow: mocks.getRow } }),
-}))
 vi.mock("@/lib/auth", () => ({ getCurrentUser: mocks.getCurrentUser }))
 
 beforeEach(() => {

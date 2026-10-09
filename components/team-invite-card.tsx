@@ -3,15 +3,13 @@
 import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { ClerkAuthButton } from "@/components/clerk-auth-button"
-
 export function TeamInviteCard({ authenticated }: { authenticated: boolean }) {
   const params = useSearchParams()
   const started = useRef(false)
   const query = params.toString()
   const fields = useMemo(
     () => ({
-      inviteToken: params.get("invite"),
+      token: params.get("token"),
     }),
     [params]
   )
@@ -76,20 +74,18 @@ export function TeamInviteCard({ authenticated }: { authenticated: boolean }) {
         </a>
       ) : !authenticated ? (
         <div className="mt-6 grid gap-2">
-          <ClerkAuthButton
-            authMode="sign-in"
-            redirectUrl={next}
+          <a
+            href={`/login?next=${encodeURIComponent(next)}`}
             className="flex h-11 items-center justify-center rounded-[10px] bg-[#6d28d9] text-sm font-semibold text-white"
           >
             Log in
-          </ClerkAuthButton>
-          <ClerkAuthButton
-            authMode="sign-up"
-            redirectUrl={next}
+          </a>
+          <a
+            href={`/sign-up?next=${encodeURIComponent(next)}`}
             className="flex h-11 items-center justify-center rounded-[10px] border border-[#d8d8e2] text-sm font-semibold"
           >
             Create account
-          </ClerkAuthButton>
+          </a>
         </div>
       ) : null}
     </div>

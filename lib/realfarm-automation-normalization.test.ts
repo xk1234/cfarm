@@ -23,6 +23,29 @@ const automation = {
 } satisfies Automation
 
 describe("automation schema normalization", () => {
+  it("preserves clamped Fabric editor coordinates", () => {
+    const base = defaultAutomationSchema(automation)
+    const normalized = normalizeAutomationSchema(
+      {
+        ...base,
+        formatting: base.formatting.map((section) => ({
+          ...section,
+          textItems: section.textItems.map((item) => ({
+            ...item,
+            textPositionX: 118.4,
+            textPositionY: -7.2,
+          })),
+        })),
+      },
+      automation
+    )
+
+    expect(normalized.formatting[0]?.textItems[0]).toMatchObject({
+      textPositionX: 100,
+      textPositionY: 0,
+    })
+  })
+
   it("defaults scheduled content to auto-publish and preserves explicit manual mode", () => {
     const defaults = defaultAutomationSchema(automation)
     expect(automationPostingMode(defaults)).toBe("auto")
@@ -34,19 +57,6 @@ describe("automation schema normalization", () => {
         posting_mode: "manual",
       })
     ).toBe("manual")
-  })
-
-  it("preserves a zero-day hook exclusion window", () => {
-    const defaults = defaultAutomationSchema(automation)
-    const normalized = normalizeAutomationSchema(
-      {
-        ...defaults,
-        reuse_policy: { hook_exclusion_days: 0 },
-      },
-      automation
-    )
-
-    expect(normalized.reuse_policy).toEqual({ hook_exclusion_days: 0 })
   })
 
   it("does not recover tone from obsolete formatting entries", () => {

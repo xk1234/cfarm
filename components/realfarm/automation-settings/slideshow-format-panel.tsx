@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react"
-import { IconChevronLeft } from "@tabler/icons-react"
+import {
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconChevronLeft,
+} from "@tabler/icons-react"
 
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { ControlToggle } from "@/components/realfarm/shared-media"
+import { Button } from "@/components/ui/button"
 import { SelectLike } from "@/components/ui/form-controls"
 import {
   automationFormatSection,
@@ -16,19 +21,14 @@ import {
   type AutomationImageOverride,
   type AutomationSchema,
   type AutomationSlideOverride,
-  type TextItem,
+  type AutomationTextItem,
 } from "@/lib/realfarm-automation"
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/features/collections/domain/collections"
+} from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
-import {
-  applySlideshowVisualPreset,
-  slideshowVisualPresetById,
-  slideshowVisualPresets,
-} from "@/lib/slideshow-visual-presets"
 
 import {
   AutomationContentFormatEditor,
@@ -60,6 +60,7 @@ export function AutomationFormatPanel({
   onCreateCollection,
   onConfigChange,
   onBack,
+  onSave,
 }: {
   automation: Automation
   config: AutomationSchema
@@ -70,6 +71,7 @@ export function AutomationFormatPanel({
   onCreateCollection: (collection: CreatedImageCollection) => void
   onConfigChange: (config: AutomationSchema) => void
   onBack: () => void
+  onSave: () => void
 }) {
   const [activeTab, setActiveTab] = useState<"Hook" | "Content" | "CTA">("Hook")
   // Below md the controls and the canvas cannot share the screen: stacking them
@@ -82,11 +84,11 @@ export function AutomationFormatPanel({
   )
   const configRef = useRef(config)
   const onConfigChangeRef = useRef(onConfigChange)
+  const undoStackRef = useRef<AutomationSchema[]>([])
+  const redoStackRef = useRef<AutomationSchema[]>([])
+  const [historyCounts, setHistoryCounts] = useState({ undo: 0, redo: 0 })
   const activeKey = activeTab.toLowerCase() as "hook" | "content" | "cta"
   const activeSection = automationFormatSection(config, activeKey)
-  const activeVisualPreset = slideshowVisualPresetById(
-    activeSection.visualPresetId
-  )
   const photoCollections = collections.filter(
     (collection) => collection.mediaType !== "video"
   )
@@ -120,10 +122,49 @@ export function AutomationFormatPanel({
     previewGap
   )
 
+  function applyHistoryStep(direction: "undo" | "redo") {
+    const source = direction === "undo" ? undoStackRef : redoStackRef
+    const destination = direction === "undo" ? redoStackRef : undoStackRef
+    const next = source.current.pop()
+    if (!next) return
+    destination.current.push(structuredClone(configRef.current))
+    configRef.current = next
+    setHistoryCounts({
+      undo: undoStackRef.current.length,
+      redo: redoStackRef.current.length,
+    })
+    onConfigChangeRef.current(next)
+  }
+
   useEffect(() => {
     configRef.current = config
     onConfigChangeRef.current = onConfigChange
   }, [config, onConfigChange])
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const modifier = event.metaKey || event.ctrlKey
+      if (!modifier) return
+      const key = event.key.toLowerCase()
+      if (key === "z" && event.shiftKey) {
+        event.preventDefault()
+        applyHistoryStep("redo")
+        return
+      }
+      if (key === "z") {
+        event.preventDefault()
+        applyHistoryStep("undo")
+        return
+      }
+      if (key === "y") {
+        event.preventDefault()
+        applyHistoryStep("redo")
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
 
   if (config.automationKind === "video") {
     const videoTemplate = config.video_format?.template ?? "ugc_ad"
@@ -139,6 +180,7 @@ export function AutomationFormatPanel({
           onCreateCollection={onCreateCollection}
           onConfigChange={onConfigChange}
           onBack={onBack}
+          onSave={onSave}
         />
       )
     }
@@ -153,6 +195,7 @@ export function AutomationFormatPanel({
         onCreateCollection={onCreateCollection}
         onConfigChange={onConfigChange}
         onBack={onBack}
+        onSave={onSave}
       />
     )
   }
@@ -161,10 +204,9 @@ export function AutomationFormatPanel({
     return (
       <UgcAutomationFormatPanel
         config={config}
-        collections={collections}
-        onCreateCollection={onCreateCollection}
         onConfigChange={onConfigChange}
         onBack={onBack}
+        onSave={onSave}
       />
     )
   }
@@ -185,7 +227,10 @@ export function AutomationFormatPanel({
   ) {
     const current = configRef.current
     const next = updater(current)
+    undoStackRef.current.push(structuredClone(current))
+    redoStackRef.current = []
     configRef.current = next
+    setHistoryCounts({ undo: undoStackRef.current.length, redo: 0 })
     onConfigChangeRef.current(next)
   }
 
@@ -196,30 +241,6 @@ export function AutomationFormatPanel({
     updateSchema((current) =>
       updateAutomationFormatSection(current, key, patch)
     )
-  }
-
-  function updateVisualPreset(presetName: string) {
-    const preset = slideshowVisualPresets.find(
-      (candidate) => candidate.name === presetName
-    )
-    if (!preset) {
-      updateFormatSection(activeKey, { visualPresetId: undefined })
-      return
-    }
-    updateSchema((current) => {
-      const section = automationFormatSection(current, activeKey)
-      const next = updateAutomationFormatSection(
-        current,
-        activeKey,
-        applySlideshowVisualPreset(section, preset)
-      )
-      return {
-        ...next,
-        aspect_ratio: preset.section.aspect_ratio,
-        font: preset.section.textItems[0]?.font || current.font,
-      }
-    })
-    setSelectedTextIndex(0)
   }
 
   function updateImageCollectionId(
@@ -421,7 +442,7 @@ export function AutomationFormatPanel({
     })
   }
 
-  function updateTextItem(patch: Partial<TextItem>) {
+  function updateTextItem(patch: Partial<AutomationTextItem>) {
     updateSchema((current) =>
       updateAutomationTextItemAt(
         current,
@@ -494,13 +515,37 @@ export function AutomationFormatPanel({
             <IconChevronLeft className="size-4" />
             Back
           </button>
-          <button
-            type="button"
-            className="h-8 rounded-lg bg-[#efefeb] px-3 text-[12px] font-semibold text-[#5d5c56] md:hidden"
-            onClick={() => setMobileView("preview")}
-          >
-            Preview
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="mr-1 h-8 rounded-lg bg-[#efefeb] px-3 text-[12px] font-semibold text-[#5d5c56] md:hidden"
+              onClick={() => setMobileView("preview")}
+            >
+              Preview
+            </button>
+            <div className="flex items-center rounded-lg bg-[#efefeb] p-0.5">
+              <button
+                type="button"
+                className="rounded-md p-1.5 text-[#5d5c56] transition-colors hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30"
+                disabled={historyCounts.undo === 0}
+                onClick={() => applyHistoryStep("undo")}
+                aria-label="Undo format change"
+                title="Undo (Cmd/Ctrl+Z)"
+              >
+                <IconArrowBackUp className="size-4" />
+              </button>
+              <button
+                type="button"
+                className="rounded-md p-1.5 text-[#5d5c56] transition-colors hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30"
+                disabled={historyCounts.redo === 0}
+                onClick={() => applyHistoryStep("redo")}
+                aria-label="Redo format change"
+                title="Redo (Cmd/Ctrl+Shift+Z)"
+              >
+                <IconArrowForwardUp className="size-4" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="grid h-11 grid-cols-3 border-b border-app-panel-border text-center text-[13px] font-semibold">
@@ -520,164 +565,200 @@ export function AutomationFormatPanel({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-          <div className="mb-3 space-y-1.5">
-            <label className="text-xs font-semibold text-app-muted-text">
-              Visual preset
-            </label>
-            <SelectLike
-              value={activeVisualPreset?.name ?? "Custom"}
-              options={[
-                "Custom",
-                ...slideshowVisualPresets.map((preset) => preset.name),
-              ]}
-              placement="bottom"
-              onChange={updateVisualPreset}
+          {activeTab === "CTA" ? (
+            <AutomationCtaFormatEditor
+              config={config}
+              section={activeSection}
+              collection={activeCollection}
+              collections={photoCollections}
+              onCreateCollection={onCreateCollection}
+              onEnabledChange={updateCtaEnabled}
+              onImageModeChange={updateCtaImageMode}
+              onCollectionChange={(collectionId) =>
+                updateImageCollectionId("cta", collectionId)
+              }
+              onSingleImageChange={updateCtaSingleImage}
+              onSectionChange={(patch) => updateFormatSection("cta", patch)}
+              onOverlayImageChange={updateCtaOverlayImage}
+              onOverlayCollectionChange={updateCtaOverlayCollection}
             />
-            <p className="text-[11px] leading-4 text-app-text-faint">
-              {activeVisualPreset
-                ? `${activeVisualPreset.description} Switch to Custom to unlock the applied values.`
-                : "Custom keeps every visual control editable."}
-            </p>
-          </div>
-
-          <fieldset
-            disabled={Boolean(activeVisualPreset)}
-            className="min-w-0 disabled:[&_button]:cursor-not-allowed disabled:[&_button]:opacity-60 disabled:[&_input]:cursor-not-allowed disabled:[&_textarea]:cursor-not-allowed"
-          >
-            {activeTab === "CTA" ? (
-              <AutomationCtaFormatEditor
-                config={config}
-                section={activeSection}
+          ) : (
+            <>
+              <CollectionSelector
+                label={activeTab}
                 collection={activeCollection}
                 collections={photoCollections}
-                onCreateCollection={onCreateCollection}
-                onEnabledChange={updateCtaEnabled}
-                onImageModeChange={updateCtaImageMode}
-                onCollectionChange={(collectionId) =>
-                  updateImageCollectionId("cta", collectionId)
+                onChange={(collectionId) =>
+                  updateImageCollectionId(activeKey, collectionId)
                 }
-                onSingleImageChange={updateCtaSingleImage}
-                onSectionChange={(patch) => updateFormatSection("cta", patch)}
-                onOverlayImageChange={updateCtaOverlayImage}
-                onOverlayCollectionChange={updateCtaOverlayCollection}
+                onCreateCollection={onCreateCollection}
               />
-            ) : (
-              <>
-                <CollectionSelector
-                  label={activeTab}
-                  collection={activeCollection}
-                  collections={photoCollections}
-                  onChange={(collectionId) =>
-                    updateImageCollectionId(activeKey, collectionId)
-                  }
-                  onCreateCollection={onCreateCollection}
-                />
 
-                <div className="mb-3">
+              <div className="mb-3">
+                <SelectLike
+                  value={imageGridLabel(activeSection.imageGrid)}
+                  options={automationImageGrids.map(imageGridLabel)}
+                  placement="bottom"
+                  onChange={(value) =>
+                    updateFormatSection(activeKey, {
+                      imageGrid: labelToImageGrid(value),
+                    })
+                  }
+                />
+              </div>
+
+              {activeTab === "Content" && (
+                <div
+                  className={cn(
+                    "mb-3 grid gap-2",
+                    activeSection.slideCountMode === "varying"
+                      ? "grid-cols-1"
+                      : "grid-cols-[1fr_72px]"
+                  )}
+                >
                   <SelectLike
-                    value={imageGridLabel(activeSection.imageGrid)}
-                    options={automationImageGrids.map(imageGridLabel)}
+                    value={
+                      activeSection.slideCountMode === "varying"
+                        ? "Varying"
+                        : "Static"
+                    }
+                    options={["Static", "Varying"]}
                     placement="bottom"
                     onChange={(value) =>
-                      updateFormatSection(activeKey, {
-                        imageGrid: labelToImageGrid(value),
+                      updateFormatSection("content", {
+                        slideCountMode:
+                          value === "Varying" ? "varying" : "static",
+                        slideCountMin:
+                          activeSection.slideCountMin ??
+                          activeSection.slideCount,
+                        slideCountMax:
+                          activeSection.slideCountMax ??
+                          activeSection.slideCount,
                       })
                     }
                   />
-                </div>
-
-                {activeTab === "Content" && (
-                  <div className="mb-3 grid grid-cols-[1fr_72px] gap-2">
-                    <div className="bg-app-subtle-surface flex h-8 items-center rounded-[7px] border border-[#ebeae3] px-3 text-[12px] font-medium text-app-muted-text">
-                      Fixed slides
-                    </div>
+                  {activeSection.slideCountMode !== "varying" ? (
                     <input
                       className="h-8 rounded-[7px] border border-[#ebeae3] bg-app-surface px-2 text-center text-[12px] font-semibold outline-none"
                       value={activeSection.slideCount}
                       onChange={(event) => {
                         const value = Number(event.target.value) || 1
-                        updateSchema((current) => {
-                          const hookCount = automationFormatSection(
-                            current,
-                            "hook"
-                          ).slideCount
-                          const ctaCount = automationFormatSection(
-                            current,
-                            "cta"
-                          ).slideCount
-                          const total = Math.max(
-                            1,
-                            value + hookCount + ctaCount
-                          )
-                          return {
-                            ...updateAutomationFormatSection(
-                              current,
-                              "content",
-                              {
-                                slideCount: value,
-                                slideCountMode: "static",
-                                slideCountMin: undefined,
-                                slideCountMax: undefined,
-                              }
+                        updateSchema((current) => ({
+                          ...updateAutomationFormatSection(current, "content", {
+                            slideCount: value,
+                          }),
+                          prompt_formatting: {
+                            ...current.prompt_formatting,
+                            num_of_slides: Math.max(
+                              1,
+                              value +
+                                automationFormatSection(current, "hook")
+                                  .slideCount
                             ),
-                            prompt_formatting: {
-                              ...current.prompt_formatting,
-                              num_of_slides: total,
-                              slide_count_min: total,
-                              slide_count_max: total,
-                            },
-                          }
-                        })
+                          },
+                        }))
                       }}
                       aria-label="Slide count"
                     />
-                  </div>
-                )}
+                  ) : null}
+                  {activeSection.slideCountMode === "varying" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <SlideCountRangeInput
+                        label="Minimum"
+                        value={
+                          activeSection.slideCountMin ??
+                          activeSection.slideCount
+                        }
+                        onChange={(value) =>
+                          updateFormatSection("content", {
+                            slideCount: value,
+                            slideCountMin: value,
+                            slideCountMax: Math.max(
+                              value,
+                              activeSection.slideCountMax ?? value
+                            ),
+                          })
+                        }
+                      />
+                      <SlideCountRangeInput
+                        label="Maximum"
+                        value={
+                          activeSection.slideCountMax ??
+                          activeSection.slideCount
+                        }
+                        onChange={(value) =>
+                          updateFormatSection("content", {
+                            slideCount: Math.min(
+                              activeSection.slideCountMin ?? value,
+                              value
+                            ),
+                            slideCountMin: Math.min(
+                              activeSection.slideCountMin ?? value,
+                              value
+                            ),
+                            slideCountMax: value,
+                          })
+                        }
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
-                {activeTab === "Content" ? (
-                  <AutomationContentFormatEditor
-                    section={activeSection}
-                    overlayCollection={activeOverlayCollection}
-                    collections={photoCollections}
-                    onCreateCollection={onCreateCollection}
-                    onOverlayImageChange={updateSectionOverlayImage}
-                    onOverlayCollectionChange={updateSectionOverlayCollection}
-                    onOverlayPaddingChange={updateSectionOverlayPadding}
-                    onDisplayTextChange={(enabled) =>
-                      updateFormatSection("content", { noText: !enabled })
-                    }
-                    onSlideOverrideAdd={addContentSlideOverride}
-                    onSlideOverrideChange={updateContentSlideOverride}
-                    onSlideOverrideRemove={removeContentSlideOverride}
-                    onImageOverrideAdd={addContentImageOverride}
-                    onImageOverrideChange={updateContentImageOverride}
-                    onImageOverrideRemove={removeContentImageOverride}
-                  />
-                ) : (
-                  <ControlToggle
-                    label="Display text"
-                    enabled={!activeSection.noText}
-                    onClick={() =>
-                      updateFormatSection(activeKey, {
-                        noText: !activeSection.noText,
-                      })
-                    }
-                  />
-                )}
-              </>
-            )}
-            {activeTab !== "CTA" ? (
-              <ControlToggle
-                label="AI image matching"
-                enabled={activeSection.aiImageSelection === true}
-                onClick={() =>
-                  updateFormatSection(activeKey, {
-                    aiImageSelection: !activeSection.aiImageSelection,
-                  })
-                }
-              />
-            ) : null}
-          </fieldset>
+              {activeTab === "Content" ? (
+                <AutomationContentFormatEditor
+                  section={activeSection}
+                  overlayCollection={activeOverlayCollection}
+                  collections={photoCollections}
+                  onCreateCollection={onCreateCollection}
+                  onOverlayImageChange={updateSectionOverlayImage}
+                  onOverlayCollectionChange={updateSectionOverlayCollection}
+                  onOverlayPaddingChange={updateSectionOverlayPadding}
+                  onDisplayTextChange={(enabled) =>
+                    updateFormatSection("content", { noText: !enabled })
+                  }
+                  onSlideOverrideAdd={addContentSlideOverride}
+                  onSlideOverrideChange={updateContentSlideOverride}
+                  onSlideOverrideRemove={removeContentSlideOverride}
+                  onImageOverrideAdd={addContentImageOverride}
+                  onImageOverrideChange={updateContentImageOverride}
+                  onImageOverrideRemove={removeContentImageOverride}
+                />
+              ) : (
+                <ControlToggle
+                  label="Display text"
+                  enabled={!activeSection.noText}
+                  onClick={() =>
+                    updateFormatSection(activeKey, {
+                      noText: !activeSection.noText,
+                    })
+                  }
+                />
+              )}
+            </>
+          )}
+          {activeTab !== "CTA" ? (
+            <ControlToggle
+              label="AI image matching"
+              enabled={activeSection.aiImageSelection === true}
+              onClick={() =>
+                updateFormatSection(activeKey, {
+                  aiImageSelection: !activeSection.aiImageSelection,
+                })
+              }
+            />
+          ) : null}
+        </div>
+
+        <div className="border-t border-app-panel-border p-3">
+          <Button
+            variant="action"
+            size="appDefault"
+            className="w-full"
+            onClick={onSave}
+          >
+            Save Changes
+          </Button>
         </div>
       </aside>
 
@@ -725,8 +806,33 @@ export function AutomationFormatPanel({
         updateTextItem={updateTextItem}
         onDeleteTextItem={deleteSelectedTextItem}
         onAddTextItem={addTextItem}
-        visualControlsLocked={Boolean(activeVisualPreset)}
       />
     </div>
+  )
+}
+
+function SlideCountRangeInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="space-y-1 text-[11px] font-semibold text-app-muted-text">
+      <span>{label}</span>
+      <input
+        type="number"
+        min={1}
+        max={20}
+        value={value}
+        className="h-8 w-full rounded-[7px] border border-[#ebeae3] bg-app-surface px-2 text-center text-[12px] font-semibold outline-none"
+        onChange={(event) =>
+          onChange(Math.max(1, Number(event.target.value) || 1))
+        }
+      />
+    </label>
   )
 }

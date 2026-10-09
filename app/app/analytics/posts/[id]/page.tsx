@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 
 import { StandaloneMobileNav } from "@/components/realfarm/standalone-mobile-nav"
-import { PostAnalyticsPage } from "@/features/analytics/ui/post-analytics-page"
+import { PostAnalyticsPage } from "@/components/realfarm/analytics/post-analytics-page"
 import { getAutomationRunForSlideshow } from "@/lib/automation-runner"
 import { absoluteAssetUrl } from "@/lib/asset-urls"
 import { getCurrentUser } from "@/lib/auth"
@@ -11,7 +11,7 @@ import type { PostFastSocialIntegration } from "@/lib/postfast-client"
 import { listMetricSnapshots } from "@/lib/postfast-metric-snapshots"
 import { getPostFastPostRecord } from "@/lib/postfast-posts"
 import { getPublicationRecordForRead } from "@/lib/post-repository"
-import { snapshotlessPublication } from "@/features/analytics/ui/analytics-selectors"
+import { snapshotlessPublication } from "@/components/realfarm/analytics/analytics-selectors"
 
 export const dynamic = "force-dynamic"
 
@@ -22,12 +22,17 @@ export const metadata = {
 
 export default async function PostAnalyticsRoute({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{
+    companion?: string | string[]
+    platformPostId?: string | string[]
+  }>
 }) {
   const user = await getCurrentUser()
-  if (!user) redirect("/?auth=sign-in&next=/app/analytics")
-  const { id } = await params
+  if (!user) redirect("/login")
+  const [{ id }, query] = await Promise.all([params, searchParams])
   const postId = id.trim()
   const [allSnapshots, publication, integrations] = await Promise.all([
     listMetricSnapshots().catch(() => []),
@@ -80,13 +85,22 @@ export default async function PostAnalyticsRoute({
           snapshots={snapshots.length ? snapshots : [latest]}
           integration={integration}
           contentType={latest.contentType || contentType}
-          publicationPlatformPostId={publication?.externalPostId}
+          publicationPlatformPostId={
+            publication?.externalPostId ||
+            first(query.platformPostId)?.trim() ||
+            undefined
+          }
           slides={slides}
+          autoCollectComments={first(query.companion) === "tiktok-comments"}
         />
       </div>
       <StandaloneMobileNav />
     </>
   )
+}
+
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value
 }
 
 function fallbackIntegration(input: {

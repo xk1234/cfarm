@@ -73,7 +73,7 @@ export function getRailwayBucketClient(): S3Client {
   return cachedClient
 }
 
-/** Preserve the Appwrite bucket/file identity during the storage cutover. */
+/** Preserve the Railway bucket/file identity during the storage cutover. */
 export function railwayObjectKey(bucketId: string, fileId: string): string {
   return `appwrite/${encodeURIComponent(bucketId)}/${encodeURIComponent(fileId)}`
 }

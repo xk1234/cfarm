@@ -23,6 +23,7 @@ import {
 import type { AutomationRunApiRecord, AutomationRunApiSlide } from "./types"
 import { RunPublicationStatusBadge } from "./run-publication-status-badge"
 import { SlideshowPublicationActions } from "./slideshow-publication-actions"
+import { slideshowWorkflowStorageKey } from "./slideshow-workflow"
 
 export function GeneratedSlideshowViewerModal({
   run,
@@ -31,7 +32,6 @@ export function GeneratedSlideshowViewerModal({
   onRunChanged,
   allowDelete = true,
   details,
-  onDebug,
   onDelete,
   onClose,
 }: {
@@ -41,7 +41,6 @@ export function GeneratedSlideshowViewerModal({
   onRunChanged?: (run: AutomationRunApiRecord) => void
   allowDelete?: boolean
   details?: SlideshowViewerDetails
-  onDebug?: () => void
   onDelete?: () => Promise<void>
   onClose: () => void
 }) {
@@ -200,45 +199,53 @@ export function GeneratedSlideshowViewerModal({
   }
 
   return (
-    <SlideshowViewerModal
-      title={run.automationTitle || slideshowTitle(run)}
-      slideshows={slideshows}
-      initialSlideshowId={run.id}
-      details={resolvedDetails}
-      publicationStatusControl={<RunPublicationStatusBadge run={currentRun} />}
-      publicationActions={
-        <div className="flex items-center gap-1 sm:gap-2">
-          {currentRun.workflowUrl ? (
-            <a
-              href={currentRun.workflowUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex h-10 items-center gap-1.5 rounded-[7px] border border-app-panel-border bg-app-surface px-3 text-[12px] font-semibold text-app-text shadow-sm transition hover:bg-app-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-action sm:h-9 sm:rounded-[5px]"
-              aria-label="View workflow"
-              title="View workflow"
-            >
-              <IconRoute className="size-4" />
-              <span className="hidden sm:inline">Workflow</span>
-            </a>
-          ) : null}
-          <SlideshowPublicationActions
-            run={currentRun}
-            onRunChanged={applyRunChanged}
-          />
-        </div>
-      }
-      onDebug={onDebug}
-      onDelete={
-        allowDelete && canDeleteCompletedSlideshow(run)
-          ? deleteSlideshow
-          : undefined
-      }
-      onDeleteSlide={deleteSlide}
-      onLoadSlideImages={run.slideshowId ? loadSlideImages : undefined}
-      onReplaceSlideImage={run.slideshowId ? replaceSlideImage : undefined}
-      onUpdateMetadata={run.slideshowId ? updateMetadata : undefined}
-      onClose={onClose}
-    />
+    <SlideshowPublicationActions
+      run={currentRun}
+      onRunChanged={applyRunChanged}
+    >
+      {(actions) => (
+        <SlideshowViewerModal
+          title={run.automationTitle || slideshowTitle(run)}
+          slideshows={slideshows}
+          initialSlideshowId={run.id}
+          details={resolvedDetails}
+          publicationStatusControl={
+            <RunPublicationStatusBadge run={currentRun} />
+          }
+          actions={[
+            {
+              label: "Workflow",
+              icon: <IconRoute className="size-4" />,
+              onSelect: () => {
+                try {
+                  window.sessionStorage.setItem(
+                    slideshowWorkflowStorageKey(currentRun.id),
+                    JSON.stringify(currentRun)
+                  )
+                } catch {
+                  // The authenticated API remains the fallback when browser
+                  // storage is unavailable.
+                }
+                window.location.assign(
+                  `/app/workflows/slideshows/${encodeURIComponent(currentRun.id)}`
+                )
+              },
+            },
+            ...actions,
+          ]}
+          onDelete={
+            allowDelete && canDeleteCompletedSlideshow(run)
+              ? deleteSlideshow
+              : undefined
+          }
+          onDeleteSlide={deleteSlide}
+          onLoadSlideImages={run.slideshowId ? loadSlideImages : undefined}
+          onReplaceSlideImage={run.slideshowId ? replaceSlideImage : undefined}
+          onUpdateMetadata={run.slideshowId ? updateMetadata : undefined}
+          onClose={onClose}
+        />
+      )}
+    </SlideshowPublicationActions>
   )
 }
 
@@ -250,6 +257,22 @@ function viewerDetailsForRun(
     postDate: formatRunSchedule(runPublishSchedule(run)),
     language: run.plan?.language || "English",
   }
+}
+
+export function automationRunViewerImageUrls(runs: AutomationRunApiRecord[]) {
+  return [
+    ...new Set(
+      runs.flatMap((run) =>
+        automationRunSlides(run).flatMap((slide) => {
+          const rawImageUrl =
+            slide.imageUrl?.trim() || slide.sourceImageUrl?.trim()
+          return rawImageUrl
+            ? [cacheBustedImageUrl(rawImageUrl, run.updatedAt)]
+            : []
+        })
+      )
+    ),
+  ]
 }
 
 function automationRunsToViewerSlideshows(runs: AutomationRunApiRecord[]) {

@@ -8,17 +8,15 @@ import {
   collectionAliases,
   legacyStoredCollectionId,
   storedToCollection,
-} from "@/features/collections/domain/collections"
+} from "@/lib/realfarm-collections"
 import {
   automationCollectionId,
   automationFormatSection,
   automationHooks,
-  automationSlideDesigns,
   automationTone,
-  type AutomationSlideDesign,
   type AutomationFormatSection,
   type AutomationSchema,
-  type TextItem,
+  type AutomationTextItem,
 } from "@/lib/realfarm-automation"
 import {
   type TempSlideImageCollection,
@@ -101,62 +99,16 @@ export function automationTemplateToTempSlideTestingAutomation(
 
 export function automationSchemaToTempSlideTestingAutomation(
   schema: AutomationSchema,
-  metadata: {
-    id: string
-    name: string
-    slidePlan?: Array<{ designId: string; purpose?: string }>
-  } = {
+  metadata: { id: string; name: string } = {
     id: "main-app-automation",
     name: "Automation",
   }
 ): TempSlideTestingAutomation {
-  const designs = automationSlideDesigns(schema)
-  if (designs.length > 0) {
-    const byId = new Map(designs.map((design) => [design.id, design]))
-    const planned = (
-      metadata.slidePlan?.length
-        ? metadata.slidePlan
-        : designs.map((design) => ({ designId: design.id, purpose: "" }))
-    ).flatMap((item) => {
-      const design = byId.get(item.designId)
-      return design ? [{ design, purpose: clean(item.purpose) }] : []
-    })
-    const slides = (
-      planned.length > 0
-        ? planned
-        : designs.map((design) => ({ design, purpose: "" }))
-    ).map(({ design, purpose }, index) =>
-      buildAutomationSlideSpec({
-        section: "content",
-        index,
-        title: design.name || `Slide ${index + 1}`,
-        collectionId: design.collectionId,
-        formatSection: slideDesignFormatSection(design, purpose),
-      })
-    )
-    return {
-      id: metadata.id,
-      name: metadata.name,
-      theme: "automation",
-      hooks: automationHooks(schema),
-      tone: automationTone(schema),
-      imageCollectionIds: {
-        hook: designs[0]?.collectionId ?? "",
-        content: designs[0]?.collectionId ?? "",
-        cta: designs.at(-1)?.collectionId ?? "",
-      },
-      slides,
-    }
-  }
-
   const hook = automationFormatSection(schema, "hook")
   const content = automationFormatSection(schema, "content")
   const cta = automationFormatSection(schema, "cta")
-  const hookCount = Math.max(0, Math.round(hook.slideCount))
-  const contentCount = Math.max(0, Math.round(content.slideCount))
   const ctaEnabled =
     cta.slideCount > 0 || schema.image_collection_ids.cta_slide.check
-  const ctaCount = ctaEnabled ? Math.max(1, Math.round(cta.slideCount || 1)) : 0
 
   return {
     id: metadata.id,
@@ -170,19 +122,17 @@ export function automationSchemaToTempSlideTestingAutomation(
       cta: automationCollectionId(schema, "cta"),
     },
     slides: [
-      ...Array.from({ length: hookCount }, (_, index) =>
-        buildAutomationSlideSpec({
-          section: "hook",
-          index,
-          title: hookCount === 1 ? "Hook" : `Hook ${index + 1}`,
-          collectionId: automationCollectionId(schema, "hook"),
-          formatSection: hook,
-        })
-      ),
-      ...Array.from({ length: contentCount }, (_, index) =>
+      buildAutomationSlideSpec({
+        section: "hook",
+        index: 0,
+        title: "Hook",
+        collectionId: automationCollectionId(schema, "hook"),
+        formatSection: hook,
+      }),
+      ...Array.from({ length: Math.max(1, content.slideCount) }, (_, index) =>
         buildAutomationSlideSpec({
           section: "content",
-          index: hookCount + index,
+          index: index + 1,
           title: `Content ${index + 1}`,
           collectionId:
             content.imageOverrides?.find(
@@ -191,11 +141,11 @@ export function automationSchemaToTempSlideTestingAutomation(
           formatSection: contentSectionForSlide(content, index + 1),
         })
       ),
-      ...(ctaCount
-        ? Array.from({ length: ctaCount }, (_, index) =>
+      ...(ctaEnabled
+        ? Array.from({ length: Math.max(1, cta.slideCount || 1) }, (_, index) =>
             buildAutomationSlideSpec({
               section: "cta",
-              index: hookCount + contentCount + index,
+              index: Math.max(1, content.slideCount) + index + 1,
               title: `CTA ${index + 1}`,
               collectionId: automationCollectionId(schema, "cta"),
               formatSection: cta,
@@ -203,26 +153,6 @@ export function automationSchemaToTempSlideTestingAutomation(
           )
         : []),
     ],
-  }
-}
-
-function slideDesignFormatSection(
-  design: AutomationSlideDesign,
-  purpose: string
-): AutomationFormatSection {
-  return {
-    ...design,
-    id: "body",
-    slideCount: 1,
-    textItems: design.textItems.map((item) => ({
-      ...item,
-      contentDirection: [
-        purpose ? `Purpose for this slide: ${purpose}.` : "",
-        item.contentDirection,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    })),
   }
 }
 
@@ -445,7 +375,6 @@ function buildAutomationSlideSpec(input: {
     aiImageSelection: input.formatSection.aiImageSelection === true,
     displayText: !input.formatSection.noText,
     collectionId: input.collectionId,
-    imageItems: input.formatSection.imageItems?.map((item) => ({ ...item })),
     overlayImage: input.formatSection.overlayImage?.enabled
       ? {
           enabled: true,
@@ -465,7 +394,7 @@ function buildAutomationSlideSpec(input: {
 }
 
 function automationTextItemToPlaceholder(input: {
-  textItem: TextItem
+  textItem: AutomationTextItem
   slideId: string
   section: TempSlideSectionId
   index: number
@@ -487,14 +416,11 @@ function automationTextItemToPlaceholder(input: {
     fontSize: input.textItem.fontSize,
     textStyle: input.textItem.textStyle,
     textPosition: input.textItem.textPosition,
+    textPositionX: input.textItem.textPositionX,
+    textPositionY: input.textItem.textPositionY,
     textItemWidth: input.textItem.textItemWidth,
     textAlign: input.textItem.textAlign,
     textAnchor: input.textItem.textAnchor,
     textVerticalAnchor: input.textItem.textVerticalAnchor ?? "padded",
-    positionX: input.textItem.positionX,
-    positionY: input.textItem.positionY,
-    fontWeight: input.textItem.fontWeight,
-    backgroundMode: input.textItem.backgroundMode,
-    backgroundRadius: input.textItem.backgroundRadius,
   }
 }

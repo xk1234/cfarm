@@ -4,11 +4,12 @@ import { IconChevronLeft, IconVideo } from "@tabler/icons-react"
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { SoundSelector } from "@/components/realfarm/creator-ui"
 import { PinterestPreviewTile } from "@/components/realfarm/shared-media"
+import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import {
   defaultAutomationTextItem,
   type AutomationSchema,
-  type TextItem,
+  type AutomationTextItem,
   type AutomationVideoFormat,
   type AutomationVideoSegment,
   type AutomationVideoTemplateId,
@@ -16,14 +17,14 @@ import {
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/features/collections/domain/collections"
+} from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import { previewTextForTextItem } from "@/lib/realfarm-preview-text"
 import { randomTikTokSoundLabel } from "@/lib/slideshow-publishing-config"
 import {
-  videoAutomationTemplatePreset,
-  videoAutomationTemplatePresets,
+  builtInVideoTemplate,
+  builtInVideoTemplates,
   videoSegmentPlaysFull,
 } from "@/lib/video-automation-templates"
 import { cn } from "@/lib/utils"
@@ -49,6 +50,7 @@ export function VideoTemplateFormatPanel({
   onCreateCollection,
   onConfigChange,
   onBack,
+  onSave,
 }: {
   automation: Automation
   config: AutomationSchema
@@ -59,10 +61,11 @@ export function VideoTemplateFormatPanel({
   onCreateCollection: (collection: CreatedImageCollection) => void
   onConfigChange: (config: AutomationSchema) => void
   onBack: () => void
+  onSave: () => void
 }) {
   const format =
-    config.video_format ?? videoAutomationTemplatePreset("ugc_ad").buildFormat()
-  const preset = videoAutomationTemplatePreset(format.template)
+    config.video_format ?? builtInVideoTemplate("ugc_ad").buildFormat()
+  const template = builtInVideoTemplate(format.template)
   const [selectedTarget, setSelectedTarget] = useState<TextTarget>(
     format.segments.length > 0
       ? { scope: "segment", segmentId: format.segments[0].id }
@@ -143,7 +146,7 @@ export function VideoTemplateFormatPanel({
   }
 
   function switchTemplate(templateId: AutomationVideoTemplateId) {
-    const nextFormat = videoAutomationTemplatePreset(templateId).buildFormat()
+    const nextFormat = builtInVideoTemplate(templateId).buildFormat()
     onConfigChange({
       ...config,
       video_format: nextFormat,
@@ -181,7 +184,7 @@ export function VideoTemplateFormatPanel({
     })
   }
 
-  function updateActiveTextItem(patch: Partial<TextItem>) {
+  function updateActiveTextItem(patch: Partial<AutomationTextItem>) {
     const textIndex = Math.min(
       selectedTextIndex ?? 0,
       Math.max(0, activeTextItems.length - 1)
@@ -212,7 +215,7 @@ export function VideoTemplateFormatPanel({
     setSelectedTextIndex((index) => Math.max(0, (index ?? 0) - 1))
   }
 
-  function applyActiveTextItems(items: TextItem[]) {
+  function applyActiveTextItems(items: AutomationTextItem[]) {
     if (selectedSegment) {
       updateSegment(selectedSegment.id, { textItems: items })
       return
@@ -233,7 +236,7 @@ export function VideoTemplateFormatPanel({
           </button>
           <div className="inline-flex items-center gap-1.5 text-[13px] font-bold text-app-text">
             <IconVideo className="size-4" />
-            {preset.name}
+            {template.name}
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -250,14 +253,14 @@ export function VideoTemplateFormatPanel({
                   )
                 }
               >
-                {videoAutomationTemplatePresets.map((item) => (
+                {builtInVideoTemplates.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
                   </option>
                 ))}
               </SelectControl>
               <p className="mt-2 text-[12px] leading-4 font-medium text-app-muted-text">
-                {preset.description}
+                {template.description}
               </p>
             </section>
 
@@ -301,6 +304,11 @@ export function VideoTemplateFormatPanel({
               </button>
             ) : null}
 
+            {format.segments.length > 0 ? (
+              <h3 className="pt-1 text-[14px] font-bold text-app-text">
+                Blocks
+              </h3>
+            ) : null}
             {format.segments.map((segment, index) => (
               <VideoSegmentCard
                 key={segment.id}
@@ -328,10 +336,7 @@ export function VideoTemplateFormatPanel({
                 collections={collections}
                 demoVideos={demoVideos}
                 onSelect={() => {
-                  setSelectedTarget({
-                    scope: "segment",
-                    segmentId: segment.id,
-                  })
+                  setSelectedTarget({ scope: "segment", segmentId: segment.id })
                   setSelectedTextIndex(null)
                 }}
                 onCreateCollection={onCreateCollection}
@@ -339,6 +344,16 @@ export function VideoTemplateFormatPanel({
               />
             ))}
           </div>
+        </div>
+        <div className="border-t border-app-panel-border p-3">
+          <Button
+            variant="action"
+            size="appDefault"
+            className="w-full"
+            onClick={onSave}
+          >
+            Save Changes
+          </Button>
         </div>
       </aside>
 
@@ -366,7 +381,7 @@ export function VideoTemplateFormatPanel({
               />
             ) : (
               <div className="grid h-full place-items-center px-8 text-center text-[14px] font-semibold text-white/70">
-                Select media for this segment
+                Select media for this block
               </div>
             )}
             {activeTextItems.map((textItem, index) => (
@@ -681,7 +696,7 @@ function TemplatePreviewText({
   active,
   onClick,
 }: {
-  textItem: TextItem
+  textItem: AutomationTextItem
   text: string
   active: boolean
   onClick?: () => void

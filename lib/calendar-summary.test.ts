@@ -1,43 +1,43 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
-  listRows: vi.fn(),
+  listDomainRecords: vi.fn(),
   canonicalList: vi.fn(),
-  jobStats: vi.fn(),
 }))
 
-vi.mock("@/lib/appwrite", () => ({
-  APPWRITE_DATABASE_ID: "cfarm",
-  getAppwrite: () => ({ tables: { listRows: mocks.listRows } }),
+vi.mock("@/lib/railway/database", () => ({
+  getRailwayOrm: () => ({
+    select: () => ({
+      from: () => ({
+        where: () =>
+          Promise.resolve([{ id: "job-1" }, { id: "job-2" }, { id: "job-3" }]),
+      }),
+    }),
+  }),
 }))
-vi.mock("@/lib/runtime-store", () => ({
-  RUNTIME_DATABASE_ID: "cfarm",
-  getRuntimeStore: () => ({ records: { listRows: mocks.listRows } }),
+vi.mock("@/lib/railway/domain-record-store", () => ({
+  listDomainRecords: mocks.listDomainRecords,
 }))
 
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: async () => ({ $id: "owner-1" }),
 }))
-vi.mock("@/lib/railway/job-repository", () => ({
-  railwayJobRepository: { stats: mocks.jobStats },
-}))
 vi.mock("@/lib/output-publications", () => ({
   outputPublicationsOwnerId: vi.fn(async () => "owner-1"),
   writeCanonicalPostWithLegacyProjection: vi.fn(),
 }))
-vi.mock("@/lib/post-repository-appwrite", () => ({
-  appwritePostRepository: {
+vi.mock("@/lib/post-repository-store", () => ({
+  railwayPostRepository: {
     listPosts: mocks.canonicalList,
   },
 }))
 
 import { calendarAlertSummary } from "@/lib/calendar-summary"
 
-describe("calendarAlertSummary", () => {
+  describe("calendarAlertSummary", () => {
   beforeEach(() => {
-    mocks.listRows.mockReset()
+    mocks.listDomainRecords.mockReset()
     mocks.canonicalList.mockReset()
-    mocks.jobStats.mockReset().mockResolvedValue({ dead: 3 })
     delete process.env.POST_REPOSITORY_READ_MODE
   })
 
@@ -46,15 +46,22 @@ describe("calendarAlertSummary", () => {
   })
 
   it("uses bounded count queries instead of loading the full calendar", async () => {
-    mocks.listRows
-      .mockResolvedValueOnce({ rows: [{}], total: 1 })
-      .mockResolvedValueOnce({ rows: [{}], total: 1 })
+    mocks.listDomainRecords.mockResolvedValue([
+      {
+        payload: {
+          publications: [
+            { status: "awaiting_manual_post" },
+            { status: "failed" },
+          ],
+        },
+      },
+    ])
 
     await expect(calendarAlertSummary()).resolves.toEqual({
       needsAction: 1,
       failed: 4,
     })
-    expect(mocks.listRows).toHaveBeenCalledTimes(2)
+    expect(mocks.listDomainRecords).toHaveBeenCalledTimes(1)
   })
 
   it("keeps alert counts stable in all read modes and shadows drift", async () => {
@@ -72,11 +79,10 @@ describe("calendarAlertSummary", () => {
     const summaries = []
     for (const mode of ["legacy", "canonical", "union-shadow"] as const) {
       process.env.POST_REPOSITORY_READ_MODE = mode
-      mocks.listRows.mockReset()
+      mocks.listDomainRecords.mockReset()
+      mocks.listDomainRecords.mockResolvedValue([])
       if (mode !== "canonical") {
-        mocks.listRows
-          .mockResolvedValueOnce({ rows: [], total: 1 })
-          .mockResolvedValueOnce({ rows: [], total: 1 })
+        // The canonical branch does not read the legacy projection.
       }
       summaries.push(await calendarAlertSummary())
     }
@@ -87,10 +93,8 @@ describe("calendarAlertSummary", () => {
     ])
 
     mocks.canonicalList.mockResolvedValue([ready])
-    mocks.listRows.mockReset()
-    mocks.listRows
-      .mockResolvedValueOnce({ rows: [], total: 1 })
-      .mockResolvedValueOnce({ rows: [], total: 1 })
+    mocks.listDomainRecords.mockReset()
+    mocks.listDomainRecords.mockResolvedValue([])
     process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
     await expect(calendarAlertSummary()).resolves.toEqual(summaries[0])
@@ -105,7 +109,11 @@ function canonicalSummaryPost(
   overrides: Partial<{
     id: string
     lifecycleStatus:
-      "generated" | "ready" | "scheduled" | "published" | "failed"
+      | "generated"
+      | "ready"
+      | "scheduled"
+      | "published"
+      | "failed"
     publishMode: "auto" | "review" | "manual"
   }>
 ) {

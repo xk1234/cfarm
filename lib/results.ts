@@ -1,17 +1,14 @@
 import { clean, isRecord } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
-
 import {
-  countJsonArrayStore,
   deleteJsonArrayRecord,
   readJsonArrayRecord,
   readJsonArrayStore,
   upsertJsonArrayRecord,
 } from "@/lib/json-store"
-import { RecordQuery as Query } from "@/lib/record-query"
-import type { SlideshowSettings } from "@/lib/slideshow-contract"
-import type { SlideshowSlide } from "@/lib/slideshow-renderer"
+import type { JsonPathFilter } from "@/lib/railway/domain-record-store"
+import type { SlideshowSettings, SlideshowSlide } from "@/lib/slideshows"
 
 export type ResultWorkflowType = "slideshow" | "video"
 export type ResultStatus = "succeeded" | "failed"
@@ -107,11 +104,11 @@ export async function listResultRecords(
   if (input.slideshowIds && slideshowIds.length === 0) return []
   const records = await readResultRecords(input.rootDir, {
     queries: slideshowIds.length
-      ? [Query.equal("source_entity_id", slideshowIds)]
+      ? [{ path: ["artifacts", "slideshowId"], values: slideshowIds }]
       : runId
-        ? [Query.equal("source_run_id", [runId])]
+        ? [{ path: ["runId"], values: [runId] }]
         : automationId
-          ? [Query.equal("source_automation_id", [automationId])]
+          ? [{ path: ["automationId"], values: [automationId] }]
           : undefined,
     limit: slideshowIds.length
       ? Math.max(1, Math.min(input.limit ?? slideshowIds.length, 100))
@@ -146,17 +143,18 @@ export function countResultRecords(input: {
   workflowType?: ResultWorkflowType
   hasVideo?: boolean
 }) {
-  return countJsonArrayStore<ResultRecord>({
+  return readJsonArrayStore<ResultRecord>({
     ...resultStore(input.rootDir),
-    queries: [
-      ...(input.workflowType
-        ? [Query.equal("kind", [input.workflowType])]
-        : []),
-      ...(input.hasVideo !== undefined
-        ? [Query.equal("has_video", [input.hasVideo])]
-        : []),
-    ],
-  })
+    queries: [],
+    limit: 10_000,
+  }).then((records) =>
+    records.filter(
+      (record) =>
+        (!input.workflowType || record.workflowType === input.workflowType) &&
+        (input.hasVideo === undefined ||
+          Boolean(record.artifacts.videoUrl) === input.hasVideo)
+    ).length
+  )
 }
 
 export async function createResultRecord(input: CreateResultInput) {
@@ -267,7 +265,7 @@ export async function deleteResultRecordsForAutomation(input: {
 function readResultRecords(
   rootDir = defaultRootDir(),
   options: {
-    queries?: string[]
+    queries?: JsonPathFilter[]
     limit?: number
     order?: "asc" | "desc" | "none"
   } = {}

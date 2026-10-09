@@ -13,6 +13,7 @@ export type DiscoveredTikTokStudioPost = {
   accountHandle?: string
   content?: string
   publishedAt?: string
+  thumbnailUrl?: string
 }
 
 const REQUEST_TYPE = "LUMENCLIP_TIKTOK_STUDIO_CONNECT"

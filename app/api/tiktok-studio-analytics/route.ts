@@ -49,6 +49,7 @@ const startDiscoveredBatchSchema = z.object({
         releaseUrl: z.string().url().max(2_000),
         content: z.string().max(10_000).optional(),
         publishedAt: z.string().datetime({ offset: true }).optional(),
+        thumbnailUrl: z.string().url().max(2_000).optional(),
       })
     )
     .min(1)

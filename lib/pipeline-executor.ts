@@ -7,10 +7,9 @@ import {
   type PipelineStageExecution,
   type PipelineStageHandler,
   type PipelineStageRegistry,
+  type PipelineWorkflowId,
   type RegisteredPipelineStage,
 } from "@/lib/pipeline-stages"
-import { captureProviderRequests } from "@/lib/provider-request-trace"
-import { workflowMediaArtifacts } from "@/lib/workflow-media-artifacts"
 
 export type PipelineHandlerMap = ReadonlyMap<string, PipelineStageHandler>
 
@@ -55,33 +54,24 @@ export async function executePipelineStage(input: {
       stageInput,
       requestId,
     })
-  const { result: rawOutput, providerRequests } = await captureProviderRequests(
-    () =>
-      registered.handler(parsed, {
-        ownerId: input.ownerId,
-        workflowId: registered.workflowId,
-        stageId: registered.id,
-        requestId,
-        runStage,
-        externalCall: async (operation, task) => {
-          if (externalCalls >= registered.maxExternalCalls) {
-            throw new Error(
-              `Pipeline stage ${registered.id} exceeded maxExternalCalls=${registered.maxExternalCalls} before ${operation}`
-            )
-          }
-          externalCalls += 1
-          return task()
-        },
-      })
-  )
-  assertSafePipelineValue(rawOutput, "output")
-  assertSafePipelineValue(providerRequests, "providerRequests")
-  const mediaArtifacts = workflowMediaArtifacts(rawOutput)
-  assertSafePipelineValue(mediaArtifacts, "mediaArtifacts")
-  const output = structuredClone({
-    ...rawOutput,
-    ...(mediaArtifacts.length ? { mediaArtifacts } : {}),
+  const rawOutput = await registered.handler(parsed, {
+    ownerId: input.ownerId,
+    workflowId: registered.workflowId,
+    stageId: registered.id,
+    requestId,
+    runStage,
+    externalCall: async (operation, task) => {
+      if (externalCalls >= registered.maxExternalCalls) {
+        throw new Error(
+          `Pipeline stage ${registered.id} exceeded maxExternalCalls=${registered.maxExternalCalls} before ${operation}`
+        )
+      }
+      externalCalls += 1
+      return task()
+    },
   })
+  assertSafePipelineValue(rawOutput, "output")
+  const output = structuredClone(rawOutput)
   const operation = runningOperation(output)
   return {
     stage: stageMetadata(registered),
@@ -89,8 +79,78 @@ export async function executePipelineStage(input: {
     status: operation ? "running" : "succeeded",
     externalCalls,
     output,
-    ...(providerRequests.length ? { providerRequests } : {}),
     ...(operation ? { operation } : {}),
+  }
+}
+
+export async function executeNamedPipeline(input: {
+  registry: PipelineStageRegistry
+  ownerId: string
+  workflowId: PipelineWorkflowId
+  workflowInput: Record<string, unknown>
+  requestId?: string
+  startAt?: string
+  stopAfter?: string
+}) {
+  if (
+    !(PIPELINE_WORKFLOW_IDS as readonly string[]).includes(input.workflowId)
+  ) {
+    throw new Error(`Unknown pipeline workflow: ${input.workflowId}`)
+  }
+  const allStages = pipelineStagesForWorkflow(input.workflowId)
+  const startIndex = input.startAt
+    ? allStages.findIndex((stage) => stage.id === input.startAt)
+    : 0
+  if (startIndex < 0) {
+    throw new Error(
+      `Stage ${input.startAt} does not belong to ${input.workflowId}`
+    )
+  }
+  const stopIndex = input.stopAfter
+    ? allStages.findIndex((stage) => stage.id === input.stopAfter)
+    : allStages.length - 1
+  if (stopIndex < startIndex) {
+    throw new Error(
+      "stopAfter must be the start stage or a later workflow stage"
+    )
+  }
+
+  const requestId = cleanRequestId(input.requestId)
+  let current = structuredClone(input.workflowInput)
+  const stages: PipelineStageExecution[] = []
+  for (const metadata of allStages.slice(startIndex, stopIndex + 1)) {
+    const execution = await executePipelineStage({
+      registry: input.registry,
+      ownerId: input.ownerId,
+      stageId: metadata.id,
+      stageInput: current,
+      requestId,
+    })
+    stages.push(execution)
+    current = execution.output
+    if (execution.status === "running") {
+      return {
+        workflowId: input.workflowId,
+        requestId,
+        status: "running" as const,
+        completedStages: stages.length - 1,
+        totalStages: stopIndex - startIndex + 1,
+        activeStage: metadata.id,
+        nextStage: allStages[metadata.order]?.id,
+        operation: execution.operation,
+        output: current,
+        stages,
+      }
+    }
+  }
+  return {
+    workflowId: input.workflowId,
+    requestId,
+    status: "succeeded" as const,
+    completedStages: stages.length,
+    totalStages: stopIndex - startIndex + 1,
+    output: current,
+    stages,
   }
 }
 

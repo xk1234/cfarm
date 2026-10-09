@@ -1,11 +1,11 @@
 import { IconCheck } from "@tabler/icons-react"
+import Link from "next/link"
 
 import {
   MarketingFooter,
   MarketingNav,
   PageHero,
 } from "@/components/marketing/marketing-shell"
-import { ClerkAuthButton } from "@/components/clerk-auth-button"
 
 const questions = [
   [
@@ -14,7 +14,7 @@ const questions = [
   ],
   [
     "Will existing beta users keep their data?",
-    "Yes. Your Clerk identity keeps the same Railway owner ID as plans evolve.",
+    "Yes. Your records remain attached to your Railway account as plans evolve.",
   ],
   [
     "What will team pricing include?",
@@ -52,7 +52,7 @@ export default function PricingPage() {
             <ul className="mt-8 space-y-3 text-sm">
               {[
                 "Private source and asset library",
-                "Templates and saved runs",
+                "Automations and saved runs",
                 "Creator records and collections",
                 "Review gates and output history",
               ].map((item) => (
@@ -62,12 +62,12 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <ClerkAuthButton
-              authMode="sign-up"
+            <Link
+              href="/sign-up"
               className="mt-9 inline-flex rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white"
             >
               Create account
-            </ClerkAuthButton>
+            </Link>
           </article>
           <article className="rounded-2xl bg-brand-ink p-7 text-white lg:p-9">
             <p className="text-sm font-semibold text-brand-muted-on-dark">
@@ -87,7 +87,7 @@ export default function PricingPage() {
               {[
                 "Shared asset and template libraries",
                 "Roles and collaborative review",
-                "Higher scheduled generation volume",
+                "Higher automation and generation volume",
                 "Assisted workflow migration",
               ].map((item) => (
                 <li key={item} className="flex gap-2">
@@ -96,12 +96,12 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <ClerkAuthButton
-              authMode="sign-up"
+            <Link
+              href="/sign-up"
               className="mt-9 inline-flex rounded-app-control bg-white px-5 py-3 text-sm font-semibold text-brand-ink"
             >
               Join the beta
-            </ClerkAuthButton>
+            </Link>
           </article>
         </div>
       </section>

@@ -39,17 +39,17 @@ export function classifyTikTokContext(value) {
       kind: "post",
       feature: "comments",
       label: "TikTok post",
-      title: "Draft comment replies",
+      title: "Collect post comments",
       description:
-        "Capture comments from this post, then review, edit, approve, and send drafted replies here.",
+        "Connect this exact post to its LumenClip post, then capture comments and review drafted replies here.",
       identity: `@${decodeURIComponent(post[1])} · Post ${post[2]}`,
       handle: decodeURIComponent(post[1]),
       platformPostId: post[2],
-      connectLabel: "Load comments",
+      connectLabel: "Connect this post",
       steps: [
-        "The extension matches the open TikTok to its published post.",
-        "It opens the comment panel and captures the visible comments.",
-        "Review, edit, approve, and send drafted replies here.",
+        "LumenClip matches this TikTok post to an imported post.",
+        "The companion opens the comment panel and captures comments.",
+        "Return here to edit, approve, and send drafted replies.",
       ],
     }
   }
@@ -57,9 +57,14 @@ export function classifyTikTokContext(value) {
   return unsupportedContext()
 }
 
-export function companionConnectUrl(appOrigin) {
+export function companionConnectUrl(appOrigin, context) {
   const url = new URL("/app/analytics", appOrigin)
-  url.searchParams.set("companion", "tiktok-studio")
+  if (context.feature === "studio") {
+    url.searchParams.set("companion", "tiktok-studio")
+  } else if (context.feature === "comments" && context.platformPostId) {
+    url.searchParams.set("companion", "tiktok-comments")
+    url.searchParams.set("platformPostId", context.platformPostId)
+  }
   return url.toString()
 }
 

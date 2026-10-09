@@ -12,6 +12,7 @@ import { socialIntegrationKey } from "@/components/realfarm/social-platform"
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import type { SlideshowViewerAction } from "@/components/realfarm/slideshow-viewer-modal"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type {
   PostFastCreatePostType,
@@ -29,51 +30,42 @@ import type { AutomationRunApiRecord } from "./types"
 export function SlideshowPublicationActions({
   run,
   onRunChanged,
+  children,
 }: {
   run: AutomationRunApiRecord
   onRunChanged: (run: AutomationRunApiRecord) => void
+  children: (actions: SlideshowViewerAction[]) => ReactNode
 }) {
   const [modal, setModal] = useState<"post" | "link" | null>(null)
   const [releaseUrl, setReleaseUrl] = useState(
     run.socialStatuses?.find((item) => item.releaseUrl)?.releaseUrl ?? ""
   )
+  const actions: SlideshowViewerAction[] = [
+    ...(releaseUrl
+      ? [
+          {
+            label: "Open live post",
+            icon: <IconExternalLink className="size-4" />,
+            onSelect: () =>
+              window.open(releaseUrl, "_blank", "noopener,noreferrer"),
+          },
+        ]
+      : []),
+    {
+      label: "Link published post",
+      icon: <IconLink className="size-4" />,
+      onSelect: () => setModal("link"),
+    },
+    {
+      label: "Post to social",
+      icon: <IconSend className="size-4" />,
+      onSelect: () => setModal("post"),
+    },
+  ]
 
   return (
     <>
-      {releaseUrl ? (
-        <Button
-          variant="softControl"
-          size="compact"
-          className="size-9 px-0"
-          aria-label="Open live post"
-          title="Open live post"
-          onClick={() =>
-            window.open(releaseUrl, "_blank", "noopener,noreferrer")
-          }
-        >
-          <IconExternalLink className="size-4" />
-        </Button>
-      ) : null}
-      <Button
-        variant="softControl"
-        size="compact"
-        className="size-9 px-0"
-        aria-label="Link published post"
-        title="Link published post"
-        onClick={() => setModal("link")}
-      >
-        <IconLink className="size-4" />
-      </Button>
-      <Button
-        variant="action"
-        size="compact"
-        className="size-9 px-0"
-        aria-label="Post to social"
-        title="Post to social"
-        onClick={() => setModal("post")}
-      >
-        <IconSend className="size-4" />
-      </Button>
+      {children(actions)}
       {modal ? (
         <SlideshowPublicationModal
           mode={modal}

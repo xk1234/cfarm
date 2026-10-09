@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   IconArrowUpRight,
   IconBrandAmazon,
@@ -11,8 +12,8 @@ import {
 
 import { ProductSalesInspirationList } from "@/components/realfarm/product-sales-inspiration"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
+import { Button } from "@/components/ui/button"
 import type { ProductCollection } from "@/lib/product-collections"
-import type { ProductWithSalesInspirations } from "@/lib/product-sales-inspirations"
 
 export function ProductCollectionsPanel({
   collections,
@@ -29,6 +30,18 @@ export function ProductCollectionsPanel({
           <h2 className="mt-3 text-[18px] font-semibold">
             No product collections yet
           </h2>
+          <p className="mt-2 max-w-sm text-[13px] leading-5 text-app-muted-text">
+            Product collections appear after a catalog is imported through the
+            LumenClip API.
+          </p>
+          <Button
+            asChild
+            variant="softControl"
+            size="appDefault"
+            className="mt-4"
+          >
+            <Link href="/api-reference">Open API reference</Link>
+          </Button>
         </div>
       </div>
     )
@@ -46,11 +59,12 @@ export function ProductCollectionsPanel({
           >
             <div className="grid aspect-[16/9] grid-cols-3 gap-1 bg-app-surface-subtle p-1">
               {collection.items.slice(0, 3).map((item) => (
-                // eslint-disable-next-line @next/next/no-img-element -- Product assets are dynamic Appwrite URLs.
+                // eslint-disable-next-line @next/next/no-img-element -- Product assets are dynamic Railway URLs.
                 <img
                   key={item.id}
                   src={item.generatedImageUrl}
-                  alt=""
+                  alt={`${item.name} product preview`}
+                  loading="lazy"
                   className="h-full min-w-0 object-cover"
                 />
               ))}
@@ -99,8 +113,21 @@ function ProductCollectionModal({
           <h2 className="text-[22px] font-bold text-app-text">
             {collection.name}
           </h2>
-          <div className="flex items-center gap-4">
-            <p className="text-[10px] font-medium text-app-text-faint">
+          <button
+            type="button"
+            className="grid size-10 shrink-0 place-items-center rounded-[7px] text-app-muted-text hover:bg-app-control-hover"
+            onClick={onClose}
+            aria-label="Close product collection"
+          >
+            <IconX className="size-5" />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+          <div className="mb-5 border-b border-app-panel-border pb-4">
+            <p className="max-w-[760px] text-[13px] leading-5 font-medium text-app-muted-text">
+              {collection.description}
+            </p>
+            <p className="mt-2 text-[10px] font-medium text-app-text-faint">
               {collection.commissionDisclaimer}
               {collection.commissionSourceUrl ? (
                 <>
@@ -117,35 +144,20 @@ function ProductCollectionModal({
               ) : null}
             </p>
           </div>
-          <button
-            type="button"
-            className="grid size-10 shrink-0 place-items-center rounded-[7px] text-app-muted-text hover:bg-app-control-hover"
-            onClick={onClose}
-            aria-label="Close product collection"
-          >
-            <IconX className="size-5" />
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          {collection.description ? (
-            <p className="mb-5 max-w-[760px] text-[13px] leading-5 font-medium text-app-muted-text">
-              {collection.description}
-            </p>
-          ) : null}
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-5">
             {collection.items.map((item) => (
               <article
                 key={item.id}
-                className="overflow-hidden rounded-[10px] border border-app-panel-border bg-app-surface shadow-sm"
+                className="grid overflow-hidden rounded-[10px] border border-app-panel-border bg-app-surface shadow-sm md:grid-cols-[240px_minmax(0,1fr)]"
               >
-                <div className="aspect-[4/3] bg-app-panel-border">
+                <div className="aspect-[4/3] bg-app-panel-border md:aspect-auto md:min-h-[340px]">
                   <ProductImage
                     imageUrl={item.generatedImageUrl}
                     label="In use"
                     alt={`${item.name} styled in a home`}
                   />
                 </div>
-                <div className="p-4">
+                <div className="min-w-0 p-4 sm:p-5">
                   <h3 className="line-clamp-2 min-h-10 text-[14px] leading-5 font-bold text-app-text">
                     {item.name}
                   </h3>
@@ -160,10 +172,7 @@ function ProductCollectionModal({
                     />
                   </div>
                   <ProductSalesInspirationList
-                    inspirations={
-                      (item as typeof item & ProductWithSalesInspirations)
-                        .salesInspirations ?? []
-                    }
+                    inspirations={item.salesInspirations ?? []}
                   />
                   <a
                     href={item.marketplaceUrl}
@@ -195,8 +204,8 @@ function ProductImage({
   alt: string
 }) {
   return (
-    <div className="relative overflow-hidden bg-app-surface">
-      {/* eslint-disable-next-line @next/next/no-img-element -- Product assets are dynamic Appwrite URLs. */}
+    <div className="relative h-full overflow-hidden bg-app-surface">
+      {/* eslint-disable-next-line @next/next/no-img-element -- Product assets are dynamic Railway URLs. */}
       <img src={imageUrl} alt={alt} className="h-full w-full object-cover" />
       <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[9px] font-bold text-white backdrop-blur-sm">
         {label}

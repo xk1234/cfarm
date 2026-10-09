@@ -3,6 +3,10 @@ import { NextResponse } from "next/server"
 import { ApiError, readRouteId, withHandler } from "@/lib/api"
 import { getAutomationRecord } from "@/lib/automations"
 import { actualUgcCostFromLedger, estimateUgcCost } from "@/lib/ugc-cost"
+import {
+  automationPostingMode,
+  normalizeUgcConfig,
+} from "@/lib/realfarm-automation"
 import { getUgcRunStatus } from "@/lib/ugc-run-status"
 
 export const dynamic = "force-dynamic"
@@ -20,18 +24,30 @@ export const GET = withHandler<{ params: Promise<{ id: string }> }>(
       automation.schema.automationKind !== "ugc" ||
       automation.schema.ugc?.enabled !== true
     ) {
-      throw new ApiError(404, "UGC template not found.")
+      throw new ApiError(404, "UGC automation not found.")
     }
     const actual = await actualUgcCostFromLedger(id)
     return NextResponse.json({
       run,
       estimate: estimateUgcCost(automation.schema.ugc),
       actual,
+      workflow: {
+        name: automation.name,
+        config: normalizeUgcConfig(automation.schema.ugc),
+        postingMode: automationPostingMode(automation.schema),
+        socialProviders: [
+          ...new Set(
+            automation.schema.social_integrations.map(
+              (integration) => integration.provider
+            )
+          ),
+        ],
+      },
     })
   }
 )
 
 function assertUgcEnabled() {
   if (process.env.ENABLE_UGC_AUTOMATION !== "true")
-    throw new ApiError(404, "UGC template is not enabled.")
+    throw new ApiError(404, "UGC automation is not enabled.")
 }

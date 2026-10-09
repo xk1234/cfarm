@@ -264,6 +264,10 @@ describe("TikTok Studio import post materialization", () => {
           author: { unique_id: "creator" },
           statistics: { play_count: 25 },
         },
+        video_vv_history_7d: [
+          { status: 0, value: 12 },
+          { status: 0, value: 13 },
+        ],
       },
     })
 
@@ -278,6 +282,12 @@ describe("TikTok Studio import post materialization", () => {
       snapshot: {
         postId: item.targetPostId,
         platformPostId: item.externalPostId,
+        tiktokStudio: {
+          viewHistory7d: [
+            { offset: 1, status: 0, value: 12 },
+            { offset: 2, status: 0, value: 13 },
+          ],
+        },
       },
     })
   })

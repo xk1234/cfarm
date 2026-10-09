@@ -2,7 +2,6 @@ import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import {
   afterAll,
   afterEach,
@@ -13,7 +12,6 @@ import {
   vi,
 } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 
 // Appwrite-only: `data/postfast-posts.json` -> `postfast_posts`, run against

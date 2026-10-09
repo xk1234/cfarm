@@ -26,8 +26,8 @@ vi.mock("@/lib/output-publications", () => ({
   outputPublicationsOwnerId: vi.fn(async () => "owner-1"),
   writeCanonicalPostWithLegacyProjection: vi.fn(),
 }))
-vi.mock("@/lib/post-repository-appwrite", () => ({
-  appwritePostRepository: {
+vi.mock("@/lib/post-repository-store", () => ({
+  railwayPostRepository: {
     listPosts: mocks.canonicalList,
   },
 }))

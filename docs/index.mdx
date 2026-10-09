@@ -1,28 +1,10 @@
 ---
 title: LumenClip engineering documentation
-description: Find the workflow, data contract, interface rule, or scheduled job behind any part of LumenClip.
+description: Workflows, libraries, application data, UI, and scheduled jobs.
 ---
 
-LumenClip is a content-production and automation workspace for social
-slideshows, short-form video, and text posts. This documentation describes the
-shipped system: how content is generated, what is persisted, what the interface
-does, and what runs on a schedule.
-
-## Start here
-
-- **Tracing how a post gets made?** Start with
-  [Output generation](/docs/workflows), which maps every pipeline from input to
-  published artifact, including the model and provider at each generative stage.
-- **Looking up a field, table, or endpoint?** Go to the
-  [data dictionary](/docs/data). TypeScript definitions under `lib/` remain the
-  executable source of truth.
-- **Changing a screen?** Find the surface in the [UI field guide](/docs/ui),
-  which is organized by destination and visible interaction state rather than by
-  source file.
-- **Debugging something that fires on its own?** See [Jobs](/docs/jobs) for
-  scheduling, reminders, publication linking, and queue execution.
-
-## Sections
+This documentation is organized around the five areas maintained alongside the
+application.
 
 <Cards>
   <Card title="Output generation" href="/docs/workflows">
@@ -33,7 +15,7 @@ does, and what runs on a schedule.
     Runtime and development dependencies used by LumenClip.
   </Card>
   <Card title="Data" href="/docs/data">
-    Application data structures, backend architecture, endpoints, and Appwrite.
+    Application data structures, backend architecture, endpoints, and Railway.
   </Card>
   <Card title="UI" href="/docs/ui">
     Component boundaries, workspace views, pages, and UI primitives.
@@ -41,15 +23,15 @@ does, and what runs on a schedule.
   <Card title="Jobs" href="/docs/jobs">
     Scheduling, reminders, publication linking, and queue execution.
   </Card>
-  <Card title="UI and UX guidelines" href="/docs/uiux">
-    The design rules new interface work is expected to follow.
-  </Card>
 </Cards>
 
-## Contributing
+## Documentation rules
 
-Before adding a page, read the
-[documentation rules](/docs/reference/documentation-rules) to confirm which
-section owns the change. Agents sharing this checkout should follow
-[Agent GitHub publishing](/docs/reference/agent-github-publishing) when
-committing and deploying.
+- Keep only content-output generation workflows in `docs/workflows/`. Express
+  each pipeline as ordered transformations with explicit inputs, outputs,
+  branches, validation, and model/provider details.
+- Keep dependency ownership in `docs/libraries/`.
+- Keep persisted shapes and backend contracts in `docs/data/`.
+- Keep frontend architecture and product surfaces in `docs/ui/`.
+- Keep scheduled execution behavior in `docs/jobs/`.
+- Update the relevant document with every material implementation change.

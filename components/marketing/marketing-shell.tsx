@@ -1,9 +1,8 @@
-import Image from "next/image"
-import Link from "next/link"
-import { Show, UserButton } from "@clerk/nextjs"
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import Image from "next/image";
+import Link from "next/link";
 
-import { ClerkAuthButton } from "@/components/clerk-auth-button"
-import { MarketingMobileMenu } from "@/components/marketing/marketing-mobile-menu"
+import { MarketingMobileMenu } from "@/components/marketing/marketing-mobile-menu";
 
 const navigation = [
   ["Product", "/product"],
@@ -11,7 +10,7 @@ const navigation = [
   ["Pricing", "/pricing"],
   ["Docs", "/docs"],
   ["Careers", "/careers"],
-] as const
+] as const;
 
 export function MarketingNav() {
   return (
@@ -45,23 +44,21 @@ export function MarketingNav() {
         </div>
         <div className="hidden items-center gap-2 md:flex">
           <Show when="signed-out">
-            <ClerkAuthButton
-              authMode="sign-in"
-              className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4"
-            >
-              Log in
-            </ClerkAuthButton>
-            <ClerkAuthButton
-              authMode="sign-up"
-              className="brand-button brand-button-primary min-h-0 px-3 py-2 sm:px-4"
-            >
-              Create account
-            </ClerkAuthButton>
+            <SignInButton mode="modal" fallbackRedirectUrl="/app">
+              <button className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4">
+                Log in
+              </button>
+            </SignInButton>
+            <SignUpButton mode="modal" fallbackRedirectUrl="/app">
+              <button className="brand-button brand-button-primary min-h-0 px-3 py-2 sm:px-4">
+                Create account
+              </button>
+            </SignUpButton>
           </Show>
           <Show when="signed-in">
             <Link
               href="/app"
-              className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4"
+              className="brand-button brand-button-primary min-h-0 px-3 py-2 sm:px-4"
             >
               Open app
             </Link>
@@ -71,7 +68,7 @@ export function MarketingNav() {
         <MarketingMobileMenu />
       </div>
     </nav>
-  )
+  );
 }
 
 export function MarketingFooter() {
@@ -100,21 +97,25 @@ export function MarketingFooter() {
               {label}
             </Link>
           ))}
-          <ClerkAuthButton
-            authMode="sign-in"
-            className="text-left hover:text-brand-ink"
-          >
-            Log in
-          </ClerkAuthButton>
+          <Link href="/login">Log in</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
+          <a href="https://www.linkedin.com/company/lumenclips/">
+            Company LinkedIn
+          </a>
+          <a href="https://www.linkedin.com/in/ye-x-4486a218b/">
+            Ye Xinkang · Cofounder
+          </a>
+          <a href="https://www.linkedin.com/in/fiona-wang-4332b01/">
+            Fiona Wang · Cofounder
+          </a>
         </div>
       </div>
       <div className="mx-auto max-w-[1280px] border-t border-brand-border px-5 py-5 text-xs text-brand-text-faint lg:px-8">
         © {new Date().getFullYear()} LumenClip
       </div>
     </footer>
-  )
+  );
 }
 
 export function PageHero({
@@ -122,9 +123,9 @@ export function PageHero({
   description,
   action = true,
 }: {
-  title: string
-  description: string
-  action?: boolean
+  title: string;
+  description: string;
+  action?: boolean;
 }) {
   return (
     <section className="mx-auto max-w-[1280px] px-5 pt-18 pb-20 lg:px-8 lg:pb-24">
@@ -137,19 +138,16 @@ export function PageHero({
       </p>
       {action ? (
         <div className="mt-8 flex flex-wrap gap-3">
-          <ClerkAuthButton
-            authMode="sign-up"
-            className="brand-button brand-button-primary"
-          >
+          <Link href="/sign-up" className="brand-button brand-button-primary">
             Create account
-          </ClerkAuthButton>
+          </Link>
           <Link href="/product" className="brand-button brand-button-secondary">
             See the product
           </Link>
         </div>
       ) : null}
     </section>
-  )
+  );
 }
 
 export function CTASection({ title, body }: { title: string; body: string }) {
@@ -164,14 +162,14 @@ export function CTASection({ title, body }: { title: string; body: string }) {
           <p className="mt-5 max-w-[54ch] text-base leading-7 text-brand-muted-on-dark">
             {body}
           </p>
-          <ClerkAuthButton
-            authMode="sign-up"
+          <Link
+            href="/sign-up"
             className="brand-button brand-button-secondary mt-8"
           >
             Create account
-          </ClerkAuthButton>
+          </Link>
         </div>
       </div>
     </section>
-  )
+  );
 }

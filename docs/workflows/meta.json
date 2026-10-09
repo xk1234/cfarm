@@ -2,8 +2,6 @@
   "title": "Output generation",
   "pages": [
     "index",
-    "windmill-migration",
-    "windmill-access",
     "slideshow-generation",
     "x-threads-generation",
     "linkedin-generation",

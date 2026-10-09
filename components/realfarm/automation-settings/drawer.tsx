@@ -1,24 +1,45 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useState } from "react"
+import { flushSync } from "react-dom"
 import { toast } from "sonner"
-import { IconChevronLeft, IconPlus } from "@tabler/icons-react"
-import { LuPanelsTopLeft, LuSettings2, LuType } from "react-icons/lu"
-
 import {
-  fetchJsonWithTimeout,
-  getApiErrorMessage,
-  queueWorkflowAndWait,
-} from "@/lib/client-api"
+  IconChartBar,
+  IconChevronLeft,
+  IconHome,
+  IconMenu2,
+  IconMessage,
+  IconLink,
+  IconPlayerPlay,
+  IconSettings,
+  IconTrash,
+  IconWand,
+  IconX,
+} from "@tabler/icons-react"
+import { LuCopy } from "react-icons/lu"
+
+import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { Button } from "@/components/ui/button"
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
-import type { CreatedImageCollection } from "@/features/collections/domain/collections"
+import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
+import { automationHookItems } from "@/lib/realfarm-automation"
 import type { AutomationSchema } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
 import {
   automationGenerationIssue,
   cloneAutomationSchema,
+  generationPlaceholderRun,
+  reconcileGenerationPlaceholders,
   wait,
 } from "./run-helpers"
 import type {
@@ -27,17 +48,18 @@ import type {
   AutomationRunApiRecord,
 } from "./types"
 import { AutomationGeneralSettingsPanel } from "./general-settings"
-import { GeneratedSlideshowViewerModal } from "./generated-slideshow-viewer"
+import { AutomationOverviewPanel } from "./overview-panel"
 import { PromptConfigPanel } from "./prompt-settings"
+import { HookAnalyticsPanel } from "./hook-analytics-panel"
 import { AutomationFormatPanel } from "./slideshow-format-panel"
-import { SlideSequencePanel } from "./slide-sequence-panel"
+import { AutomationSettingsNavButton } from "./settings-nav"
+import { TikTokPublicationImportPanel } from "./tiktok-publication-import-panel"
 import {
   automationVideoGenerationIssue,
   generateAutomationVideo,
 } from "./automation-video-generation"
 
 export function AutomationSettingsDrawer({
-  modal = false,
   automation,
   initialRunId,
   config,
@@ -48,11 +70,12 @@ export function AutomationSettingsDrawer({
   onCreateCollection,
   onRename,
   onConfigChange,
+  onGenerationRunUpdate,
+  onGenerationRunRemove,
   onDuplicate,
   onDelete,
   onClose,
 }: {
-  modal?: boolean
   automation: Automation
   initialRunId?: string
   config: AutomationSchema
@@ -63,125 +86,128 @@ export function AutomationSettingsDrawer({
   onCreateCollection: (collection: CreatedImageCollection) => void
   onRename: (name: string) => void
   onConfigChange: (config: AutomationSchema) => void
-  onEditSocialAccounts: () => void
+  onGenerationRunUpdate: (run: AutomationRunApiRecord) => void
+  onGenerationRunRemove: (runId: string) => void
   onDuplicate: () => Promise<void>
   onDelete: () => void
   onClose: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<AutomationDrawerTab>("editor")
+  const [activeTab, setActiveTab] = useState<AutomationDrawerTab>("overview")
+  const [navOpen, setNavOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [draftName, setDraftName] = useState(automation.name)
   const [draftConfig, setDraftConfig] = useState(() =>
     cloneAutomationSchema(config)
   )
   const [savingConfig, setSavingConfig] = useState(false)
-  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve())
-  const latestDraftConfigJsonRef = useRef("")
-  const onConfigChangeRef = useRef(onConfigChange)
   const [activeGenerationCount, setActiveGenerationCount] = useState(0)
   const generating = activeGenerationCount > 0
   const [duplicating, setDuplicating] = useState(false)
-  const [linkedRun, setLinkedRun] = useState<AutomationRunApiRecord | null>(
-    null
-  )
+  const [recentRuns, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
+  const [recentRunsError, setRecentRunsError] = useState("")
+  const [runLoadRevision, setRunLoadRevision] = useState(0)
+  const [loadedRunsAutomationId, setLoadedRunsAutomationId] = useState<
+    string | null
+  >(null)
+  const recentRunsLoading = loadedRunsAutomationId !== automation.id
   const automationKind = draftConfig.automationKind
-  const effectiveDraftConfig = useMemo(
-    () => ({
-      ...draftConfig,
-      social_integrations: [],
-      social_publish_as: {},
-      posting_mode: "manual" as const,
-      tiktok_post_settings: {
-        ...draftConfig.tiktok_post_settings,
-        auto_post: false,
-      },
-    }),
-    [draftConfig]
-  )
-  const effectiveDraftConfigJson = JSON.stringify(effectiveDraftConfig)
-  const configChanged = effectiveDraftConfigJson !== JSON.stringify(config)
-  const [, setVideoExports] = useAutomationGeneratedVideoExports(
-    automation.id,
-    "Failed to load generated template videos"
-  )
+  const effectiveDraftConfig = {
+    ...draftConfig,
+    social_integrations: config.social_integrations,
+  }
+  const configChanged =
+    JSON.stringify(effectiveDraftConfig) !== JSON.stringify(config)
+  const preflightError =
+    automationKind === "video"
+      ? automationVideoGenerationIssue(
+          effectiveDraftConfig,
+          collections,
+          demoVideos
+        )
+      : automationGenerationIssue(effectiveDraftConfig, collections)
+  const generateDisabledReason = generating
+    ? "A generation is already running."
+    : savingConfig
+      ? "Wait for the template to finish saving."
+      : configChanged
+        ? "Save or cancel your template changes before generating."
+        : preflightError || ""
+  const nameChanged = editingName && draftName.trim() !== automation.name
+  const dirtyGuard = useDirtyGuard(configChanged || nameChanged)
+  const hookCount = automationHookItems(draftConfig).length
+  const [videoExports, setVideoExports, videoExportsLoading] =
+    useAutomationGeneratedVideoExports(
+      automation.id,
+      "Failed to load generated template videos"
+    )
 
   useEffect(() => {
-    onConfigChangeRef.current = onConfigChange
-  }, [onConfigChange])
+    let active = true
+    let timer: ReturnType<typeof setTimeout> | undefined
 
-  useEffect(() => {
-    latestDraftConfigJsonRef.current = effectiveDraftConfigJson
-  }, [effectiveDraftConfigJson])
+    function scheduleRunRefresh(delay: number) {
+      timer = setTimeout(() => {
+        if (!active) return
+        if (document.visibilityState === "hidden") {
+          scheduleRunRefresh(30_000)
+          return
+        }
+        void loadRuns()
+      }, delay)
+    }
 
-  const queueConfigSave = useCallback(
-    (nextConfig: AutomationSchema) => {
-      const nextConfigJson = JSON.stringify(nextConfig)
-      const save = autosaveQueueRef.current
-        .catch(() => undefined)
-        .then(async () => {
-          await persistDraftConfig(automation.id, nextConfig)
-          if (latestDraftConfigJsonRef.current !== nextConfigJson) return
-
-          onConfigChangeRef.current(nextConfig)
-          setDraftConfig((current) => {
-            const currentJson = JSON.stringify(current)
-            return currentJson === nextConfigJson
-              ? cloneAutomationSchema(nextConfig)
-              : current
+    async function loadRuns() {
+      try {
+        const payload = await fetchJsonWithTimeout<{
+          runs?: AutomationRunApiRecord[]
+        }>(
+          `/api/automations/runs?automationId=${encodeURIComponent(automation.id)}&limit=100`,
+          {
+            toastOnError: false,
+          }
+        )
+        if (!active) {
+          return
+        }
+        const runs = payload.runs ?? []
+        const hasInFlight = runs.some((run) => run.status === "running")
+        setRecentRuns((current) => {
+          return reconcileGenerationPlaceholders({
+            current,
+            persisted: runs,
+            automationId: automation.id,
+            generating,
           })
         })
-      autosaveQueueRef.current = save
-      return save
-    },
-    [automation.id]
-  )
+        setLoadedRunsAutomationId(automation.id)
+        setRecentRunsError("")
+        // While anything is generating (including a run discovered after a
+        // page reload), keep polling so the live progress stage updates.
+        if (hasInFlight || generating) {
+          scheduleRunRefresh(15_000)
+        }
+      } catch (error) {
+        if (active) {
+          setLoadedRunsAutomationId(automation.id)
+          setRecentRunsError(
+            getApiErrorMessage(error, "Failed to load generated slideshows")
+          )
+        }
+        if (active && generating) {
+          scheduleRunRefresh(30_000)
+        }
+      }
+    }
 
-  useEffect(() => {
-    if (!configChanged) return
+    void loadRuns()
 
-    const nextConfig = JSON.parse(effectiveDraftConfigJson) as AutomationSchema
-    const timer = window.setTimeout(() => {
-      setSavingConfig(true)
-      void queueConfigSave(nextConfig)
-        .then(() => {
-          if (latestDraftConfigJsonRef.current === effectiveDraftConfigJson) {
-            setSavingConfig(false)
-          }
-        })
-        .catch((error) => {
-          if (latestDraftConfigJsonRef.current === effectiveDraftConfigJson) {
-            setSavingConfig(false)
-            toast.error(
-              getApiErrorMessage(error, "Failed to autosave template settings")
-            )
-          }
-        })
-    }, 500)
-
-    return () => window.clearTimeout(timer)
-  }, [configChanged, effectiveDraftConfigJson, queueConfigSave])
-
-  useEffect(() => {
-    if (!initialRunId || automation.automationKind === "ugc") return
-    let active = true
-    void fetchJsonWithTimeout<{ runs?: AutomationRunApiRecord[] }>(
-      `/api/templates/runs?templateId=${encodeURIComponent(automation.id)}&runId=${encodeURIComponent(initialRunId)}&limit=1`,
-      { toastOnError: false }
-    )
-      .then((payload) => {
-        if (!active) return
-        const run = (payload.runs ?? []).find(
-          (candidate) =>
-            candidate.id === initialRunId ||
-            candidate.slideshowId === initialRunId
-        )
-        if (run) setLinkedRun(run)
-      })
-      .catch(() => undefined)
     return () => {
       active = false
+      if (timer) {
+        clearTimeout(timer)
+      }
     }
-  }, [automation.automationKind, automation.id, initialRunId])
+  }, [automation.id, generating, runLoadRevision])
 
   function saveName() {
     const nextName = draftName.trim()
@@ -194,35 +220,12 @@ export function AutomationSettingsDrawer({
   }
 
   async function generateAutomation() {
-    const generationConfig = JSON.parse(
-      effectiveDraftConfigJson
-    ) as AutomationSchema
-    if (configChanged || savingConfig) {
-      setSavingConfig(true)
-      try {
-        await queueConfigSave(generationConfig)
-      } catch (error) {
-        setSavingConfig(false)
-        showGenerationError(
-          getApiErrorMessage(error, "Failed to save template changes"),
-          "Template changes weren’t saved"
-        )
-        return
-      }
-      if (latestDraftConfigJsonRef.current === effectiveDraftConfigJson) {
-        setSavingConfig(false)
-      }
+    if (configChanged) {
+      toast.error("Save or cancel your settings changes before generating")
+      return
     }
-    const preflightError =
-      automationKind === "video"
-        ? automationVideoGenerationIssue(
-            generationConfig,
-            collections,
-            demoVideos
-          )
-        : automationGenerationIssue(generationConfig, collections)
     if (preflightError) {
-      setActiveTab("editor")
+      setActiveTab("overview")
       showGenerationError(preflightError)
       return
     }
@@ -230,7 +233,7 @@ export function AutomationSettingsDrawer({
     if (automationKind === "video") {
       const loadingStartedAt = Date.now()
       const placeholderId = `pending-video-${crypto.randomUUID()}`
-      const videoTemplate = generationConfig.video_format?.template
+      const videoTemplate = effectiveDraftConfig.video_format?.template
       const placeholderType =
         videoTemplate === "greenscreen_meme"
           ? ("greenscreen" as const)
@@ -239,7 +242,7 @@ export function AutomationSettingsDrawer({
             : ("template_video" as const)
       const placeholderCreatedAt = new Date().toISOString()
       setActiveGenerationCount((count) => count + 1)
-      setActiveTab("editor")
+      setActiveTab("overview")
       setVideoExports((current) => [
         {
           id: placeholderId,
@@ -256,10 +259,10 @@ export function AutomationSettingsDrawer({
         ...current,
       ])
       try {
-        await persistDraftConfig(automation.id, generationConfig)
+        await persistDraftConfig(automation.id, effectiveDraftConfig)
         await generateAutomationVideo({
           automation,
-          config: generationConfig,
+          config: effectiveDraftConfig,
           collections,
           demoVideos,
           music,
@@ -292,24 +295,50 @@ export function AutomationSettingsDrawer({
 
     const loadingStartedAt = Date.now()
     const requestId = crypto.randomUUID()
-    setActiveGenerationCount((count) => count + 1)
-    setActiveTab("editor")
+    const placeholderRun = generationPlaceholderRun({
+      automation,
+      config: effectiveDraftConfig,
+      requestId,
+    })
+    flushSync(() => {
+      setActiveGenerationCount((count) => count + 1)
+      setActiveTab("overview")
+      setRecentRuns((current) =>
+        [
+          placeholderRun,
+          ...current.filter((item) => item.id !== placeholderRun.id),
+        ].slice(0, 6)
+      )
+    })
+    onGenerationRunUpdate(placeholderRun)
+    function settleGeneration(run?: AutomationRunApiRecord) {
+      setRecentRuns((current) =>
+        run
+          ? [
+              run,
+              ...current.filter(
+                (item) => item.id !== run.id && item.id !== placeholderRun.id
+              ),
+            ].slice(0, 6)
+          : current.filter((item) => item.id !== placeholderRun.id)
+      )
+      onGenerationRunRemove(placeholderRun.id)
+      if (run) onGenerationRunUpdate(run)
+    }
 
     try {
       // Persist the exact editor state first, then let the runner reload the
-      // canonical database row. Passing a client-side schema override here can
+      // canonical Railway row. Passing a client-side schema override here can
       // resurrect stale prompt/style fields from a long-open drawer.
-      await persistDraftConfig(automation.id, generationConfig)
-      const payload = await queueWorkflowAndWait<AutomationRunApiPayload>(
-        "/api/templates/run",
+      await persistDraftConfig(automation.id, effectiveDraftConfig)
+      const payload = await fetchJsonWithTimeout<AutomationRunApiPayload>(
+        `/api/templates/${encodeURIComponent(automation.id)}/generate`,
         {
           method: "POST",
           timeoutMs: 10 * 60_000,
           toastOnError: false,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            templateId: automation.id,
-            force: true,
             now: new Date().toISOString(),
             requestId,
           }),
@@ -328,14 +357,19 @@ export function AutomationSettingsDrawer({
               : payload.skipped?.some((item) => item.reason === "no_images")
                 ? "Choose an image collection with at least one image before generating."
                 : "No slideshow slides were generated for this template.")
+        settleGeneration(run)
         showGenerationError(message)
         return
       }
 
-      toast.success("Slideshow generated")
-      if (automationKind === "slideshow") setLinkedRun(run)
-      setActiveTab("editor")
+      settleGeneration(run)
+      setActiveTab("overview")
     } catch (error) {
+      const failedRun = await loadFailedRunForRequest(
+        automation.id,
+        requestId
+      ).catch(() => undefined)
+      settleGeneration(failedRun)
       showGenerationError(
         getApiErrorMessage(error, "Failed to generate slideshow")
       )
@@ -348,138 +382,265 @@ export function AutomationSettingsDrawer({
     }
   }
 
-  async function closeAfterAutosave() {
-    if (!configChanged) {
-      onClose()
-      return
-    }
-
-    const nextConfig = JSON.parse(effectiveDraftConfigJson) as AutomationSchema
+  async function saveConfigChanges() {
+    if (savingConfig) return
+    const nextConfig = cloneAutomationSchema(effectiveDraftConfig)
     setSavingConfig(true)
     try {
-      await queueConfigSave(nextConfig)
-      onClose()
+      await persistDraftConfig(automation.id, nextConfig)
+      onConfigChange(nextConfig)
+      setDraftConfig(cloneAutomationSchema(nextConfig))
+      setActiveTab("overview")
+      toast.success("Template saved")
     } catch (error) {
+      toast.error(getApiErrorMessage(error, "Failed to save template"))
+    } finally {
       setSavingConfig(false)
-      toast.error(
-        getApiErrorMessage(error, "Failed to autosave template settings")
-      )
     }
   }
 
-  const tabs = [
-    { id: "editor" as const, label: "Editor", icon: LuPanelsTopLeft },
-    { id: "text" as const, label: "Text", icon: LuType },
-    { id: "settings" as const, label: "Settings", icon: LuSettings2 },
-  ]
+  function cancelConfigChanges() {
+    setDraftConfig(cloneAutomationSchema(config))
+    setActiveTab("overview")
+  }
+
+  async function deleteGeneratedSlideshow(run: AutomationRunApiRecord) {
+    if (!run.slideshowId) {
+      throw new Error("This slideshow does not have a persisted slideshow id.")
+    }
+    const payload = await fetchJsonWithTimeout<{ deletedRunIds?: string[] }>(
+      `/api/slideshows/${encodeURIComponent(run.slideshowId)}`,
+      {
+        method: "DELETE",
+      }
+    )
+    const deletedRunIds = new Set(payload.deletedRunIds ?? [run.id])
+    setRecentRuns((current) =>
+      current.filter((item) => !deletedRunIds.has(item.id))
+    )
+    deletedRunIds.forEach(onGenerationRunRemove)
+  }
+
+  function navigate(tab: AutomationDrawerTab) {
+    setActiveTab(tab)
+    setNavOpen(false)
+  }
+
+  const formatTabLabel =
+    automationKind === "ugc"
+      ? "AI actor format"
+      : automationKind === "video"
+        ? "Video Format"
+        : "Slideshow Format"
+  const hooksTabLabel = `Hooks (${hookCount}) & ${
+    automationKind === "video" || automationKind === "ugc" ? "Voice" : "Style"
+  }`
+  const activeTabLabel =
+    activeTab === "overview"
+      ? "Overview"
+      : activeTab === "hooks"
+        ? hooksTabLabel
+        : activeTab === "analytics"
+          ? "Analytics"
+          : activeTab === "published-posts"
+            ? "Published Posts"
+            : activeTab === "settings"
+              ? "Settings"
+              : formatTabLabel
+
+  const navigation = (
+    <>
+      <div className="space-y-1">
+        <AutomationSettingsNavButton
+          label="Overview"
+          icon={IconHome}
+          active={activeTab === "overview"}
+          onClick={() => navigate("overview")}
+        />
+        <div className="my-2 h-px bg-[#e1e0d8]" />
+        <AutomationSettingsNavButton
+          label={formatTabLabel}
+          icon={IconWand}
+          active={activeTab === "format"}
+          onClick={() => navigate("format")}
+        />
+        <AutomationSettingsNavButton
+          label={hooksTabLabel}
+          icon={IconMessage}
+          active={activeTab === "hooks"}
+          onClick={() => navigate("hooks")}
+        />
+        <AutomationSettingsNavButton
+          label="Analytics"
+          icon={IconChartBar}
+          active={activeTab === "analytics"}
+          onClick={() => navigate("analytics")}
+        />
+        <div className="my-2 h-px bg-[#e1e0d8]" />
+        {automationKind === "slideshow" && (
+          <AutomationSettingsNavButton
+            label="Published Posts"
+            icon={IconLink}
+            active={activeTab === "published-posts"}
+            onClick={() => navigate("published-posts")}
+          />
+        )}
+        <AutomationSettingsNavButton
+          label="Settings"
+          icon={IconSettings}
+          active={activeTab === "settings"}
+          onClick={() => navigate("settings")}
+        />
+      </div>
+      <div className="mt-auto space-y-4 pt-6 pb-4 pl-3 text-[15px] font-semibold md:pt-0">
+        <button
+          type="button"
+          className="flex items-center gap-2 text-app-text-faint disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={duplicating}
+          onClick={() => {
+            if (duplicating) return
+            setDuplicating(true)
+            void onDuplicate().finally(() => setDuplicating(false))
+          }}
+        >
+          <LuCopy className="size-4" />
+          {duplicating ? "Duplicating..." : "Duplicate"}
+        </button>
+        <button
+          className="flex items-center gap-2 text-[#c54b4b]"
+          onClick={onDelete}
+        >
+          <IconTrash className="size-4" />
+          Delete template
+        </button>
+      </div>
+    </>
+  )
+
+  const generateButton = (
+    <div title={generateDisabledReason || undefined}>
+      <Button
+        variant="softControl"
+        size="appDefault"
+        className="h-10 w-full"
+        disabled={Boolean(generateDisabledReason)}
+        onClick={generateAutomation}
+        aria-busy={generating}
+        aria-describedby={
+          generateDisabledReason
+            ? "template-generate-disabled-reason"
+            : undefined
+        }
+        aria-label={
+          generateDisabledReason
+            ? `Generate unavailable: ${generateDisabledReason}`
+            : "Generate"
+        }
+      >
+        <IconPlayerPlay className="size-4" />
+        {generating ? "Generating…" : "Generate"}
+      </Button>
+    </div>
+  )
 
   return (
-    <div
-      className={cn(
-        "flex min-h-0 flex-col overflow-hidden bg-app-surface",
-        modal ? "h-full" : "min-h-[calc(100svh-3.5rem)] md:min-h-svh"
-      )}
-    >
-      <header className="z-30 shrink-0 border-b border-black/15 bg-[#1d1d1c] text-white">
-        <div className="flex min-h-14 items-center gap-2 px-3 sm:px-4">
-          <button
-            type="button"
-            className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-white/70 transition hover:text-white"
-            onClick={() => void closeAfterAutosave()}
-            aria-label="Back to templates"
-          >
-            <IconChevronLeft className="size-4" />
-            <span className="hidden sm:inline">Back</span>
-          </button>
-
-          {editingName ? (
-            <input
-              autoFocus
-              className="h-9 max-w-56 min-w-0 rounded-md border border-white/20 bg-white/10 px-2 text-[14px] font-bold text-white outline-none focus:border-white/50"
-              value={draftName}
-              onChange={(event) => setDraftName(event.target.value)}
-              onBlur={saveName}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") saveName()
-                if (event.key === "Escape") {
-                  setDraftName(automation.name)
-                  setEditingName(false)
-                }
-              }}
-            />
-          ) : (
-            <button
-              type="button"
-              className="max-w-24 min-w-0 truncate text-left text-[14px] font-bold text-white sm:max-w-56"
-              onClick={() => setEditingName(true)}
-            >
-              {automation.name}
-            </button>
-          )}
-
-          <nav
-            className="ml-1 flex items-center gap-0.5 rounded-md bg-black/20 p-1 sm:ml-3"
-            aria-label="Template editor"
-          >
-            {tabs.map((tab) => {
-              const TabIcon = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={cn(
-                    "lc-focus-ring flex h-8 items-center justify-center gap-1.5 rounded px-2 text-[11px] font-semibold transition sm:px-3",
-                    activeTab === tab.id
-                      ? "bg-white text-[#20201f] shadow-sm"
-                      : "text-white/62 hover:bg-white/10 hover:text-white"
-                  )}
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-current={activeTab === tab.id ? "page" : undefined}
-                >
-                  <TabIcon className="size-4" />
-                  <span className="hidden md:inline">{tab.label}</span>
-                </button>
-              )
-            })}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-1">
-            <span className="hidden text-[11px] font-semibold text-white/48 lg:inline">
-              {savingConfig || configChanged ? "Saving…" : "Saved"}
-            </span>
-            <button
-              className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#f4c44e] px-2 text-[13px] font-bold text-[#1d1d1c] transition hover:bg-[#ffd467] disabled:cursor-not-allowed disabled:opacity-55 sm:px-3"
-              disabled={generating}
-              onClick={generateAutomation}
-              aria-busy={generating}
-              aria-label="Generate template"
-            >
-              <IconPlus className="size-4" />
-              <span className="hidden sm:inline">
-                {generating ? "Generating…" : "Generate"}
-              </span>
-            </button>
-          </div>
-        </div>
-      </header>
-
+    <Sheet open={navOpen && activeTab !== "format"} onOpenChange={setNavOpen}>
       <div
         className={cn(
-          "min-h-0 min-w-0 flex-1",
-          activeTab === "editor" && automationKind === "slideshow"
-            ? "overflow-y-auto lg:overflow-hidden"
-            : "overflow-y-auto"
+          "grid min-h-[calc(100svh-3.5rem)] overflow-hidden bg-app-surface md:min-h-svh",
+          activeTab !== "format" && "md:grid-cols-[246px_1fr]"
         )}
       >
-        {activeTab === "editor" ? (
-          automationKind === "slideshow" ? (
-            <SlideSequencePanel
+        {activeTab !== "format" && (
+          <aside className="hidden min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle p-2 md:flex">
+            <div className="mb-2 grid">{generateButton}</div>
+            {generateDisabledReason ? (
+              <p
+                id="template-generate-disabled-reason"
+                className="mb-3 px-2 text-[11px] leading-4 font-medium text-app-muted-text"
+              >
+                {generateDisabledReason}
+              </p>
+            ) : null}
+            {navigation}
+          </aside>
+        )}
+        <div className="relative min-h-0 overflow-y-auto bg-app-surface">
+          {activeTab !== "format" && (
+            <>
+              {/* Below md the sidebar became a full-width block of links above
+                every panel, so it moves into a sheet behind this bar. */}
+              <div className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-app-panel-border bg-app-surface px-3 md:hidden">
+                {/* Back leads, matching the format editor's own header bar. */}
+                <button
+                  type="button"
+                  className="flex shrink-0 items-center gap-2 text-[13px] font-semibold text-[#5d5c56]"
+                  onClick={() => dirtyGuard.run(onClose)}
+                  aria-label="Back to templates"
+                >
+                  <IconChevronLeft className="size-4" />
+                  Back
+                </button>
+                <SheetTrigger asChild>
+                  <button
+                    type="button"
+                    className="lc-focus-ring flex h-10 min-w-0 items-center gap-2 rounded-[8px] border border-app-panel-border px-3 text-[13px] font-semibold text-app-text"
+                  >
+                    <IconMenu2 className="size-4 shrink-0" />
+                    <span className="truncate">{activeTabLabel}</span>
+                  </button>
+                </SheetTrigger>
+                <div className="ml-auto shrink-0">{generateButton}</div>
+              </div>
+              <button
+                className="absolute top-4 right-4 z-10 hidden h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text md:inline-flex"
+                onClick={() => dirtyGuard.run(onClose)}
+                aria-label="Back to templates"
+              >
+                <IconChevronLeft className="size-4" />
+                Back
+              </button>
+            </>
+          )}
+          {activeTab === "overview" && (
+            <AutomationOverviewPanel
+              automation={automation}
+              initialRunId={initialRunId}
               config={draftConfig}
-              collections={collections}
-              onCreateCollection={onCreateCollection}
-              onConfigChange={setDraftConfig}
+              editingName={editingName}
+              draftName={draftName}
+              onDraftNameChange={setDraftName}
+              onStartNameEdit={() => setEditingName(true)}
+              onSaveName={saveName}
+              onCancelNameEdit={() => {
+                setDraftName(automation.name)
+                setEditingName(false)
+              }}
+              recentRuns={recentRuns}
+              recentRunsLoading={recentRunsLoading}
+              recentRunsError={recentRunsError}
+              onRetryRecentRuns={() => {
+                setLoadedRunsAutomationId(null)
+                setRecentRunsError("")
+                setRunLoadRevision((revision) => revision + 1)
+              }}
+              videoExports={videoExports}
+              videoExportsLoading={videoExportsLoading}
+              onVideoDeleted={(id) =>
+                setVideoExports((current) =>
+                  current.filter((item) => item.id !== id)
+                )
+              }
+              onDeleteRun={deleteGeneratedSlideshow}
+              onRunChanged={(run) => {
+                setRecentRuns((current) =>
+                  current.map((item) => (item.id === run.id ? run : item))
+                )
+                onGenerationRunUpdate(run)
+              }}
             />
-          ) : (
+          )}
+          {activeTab === "format" && (
             <AutomationFormatPanel
               automation={automation}
               config={draftConfig}
@@ -489,42 +650,81 @@ export function AutomationSettingsDrawer({
               demoVideos={demoVideos}
               onCreateCollection={onCreateCollection}
               onConfigChange={setDraftConfig}
-              onBack={() => void closeAfterAutosave()}
+              onBack={() => setActiveTab("overview")}
+              onSave={saveConfigChanges}
             />
-          )
-        ) : null}
-        {activeTab === "text" ? (
-          <PromptConfigPanel
-            automation={automation}
-            config={draftConfig}
-            onConfigChange={setDraftConfig}
-            hideFooter
-          />
-        ) : null}
-        {activeTab === "settings" ? (
-          <AutomationGeneralSettingsPanel
-            config={draftConfig}
-            selectedSound={selectedSound}
-            music={music}
-            onConfigChange={setDraftConfig}
-            duplicating={duplicating}
-            onDuplicate={() => {
-              setDuplicating(true)
-              void onDuplicate().finally(() => setDuplicating(false))
-            }}
-            onDelete={onDelete}
-          />
-        ) : null}
+          )}
+          {activeTab === "hooks" && (
+            <PromptConfigPanel
+              automation={automation}
+              config={draftConfig}
+              onConfigChange={setDraftConfig}
+              onCancel={cancelConfigChanges}
+              onSave={saveConfigChanges}
+            />
+          )}
+          {activeTab === "analytics" && (
+            <HookAnalyticsPanel automation={automation} />
+          )}
+          {activeTab === "settings" && (
+            <AutomationGeneralSettingsPanel
+              config={draftConfig}
+              selectedSound={selectedSound}
+              music={music}
+              onConfigChange={setDraftConfig}
+              onCancel={cancelConfigChanges}
+              onSave={saveConfigChanges}
+            />
+          )}
+          {activeTab === "published-posts" && (
+            <TikTokPublicationImportPanel
+              automationId={automation.id}
+              onRunsImported={(runs) => {
+                setRecentRuns(runs)
+                runs.forEach(onGenerationRunUpdate)
+              }}
+            />
+          )}
+        </div>
       </div>
-      {linkedRun ? (
-        <GeneratedSlideshowViewerModal
-          run={linkedRun}
-          onRunChanged={setLinkedRun}
-          onDeleted={() => setLinkedRun(null)}
-          onClose={() => setLinkedRun(null)}
-        />
-      ) : null}
-    </div>
+      <SheetContent
+        side="bottom"
+        className="z-[70] flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-[18px] bg-app-surface-subtle p-3 shadow-[0_-16px_40px_rgba(25,18,45,0.18)] md:hidden"
+        overlayClassName="z-[70] bg-black/35 md:hidden"
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <SheetTitle className="pl-1 text-[15px] font-semibold text-app-text">
+            {automation.name}
+          </SheetTitle>
+          <SheetClose asChild>
+            <button
+              type="button"
+              aria-label="Close template menu"
+              className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
+            >
+              <IconX className="size-5" />
+            </button>
+          </SheetClose>
+        </div>
+        {navigation}
+      </SheetContent>
+      {dirtyGuard.confirmation}
+    </Sheet>
+  )
+}
+
+async function loadFailedRunForRequest(
+  automationId: string,
+  requestId: string
+) {
+  const payload = await fetchJsonWithTimeout<{
+    runs?: AutomationRunApiRecord[]
+  }>(
+    `/api/automations/runs?automationId=${encodeURIComponent(automationId)}&limit=20`,
+    { timeoutMs: 12_000, toastOnError: false }
+  )
+  return payload.runs?.find(
+    (run) => run.requestId === requestId && run.status === "failed"
   )
 }
 

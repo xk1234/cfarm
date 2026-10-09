@@ -6,12 +6,12 @@ import {
   type AutomationAspectRatio,
   type AutomationFormatSection,
   type AutomationSchema,
-  type TextItem,
+  type AutomationTextItem,
 } from "@/lib/realfarm-automation"
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/features/collections/domain/collections"
+} from "@/lib/realfarm-collections"
 import { previewTextForTextItem } from "@/lib/realfarm-preview-text"
 import { splitDebateHook } from "@/lib/debate-hook"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
@@ -55,16 +55,6 @@ export function previewSlideshowSlide(
           padding: item.section.overlayImage?.padding ?? 5,
         }
       : undefined,
-    imageItems: item.imageItems.map((imageItem) => ({
-      id: imageItem.id,
-      image_url: imageItem.image.imageUrl,
-      positionX: imageItem.positionX,
-      positionY: imageItem.positionY,
-      width: imageItem.width,
-      height: imageItem.height,
-      fit: imageItem.fit,
-      opacity: imageItem.opacity,
-    })),
     overlay: item.section.overlay,
     iconLayout: ovalIconLayout
       ? {
@@ -117,25 +107,21 @@ export function previewSlideshowTextItems(
       textAlign: textItem.textAlign || "center",
       textAnchor: textItem.textAnchor || "padded",
       textVerticalAnchor: textItem.textVerticalAnchor || "padded",
-      textPlacement:
-        textItem.positionY === undefined ? textItem.textPosition : undefined,
+      textPlacement: hasCustomTextPosition(textItem)
+        ? undefined
+        : textItem.textPosition,
       textPosition: previewTextItemPosition(textItem),
-      font: textItem.font,
-      fontWeight: textItem.fontWeight,
-      backgroundMode: textItem.backgroundMode,
-      backgroundRadius: textItem.backgroundRadius,
     }
   })
 }
 
-export function previewTextItemPosition(textItem: TextItem | undefined) {
-  if (
-    Number.isFinite(textItem?.positionX) &&
-    Number.isFinite(textItem?.positionY)
-  ) {
+export function previewTextItemPosition(
+  textItem: AutomationTextItem | undefined
+) {
+  if (hasCustomTextPosition(textItem)) {
     return {
-      x: clampPercent(textItem?.positionX ?? 50),
-      y: clampPercent(textItem?.positionY ?? 45),
+      x: clampPercent(textItem.textPositionX),
+      y: clampPercent(textItem.textPositionY),
     }
   }
   const y =
@@ -148,15 +134,27 @@ export function previewTextItemPosition(textItem: TextItem | undefined) {
   return { x, y }
 }
 
-export function konvaTextTransformPatch(input: {
+export function hasCustomTextPosition(
+  textItem: AutomationTextItem | undefined
+): textItem is AutomationTextItem & {
+  textPositionX: number
+  textPositionY: number
+} {
+  return (
+    Number.isFinite(textItem?.textPositionX) &&
+    Number.isFinite(textItem?.textPositionY)
+  )
+}
+
+export function fabricTextTransformPatch(input: {
   left: number
   top: number
   width: number
   height: number
   canvasWidth: number
   canvasHeight: number
-  textAlign?: TextItem["textAlign"]
-}): Partial<TextItem> {
+  textAlign?: AutomationTextItem["textAlign"]
+}): Partial<AutomationTextItem> {
   const width = Math.max(1, Math.min(input.canvasWidth, input.width))
   const left = Math.max(0, Math.min(input.canvasWidth - width, input.left))
   const height = Math.max(1, Math.min(input.canvasHeight, input.height))
@@ -169,35 +167,11 @@ export function konvaTextTransformPatch(input: {
         : left + width / 2
 
   return {
-    positionX: roundEditorPercent((x / input.canvasWidth) * 100),
-    positionY: roundEditorPercent(
+    textPositionX: roundEditorPercent((x / input.canvasWidth) * 100),
+    textPositionY: roundEditorPercent(
       ((top + height / 2) / input.canvasHeight) * 100
     ),
     textItemWidth: `${roundEditorPercent((width / input.canvasWidth) * 100)}%`,
-  }
-}
-
-export function konvaImageTransformPatch(input: {
-  left: number
-  top: number
-  width: number
-  height: number
-  canvasWidth: number
-  canvasHeight: number
-}) {
-  const width = Math.max(1, Math.min(input.canvasWidth, input.width))
-  const height = Math.max(1, Math.min(input.canvasHeight, input.height))
-  const left = Math.max(0, Math.min(input.canvasWidth - width, input.left))
-  const top = Math.max(0, Math.min(input.canvasHeight - height, input.top))
-  return {
-    positionX: roundEditorPercent(
-      ((left + width / 2) / input.canvasWidth) * 100
-    ),
-    positionY: roundEditorPercent(
-      ((top + height / 2) / input.canvasHeight) * 100
-    ),
-    width: roundEditorPercent((width / input.canvasWidth) * 100),
-    height: roundEditorPercent((height / input.canvasHeight) * 100),
   }
 }
 
@@ -224,19 +198,9 @@ export type AutomationFormatPreviewItem = {
   image?: PinterestSearchResult
   images: PinterestSearchResult[]
   overlayImages: PinterestSearchResult[]
-  imageItems: Array<{
-    id: string
-    image: PinterestSearchResult
-    positionX: number
-    positionY: number
-    width: number
-    height: number
-    fit: "cover" | "contain"
-    opacity: number
-  }>
   text: string
-  textItem: TextItem
-  textItems: TextItem[]
+  textItem: AutomationTextItem
+  textItems: AutomationTextItem[]
 }
 
 export function clampPercent(value: number) {
@@ -251,7 +215,7 @@ export function updateAutomationTextItemAt(
   schema: AutomationSchema,
   role: "hook" | "content" | "cta",
   index: number,
-  patch: Partial<TextItem>
+  patch: Partial<AutomationTextItem>
 ) {
   const section = automationFormatSection(schema, role)
   const textItems =
@@ -267,7 +231,9 @@ export function updateAutomationTextItemAt(
   return updateAutomationFormatSection(schema, role, { textItems })
 }
 
-export function newAutomationTextItemAfter(previous: TextItem | undefined) {
+export function newAutomationTextItemAfter(
+  previous: AutomationTextItem | undefined
+) {
   if (!previous) {
     return defaultAutomationTextItem()
   }
@@ -281,11 +247,6 @@ export function newAutomationTextItemAfter(previous: TextItem | undefined) {
     textAlign: previous.textAlign,
     textAnchor: previous.textAnchor,
     textVerticalAnchor: previous.textVerticalAnchor,
-    positionX: previous.positionX,
-    positionY: previous.positionY,
-    fontWeight: previous.fontWeight,
-    backgroundMode: previous.backgroundMode,
-    backgroundRadius: previous.backgroundRadius,
   })
 }
 
@@ -410,7 +371,6 @@ export function formatPreviewItem({
     image,
     images,
     overlayImages,
-    imageItems: [],
     text: formatPreviewText(config, role, index),
     textItem,
     textItems,

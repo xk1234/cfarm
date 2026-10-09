@@ -1,14 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
-import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { Button } from "@/components/ui/button"
 import { SelectControl, SwitchPillButton } from "@/components/ui/form-controls"
-import {
-  findCollectionByIdOrAlias,
-  type CreatedImageCollection,
-} from "@/features/collections/domain/collections"
 import type { UgcCostBreakdown } from "@/lib/ugc-cost"
 import {
   normalizeUgcConfig,
@@ -23,18 +18,34 @@ const inputClass =
 
 export function UgcAutomationFormatPanel({
   config,
-  collections,
-  onCreateCollection,
   onConfigChange,
   onBack,
+  onSave,
 }: {
   config: AutomationSchema
-  collections: CreatedImageCollection[]
-  onCreateCollection: (collection: CreatedImageCollection) => void
   onConfigChange: (config: AutomationSchema) => void
   onBack: () => void
+  onSave: () => void
 }) {
   const ugc = normalizeUgcConfig(config.ugc)
+  const estimateInput = useMemo(
+    () => ({
+      actorAssetUrl: ugc.actorAssetUrl,
+      actorSource: ugc.actorSource,
+      brollCount: ugc.brollCount,
+      lipSyncTier: ugc.lipSyncTier,
+      targetDurationSeconds: ugc.targetDurationSeconds,
+      voiceModel: ugc.voiceModel,
+    }),
+    [
+      ugc.actorAssetUrl,
+      ugc.actorSource,
+      ugc.brollCount,
+      ugc.lipSyncTier,
+      ugc.targetDurationSeconds,
+      ugc.voiceModel,
+    ]
+  )
   const [estimate, setEstimate] = useState<UgcCostBreakdown | null>(null)
   const [estimateError, setEstimateError] = useState("")
   const validationErrors = ugcLiveConfigurationErrors("live", {
@@ -47,17 +58,8 @@ export function UgcAutomationFormatPanel({
   const voiceMissing = validationErrors.some((error) =>
     error.includes("voice id")
   )
-  const imageCollections = collections.filter(
-    (collection) => collection.mediaType !== "video"
-  )
-  const actorCollection = findCollectionByIdOrAlias(
-    imageCollections,
-    ugc.actorCollectionId ?? ""
-  )
-  const ugcEstimateJson = JSON.stringify(ugc)
 
   useEffect(() => {
-    const estimateInput = JSON.parse(ugcEstimateJson) as AutomationUgcConfig
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
       void requestUgcEstimate(estimateInput, controller.signal)
@@ -79,23 +81,19 @@ export function UgcAutomationFormatPanel({
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [ugcEstimateJson])
+  }, [estimateInput])
 
   function update(patch: Partial<AutomationUgcConfig>) {
     onConfigChange({ ...config, ugc: { ...ugc, ...patch } })
   }
 
+  function save() {
+    if (validationErrors.length) return
+    onSave()
+  }
+
   return (
     <div className="min-h-full bg-app-surface px-9 py-8 pr-12">
-      <Button
-        type="button"
-        variant="softControl"
-        size="appDefault"
-        className="mb-5"
-        onClick={onBack}
-      >
-        Back
-      </Button>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-3xl leading-tight font-bold text-app-text">
@@ -149,7 +147,8 @@ export function UgcAutomationFormatPanel({
           value={ugc.actorSource}
           options={[
             ["generate", "Generate"],
-            ["collection", "Collection"],
+            ["gallery", "Gallery"],
+            ["upload", "Upload"],
           ]}
           onChange={(actorSource) => update({ actorSource })}
         />
@@ -163,13 +162,23 @@ export function UgcAutomationFormatPanel({
             />
           </Field>
         ) : (
-          <CollectionSelector
-            label="Actor image collection"
-            collection={actorCollection}
-            collections={imageCollections}
-            onChange={(actorCollectionId) => update({ actorCollectionId })}
-            onCreateCollection={onCreateCollection}
-          />
+          <Field
+            label={
+              ugc.actorSource === "gallery"
+                ? "Gallery asset URL"
+                : "Uploaded asset URL"
+            }
+          >
+            <input
+              className={inputClass}
+              type="url"
+              value={ugc.actorAssetUrl ?? ""}
+              placeholder="https://…"
+              onChange={(event) =>
+                update({ actorAssetUrl: event.target.value })
+              }
+            />
+          </Field>
         )}
       </Section>
 
@@ -350,12 +359,33 @@ export function UgcAutomationFormatPanel({
           {validationErrors.join(". ")}.
         </div>
       ) : null}
+      <div className="mt-8 flex justify-end gap-3 border-t border-app-panel-border pt-5">
+        <Button type="button" variant="softControl" onClick={onBack}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="action"
+          disabled={validationErrors.length > 0}
+          onClick={save}
+        >
+          Save changes
+        </Button>
+      </div>
     </div>
   )
 }
 
 export async function requestUgcEstimate(
-  ugc: AutomationUgcConfig,
+  ugc: Pick<
+    AutomationUgcConfig,
+    | "actorAssetUrl"
+    | "actorSource"
+    | "brollCount"
+    | "lipSyncTier"
+    | "targetDurationSeconds"
+    | "voiceModel"
+  >,
   signal?: AbortSignal
 ) {
   const response = await fetch("/api/ugc-runs/estimate", {

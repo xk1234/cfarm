@@ -12,15 +12,30 @@
       if (!parsed || existing.has(parsed.externalPostId)) continue
       const content = String(anchor.textContent || "").trim()
       const publishedLabel = findPublishedLabel(anchor, content)
+      const thumbnailUrl = findThumbnailUrl(anchor)
       existing.set(parsed.externalPostId, {
         ...parsed,
         content: content || undefined,
+        thumbnailUrl,
         publishedAt: publishedLabel
           ? parseStudioDate(publishedLabel, new Date())
           : undefined,
       })
     }
     return existing
+  }
+
+  function findThumbnailUrl(anchor) {
+    let node = anchor
+    for (let depth = 0; node && depth < 5; depth += 1) {
+      const image = node.matches?.("img") ? node : node.querySelector?.("img")
+      const candidate = String(
+        image?.currentSrc || image?.src || image?.getAttribute?.("src") || ""
+      ).trim()
+      if (/^https?:\/\//i.test(candidate)) return candidate
+      node = node.parentElement
+    }
+    return undefined
   }
 
   function parsePostUrl(value) {
@@ -93,6 +108,7 @@
 
   root.LumenClipStudioDiscovery = {
     collectPosts,
+    findThumbnailUrl,
     findPostScroller,
     parsePostUrl,
     parseStudioDate,

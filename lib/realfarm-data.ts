@@ -4,7 +4,13 @@ import {
   listMediaLibraryAssets,
   type MediaLibraryAsset,
 } from "@/lib/media-library"
+import type {
+  AutomationLifecycleStatus,
+  AutomationPostingMode,
+  AutomationSchedule,
+} from "@/lib/realfarm-automation"
 import type { MediaKind } from "@/lib/media-kind"
+import type { PostFastSocialIntegration } from "@/lib/postfast-client"
 
 // Bundled local assets are never images; derive from the canonical MediaKind.
 type LocalAssetKind = Exclude<MediaKind, "image">
@@ -18,7 +24,25 @@ export type LocalAsset = {
   text?: string
 }
 
-export type { Automation } from "@/lib/automation-base-contract"
+export type Automation = {
+  id: string
+  name: string
+  automationKind?: "slideshow" | "video" | "ugc" | "x_threads"
+  postingMode?: AutomationPostingMode
+  generationLeadMinutes?: number
+  platform?: "x" | "threads"
+  status: AutomationLifecycleStatus
+  account: string
+  handle: string
+  times: string[]
+  timezone?: string
+  schedule?: AutomationSchedule
+  favorite: boolean
+  theme: string
+  socialIntegrations: PostFastSocialIntegration[]
+  created_at?: string
+  generationBlockers?: string[]
+}
 
 interface RealFarmJson {
   brand: {

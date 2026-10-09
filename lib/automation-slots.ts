@@ -70,8 +70,8 @@ const weekdays: AutomationDay[] = [
 ]
 
 /**
- * Canonical slot projection used by the runner, Appwrite scheduler, calendar,
- * and automation-card preview. Keep this file runtime-portable: the Appwrite
+ * Canonical slot projection used by the runner, Railway scheduler, calendar,
+ * and automation-card preview. Keep this file runtime-portable: the Railway
  * deployment transpiles it to the function bundle via scripts/sync-function-shared.mjs.
  */
 export function automationSlotsInRange(

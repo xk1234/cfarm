@@ -125,7 +125,7 @@ export function SocialAccountPickerModal({
               integrations={selectedIntegrationGrid}
               selectedKeys={selectedKeys}
               compact
-              emptyLabel="No accounts selected for this template."
+              emptyLabel="No accounts selected."
               onToggle={toggleIntegration}
             />
           </section>

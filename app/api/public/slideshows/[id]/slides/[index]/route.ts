@@ -1,4 +1,4 @@
-import { bucketForPath, fileIdForPath } from "@/lib/appwrite-stores"
+import { bucketForPath, fileIdForPath } from "@/lib/store-identity"
 import {
   slideshowImageContentType,
   slideshowOutputAssetPath,
@@ -30,11 +30,10 @@ export async function GET(
   )
   if (!relativePath) return new Response("Not found", { status: 404 })
 
-  const responseInput = {
+  return railwayFileResponse({
     bucketId: bucketForPath(relativePath),
     fileId: fileIdForPath(relativePath),
     contentType: slideshowImageContentType(relativePath),
     range: request.headers.get("range"),
-  }
-  return railwayFileResponse(responseInput)
+  })
 }

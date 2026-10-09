@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { AutomationGeneralSettingsPanel } from "@/components/realfarm/automation-settings/general-settings"
+import { IconPhoto, IconSparkles } from "@tabler/icons-react"
+
 import { PromptConfigPanel } from "@/components/realfarm/automation-settings/prompt-settings"
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { Button } from "@/components/ui/button"
@@ -13,17 +14,21 @@ import {
   type AutomationSchema,
   type AutomationVideoTemplateId,
 } from "@/lib/realfarm-automation"
-import type { CreatedImageCollection } from "@/features/collections/domain/collections"
+import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation } from "@/lib/realfarm-data"
-import { videoAutomationTemplatePreset } from "@/lib/video-automation-templates"
+import { builtInVideoTemplate } from "@/lib/video-automation-templates"
 import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
+import { cn } from "@/lib/utils"
 
-type SetupTab = "editor" | "text" | "settings"
+type SetupTab = "media" | "hooks"
 
-const setupTabs: Array<{ id: SetupTab; label: string }> = [
-  { id: "editor", label: "Editor" },
-  { id: "text", label: "Text" },
-  { id: "settings", label: "Settings" },
+const setupTabs: Array<{
+  id: SetupTab
+  label: string
+  icon: typeof IconPhoto
+}> = [
+  { id: "media", label: "Setup", icon: IconPhoto },
+  { id: "hooks", label: "Hooks", icon: IconSparkles },
 ]
 
 export function VideoAutomationCreateDialog({
@@ -39,30 +44,21 @@ export function VideoAutomationCreateDialog({
   onBack: () => void
   onCreate: (input: { name: string; schema: AutomationSchema }) => Promise<void>
 }) {
-  const preset = videoAutomationTemplatePreset(templateId)
+  const template = builtInVideoTemplate(templateId)
   const initialAutomation = useMemo(
-    () => automationSummary(`${preset.name} template`, templateId),
-    [preset.name, templateId]
+    () => automationSummary(`${template.name} template`, templateId),
+    [template.name, templateId]
   )
   const [name, setName] = useState(initialAutomation.name)
   const [initialConfig] = useState<AutomationSchema>(() =>
     initialVideoSchema(initialAutomation, templateId, collections)
   )
   const [config, setConfig] = useState<AutomationSchema>(initialConfig)
-  const [activeTab, setActiveTab] = useState<SetupTab>("editor")
+  const [activeTab, setActiveTab] = useState<SetupTab>("media")
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState("")
   const effectiveConfig = useMemo(
-    () => ({
-      ...withDefaultGreenscreenCollections(config, collections),
-      social_integrations: [],
-      social_publish_as: {},
-      posting_mode: "manual" as const,
-      tiktok_post_settings: {
-        ...config.tiktok_post_settings,
-        auto_post: false,
-      },
-    }),
+    () => withDefaultGreenscreenCollections(config, collections),
     [collections, config]
   )
   const automation = useMemo(
@@ -87,16 +83,16 @@ export function VideoAutomationCreateDialog({
     setName(value)
   }
 
-  async function createAutomation() {
+  async function createTemplate() {
     const trimmedName = name.trim()
     if (!trimmedName) {
       setError("Give the template a name before creating it.")
-      setActiveTab("editor")
+      setActiveTab("media")
       return
     }
     if (mediaIssue) {
       setError(mediaIssue)
-      setActiveTab("editor")
+      setActiveTab("media")
       return
     }
 
@@ -122,61 +118,59 @@ export function VideoAutomationCreateDialog({
       <AppModal onClose={requestBack}>
         <AppModalPanel className="flex h-[min(850px,92vh)] max-w-[1100px] flex-col overflow-hidden rounded-[12px]">
           <AppModalHeader
-            title={`Create ${preset.name} template`}
+            title={`Create ${template.name} template`}
             onClose={requestBack}
-            closeLabel="Back to templates"
+            closeLabel="Back to video templates"
           />
 
-          <nav
-            className="flex h-12 shrink-0 items-end justify-center gap-6 border-b border-app-panel-border px-3"
-            aria-label="Template editor"
-          >
-            {setupTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`h-12 border-b-2 px-2 text-[13px] font-semibold ${
-                  activeTab === tab.id
-                    ? "border-app-strong text-app-text"
-                    : "border-transparent text-app-text-faint"
-                }`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+          <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)]">
+            <aside className="border-r border-app-panel-border bg-app-surface-subtle p-3">
+              <div className="space-y-1">
+                {setupTabs.map((tab) => {
+                  const Icon = tab.icon
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={cn(
+                        "flex h-10 w-full items-center gap-2 rounded-[8px] px-3 text-left text-[13px] font-semibold transition",
+                        activeTab === tab.id
+                          ? "bg-app-strong text-white"
+                          : "text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
+                      )}
+                      onClick={() => setActiveTab(tab.id)}
+                    >
+                      <Icon className="size-4" />
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </aside>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {activeTab === "editor" ? (
-              <MediaSetup
-                name={name}
-                templateId={templateId}
-                config={effectiveConfig}
-                collections={collections}
-                onNameChange={updateName}
-                onConfigChange={setConfig}
-                onCreateCollection={onCreateCollection}
-              />
-            ) : null}
-            {activeTab === "text" ? (
-              <PromptConfigPanel
-                automation={automation}
-                config={config}
-                onConfigChange={setConfig}
-                onCancel={requestBack}
-                onSave={() => undefined}
-                hideFooter
-              />
-            ) : null}
-            {activeTab === "settings" ? (
-              <AutomationGeneralSettingsPanel
-                config={config}
-                selectedSound={null}
-                music={[]}
-                onConfigChange={setConfig}
-              />
-            ) : null}
+            <div className="min-h-0 overflow-y-auto">
+              {activeTab === "media" ? (
+                <MediaSetup
+                  name={name}
+                  templateId={templateId}
+                  config={effectiveConfig}
+                  collections={collections}
+                  onNameChange={updateName}
+                  onConfigChange={setConfig}
+                  onCreateCollection={onCreateCollection}
+                />
+              ) : null}
+              {activeTab === "hooks" ? (
+                <PromptConfigPanel
+                  automation={automation}
+                  config={config}
+                  onConfigChange={setConfig}
+                  onCancel={requestBack}
+                  onSave={() => undefined}
+                  hideFooter
+                />
+              ) : null}
+            </div>
           </div>
 
           <div className="flex items-center justify-between gap-4 border-t border-app-panel-border bg-app-surface px-5 py-4">
@@ -196,7 +190,7 @@ export function VideoAutomationCreateDialog({
                 type="button"
                 variant="action"
                 disabled={creating}
-                onClick={() => void createAutomation()}
+                onClick={() => void createTemplate()}
               >
                 {creating ? "Creating…" : "Create template"}
               </Button>
@@ -246,7 +240,7 @@ function MediaSetup({
   return (
     <div className="px-9 py-8 pr-12">
       <h2 className="text-[28px] leading-tight font-bold text-app-text">
-        Automation setup
+        Template setup
       </h2>
       <div className="mt-8 border-t border-app-panel-border pt-6">
         <label className="block">
@@ -310,7 +304,7 @@ function automationSummary(
     id: "new-video-template",
     name,
     automationKind: isUgc ? "ugc" : "video",
-    status: isUgc ? "paused" : "live",
+    status: "paused",
     account: "No social account",
     handle: "",
     times: [],
@@ -325,8 +319,8 @@ export function initialVideoSchema(
   templateId: AutomationVideoTemplateId,
   collections: CreatedImageCollection[]
 ) {
-  const preset = videoAutomationTemplatePreset(templateId)
-  const format = preset.buildFormat()
+  const template = builtInVideoTemplate(templateId)
+  const format = template.buildFormat()
   if (templateId === "ugc_ad") {
     return {
       ...defaultAutomationSchema({

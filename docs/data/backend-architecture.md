@@ -7,54 +7,77 @@ the repository. Domain object shapes are in [Data structures](index.md),
 the HTTP surface is in [backend-endpoints.md](backend-endpoints.md), and the
 queue lifecycle is in [Backend scheduling](../jobs/backend.md).
 
-Railway is the runtime source of truth. The completed Appwrite import and the
-remaining rollback-only material are documented in
-[Railway migration](railway-migration.md).
+The additive Railway-to-Railway replacement is tracked in
+[Railway migration](railway-migration.md). Railway remains the runtime default
+until the documented cutover gates pass.
+
+## Maintained backend foundations
+
+The migration now has concrete compatibility boundaries rather than parallel
+ad-hoc implementations:
+
+- `lib/railway/schema.ts` describes the provisioned Railway tables with
+  Drizzle; `getRailwayOrm()` shares the existing pooled `postgres` connection.
+- `lib/railway/job-queue.ts` provides a pg-boss adapter with queue creation,
+  exponential retries, single-job workers, and graceful shutdown. It is not the
+  active queue until worker-handler parity is complete.
+- `lib/server-env.ts` validates the new optional server variables. Missing
+  Railway or integration configuration disables those features and does not
+  stop local Railway development.
+- `withHandler()` emits structured Pino completion/failure records and returns
+  an `x-request-id` on both success and failure.
+- `providerFetch()` retries only transient network, timeout, throttling, and 5xx
+  failures. The TikTok/Apify importer is the first migrated provider path.
+- `/api/v1/openapi.json` is generated from Hono/Zod contracts and
+  `/api-reference` renders it with Scalar. Existing routes remain compatible
+  while domains move into the versioned router incrementally.
 
 ## Runtime topology
 
 ```mermaid
 flowchart LR
-    Browser["Next.js browser client"] --> Proxy["proxy.ts session boundary"]
+    Browser["Next.js browser client"] --> Clerk["Clerk session"]
+    Clerk --> Proxy["proxy.ts request boundary"]
     Proxy --> Pages["App Router pages"]
     Proxy --> Routes["app/api route handlers"]
 
     Routes --> Domain["lib domain modules"]
     Pages --> Domain
-    ManualRun["Generate now / MCP run"] --> Windmill["Windmill workflows"]
-    Jobs["native Railway jobs table"] --> Worker["Railway job-worker"]
+    Scheduler["automation-scheduler"] --> Jobs["jobs table"]
+    Jobs --> Worker["job-worker / local worker"]
     Worker --> Domain
 
     Domain --> JsonStore["lib/json-store.ts"]
-    Domain --> RuntimeStore["lib/runtime-store.ts"]
-    JsonStore --> RuntimeStore
-    RuntimeStore --> Tables["Railway PostgreSQL"]
+    Domain --> DirectStores["direct Railway modules"]
+    JsonStore --> Tables["Railway TablesDB"]
+    DirectStores --> Tables
     Domain --> Assets["lib/asset-storage.ts"]
-    Assets --> Storage["Railway private bucket"]
+    Assets --> Storage["Railway Storage"]
 
     Domain --> Providers["OpenRouter / Rendi / PostFast / KIE / Pexels / Pinterest / DeepL"]
 ```
 
 The HTTP layer is an adapter, not a separate backend. Most route handlers call
-modules under `lib/`; queued work calls the same domain modules where
-possible. Generation workflows execute through the checked Windmill manifest;
-the Railway worker is limited to explicit queued jobs such as notifications.
+modules under `lib/`; scheduled work calls the same domain modules where
+possible. The scheduled slideshow worker still contains a parallel JavaScript
+pipeline that must be kept aligned with the main generation path.
 
 ## Request and ownership boundary
 
-`proxy.ts` and Clerk protect the authenticated application boundary. Domain
-stores resolve the current Clerk user again before reading or writing private
-data; the proxy is not the only authorization check.
+`proxy.ts` initializes Clerk for all application and API requests, protects
+`/app/**`, and returns `401` for unauthenticated private APIs. Clerk owns sign-in,
+sign-up, verification, recovery, session cookies, and session revocation. Domain
+stores call `getCurrentUser()` before reading or writing private data, so the
+proxy is not the only authorization check. The adapter maps a Clerk user to the
+stable owner ID used by existing application records; preferences live in Clerk
+private metadata. Railway is not an authentication provider.
 
 Ownership rules:
 
-- Private rows have an indexed Railway `owner_id` column.
+- Private rows have an `owner_id` Railway column.
 - Serialized domain records normally also contain `ownerId` after persistence.
 - Deterministic private row IDs hash physical table, `source_key` where
   applicable, owner ID, and domain record ID.
-- Template and template-run rows use only their canonical physical table names
-  (`templates`, `template_runs`, and `social_templates`) as hash namespaces;
-  retired automation table names are not retained as compatibility aliases.
 - Worker requests use `systemOwnerId()` so queued work remains attributed to the
   user who owns the automation.
 - Shareable output categories may be read by accepted workspace collaborators;
@@ -64,13 +87,13 @@ Ownership rules:
 
 ## Persistence layers
 
-### 1. Domain record-store API
+### 1. Compatibility JSON-store API
 
 Most domain modules still present a historical `rootDir + fileName + key`
 interface through `lib/json-store.ts`. Despite the filesystem-looking API,
 mapped mutable stores are Railway-only. There is no JSON-file fallback.
 
-The mapping in `lib/appwrite-stores.ts` resolves each logical store to:
+The mapping in `lib/railway-stores.ts` resolves each logical store to:
 
 ```ts
 type StoreRoute = {
@@ -127,53 +150,55 @@ Storage and is not duplicated in this join table.
 
 High-churn or operational records keep dedicated tables:
 
-| Table                        | Record                               | Access path              |
-| ---------------------------- | ------------------------------------ | ------------------------ |
-| `templates`                  | Slideshow/video template definitions | JSON-store               |
-| `template_runs`              | Interactive template executions      | JSON-store               |
-| `social_templates`           | X/Threads template definitions       | JSON-store               |
-| `usage_ledger`               | Hook/image reuse events              | JSON-store append/delete |
-| `postfast_metric_snapshots`  | Per-post analytics snapshots         | JSON-store append        |
-| `account_follower_snapshots` | Per-account follower snapshots       | JSON-store               |
-| `jobs`                       | Worker queue                         | Native SQL repository    |
-| `workspace_members`          | Team invitation and access records   | Direct TablesDB queries  |
-| `demos`                      | Settings demo-video metadata         | Direct TablesDB queries  |
+| Table                        | Record                                          | Access path              |
+| ---------------------------- | ----------------------------------------------- | ------------------------ |
+| `automations`                | Slideshow/video automation definitions          | JSON-store               |
+| `automation_runs`            | Interactive and scheduled automation executions | JSON-store               |
+| `x_automations`              | X/Threads automation definitions                | JSON-store               |
+| `usage_ledger`               | Hook/image reuse events                         | JSON-store append/delete |
+| `postfast_metric_snapshots`  | Per-post analytics snapshots                    | JSON-store append        |
+| `account_follower_snapshots` | Per-account follower snapshots                  | JSON-store               |
+| `jobs`                       | Scheduler/worker queue                          | Direct TablesDB queries  |
+| `workspace_members`          | Team invitation and access records              | Direct TablesDB queries  |
+| `demos`                      | Settings demo-video metadata                    | Direct TablesDB queries  |
 
-Pre-consolidation Appwrite tables are not part of the runtime schema. Current
+Pre-consolidation tables are not part of the maintained schema. Run
+`pnpm railway:prune-schema -- --env=<environment file>` to audit them and add
+`--apply` to delete only tables that Railway confirms are empty. Current
 results and generated videos use `outputs`; PostFast publication records are
 embedded in an output's `publications` field.
 
 ## Logical-to-physical store map
 
-This table mirrors `STORE_ROUTES` in `lib/appwrite-stores.ts`.
+This table mirrors `STORE_ROUTES` in `lib/railway-stores.ts`.
 
-| Logical store                     | Physical table               | `source_key`               | Visibility               | State  |
-| --------------------------------- | ---------------------------- | -------------------------- | ------------------------ | ------ |
-| Image collections                 | `permanent_assets`           | `image_collection`         | Owner-only               | Active |
-| Uploaded/generated asset records  | `permanent_assets`           | `uploaded_asset`           | Owner-only               | Active |
-| Word/variable collections         | `permanent_assets`           | `word_collection`          | Owner-only               | Active |
-| Product collections               | `permanent_assets`           | `product_collection`       | Owner-only               | Active |
-| Media-library catalog             | `permanent_assets`           | `media_library_asset`      | Public reference         | Active |
-| Starter-template seed definitions | `permanent_assets`           | `starter_template`         | Public reference seed    | Active |
-| Template example runs             | `permanent_assets`           | `starter_template_example` | Public local reference   | Active |
-| Results/slideshows                | `outputs`                    | `result`                   | Workspace-shareable read | Active |
-| Generated video exports           | `outputs`                    | `generated_video`          | Workspace-shareable read | Active |
-| X/Threads runs                    | `outputs`                    | `social_template_run`      | Workspace-shareable read | Active |
-| Publication-only wrappers         | `outputs`                    | `publication_wrapper`      | Owner-only               | Active |
-| Slideshow/video templates         | `templates`                  | Not applicable             | Owner-only               | Active |
-| Template runs                     | `template_runs`              | Not applicable             | Owner-only               | Active |
-| X/Threads templates               | `social_templates`           | Not applicable             | Owner-only               | Active |
-| Usage records                     | `usage_ledger`               | Not applicable             | Owner-only               | Active |
-| Post analytics snapshots          | `postfast_metric_snapshots`  | Not applicable             | Owner-only               | Active |
-| Follower snapshots                | `account_follower_snapshots` | Not applicable             | Owner-only               | Active |
+| Logical store                    | Physical table               | `source_key`                  | Visibility               | State  |
+| -------------------------------- | ---------------------------- | ----------------------------- | ------------------------ | ------ |
+| Image collections                | `permanent_assets`           | `image_collection`            | Owner-only               | Active |
+| Uploaded/generated asset records | `permanent_assets`           | `uploaded_asset`              | Owner-only               | Active |
+| Word/variable collections        | `permanent_assets`           | `word_collection`             | Owner-only               | Active |
+| Product collections              | `permanent_assets`           | `product_collection`          | Owner-only               | Active |
+| Media-library catalog            | `permanent_assets`           | `media_library_asset`         | Public reference         | Active |
+| Automation templates             | `permanent_assets`           | `automation_template`         | Public local reference   | Active |
+| Template example runs            | `permanent_assets`           | `automation_template_example` | Public local reference   | Active |
+| Results/slideshows               | `outputs`                    | `result`                      | Workspace-shareable read | Active |
+| Generated video exports          | `outputs`                    | `generated_video`             | Workspace-shareable read | Active |
+| X/Threads runs                   | `outputs`                    | `x_automation_run`            | Workspace-shareable read | Active |
+| Publication-only wrappers        | `outputs`                    | `publication_wrapper`         | Owner-only               | Active |
+| Slideshow/video automations      | `automations`                | Not applicable                | Owner-only               | Active |
+| Automation runs                  | `automation_runs`            | Not applicable                | Owner-only               | Active |
+| X/Threads automations            | `x_automations`              | Not applicable                | Owner-only               | Active |
+| Usage records                    | `usage_ledger`               | Not applicable                | Owner-only               | Active |
+| Post analytics snapshots         | `postfast_metric_snapshots`  | Not applicable                | Owner-only               | Active |
+| Follower snapshots               | `account_follower_snapshots` | Not applicable                | Owner-only               | Active |
 
 Dedicated tables do not carry `source_key`; their table identity is already the
 record discriminator. Snapshot and usage tables store query fields plus the
 serialized domain record without unused generic `name` or `status` columns.
 
-Starter-template definitions and curated example runs live as public reference
-categories. Creating a user template writes a separate owner-scoped row to
-`templates`.
+Automation template definitions and curated example runs live in local
+Railway as public reference categories. Creating a user automation writes a
+separate owner-scoped row to `automations`.
 
 ## Output and publication model
 
@@ -182,7 +207,7 @@ record lifecycle:
 
 ```mermaid
 flowchart LR
-    Template --> Run["AutomationRunRecord"]
+    Automation --> Run["AutomationRunRecord"]
     Run --> Result["ResultRecord in outputs"]
     Result --> Media["output_media rows"]
     Result --> Publications["PostFastPostRecord[] in outputs.publications"]
@@ -204,7 +229,7 @@ flowchart LR
 
 ## Binary storage
 
-`lib/asset-storage.ts` persists files to Railway object storage. Some generation and
+`lib/asset-storage.ts` persists files to Railway Storage. Some generation and
 render paths also require local working files for ffmpeg/sharp before mirroring
 or after downloading provider output.
 
@@ -227,8 +252,8 @@ range support for video/audio.
 | settings demo videos   | `demos` (direct, not path-derived) |
 
 Removed path categories such as `characters/`, knowledge-base files, and
-benchmark images fall through to `misc` if an old URL is requested.
-`bucketForPath()` holds no dedicated mapping for them.
+benchmark images now fall through to `misc` if an old URL is requested; their
+former dedicated mappings are no longer part of `bucketForPath()`.
 
 File IDs use `sha256(relativePath).slice(0, 36)`. Do not add a second lookup
 table for path-derived files unless the storage contract itself changes.
@@ -246,15 +271,15 @@ table for path-derived files unless the storage contract itself changes.
 | Apify / FAL / DataForSEO | Optional discovery/generation branches                                 |
 
 Provider credentials stay server-side. API responses return provider IDs,
-status, and safe media references, never API keys or Appwrite credentials.
+status, and safe media references, never API keys or Railway credentials.
 
 ## Source-of-truth rules
 
-1. `lib/appwrite-stores.ts` is authoritative for logical store routing.
+1. `lib/railway-stores.ts` is authoritative for logical store routing.
 2. Type definitions in `lib/` are authoritative for serialized domain shapes.
 3. `app/api/**/route.ts` is authoritative for the internal HTTP contract.
 4. Provisioning scripts define physical columns and indexes.
 5. Runtime brand configuration lives in `lib/realfarm-data.ts`; persisted
-   workspace data lives in Appwrite.
+   workspace data lives in Railway.
 6. Roadmap documents describe intended changes and must not be read as current
    behavior.

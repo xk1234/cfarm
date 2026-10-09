@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { IconFocusCentered, IconMinus, IconPlus } from "@tabler/icons-react"
 
-import type { TextItem } from "@/lib/realfarm-automation"
+import type { AutomationTextItem } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
 import { AutomationFormatPreviewCard } from "./format-preview-card"
@@ -39,13 +39,12 @@ export function SlideshowFormatPreviewStage({
   updateTextItem,
   onDeleteTextItem,
   onAddTextItem,
-  visualControlsLocked = false,
 }: {
   className?: string
   onExitPreview: () => void
   previewItems: AutomationFormatPreviewItem[]
   activeTab: SlideshowFormatTab
-  activeTextItem: TextItem
+  activeTextItem: AutomationTextItem
   selectedTextIndex: number | null
   activePreviewIndex: number
   previewSlotWidths: number[]
@@ -65,12 +64,11 @@ export function SlideshowFormatPreviewStage({
     index: number,
     tab: SlideshowFormatTab,
     textIndex: number,
-    patch: Partial<TextItem>
+    patch: Partial<AutomationTextItem>
   ) => void
-  updateTextItem: (patch: Partial<TextItem>) => void
+  updateTextItem: (patch: Partial<AutomationTextItem>) => void
   onDeleteTextItem: () => void
   onAddTextItem: () => void
-  visualControlsLocked?: boolean
 }) {
   const stageRef = useRef<HTMLElement>(null)
   const dragRef = useRef<{
@@ -251,11 +249,6 @@ export function SlideshowFormatPreviewStage({
         Edit
       </button>
 
-      <div className="absolute top-4 left-4 z-20 hidden items-center gap-2 rounded-[9px] border border-black/10 bg-white/92 px-3 py-2 text-[11px] font-semibold text-[#30303a] shadow-sm backdrop-blur md:flex">
-        <span className="size-1.5 rounded-full bg-[#4f91ff]" />
-        Canvas editor
-      </div>
-
       <div className="absolute top-4 right-4 z-20 flex items-center rounded-[9px] border border-black/10 bg-white/92 p-1 shadow-sm backdrop-blur">
         <button
           type="button"
@@ -332,9 +325,7 @@ export function SlideshowFormatPreviewStage({
                 onTransformPreviewText(index, item.tab, textIndex, patch)
               }
               onAddText={
-                activePreviewIndex === index && !visualControlsLocked
-                  ? onAddTextItem
-                  : undefined
+                activePreviewIndex === index ? onAddTextItem : undefined
               }
             />
           ))}
@@ -355,7 +346,7 @@ export function SlideshowFormatPreviewStage({
         ))}
       </div>
       <div className="pointer-events-none absolute bottom-5 left-5 hidden rounded-md bg-black/18 px-2.5 py-1.5 text-[10px] font-medium text-white/80 backdrop-blur-sm md:block">
-        drag text to move · side handles resize · drag background to pan
+        drag to pan · pinch to zoom · double-click to reset
       </div>
 
       {selectedTextIndex !== null && (
@@ -365,7 +356,6 @@ export function SlideshowFormatPreviewStage({
           updateTextItem={updateTextItem}
           onDelete={onDeleteTextItem}
           onAdd={onAddTextItem}
-          locked={visualControlsLocked}
         />
       )}
     </main>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   calendarItemMatchesFilters,
+  calendarLifecycleForJob,
   calendarLifecycleForLocalPost,
   calendarLifecycleForPostFast,
   calendarTimingEntries,
@@ -9,10 +10,14 @@ import {
   reconcileCalendarFilterValue,
   reconcileCalendarFilterValues,
   type CalendarItem,
-} from "@/features/calendar/domain/calendar"
+} from "@/lib/calendar-items"
 
 describe("calendar lifecycle mapping", () => {
-  it("maps local post and PostFast states to the canonical lifecycle", () => {
+  it("maps queue, local post, and PostFast states to the canonical lifecycle", () => {
+    expect(calendarLifecycleForJob("queued")).toBe("generating")
+    expect(calendarLifecycleForJob("processing")).toBe("generating")
+    expect(calendarLifecycleForJob("dead")).toBe("generation_failed")
+    expect(calendarLifecycleForJob("completed")).toBeNull()
     expect(calendarLifecycleForLocalPost("awaiting_manual_post")).toBe(
       "needs_action"
     )
@@ -75,9 +80,9 @@ describe("calendar item merging", () => {
       datetime: "2026-07-15T01:01:00.000Z",
     })
     const actual = calendarItem({
-      id: "local:1",
-      source: "local_post",
-      status: "draft",
+      id: "job:1",
+      source: "job",
+      status: "generating",
     })
 
     expect(dedupeCalendarItems([first, second, actual])).toEqual([

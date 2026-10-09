@@ -26,10 +26,13 @@ export type PublicationPostInput = {
   provider: string
   status: PostFastPostStatus
   content: string
+  title?: string
+  hashtags?: string[]
   media: PostFastMedia[]
   postId?: string
   intentId?: string
   outputId?: string
+  outputIds?: string[]
   automationId?: string
   runId?: string
   sourceEntityId?: string
@@ -76,7 +79,10 @@ export async function upsertPublicationPost(
   const sourceId = clean(input.sourceId)
   const integrationId = clean(input.integrationId)
   const suppliedIntentId = clean(input.intentId)
-  const outputId = clean(input.outputId)
+  const outputId =
+    clean(input.outputId) ||
+    input.outputIds?.map((id) => clean(id)).find(Boolean) ||
+    ""
   const hasOutputDestination = posts.some(
     (post) =>
       (post.outputId === outputId || post.sourceId === outputId) &&
@@ -145,9 +151,11 @@ export async function upsertPublicationPost(
     statsSources: normalizeStatsSources(
       input.statsSources ?? existing?.statsSources
     ),
-    title: existing?.title,
+    title: clean(input.title) || existing?.title,
     content: input.content,
-    hashtags: existing?.hashtags ?? [],
+    hashtags: (input.hashtags ?? existing?.hashtags ?? [])
+      .map((item) => clean(item).replace(/^#+/, ""))
+      .filter(Boolean),
     contentType: contentTypeForMedia(input.media) ?? existing?.contentType,
     media: input.media.map((item, index) => ({
       kind: item.type === "VIDEO" ? "video" : "image",
@@ -299,6 +307,7 @@ export function destinationIntentId(input: {
   sourceType: PostFastSourceType
   sourceId: string
   outputId?: string
+  outputIds?: string[]
   integrationId: string
 }) {
   return [
@@ -316,6 +325,7 @@ function publicationSourceRefs(input: {
   sourceType: PostFastSourceType
   sourceId: string
   outputId?: string
+  outputIds?: string[]
   automationId?: string
   runId?: string
   sourceEntityId?: string
@@ -326,6 +336,7 @@ function publicationSourceRefs(input: {
     if (normalized) refs.push({ kind, id: normalized })
   }
   add("output", input.outputId)
+  for (const outputId of input.outputIds ?? []) add("output", outputId)
   add("automation", input.automationId)
   add("run", input.runId)
   if (input.sourceType === "automation") add("run", input.sourceId)

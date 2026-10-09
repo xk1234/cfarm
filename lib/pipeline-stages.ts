@@ -1,7 +1,5 @@
 import { z } from "zod"
 
-import type { ProviderRequestTrace } from "@/lib/provider-request-trace"
-
 export type PipelineStageKind = "deterministic" | "provider" | "storage"
 export type PipelineStageGranularity = "atomic" | "composite"
 export type PipelineStageSideEffect = "none" | "network" | "storage"
@@ -54,15 +52,11 @@ export type PipelineStageExecution = {
   output: Record<string, unknown>
   operation?: Record<string, unknown>
   externalCalls: number
-  providerRequests?: ProviderRequestTrace[]
 }
 
 export const PIPELINE_WORKFLOW_IDS = [
   "slideshow-generation",
   "ugc-video-generation",
-  "react-reveal-generation",
-  "greenscreen-meme-generation",
-  "template-video-generation",
   "linkedin-generation",
   "x-threads-generation",
 ] as const
@@ -89,10 +83,10 @@ export const PIPELINE_STAGE_CATALOG = [
   stage(
     "slideshow-generation",
     2,
-    "apply-fixed-slide-count",
-    "Apply fixed slide count",
+    "resolve-slide-count",
+    "Resolve slide count",
     "deterministic",
-    "Apply the template's fixed total slide count without model or hook overrides."
+    "Resolve hook, body, CTA, and total slide counts."
   ),
   stage(
     "slideshow-generation",
@@ -100,11 +94,25 @@ export const PIPELINE_STAGE_CATALOG = [
     "select-expand-hook",
     "Select and expand hook",
     "deterministic",
-    "Select an enabled hook and expand its word-collection substitutions."
+    "Select an unused hook and expand its word-collection substitutions."
   ),
   stage(
     "slideshow-generation",
     4,
+    "research-hook",
+    "Research selected hook",
+    "provider",
+    "Research the exact selected hook with source URLs.",
+    {
+      ...compositeStage,
+      provider: "OpenRouter + Exa",
+      model: "openai/gpt-5.4-mini",
+      optional: true,
+    }
+  ),
+  stage(
+    "slideshow-generation",
+    5,
     "build-text-prompt",
     "Build structured generation prompt",
     "deterministic",
@@ -112,7 +120,7 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    5,
+    6,
     "generate-slide-text",
     "Generate slideshow text",
     "provider",
@@ -125,15 +133,42 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    6,
-    "build-image-shortlists",
-    "Build image shortlists",
-    "deterministic",
-    "Rank image captions directly against slide text and retain bounded per-slide shortlists."
+    7,
+    "retry-text-similarity",
+    "Retry similar text",
+    "provider",
+    "Compare with reuse memory and perform the single authoritative rewrite when needed.",
+    {
+      ...compositeStage,
+      provider: "OpenRouter",
+      model: "configured slideshowTextModel",
+      optional: true,
+    }
   ),
   stage(
     "slideshow-generation",
-    7,
+    8,
+    "derive-visual-concepts",
+    "Derive visual concepts",
+    "provider",
+    "Derive concrete visual search concepts for AI-selected slides.",
+    {
+      provider: "OpenRouter",
+      model: "configured slideshowTextModel",
+      optional: true,
+    }
+  ),
+  stage(
+    "slideshow-generation",
+    9,
+    "build-image-shortlists",
+    "Build image shortlists",
+    "deterministic",
+    "Rank collection candidates locally and retain bounded per-slide shortlists."
+  ),
+  stage(
+    "slideshow-generation",
+    10,
     "select-slide-images",
     "Select slide images",
     "provider",
@@ -146,7 +181,7 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    8,
+    11,
     "assemble-plan",
     "Assemble slideshow plan",
     "deterministic",
@@ -154,7 +189,16 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    9,
+    12,
+    "translate-plan",
+    "Translate displayed text",
+    "provider",
+    "Translate displayed text for supported non-English targets.",
+    { provider: "DeepL", optional: true }
+  ),
+  stage(
+    "slideshow-generation",
+    13,
     "render-store-pngs",
     "Render and store PNG slides",
     "storage",
@@ -163,19 +207,33 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
-    10,
-    "validate-output",
-    "Validate generated output",
-    "deterministic",
-    "Run deterministic checks against the current slideshow only."
+    14,
+    "render-store-mp4",
+    "Render and store MP4",
+    "provider",
+    "Render and persist an H.264 slideshow video when requested.",
+    {
+      ...compositeStage,
+      provider: "Rendi",
+      model: "FFmpeg",
+      optional: true,
+    }
   ),
   stage(
     "slideshow-generation",
-    11,
+    15,
+    "validate-output",
+    "Validate generated output",
+    "deterministic",
+    "Run deterministic count, token, word-range, and reuse QA."
+  ),
+  stage(
+    "slideshow-generation",
+    16,
     "finalize-output",
     "Finalize generated output",
     "storage",
-    "Persist the generated result and run state.",
+    "Finalize result/run state and append reuse-memory records.",
     compositeStage
   ),
 
@@ -208,6 +266,24 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
+    104,
+    "list-usage-history",
+    "List usage history",
+    "storage",
+    "Page through owner-scoped usage history using registered page reads.",
+    { ...compositeStage, workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
+    105,
+    "list-prior-runs",
+    "List prior runs",
+    "storage",
+    "Page through owner-scoped automation runs using registered page reads.",
+    { ...compositeStage, workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
     106,
     "load-model-settings",
     "Load model settings",
@@ -215,50 +291,14 @@ export const PIPELINE_STAGE_CATALOG = [
     "Load model settings through the registered fixed-document read.",
     { ...compositeStage, workflowStep: false }
   ),
-  stage(
+  atomicStage(
     "slideshow-generation",
-    117,
-    "prepare-image-candidate-pools",
-    "Prepare static image candidate pools",
-    "deterministic",
-    "Resolve each slide's configured collection into a bounded static candidate pool without reading generated text.",
-    { workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
-    118,
-    "list-media-collection-options",
-    "List media collection options",
-    "storage",
-    "Return bounded collection IDs, labels, media types, and asset counts for generated Windmill selectors.",
-    { ...compositeStage, workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
-    119,
-    "normalize-run-brief",
-    "Normalize run brief",
-    "deterministic",
-    "Normalize the selected hook and output-affecting content controls independently of template loading.",
-    { workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
-    120,
-    "normalize-collection-overrides",
-    "Normalize collection overrides",
-    "deterministic",
-    "Normalize optional hook, content, and CTA collection selections into one typed override artifact.",
-    { workflowStep: false }
-  ),
-  stage(
-    "slideshow-generation",
-    121,
-    "normalize-slide-overrides",
-    "Normalize slide overrides",
-    "deterministic",
-    "Validate and normalize individual slide content-direction and collection overrides.",
-    { workflowStep: false }
+    107,
+    "research-hook-attempt",
+    "provider",
+    "OpenRouter chat completion with Exa",
+    "Perform exactly one exact-hook research attempt.",
+    { provider: "OpenRouter + Exa", model: "openai/gpt-5.4-mini" }
   ),
   atomicStage(
     "slideshow-generation",
@@ -280,6 +320,15 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "slideshow-generation",
+    110,
+    "append-usage-records",
+    "Append usage records",
+    "storage",
+    "Append supplied usage records by invoking the singular registered storage stage once per record.",
+    { ...compositeStage, workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
     111,
     "upsert-automation-run",
     "Persist automation run",
@@ -287,43 +336,43 @@ export const PIPELINE_STAGE_CATALOG = [
     "Create or update one automation run through registered one-request document stages.",
     { ...compositeStage, workflowStep: false }
   ),
-
-  stage(
-    "ugc-video-generation",
-    8,
-    "load-template-defaults",
-    "Load UGC template defaults",
+  atomicStage(
+    "slideshow-generation",
+    112,
+    "append-one-usage-record",
     "storage",
-    "Load and validate an optional UGC template and expose its component defaults.",
-    compositeStage
-  ),
-  ...[
-    ["product", "product URL, brief, or supplied analysis"],
-    ["script", "script plan and target duration"],
-    ["actor", "actor source, portrait, and motion prompt"],
-    ["voice", "voice identifier and model"],
-    ["broll", "B-roll enablement and image count"],
-    ["render", "aspect ratio, lip-sync tier, captions, and hook overlay"],
-  ].map(([name, description], index) =>
-    stage(
-      "ugc-video-generation",
-      9 + index,
-      `resolve-${name}-component`,
-      `Resolve ${name} component`,
-      "deterministic",
-      `Merge and validate the ${description} component from template defaults and the per-run override.`,
-      { workflowStep: false }
-    )
+    "Railway usage-record create",
+    "Append one usage record through one storage action."
   ),
   stage(
-    "ugc-video-generation",
-    15,
-    "assemble-performance",
-    "Assemble performance artifacts",
+    "slideshow-generation",
+    113,
+    "prepare-video-render",
+    "Prepare video render",
+    "storage",
+    "Stage rendered PNG inputs locally for resumable provider upload.",
+    { ...compositeStage, sideEffect: "storage", workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
+    114,
+    "finalize-video-render",
+    "Finalize video render",
+    "storage",
+    "Attach persisted video artifacts to the slideshow result.",
+    { ...compositeStage, sideEffect: "storage", workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
+    115,
+    "build-rendi-video-command",
+    "Build Rendi video command",
     "deterministic",
-    "Create one typed performance artifact from isolated voice and lip-sync checkpoint outputs.",
+    "Build the slideshow FFmpeg command from completed Rendi slide uploads.",
     { workflowStep: false }
   ),
+  ...rendiProtocolStages("slideshow-generation", 120),
+
   stage(
     "ugc-video-generation",
     1,
@@ -460,6 +509,22 @@ export const PIPELINE_STAGE_CATALOG = [
     "OpenRouter chat completion",
     "Generate and validate one UGC script-plan attempt.",
     { provider: "OpenRouter", model: "anthropic/claude-sonnet-5" }
+  ),
+  atomicStage(
+    "ugc-video-generation",
+    104,
+    "enqueue-checkpoint-job",
+    "storage",
+    "Railway job enqueue",
+    "Enqueue one production UGC checkpoint job."
+  ),
+  atomicStage(
+    "ugc-video-generation",
+    105,
+    "get-checkpoint-job",
+    "storage",
+    "Railway job read",
+    "Read one queued UGC checkpoint job."
   ),
   atomicStage(
     "ugc-video-generation",
@@ -609,110 +674,6 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   ...rendiProtocolStages("ugc-video-generation", 130),
 
-  ...fixedVideoFormatStages(
-    "react-reveal-generation",
-    "anticipation",
-    "reveal"
-  ),
-  ...fixedVideoFormatStages(
-    "greenscreen-meme-generation",
-    "meme",
-    "background"
-  ),
-
-  ...[
-    [
-      1,
-      "load-template",
-      "Load video template",
-      "Load and validate the saved generic video template.",
-    ],
-    [
-      2,
-      "generate-copy",
-      "Generate video copy",
-      "Select and expand the hook, then generate captions and publish-gate metadata.",
-    ],
-    [
-      3,
-      "resolve-media",
-      "Resolve template media",
-      "Resolve every segment to its configured collection, demo asset, or composed slideshow output.",
-    ],
-    [
-      4,
-      "assemble-components",
-      "Assemble render components",
-      "Join independently generated copy and resolved media at their first common renderer consumer.",
-    ],
-    [
-      5,
-      "stage-media",
-      "Stage render media",
-      "Download the selected media inputs into isolated render staging.",
-    ],
-    [
-      6,
-      "build-render-command",
-      "Build template render command",
-      "Build the FFmpeg render plan while preserving segment order, duration, full-play, captions, and audio settings.",
-    ],
-    [
-      7,
-      "render-store-output",
-      "Render and store video",
-      "Render the generic video with Rendi and persist video and thumbnail artifacts.",
-    ],
-    [
-      8,
-      "finalize-output",
-      "Finalize video draft",
-      "Persist the canonical unpublished video output.",
-    ],
-    [
-      9,
-      "discard-staged-media",
-      "Discard staged media",
-      "Remove temporary source files after the output is durable.",
-    ],
-    [
-      101,
-      "stage-one-media",
-      "Stage one media input",
-      "Download exactly one selected template-media input.",
-    ],
-  ].map(([order, name, title, description]) =>
-    stage(
-      "template-video-generation",
-      order as number,
-      name as string,
-      title as string,
-      name === "generate-copy" || name === "render-store-output"
-        ? "provider"
-        : name === "load-template" || name === "finalize-output"
-          ? "storage"
-          : "deterministic",
-      description as string,
-      [
-        "load-template",
-        "stage-media",
-        "render-store-output",
-        "finalize-output",
-      ].includes(name as string)
-        ? compositeStage
-        : name === "stage-one-media"
-          ? {
-              granularity: "atomic",
-              sideEffect: "network",
-              operation: "remote media HTTP download",
-              maxExternalCalls: 1,
-              workflowStep: false,
-            }
-          : undefined
-    )
-  ),
-  ...rendiProtocolStages("template-video-generation", 120),
-
   stage(
     "linkedin-generation",
     1,
@@ -720,42 +681,6 @@ export const PIPELINE_STAGE_CATALOG = [
     "Validate and normalize input",
     "deterministic",
     "Normalize the supported stateless LinkedIn request."
-  ),
-  stage(
-    "linkedin-generation",
-    103,
-    "normalize-audience-topic",
-    "Normalize audience and topic",
-    "deterministic",
-    "Require the niche and normalize topic and excluded-topic controls.",
-    { workflowStep: false }
-  ),
-  stage(
-    "linkedin-generation",
-    104,
-    "normalize-voice-proof",
-    "Normalize voice and proof",
-    "deterministic",
-    "Normalize the persona, proof bank, optional planning overrides, and post model.",
-    { workflowStep: false }
-  ),
-  stage(
-    "linkedin-generation",
-    105,
-    "normalize-brief-controls",
-    "Normalize brief controls",
-    "deterministic",
-    "Validate an optional supplied brief and normalize the brief model.",
-    { workflowStep: false }
-  ),
-  stage(
-    "linkedin-generation",
-    106,
-    "normalize-batch-controls",
-    "Normalize batch controls",
-    "deterministic",
-    "Clamp the requested post count to the supported batch range.",
-    { workflowStep: false }
   ),
   stage(
     "linkedin-generation",
@@ -852,24 +777,6 @@ export const PIPELINE_STAGE_CATALOG = [
     "Validate and normalize input",
     "storage",
     "Load and normalize the owner-scoped persisted X/Threads automation generation input."
-  ),
-  stage(
-    "x-threads-generation",
-    116,
-    "load-template",
-    "Load X/Threads template",
-    "storage",
-    "Load and validate the selected owner-scoped X/Threads template.",
-    compositeStage
-  ),
-  stage(
-    "x-threads-generation",
-    117,
-    "normalize-run-input",
-    "Normalize per-run content input",
-    "deterministic",
-    "Normalize the optional topic and structured source candidate independently of template loading.",
-    { workflowStep: false }
   ),
   stage(
     "x-threads-generation",
@@ -1136,8 +1043,8 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "slideshow-generation",
       201,
       "get-automation-document",
-      "Template store templates getRow",
-      "Read exactly one owner-scoped slideshow template row."
+      "Railway automations getRow",
+      "Read exactly one owner-scoped slideshow automation row."
     ),
     atomic(
       "slideshow-generation",
@@ -1152,6 +1059,20 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "list-word-collections-page",
       "Railway permanent_assets listRows",
       "Read exactly one owner-scoped word-collection page."
+    ),
+    atomic(
+      "slideshow-generation",
+      204,
+      "list-usage-history-page",
+      "Railway usage_ledger listRows",
+      "Read exactly one owner-scoped usage page."
+    ),
+    atomic(
+      "slideshow-generation",
+      205,
+      "list-prior-runs-page",
+      "Railway automation_runs listRows",
+      "Read exactly one owner-scoped automation-run page."
     ),
     atomic(
       "slideshow-generation",
@@ -1199,21 +1120,21 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "slideshow-generation",
       212,
       "read-one-source-asset",
-      "Railway object storage getFileView",
+      "Railway Storage getFileView",
       "Read one permitted slideshow source object into local staging."
     ),
     atomic(
       "slideshow-generation",
       213,
       "create-one-output-asset",
-      "Railway object storage createFile",
+      "Railway Storage createFile",
       "Create one slideshow output object from local staging."
     ),
     atomic(
       "slideshow-generation",
       214,
       "delete-one-output-asset",
-      "Railway object storage deleteFile",
+      "Railway Storage deleteFile",
       "Delete one slideshow output object before an explicit replacement attempt."
     ),
     stage(
@@ -1386,24 +1307,92 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
     ),
     atomic(
       "slideshow-generation",
+      235,
+      "list-results-page",
+      "Railway outputs listRows",
+      "Read exactly one owner-scoped slideshow result page."
+    ),
+    stage(
+      "slideshow-generation",
+      236,
+      "find-result-for-slideshow",
+      "Find result for slideshow",
+      "storage",
+      "Page through registered result reads until the requested slideshow result is found.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      237,
+      "initialize-video-preparation",
+      "Initialize video preparation",
+      "deterministic",
+      "Build resumable local video input paths from a hydrated slideshow result.",
+      { workflowStep: false }
+    ),
+    atomic(
+      "slideshow-generation",
+      238,
+      "read-one-video-slide",
+      "Railway Storage getFileView",
+      "Read exactly one rendered slideshow PNG into local video staging."
+    ),
+    stage(
+      "slideshow-generation",
+      239,
+      "stage-video-slides",
+      "Stage video slides",
+      "storage",
+      "Stage every rendered PNG through the singular registered storage read.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      240,
+      "build-finalized-video-result",
+      "Build finalized video result",
+      "deterministic",
+      "Attach persisted video and thumbnail URLs to a supplied result record.",
+      { workflowStep: false }
+    ),
+    atomic(
+      "slideshow-generation",
       241,
       "get-automation-run-document",
-      "Template store template_runs getRow",
-      "Read exactly one owner-scoped slideshow template-run row."
+      "Railway automation_runs getRow",
+      "Read exactly one owner-scoped slideshow automation-run row."
     ),
     atomic(
       "slideshow-generation",
       242,
       "create-automation-run-document",
-      "Template store template_runs createRow",
-      "Create exactly one owner-scoped slideshow template-run row."
+      "Railway automation_runs createRow",
+      "Create exactly one owner-scoped slideshow automation-run row."
     ),
     atomic(
       "slideshow-generation",
       243,
       "update-automation-run-document",
-      "Template store template_runs updateRow",
-      "Update exactly one owner-scoped slideshow template-run row."
+      "Railway automation_runs updateRow",
+      "Update exactly one owner-scoped slideshow automation-run row."
+    ),
+    stage(
+      "slideshow-generation",
+      244,
+      "enrich-collection-usage",
+      "Enrich collection usage",
+      "deterministic",
+      "Attach latest supplied image-usage timestamps to supplied collection candidates.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      245,
+      "prepare-one-usage-record",
+      "Prepare one usage record",
+      "deterministic",
+      "Normalize and assign the deterministic ID for one supplied usage record.",
+      { workflowStep: false }
     ),
     stage(
       "slideshow-generation",
@@ -1414,54 +1403,63 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "Derive canonical identity claims for one supplied post intent.",
       { workflowStep: false }
     ),
+    stage(
+      "slideshow-generation",
+      247,
+      "prepare-video-thumbnail",
+      "Prepare video thumbnail",
+      "deterministic",
+      "Copy the first staged slide into the local thumbnail input without a remote call.",
+      { workflowStep: false }
+    ),
 
     atomic(
       "ugc-video-generation",
       301,
       "get-saved-run-document",
-      "Template store template_runs getRow",
+      "Railway automation_runs getRow",
       "Read exactly one owner-scoped saved UGC checkpoint row."
     ),
     atomic(
       "ugc-video-generation",
       302,
       "create-saved-run-document",
-      "Template store template_runs createRow",
+      "Railway automation_runs createRow",
       "Create exactly one owner-scoped saved UGC checkpoint row."
     ),
     atomic(
       "ugc-video-generation",
       303,
       "update-saved-run-document",
-      "Template store template_runs updateRow",
+      "Railway automation_runs updateRow",
       "Update exactly one owner-scoped saved UGC checkpoint row."
     ),
     atomic(
       "ugc-video-generation",
       304,
       "inspect-one-saved-asset",
-      "Railway object storage getFile",
+      "Railway Storage getFile",
       "Inspect exactly one owner-scoped durable UGC asset."
     ),
     atomic(
       "ugc-video-generation",
       305,
       "read-one-saved-asset",
-      "Railway object storage getFileView",
+      "Railway Storage getFileView",
       "Read exactly one owner-scoped durable UGC asset into local staging."
     ),
     atomic(
       "ugc-video-generation",
       306,
       "create-one-saved-asset",
-      "Railway object storage createFile",
+      "Railway Storage createFile",
       "Create exactly one owner-scoped durable UGC asset."
     ),
     atomic(
       "ugc-video-generation",
       307,
       "delete-one-saved-asset",
-      "Railway object storage deleteFile",
+      "Railway Storage deleteFile",
       "Delete exactly one owner-scoped durable UGC asset before replacement."
     ),
     atomic(
@@ -1537,7 +1535,7 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "ugc-video-generation",
       317,
       "get-saved-automation-document",
-      "Template store templates getRow",
+      "Railway automations getRow",
       "Read exactly one owner-scoped UGC automation row."
     ),
     atomic(
@@ -1581,7 +1579,7 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "ugc-video-generation",
       323,
       "delete-one-broll-asset",
-      "Railway object storage deleteFile",
+      "Railway Storage deleteFile",
       "Delete exactly one fixed-domain b-roll object before an explicit create retry."
     ),
     stage(
@@ -1607,22 +1605,22 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "x-threads-generation",
       201,
       "get-automation-document",
-      "Template store social_templates getRow",
-      "Read exactly one owner-scoped X/Threads template row."
+      "Railway x_automations getRow",
+      "Read exactly one owner-scoped X/Threads automation row."
     ),
     atomic(
       "x-threads-generation",
       202,
       "create-automation-document",
-      "Template store social_templates createRow",
-      "Create exactly one owner-scoped X/Threads template row."
+      "Railway x_automations createRow",
+      "Create exactly one owner-scoped X/Threads automation row."
     ),
     atomic(
       "x-threads-generation",
       203,
       "update-automation-document",
-      "Template store social_templates updateRow",
-      "Update exactly one owner-scoped X/Threads template row."
+      "Railway x_automations updateRow",
+      "Update exactly one owner-scoped X/Threads automation row."
     ),
     atomic(
       "x-threads-generation",
@@ -1688,7 +1686,7 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "x-threads-generation",
       212,
       "delete-image-asset",
-      "Railway object storage deleteFile",
+      "Railway Storage deleteFile",
       "Delete exactly one fixed-domain generated image before an explicit create retry."
     ),
     stage(
@@ -1817,140 +1815,6 @@ function rendiProtocolStages(
       "Remove local Rendi upload-session or output staging files.",
       { workflowStep: false }
     ),
-  ]
-}
-
-function fixedVideoFormatStages(
-  workflowId: Extract<
-    PipelineWorkflowId,
-    | "react-reveal-generation"
-    | "greenscreen-meme-generation"
-    | "template-video-generation"
-  >,
-  primaryRole: string,
-  secondaryRole: string
-): PipelineStageMetadata[] {
-  return [
-    stage(
-      workflowId,
-      9,
-      "load-template-defaults",
-      "Load format template defaults",
-      "storage",
-      "Load and validate the optional format template before resolving role-specific components.",
-      compositeStage
-    ),
-    stage(
-      workflowId,
-      10,
-      `resolve-${primaryRole}`,
-      `Resolve ${primaryRole}`,
-      "deterministic",
-      `Merge and validate the ${primaryRole} media component.`,
-      { workflowStep: false }
-    ),
-    stage(
-      workflowId,
-      11,
-      `resolve-${secondaryRole}`,
-      `Resolve ${secondaryRole}`,
-      "deterministic",
-      `Merge and validate the ${secondaryRole} media component.`,
-      { workflowStep: false }
-    ),
-    stage(
-      workflowId,
-      12,
-      "resolve-audio",
-      "Resolve optional soundtrack",
-      "deterministic",
-      "Merge and validate the optional audio component.",
-      { workflowStep: false }
-    ),
-    stage(
-      workflowId,
-      13,
-      "resolve-caption",
-      "Resolve format captions",
-      "deterministic",
-      "Merge and normalize the captions consumed by the format render plan.",
-      { workflowStep: false }
-    ),
-    stage(
-      workflowId,
-      14,
-      "resolve-output",
-      "Resolve draft metadata",
-      "deterministic",
-      "Merge and normalize the title, description, and hashtags consumed when the rendered media becomes a draft output.",
-      { workflowStep: false }
-    ),
-    atomicStage(
-      workflowId,
-      2,
-      `stage-${primaryRole}`,
-      "provider",
-      "remote media HTTP download",
-      `Stage the ${primaryRole} component as one local render input.`,
-      { provider: "remote asset host" }
-    ),
-    atomicStage(
-      workflowId,
-      3,
-      `stage-${secondaryRole}`,
-      "provider",
-      "remote media HTTP download",
-      `Stage the ${secondaryRole} component as one local render input.`,
-      { provider: "remote asset host" }
-    ),
-    atomicStage(
-      workflowId,
-      4,
-      "stage-audio",
-      "provider",
-      "remote audio HTTP download",
-      "Stage the optional soundtrack as one local render input.",
-      { provider: "remote asset host", optional: true }
-    ),
-    stage(
-      workflowId,
-      5,
-      "build-render-command",
-      "Build format render command",
-      "deterministic",
-      "Build the format-specific FFmpeg graph from named, locally staged components."
-    ),
-    stage(
-      workflowId,
-      6,
-      "render-store-output",
-      "Render and store video",
-      "provider",
-      "Drive named inputs through Rendi upload, FFmpeg rendering, output download, and durable storage.",
-      {
-        ...compositeStage,
-        provider: "Rendi",
-        model: "FFmpeg",
-      }
-    ),
-    stage(
-      workflowId,
-      7,
-      "finalize-output",
-      "Finalize draft output",
-      "storage",
-      "Persist the canonical draft video output and its media references without publishing it.",
-      { ...compositeStage, sideEffect: "storage" }
-    ),
-    stage(
-      workflowId,
-      8,
-      "discard-staged-media",
-      "Discard staged media",
-      "deterministic",
-      "Remove local temporary source media after the durable output is complete."
-    ),
-    ...rendiProtocolStages(workflowId, 100),
   ]
 }
 

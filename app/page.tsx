@@ -1,5 +1,5 @@
-import Image from "next/image"
-import Link from "next/link"
+import Image from "next/image";
+import Link from "next/link";
 import {
   IconArrowRight,
   IconBolt,
@@ -12,14 +12,13 @@ import {
   IconRoute,
   IconSparkles,
   IconUsers,
-} from "@tabler/icons-react"
+} from "@tabler/icons-react";
 
 import {
   CTASection,
   MarketingFooter,
   MarketingNav,
-} from "@/components/marketing/marketing-shell"
-import { ClerkAuthButton } from "@/components/clerk-auth-button"
+} from "@/components/marketing/marketing-shell";
 
 const steps = [
   {
@@ -35,14 +34,14 @@ const steps = [
   {
     icon: IconRoute,
     title: "Run a repeatable workflow",
-    body: "Turn proven inputs into scripts, slideshows, creator assets, and queued content runs.",
+    body: "Generate scripts, hooks, captions, and slideshow copy from reusable inputs.",
   },
   {
     icon: IconCheck,
     title: "Review before publishing",
     body: "Inspect every generated artifact and keep approval between the model and your audience.",
   },
-]
+];
 
 const faqs = [
   [
@@ -55,17 +54,17 @@ const faqs = [
   ],
   [
     "Does content publish automatically?",
-    "Only when you choose that workflow. Review gates keep generated outputs private until they are approved.",
+    "Current text and slideshow generation runs on demand. Review your outputs before exporting or publishing; queued video generation is not available in the private beta.",
   ],
   [
     "Is each workspace private?",
-    "Yes. Templates, assets, runs, and generations are scoped to the signed-in Clerk user.",
+    "Yes. Your source library and generated outputs are private to your signed-in account.",
   ],
   [
     "What should I add first?",
     "Start with one reusable collection, one template, and one workflow you already repeat manually.",
   ],
-]
+];
 
 export default function LandingPage() {
   return (
@@ -83,16 +82,17 @@ export default function LandingPage() {
               Stop rebuilding every piece of content from scratch.
             </h1>
             <p className="mt-6 max-w-[54ch] text-lg leading-7 text-brand-muted">
-              Turn reusable assets and templates into repeatable workflows and
-              approved content runs.
+              Generate scripts, hooks, captions, and slideshow copy with AI.
+              Keep source material and saved outputs together in a private
+              workspace.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <ClerkAuthButton
-                authMode="sign-up"
+              <Link
+                href="/sign-up"
                 className="inline-flex items-center gap-2 rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white hover:bg-brand-accent-hover"
               >
                 Create account <IconArrowRight className="size-4" />
-              </ClerkAuthButton>
+              </Link>
               <Link
                 href="/product"
                 className="inline-flex items-center gap-2 rounded-app-control border border-brand-border-strong bg-white px-5 py-3 text-sm font-semibold hover:bg-brand-accent-soft"
@@ -249,8 +249,8 @@ export default function LandingPage() {
                 Templates with visible inputs.
               </h3>
               <p className="mt-4 text-sm leading-6 text-brand-muted">
-                Choose collections, text direction, and slide designs. Every run
-                saves its artifacts and status.
+                Choose collections, templates, and schedules. Every run saves
+                its artifacts and status.
               </p>
             </article>
             <article className="rounded-2xl bg-brand-surface p-7 shadow-app-card lg:col-span-5">
@@ -316,8 +316,8 @@ export default function LandingPage() {
               Your creative library belongs to your account.
             </h2>
             <p className="mt-6 max-w-[54ch] text-base leading-7 text-brand-muted">
-              Clerk authentication protects the workspace. Templates, assets,
-              generations, jobs, and results are scoped to the signed-in user.
+              Sign in to keep your source library, templates, and generated
+              outputs private to your account.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -376,7 +376,7 @@ export default function LandingPage() {
                 <ul className="mt-8 space-y-3 text-sm">
                   {[
                     "Private source library",
-                    "Templates and saved runs",
+                    "Templates and saved outputs",
                     "Creator assets and collections",
                     "Manual review gates",
                   ].map((item) => (
@@ -386,12 +386,12 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <ClerkAuthButton
-                  authMode="sign-up"
+                <Link
+                  href="/sign-up"
                   className="mt-9 inline-flex rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white"
                 >
                   Create account
-                </ClerkAuthButton>
+                </Link>
               </div>
               <div className="rounded-app-dialog bg-brand-ink p-7 text-white">
                 <p className="text-sm font-semibold text-brand-muted-on-dark">
@@ -440,5 +440,5 @@ export default function LandingPage() {
       </div>
       <MarketingFooter />
     </main>
-  )
+  );
 }

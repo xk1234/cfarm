@@ -1,7 +1,11 @@
 import type { SocialPlatformKey } from "@/lib/social/provider-contract"
-import type { PreviewMedia } from "@/features/composer/domain/media"
 
-export type { PreviewMedia } from "@/features/composer/domain/media"
+export interface PreviewMedia {
+  id: string
+  kind: "image" | "video"
+  url: string
+  alt?: string
+}
 
 export interface PlatformPreviewProps {
   platformKey: SocialPlatformKey | string

@@ -9,7 +9,7 @@ import {
 import {
   findCollectionByIdOrAlias,
   type CreatedImageCollection,
-} from "@/features/collections/domain/collections"
+} from "@/lib/realfarm-collections"
 import {
   automationCollectionIds,
   defaultAutomationSchema,
@@ -17,16 +17,8 @@ import {
   type AutomationSchema,
   type RuntimeAutomationTemplate,
 } from "@/lib/realfarm-automation"
-import {
-  automationRecordToSummary,
-  listAutomationRecords,
-  normalizeReelfarmAutomation,
-  upsertAutomationRecords,
-  type AutomationRecord,
-} from "@/lib/automations"
 import type { Automation } from "@/lib/realfarm-data"
-
-type LegacyStoredAutomationTemplate = {
+export type StoredAutomationTemplate = {
   id: string
   automationKind?: "slideshow" | "video" | "ugc"
   sourceAutomationId?: string
@@ -36,16 +28,15 @@ type LegacyStoredAutomationTemplate = {
   createdAt: string
   updatedAt: string
   schema: Omit<
-    AutomationSchema,
-    "created_at" | "title" | "status" | "schedule" | "social_integrations"
-  > & {
-    created_at: string
-  }
+  AutomationSchema,
+  "created_at" | "title" | "status" | "schedule" | "social_integrations"
+> & {
+  created_at: string
+}
 }
 
-export type StoredAutomationTemplate = AutomationRecord
-export type StoredAutomationTemplateSchema = AutomationRecord["schema"]
-export type AutomationTemplateRecord = AutomationRecord
+export type StoredAutomationTemplateSchema = StoredAutomationTemplate["schema"]
+export type AutomationTemplateRecord = StoredAutomationTemplate
 
 export type AutomationTemplateExampleRun = {
   id: string
@@ -71,7 +62,7 @@ export type AutomationTemplateCollectionValidationIssue = {
   missingCollectionIds: string[]
 }
 
-const defaultRootDir = path.join(process.cwd(), "data", "starter-templates")
+const defaultRootDir = path.join(process.cwd(), "data", "automation-templates")
 const dbFileName = "templates.json"
 const exampleRunsFileName = "example-runs.json"
 
@@ -79,7 +70,7 @@ export async function listAutomationTemplateRecords(
   options: { rootDir?: string } = {}
 ) {
   const rootDir = options.rootDir ?? defaultRootDir
-  return readJsonArrayStore<AutomationTemplateRecord>({
+  return readJsonArrayStore({
     rootDir,
     fileName: dbFileName,
     key: "templates",
@@ -113,13 +104,7 @@ export function groupAutomationTemplateExampleRunsByTemplateId(
   return Object.fromEntries(
     Object.entries(groups).map(([templateId, templateRuns]) => [
       templateId,
-      templateRuns
-        .toSorted(
-          (first, second) =>
-            new Date(second.createdAt).getTime() -
-            new Date(first.createdAt).getTime()
-        )
-        .slice(0, 3),
+      templateRuns.slice(0, 3),
     ])
   )
 }
@@ -188,54 +173,39 @@ function automationTemplateRecordForStorage(
 
 export function automationTemplateRecordToSummary(
   record: AutomationTemplateRecord
-) {
-  return automationRecordToSummary(record)
+): Automation {
+  return {
+    id: record.id,
+    automationKind: automationTemplateKind(record),
+    name: record.name,
+    // Templates are not lifecycle automations; the view type requires a status.
+    status: "live",
+    account: "",
+    handle: "",
+    times: [],
+    favorite: false,
+    theme: record.theme,
+    created_at: record.schema.created_at,
+    socialIntegrations: [],
+  }
 }
 
 export function automationTemplateSchemaToRuntime(
   record: AutomationTemplateRecord
 ): AutomationSchema {
   const summary = automationTemplateRecordToSummary(record)
-  return normalizeAutomationSchema(structuredClone(record.schema), summary)
-}
-
-export async function listUnifiedTemplateRecords() {
-  const [records, starterTemplates] = await Promise.all([
-    listAutomationRecords(),
-    listAutomationTemplateRecords(),
-  ])
-  const missingStarters = missingStarterTemplateRecords(
-    records,
-    starterTemplates
+  const base = defaultAutomationSchema(summary)
+  return normalizeAutomationSchema(
+    {
+      ...base,
+      ...structuredClone(record.schema),
+      created_at: new Date(record.schema.created_at),
+      social_integrations: [],
+      schedule: base.schedule,
+    },
+    summary
   )
-  if (missingStarters.length === 0) return records
 
-  return upsertAutomationRecords({ records: missingStarters })
-}
-
-export function missingStarterTemplateRecords(
-  records: AutomationRecord[],
-  starterTemplates: AutomationTemplateRecord[]
-) {
-  const existingIds = new Set(records.map((record) => record.id))
-  const existingSourceIds = new Set(
-    records.flatMap((record) =>
-      record.sourceAutomationId ? [record.sourceAutomationId] : []
-    )
-  )
-  return starterTemplates
-    .filter(
-      (record) =>
-        !existingIds.has(record.id) &&
-        (!record.sourceAutomationId ||
-          !existingSourceIds.has(record.sourceAutomationId))
-    )
-    .map((record) => ({
-      ...record,
-      hidden: true,
-      status: "paused" as const,
-      favorite: false,
-    }))
 }
 
 export function validateAutomationTemplateCollectionIds(input: {
@@ -275,7 +245,6 @@ export function automationTemplateRecordToRuntimeTemplate(
     image_collection_ids: schema.image_collection_ids,
     tone: schema.tone,
     formatting: schema.formatting,
-    slide_designs: schema.slide_designs,
     tiktok_post_settings: schema.tiktok_post_settings,
     web_search_enabled: schema.web_search_enabled,
     video_format: schema.video_format,
@@ -297,8 +266,7 @@ export function automationSchemaToTemplateRecord(input: {
     id: input.id,
     automationKind: input.schema.automationKind,
     name: input.name,
-    hidden: true,
-    status: "paused" as const,
+    status: "live",
     account: "",
     handle: "",
     times: [],
@@ -316,12 +284,10 @@ export function automationSchemaToTemplateRecord(input: {
   const schema = storedAutomationTemplateSchema(normalized)
   return {
     id: input.id,
+    automationKind: input.schema.automationKind,
     sourceAutomationId: input.sourceAutomationId,
     sourceUrl: input.sourceUrl,
     name: input.name,
-    hidden: true,
-    status: "paused",
-    favorite: false,
     theme: input.theme,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
@@ -329,79 +295,41 @@ export function automationSchemaToTemplateRecord(input: {
   }
 }
 
-export function reelfarmAutomationToTemplateRecord(raw: unknown) {
-  const automation = normalizeReelfarmAutomation(raw)
-  const sourceAutomationId = automation.sourceAutomationId ?? automation.id
-  return automationSchemaToTemplateRecord({
-    id: `template-reelfarm-${slugify(sourceAutomationId)}`,
-    sourceAutomationId,
-    sourceUrl: automation.sourceUrl,
-    name: sourceTemplateName(automation.name, automation.raw),
-    theme: automation.theme,
-    createdAt: automation.importedAt ?? automation.updatedAt,
-    updatedAt: automation.updatedAt,
-    schema: automation.schema,
-    hooks: sourceTemplateHooks(automation.raw),
-  })
-}
-
 function normalizeAutomationTemplateRecord(
   record: AutomationTemplateRecord
 ): AutomationTemplateRecord | null {
-  if (!record?.id || !record.name || !record.schema) {
+  if (
+    !record?.id ||
+    !record.name ||
+    !record.schema
+  ) {
     return null
   }
 
-  const legacy = record as AutomationTemplateRecord &
-    Partial<LegacyStoredAutomationTemplate>
-  const createdAt =
-    clean(legacy.createdAt) ||
-    clean(record.schema.created_at) ||
-    new Date().toISOString()
-  const summary: Automation = {
-    id: clean(record.id),
-    automationKind: automationTemplateKind(record),
-    name: clean(record.name),
-    hidden: typeof record.hidden === "boolean" ? record.hidden : true,
-    status: record.status === "live" ? ("live" as const) : ("paused" as const),
-    account: "",
-    handle: "",
-    times: [],
-    favorite: Boolean(record.favorite),
-    theme: clean(record.theme) || "template",
-    socialIntegrations: [],
-  }
-  const base = defaultAutomationSchema(summary)
-  const schema = normalizeAutomationSchema(
-    {
-      ...base,
-      ...structuredClone(record.schema),
-      created_at: new Date(createdAt),
-      social_integrations: record.schema.social_integrations ?? [],
-      schedule: record.schema.schedule ?? base.schedule,
-    },
-    summary
-  )
+  const schema = automationTemplateSchemaToRuntime(record)
   return {
     id: clean(record.id),
+    automationKind: automationTemplateKind(record),
     sourceAutomationId: clean(record.sourceAutomationId) || undefined,
     sourceUrl: clean(record.sourceUrl) || undefined,
     name: clean(record.name),
-    hidden: typeof record.hidden === "boolean" ? record.hidden : true,
-    status: record.status === "live" ? "live" : "paused",
-    favorite: Boolean(record.favorite),
     theme: clean(record.theme) || "template",
-    createdAt,
-    importedAt: clean(record.importedAt) || createdAt,
+    createdAt: clean(record.createdAt) || record.schema.created_at,
     updatedAt: clean(record.updatedAt) || new Date().toISOString(),
-    schema,
+    schema: storedAutomationTemplateSchema(schema),
   }
 }
 
 function storedAutomationTemplateSchema(
   schema: AutomationSchema
 ): StoredAutomationTemplateSchema {
-  return structuredClone(schema)
+  const stored = structuredClone(schema) as unknown as Record<string, unknown>
+  stored.created_at = new Date(schema.created_at).toISOString()
+  delete stored.title
+  delete stored.status
+  delete stored.schedule
+  delete stored.social_integrations
+  return stored as StoredAutomationTemplateSchema
 }
 
 function normalizeAutomationTemplateExampleRun(
@@ -437,63 +365,13 @@ function normalizeAutomationTemplateExampleRun(
 }
 
 function automationTemplateKind(
-  record: AutomationTemplateRecord | LegacyStoredAutomationTemplate | undefined
+  record: Pick<AutomationTemplateRecord, "automationKind"> | undefined
 ) {
-  const kind =
-    record && "automationKind" in record
-      ? record.automationKind
-      : record?.schema?.automationKind
-  return kind === "video" || kind === "ugc" ? kind : "slideshow"
+  return record?.automationKind === "video" || record?.automationKind === "ugc"
+    ? record.automationKind
+    : "slideshow"
 }
 
 function templateCollectionIds(record: AutomationTemplateRecord) {
   return automationCollectionIds(automationTemplateSchemaToRuntime(record))
-}
-
-function sourceTemplateName(
-  name: string,
-  raw: Record<string, unknown> | undefined
-) {
-  const reelfarmTitle =
-    typeof raw?.reelfarmTitle === "string" ? raw.reelfarmTitle.trim() : ""
-  const title = typeof raw?.title === "string" ? raw.title.trim() : ""
-  return (
-    reelfarmTitle ||
-    title ||
-    name.replace(/\s*\(template\s+\d+\)\s*$/i, "").trim()
-  )
-}
-
-function sourceTemplateHooks(raw: Record<string, unknown> | undefined) {
-  const hooks =
-    raw?.reelfarmSlideshowHooks ?? raw?.slideshow_hooks ?? raw?.hooks
-  const values = Array.isArray(hooks)
-    ? hooks
-    : typeof hooks === "string"
-      ? [hooks]
-      : []
-  const seen = new Set<string>()
-
-  return values.flatMap(splitHookText).filter((hook) => {
-    const normalized = hook.toLowerCase()
-    if (seen.has(normalized)) return false
-    seen.add(normalized)
-    return true
-  })
-}
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-}
-
-function splitHookText(value: unknown) {
-  return typeof value === "string"
-    ? value
-        .split(/\r?\n/)
-        .map((line) => line.trim().replace(/^\d+[.)]\s*/, ""))
-        .filter(Boolean)
-    : []
 }

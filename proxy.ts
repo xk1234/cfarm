@@ -1,59 +1,88 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 
 import { internalToolsEnabled } from "@/lib/internal-tools"
 
 const INTERNAL_PATH_PREFIXES = ["/debug", "/api/debug"] as const
 
+const PUBLIC_API_PATHS = [
+  "/api/search",
+  "/api/telegram/webhook",
+  "/api/tiktok-studio-analytics/capture",
+  "/api/tiktok-studio-analytics/cloud-sync",
+  "/api/v1/health",
+  "/api/v1/openapi.json",
+] as const
+
 function isPublicApi(pathname: string) {
   return (
-    pathname === "/api/search" ||
-    pathname.startsWith("/api/public/") ||
-    pathname.startsWith("/api/internal/windmill/") ||
-    pathname === "/api/telegram/webhook" ||
-    pathname === "/api/tiktok-comments/capture" ||
-    pathname === "/api/tiktok-comments/device" ||
-    pathname === "/api/tiktok-studio-analytics/capture" ||
-    pathname === "/api/tiktok-studio-analytics/cloud-sync"
+    PUBLIC_API_PATHS.includes(pathname as (typeof PUBLIC_API_PATHS)[number]) ||
+    pathname.startsWith("/api/public/")
   )
 }
 
-export default clerkMiddleware(async (auth, request) => {
-  const pathname = request.nextUrl.pathname
+function isAuthPage(pathname: string) {
+  return (
+    pathname === "/login" ||
+    pathname.startsWith("/login/") ||
+    pathname === "/sign-up" ||
+    pathname.startsWith("/sign-up/")
+  )
+}
 
+function isProtectedPage(pathname: string) {
+  return (
+    pathname === "/app" ||
+    pathname.startsWith("/app/") ||
+    pathname === "/debug" ||
+    pathname.startsWith("/debug/")
+  )
+}
+
+export default clerkMiddleware(async (auth, request: NextRequest) => {
   if (
     !internalToolsEnabled() &&
     INTERNAL_PATH_PREFIXES.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+      (prefix) =>
+        request.nextUrl.pathname === prefix ||
+        request.nextUrl.pathname.startsWith(`${prefix}/`)
     )
   ) {
     return new NextResponse(null, { status: 404 })
   }
 
-  if (isPublicApi(pathname)) return NextResponse.next()
+  const pathname = request.nextUrl.pathname
 
-  const protectedPage =
-    pathname === "/app" ||
-    pathname.startsWith("/app/") ||
-    pathname === "/debug" ||
-    pathname.startsWith("/debug/")
-  const protectedApi = pathname.startsWith("/api/")
-  if (!protectedPage && !protectedApi) return NextResponse.next()
+  if (pathname.startsWith("/__clerk/") || isPublicApi(pathname)) {
+    return NextResponse.next()
+  }
 
   const { userId } = await auth()
-  if (userId) return NextResponse.next()
 
-  if (protectedApi) {
+  if (userId) {
+    if (isAuthPage(pathname)) {
+      return NextResponse.redirect(new URL("/app", request.url))
+    }
+    return NextResponse.next()
+  }
+
+  if (
+    isAuthPage(pathname) ||
+    (!isProtectedPage(pathname) && !pathname.startsWith("/api/"))
+  ) {
+    return NextResponse.next()
+  }
+
+  if (pathname.startsWith("/api/")) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 }
     )
   }
 
-  const entry = new URL("/", request.url)
-  entry.searchParams.set("auth", "sign-in")
-  entry.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
-  return NextResponse.redirect(entry)
+  const login = new URL("/login", request.url)
+  login.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
+  return NextResponse.redirect(login)
 })
 
 export const config = {

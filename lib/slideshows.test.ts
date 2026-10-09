@@ -13,7 +13,7 @@ import {
 } from "vitest"
 
 import { clearTestTables } from "@/lib/test-helpers"
-import { mirrorAssetToAppwrite, readAssetBytes } from "@/lib/asset-storage"
+import { persistStoredAsset, readAssetBytes } from "@/lib/asset-storage"
 import { readJsonArrayStore } from "@/lib/json-store"
 import type * as SlideshowsModule from "@/lib/slideshows"
 
@@ -712,7 +712,7 @@ async function writeLocalAsset(fileName: string, value: string | Uint8Array) {
   const abs = path.join("data", "image-collections", "files", fileName)
   const bytes =
     typeof value === "string" ? new TextEncoder().encode(value) : value
-  await mirrorAssetToAppwrite(abs, bytes)
+  await persistStoredAsset(abs, bytes)
 }
 
 function outputDir(rootDir: string, record: { id: string }) {

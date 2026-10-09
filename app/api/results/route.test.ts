@@ -2,10 +2,8 @@ import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import { createResultRecord } from "@/lib/results"
 

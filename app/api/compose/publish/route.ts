@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server"
 
-import type { ComposerValue } from "@/features/composer/domain/composer"
+import type { ComposerValue } from "@/components/realfarm/composer/composer-types"
 import { getCurrentUser } from "@/lib/auth"
-import { resolveComposerSources } from "@/lib/compose-sources.server"
 import {
   composeLimitErrors,
   publishComposerValue,
@@ -33,16 +32,12 @@ export async function POST(request: Request) {
     payload?.mode === "schedule" ? "schedule" : "now"
   const scheduledAt =
     typeof payload?.scheduledAt === "string" ? payload.scheduledAt : undefined
+  const sourceId =
+    typeof payload?.outputId === "string" ? payload.outputId.trim() : undefined
 
   if (!value || selectedIds.length === 0) {
     return NextResponse.json(
       { error: "A composer value and at least one account are required" },
-      { status: 400 }
-    )
-  }
-  if (value.sourceOutputIds.length === 0) {
-    return NextResponse.json(
-      { error: "Choose at least one template output before publishing" },
       { status: 400 }
     )
   }
@@ -57,13 +52,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const sources = await resolveComposerSources(value.sourceOutputIds)
-    if (sources.length !== new Set(value.sourceOutputIds).size) {
-      return NextResponse.json(
-        { error: "One or more template outputs no longer exist" },
-        { status: 404 }
-      )
-    }
     const allowed = await listConnectedPostFastIntegrations(user.$id)
     const selected = allowed
       .filter((integration) => selectedIds.includes(integration.integration_id))
@@ -90,6 +78,7 @@ export async function POST(request: Request) {
       accounts: selected,
       mode,
       scheduledAt,
+      sourceId,
       uploadMedia: (url) => uploadThroughPostFastSeam(url, request),
     })
     const succeeded = result.results.filter((item) => item.ok)
@@ -130,11 +119,5 @@ function composerValue(value: unknown): ComposerValue | null {
     return null
   const base = record.base as Record<string, unknown>
   if (typeof base.text !== "string" || !Array.isArray(base.media)) return null
-  if (
-    !Array.isArray(record.sourceOutputIds) ||
-    record.sourceOutputIds.some((id) => typeof id !== "string")
-  ) {
-    return null
-  }
   return value as ComposerValue
 }

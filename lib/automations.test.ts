@@ -20,10 +20,10 @@ import {
 import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts):
-//   data/templates/automations.json          -> automations
-const rootDir = path.join(process.cwd(), "data", "templates")
+//   data/automations/automations.json          -> automations
+const rootDir = path.join(process.cwd(), "data", "automations")
 
-const clearAll = () => clearTestTables("templates")
+const clearAll = () => clearTestTables("automations")
 
 beforeEach(clearAll)
 afterAll(clearAll)
@@ -282,7 +282,7 @@ describe("automation import persistence", () => {
     await writeJsonArrayStore({
       rootDir,
       fileName: "automations.json",
-      key: "templates",
+      key: "automations",
       records: [record],
     })
 
@@ -297,19 +297,17 @@ describe("automation import persistence", () => {
       rootDir,
       id: record.id,
       name: "Renamed automation",
-      hidden: true,
       status: "live",
     })
 
     expect(updated).toMatchObject({
       name: "Renamed automation",
-      hidden: true,
       status: "live",
     })
     const [stored] = await readJsonArrayStore<Record<string, unknown>>({
       rootDir,
       fileName: "automations.json",
-      key: "templates",
+      key: "automations",
     })
     expect(stored).not.toHaveProperty("account")
     expect(stored).not.toHaveProperty("handle")
@@ -323,8 +321,7 @@ describe("automation import persistence", () => {
 
     expect(record).toMatchObject({
       name: "Daily product demos",
-      hidden: false,
-      status: "live",
+      status: "paused",
       favorite: false,
     })
     expect(automationRecordToSummary(record)).toMatchObject({
@@ -561,9 +558,10 @@ describe("automation import persistence", () => {
       },
     })
 
-    expect(local.schema.schedule).toEqual({
+    expect(local.schema.schedule).toMatchObject({
       timezone: "America/Los_Angeles",
       posting_times: [{ time: "9:30 AM", days: ["Mon"] }],
+      paused: true,
     })
     expect(local.schema).toMatchObject(template)
   })
@@ -572,7 +570,7 @@ describe("automation import persistence", () => {
     await writeJsonArrayStore({
       rootDir,
       fileName: "automations.json",
-      key: "templates",
+      key: "automations",
       records: [
         automationRecordFixture("delete-me"),
         automationRecordFixture("keep-me"),
@@ -584,7 +582,7 @@ describe("automation import persistence", () => {
     const stored = await readJsonArrayStore<{ id: string }>({
       rootDir,
       fileName: "automations.json",
-      key: "templates",
+      key: "automations",
     })
     expect(result?.id).toBe("delete-me")
     expect(stored.map((record) => record.id)).toEqual(["keep-me"])

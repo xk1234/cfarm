@@ -14,7 +14,7 @@ import {
   LINKEDIN_PRESET_VERSION,
 } from "@/lib/linkedin-post-presets"
 import { automationTemplateToTempSlideTestingAutomation } from "@/lib/temp-slide-testing"
-import { videoAutomationTemplatePresets } from "@/lib/video-automation-templates"
+import { builtInVideoTemplates } from "@/lib/video-automation-templates"
 import {
   hookStylesForPlatform,
   platformRules,
@@ -54,7 +54,7 @@ async function loadSlideshowTemplateItems(): Promise<
     const examplesByTemplate =
       groupAutomationTemplateExampleRunsByTemplateId(exampleRuns)
     const items = records
-      .filter((record) => record.schema.automationKind !== "video")
+      .filter((record) => record.automationKind !== "video")
       .map<AssetTemplateCatalogItem>((record) => {
         const automation =
           automationTemplateToTempSlideTestingAutomation(record)
@@ -101,7 +101,7 @@ async function loadSlideshowTemplateItems(): Promise<
           id: record.id,
           name: record.name,
           eyebrow: `${record.theme || "General"} slideshow`,
-          description: `${record.name} is a ${tone.toLowerCase()} slideshow template with ${automation.slides.length} configured slide slots. Its catalog definition supplies the hooks, media collections, text constraints, and publishing-ready runtime settings copied into a reusable template.`,
+          description: `${record.name} is a ${tone.toLowerCase()} slideshow template with ${automation.slides.length} configured slide slots. Its catalog definition supplies the hooks, media collections, and text constraints copied into an editable template.`,
           styleBrief: `Use the ${tone.toLowerCase()} tone while keeping every slide specific to its selected hook.`,
           metadata: [
             `${automation.slides.length} slides`,
@@ -156,15 +156,15 @@ async function loadSlideshowTemplateItems(): Promise<
 }
 
 export function VideoAutomationTemplateAssets() {
-  const items = videoAutomationTemplatePresets.map<AssetTemplateCatalogItem>(
-    (preset) => {
-      const format = preset.buildFormat()
+  const items = builtInVideoTemplates.map<AssetTemplateCatalogItem>(
+    (template) => {
+      const format = template.buildFormat()
       const globalDirections = format.globalTextItems.map(textDirection)
       const sections = [
         ...(globalDirections.length > 0
           ? [
               {
-                id: `${preset.id}-global`,
+                id: `${template.id}-global`,
                 title: "Global text overlay",
                 description:
                   "Text remains available across the video rather than belonging to one segment.",
@@ -188,11 +188,11 @@ export function VideoAutomationTemplateAssets() {
       ]
 
       return {
-        id: preset.id,
-        name: preset.name,
+        id: template.id,
+        name: template.name,
         eyebrow: "Video template",
-        description: preset.description,
-        styleBrief: preset.tagline,
+        description: template.description,
+        styleBrief: template.tagline,
         metadata: [
           `${format.segments.length} segment${format.segments.length === 1 ? "" : "s"}`,
           `${format.globalTextItems.length + format.segments.reduce((total, segment) => total + segment.textItems.length, 0)} text direction${format.globalTextItems.length === 1 ? "" : "s"}`,
@@ -201,10 +201,10 @@ export function VideoAutomationTemplateAssets() {
         sectionsLabel: "Segments and content directions",
         sections,
         settings: {
-          id: preset.id,
-          name: preset.name,
-          tagline: preset.tagline,
-          description: preset.description,
+          id: template.id,
+          name: template.name,
+          tagline: template.tagline,
+          description: template.description,
           format,
         },
       }
@@ -218,10 +218,10 @@ export function OtherAutomationTemplateAssets() {
   const items: AssetTemplateCatalogItem[] = [
     socialTemplateItem({
       id: "x-posts",
-      name: "X post template",
-      eyebrow: "Social text template",
+      name: "X text template",
+      eyebrow: "Text template",
       description:
-        "Generates either a single X post or an educational thread by selecting a weighted archetype, compatible hook style, and reusable voice preset before deterministic validation.",
+        "Generates either a single X post or an educational thread by selecting a weighted archetype, compatible hook style, and reusable voice before deterministic validation.",
       styleBrief:
         "Front-load the value, remain inside X character limits, and use proof-gated structures only when evidence is supplied.",
       archetypes: xPostArchetypes,
@@ -235,8 +235,8 @@ export function OtherAutomationTemplateAssets() {
     }),
     socialTemplateItem({
       id: "threads-posts",
-      name: "Threads post template",
-      eyebrow: "Social text template",
+      name: "Threads text template",
+      eyebrow: "Text template",
       description:
         "Generates short, identity-led Threads posts from a weighted mix of callouts, questions, analogies, micro-stories, credibility claims, and community-code humor.",
       styleBrief:
@@ -252,8 +252,8 @@ export function OtherAutomationTemplateAssets() {
     }),
     socialTemplateItem({
       id: "linkedin-posts",
-      name: "LinkedIn post template",
-      eyebrow: "Social text template",
+      name: "LinkedIn text template",
+      eyebrow: "Text template",
       description:
         "Builds structured LinkedIn posts from production-tested archetypes, hook formulas, proof-aware voices, and strict output validation for length and unsupported claims.",
       styleBrief:
@@ -353,7 +353,7 @@ function TemplateCatalogError({ error }: { error: unknown }) {
         The slideshow template catalog could not be loaded.
       </p>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        Start the shared Appwrite stack and reload this page. {message}
+        Start the shared Railway stack and reload this page. {message}
       </p>
     </div>
   )

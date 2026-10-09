@@ -2,12 +2,14 @@ import crypto from "node:crypto"
 import { NextResponse } from "next/server"
 
 import { markReminderGenerationPosted } from "@/lib/reminder-actions"
+import { eq } from "drizzle-orm"
 import {
   getReminderSettings,
   telegramBotRequest,
 } from "@/lib/reminder-settings"
-import { railwayJobRepository } from "@/lib/railway/job-repository"
 import { withSystemOwner } from "@/lib/system-owner-context"
+import { getRailwayOrm } from "@/lib/railway/database"
+import { jobs } from "@/lib/railway/schema"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
   let botToken: string | undefined
   try {
     const job = await reminderJob(jobId)
-    const ownerId = job.ownerId
+    const ownerId = String(job.owner_id ?? "")
     const payload = parsePayload(job.payload)
     if (
       job.type !== "send-notification" ||
@@ -78,24 +80,25 @@ function validWebhookSecret(request: Request) {
 }
 
 async function reminderJob(id: string) {
-  const job = await railwayJobRepository.get(id)
-  if (!job) throw new Error("Reminder job not found")
-  return job
+  const rows = await getRailwayOrm()
+    .select()
+    .from(jobs)
+    .where(eq(jobs.id, id))
+    .limit(1)
+  const row = rows[0]
+  if (!row) throw new Error("Reminder job not found")
+  return {
+    owner_id: row.ownerId,
+    type: row.jobType,
+    status: row.status,
+    payload: row.payload,
+  }
 }
 
 function parsePayload(value: unknown): Record<string, unknown> {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-  if (typeof value !== "string") return {}
-  try {
-    const parsed = JSON.parse(value)
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed
-      : {}
-  } catch {
-    return {}
-  }
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
 }
 
 function callbackValue(value: unknown): TelegramCallback | null {

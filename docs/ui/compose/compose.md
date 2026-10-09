@@ -3,7 +3,7 @@ title: Compose
 description: Create one post for selected connected social accounts and publish it now or schedule it for later.
 ---
 
-Route: `/app/compose`
+Route: `/app?view=compose`
 
 ![Desktop compose](../assets/screenshots/desktop-compose.png)
 
@@ -11,8 +11,8 @@ Route: `/app/compose`
 
 ## Layout
 
-Owner: `features/composer/ui/composer-screen.tsx`. The editor itself is owned by
-`features/composer/ui/post-composer.tsx`.
+Owner: `app/app/compose/compose-demo.tsx`. The editor itself is owned by
+`components/realfarm/composer/post-composer.tsx`.
 
 The header shows every connected publishing account. Desktop renders the
 accounts as wrapping selection buttons. Mobile uses a collapsed account summary
@@ -25,8 +25,8 @@ treated as an image or video. A network-specific area follows with a text
 override, media override, provider-specific fields, character count, and live
 preview for the active account. Desktop uses a horizontally scrollable tab row
 and places the editor beside the preview. Below the `sm` breakpoint, the tab row
-is replaced by a full-width network select and the two columns stack, which
-keeps the network tabs from overflowing on narrow viewports.
+is replaced by a full-width network select and the two columns stack. This is
+the current fix for the network-tab overflow visible in the July mobile capture.
 
 A sticky action panel holds the local date and time field, Schedule, and Post
 now. On phones it stacks the date field above the two equal-width actions. The

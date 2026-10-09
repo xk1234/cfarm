@@ -10,7 +10,7 @@ import type {
   PostFastPostStatus,
   PostFastSourceType,
   PostFastStatsSource,
-} from "@/lib/publication-contract"
+} from "@/lib/postfast-posts"
 
 export type PostLifecycleStatus =
   "generated" | "ready" | "scheduled" | "published" | "failed"
@@ -21,6 +21,7 @@ export type PostLinkState =
 export type PostOrigin =
   | "automation_generation"
   | "composer"
+  | "publish_gate"
   | "manual_link"
   | "postfast_publish"
   | "postfast_sync"
@@ -214,7 +215,12 @@ export function postFromPostFastRecord(
     statsSources: normalizeStatsSources(record.statsSources),
     content: clean(record.content),
     hashtags: [],
-    media: record.media.map(mediaFromPostFast),
+    media:
+      record.media.length > 0
+        ? record.media.map(mediaFromPostFast)
+        : record.thumbnailUrl
+          ? [{ kind: "thumbnail", url: record.thumbnailUrl, order: 0 }]
+          : [],
     scheduledAt: record.scheduledAt,
     publishedAt: record.publishedAt,
     lastSyncedAt: record.lastSyncedAt,
@@ -245,6 +251,9 @@ export function postToPostFastRecord(post: Post): PostFastPostRecord {
     scheduledAt: post.scheduledAt,
     publishedAt: post.publishedAt,
     releaseUrl: post.releaseUrl,
+    thumbnailUrl: [...post.media]
+      .sort((left, right) => left.order - right.order)
+      .find((media) => media.url)?.url,
     linkState:
       post.linkState === "postfast_managed"
         ? "postfast_published"
@@ -450,6 +459,7 @@ function normalizeOrigin(value: unknown): PostOrigin | null {
   return [
     "automation_generation",
     "composer",
+    "publish_gate",
     "manual_link",
     "postfast_publish",
     "postfast_sync",

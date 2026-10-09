@@ -1,14 +1,10 @@
 import {
   automationFormatSection,
   automationPublishType,
-  automationSlideDesigns,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
-import {
-  findCollectionByIdOrAlias,
-  type CreatedImageCollection,
-} from "@/features/collections/domain/collections"
+import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import { defaultAutomationLanguage } from "@/lib/slideshow-publishing-config"
 import { slideshowStageForRunStatus } from "@/lib/slideshow-lifecycle"
 
@@ -161,9 +157,6 @@ export function canDeleteCompletedSlideshow(run: AutomationRunApiRecord) {
 }
 
 export function runDurationSeconds(run: AutomationRunApiRecord) {
-  if (typeof run.durationSeconds === "number") {
-    return Math.max(0, run.durationSeconds)
-  }
   const slides = automationRunSlides(run)
   const durationMs = slides.reduce(
     (total, slide) => total + Math.max(0, slide.durationMs ?? 0),
@@ -299,15 +292,9 @@ export function automationGenerationIssue(
   config: AutomationSchema,
   collections: CreatedImageCollection[]
 ) {
-  const hasSequenceImages = automationSlideDesigns(config).some(
-    (design) =>
-      (findCollectionByIdOrAlias(collections, design.collectionId)?.images
-        .length ?? 0) > 0
-  )
-  const hasLegacyImages =
-    formatCollectionImages(config, collections, "hook").length > 0 ||
-    formatCollectionImages(config, collections, "content").length > 0
-  if (!hasSequenceImages && !hasLegacyImages) {
+  const hookImages = formatCollectionImages(config, collections, "hook")
+  const contentImages = formatCollectionImages(config, collections, "content")
+  if (hookImages.length === 0 && contentImages.length === 0) {
     return "Choose an image collection with at least one image before generating."
   }
   return undefined
@@ -316,19 +303,17 @@ export function automationGenerationIssue(
 export function generationPlaceholderSlides(
   config: AutomationSchema
 ): AutomationRunApiSlide[] {
-  const aspectRatio =
-    automationSlideDesigns(config)[0]?.aspect_ratio ??
-    automationFormatSection(config, "hook").aspect_ratio
+  const hookSection = automationFormatSection(config, "hook")
 
   return [
     {
       id: "placeholder-generating",
       role: "hook",
-      imageUrl: generatingSlidePlaceholderDataUrl(aspectRatio),
+      imageUrl: generatingSlidePlaceholderDataUrl(hookSection.aspect_ratio),
       imageCaption: "",
       text: "",
       durationMs: 0,
-      aspectRatio,
+      aspectRatio: hookSection.aspect_ratio,
     },
   ]
 }

@@ -10,7 +10,7 @@ import type {
   TikTokPostMode,
   TikTokPublishType,
   TikTokVisibility,
-} from "@/lib/automation-base-contract"
+} from "@/lib/realfarm-automation"
 import {
   defaultAutomationLanguage,
   defaultAutomationPublishType,

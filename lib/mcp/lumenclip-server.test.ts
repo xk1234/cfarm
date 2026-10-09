@@ -3,6 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createLocalAutomationRecord } from "@/lib/automations"
+import type { GeneratedVideoExport } from "@/lib/generated-videos"
 import type { UgcRunStatus } from "@/lib/ugc-run-status"
 import type { AutomationRunRecord } from "@/lib/automation-runner"
 import type { StoredImageCollection } from "@/lib/image-collections"
@@ -20,10 +21,7 @@ import type {
   AccountFollowerSnapshot,
   PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
-import {
-  automationSlideDesigns,
-  schemaWithAutomationCollectionId,
-} from "@/lib/realfarm-automation"
+import { schemaWithAutomationCollectionId } from "@/lib/realfarm-automation"
 import { verifySlideshowShareToken } from "@/lib/slideshow-share"
 import type { SlideshowRecord } from "@/lib/slideshows"
 import { defaultXAutomation } from "@/lib/x-automation"
@@ -80,9 +78,6 @@ describe("LumenClip MCP server", () => {
     const client = await connectClient()
     const tools = await client.listTools()
     const toolNames = tools.tools.map((tool) => tool.name)
-    const pipelineRun = tools.tools.find(
-      (tool) => tool.name === "lumenclip_pipeline_run"
-    )
 
     expect(toolNames.sort()).toEqual([...LUMENCLIP_MCP_TOOL_NAMES].sort())
     expect(toolNames).toContain("lumenclip_tiktok_studio_analytics_report")
@@ -90,24 +85,10 @@ describe("LumenClip MCP server", () => {
     expect(toolNames).not.toContain(
       "lumenclip_tiktok_studio_analytics_batch_preview"
     )
-    expect(pipelineRun?.inputSchema).not.toHaveProperty("properties.requestId")
-    expect(pipelineRun?.inputSchema).not.toHaveProperty("properties.startAt")
-    expect(pipelineRun?.inputSchema).not.toHaveProperty("properties.stopAfter")
   })
 
-  it("runs a named production workflow", async () => {
-    const queuePipelineWorkflow = vi.fn(
-      async (
-        input: Parameters<LumenClipMcpServices["queuePipelineWorkflow"]>[0]
-      ) => ({
-        workflowId: input.workflowId,
-        requestId: "pipeline-test",
-        status: "queued" as const,
-        jobId: "windmill-job-1",
-        flowPath: "f/lumenclip/linkedin_generation",
-      })
-    )
-    const client = await connectClient({ queuePipelineWorkflow })
+  it("runs a named production workflow or one exact registered stage", async () => {
+    const client = await connectClient()
     const stageInput = {
       niche: "B2B SaaS onboarding",
       persona: "practitioner",
@@ -123,12 +104,6 @@ describe("LumenClip MCP server", () => {
       workflows: expect.arrayContaining([
         expect.objectContaining({
           id: "slideshow-generation",
-          inputs: [
-            "automation_id",
-            "hook",
-            "scheduled_for",
-            "generation_source",
-          ],
           stages: expect.arrayContaining([
             expect.objectContaining({
               id: "slideshow-generation.select-one-slide-image",
@@ -146,25 +121,113 @@ describe("LumenClip MCP server", () => {
       ]),
     })
 
+    const single = await client.callTool({
+      name: "lumenclip_pipeline_stage_run",
+      arguments: {
+        stageId: "linkedin-generation.validate-input",
+        input: stageInput,
+        requestId: "linkedin-stage-test",
+      },
+    })
     const workflow = await client.callTool({
       name: "lumenclip_pipeline_run",
       arguments: {
         workflowId: "linkedin-generation",
         input: stageInput,
+        requestId: "linkedin-stage-test",
+        stopAfter: "linkedin-generation.validate-input",
       },
+    })
+    const selectedImage = await client.callTool({
+      name: "lumenclip_pipeline_stage_run",
+      arguments: {
+        stageId: "slideshow-generation.select-one-slide-image",
+        input: {
+          shortlist: {
+            slideId: "content-1",
+            slideText: "A supplied shortlist",
+            aiImageSelection: false,
+            candidates: [
+              {
+                id: "image-1",
+                imageUrl: "/api/assets/image-1.jpg",
+                caption: "One candidate",
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    expect(single.structuredContent).toMatchObject({
+      stage: { id: "linkedin-generation.validate-input" },
+      status: "succeeded",
+      output: { normalizedInput: { niche: "B2B SaaS onboarding", count: 2 } },
     })
     expect(workflow.structuredContent).toMatchObject({
       workflowId: "linkedin-generation",
-      status: "queued",
-      jobId: "windmill-job-1",
-      flowPath: "f/lumenclip/linkedin_generation",
+      status: "succeeded",
+      completedStages: 1,
+      output: (single.structuredContent as { output: unknown }).output,
     })
-    expect(queuePipelineWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: "linkedin-generation",
-        ownerId: "owner-1",
-        workflowInput: stageInput,
-      })
+    expect(selectedImage.structuredContent).toMatchObject({
+      stage: { id: "slideshow-generation.select-one-slide-image" },
+      externalCalls: 0,
+      output: {
+        selectedImage: {
+          slideId: "content-1",
+          id: "image-1",
+        },
+      },
+    })
+  })
+
+  it("forks a whole workflow input through MCP", async () => {
+    const forkWorkflow = vi.fn(async () => ({
+      groupId: "workflow-fork-1",
+      parentRunId: "run-1",
+      runs: [],
+    }))
+    const client = await connectClient({
+      forkSlideshowWorkflow: forkWorkflow,
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_workflow_fork",
+      arguments: {
+        parentRunId: "run-1",
+        scope: "input",
+        inputPath: "/messages/1/content",
+        variations: [{ name: "Shorter", replacement: "Use a shorter prompt." }],
+      },
+    })
+
+    expect(result.structuredContent).toEqual({
+      groupId: "workflow-fork-1",
+      parentRunId: "run-1",
+      runs: [],
+    })
+    expect(forkWorkflow).toHaveBeenCalledWith("owner-1", {
+      parentRunId: "run-1",
+      stageId: "generate-text",
+      scope: "input",
+      path: "/messages/1/content",
+      selectionStart: undefined,
+      selectionEnd: undefined,
+      selectedText: undefined,
+      variations: [{ name: "Shorter", replacement: "Use a shorter prompt." }],
+    })
+  })
+
+  it("removes disabled APIs from MCP discovery", async () => {
+    const client = await connectClient(
+      {},
+      { disabledToolNames: ["lumenclip_workflow_fork"] }
+    )
+    const tools = await client.listTools()
+
+    expect(tools.tools.map((tool) => tool.name)).not.toContain(
+      "lumenclip_workflow_fork"
     )
   })
 
@@ -212,13 +275,13 @@ describe("LumenClip MCP server", () => {
     })
 
     const inspected = await client.callTool({
-      name: "lumenclip_template_experiment_dimensions",
-      arguments: { templateId: "automation-1" },
+      name: "lumenclip_automation_experiment_dimensions",
+      arguments: { automationId: "automation-1" },
     })
     const run = await client.callTool({
-      name: "lumenclip_template_experiment_run",
+      name: "lumenclip_automation_experiment_run",
       arguments: {
-        templateId: "automation-1",
+        automationId: "automation-1",
         vary: [
           {
             dimension: "contentDirection",
@@ -299,7 +362,7 @@ describe("LumenClip MCP server", () => {
 
   it.each([
     {
-      name: "lumenclip_templates_list",
+      name: "lumenclip_automations_list",
       arguments: {},
       overrides: {
         listAutomationRecords: vi.fn(async () => {
@@ -335,8 +398,8 @@ describe("LumenClip MCP server", () => {
       },
     },
     {
-      name: "lumenclip_template_get",
-      arguments: { templateId: "automation-just-written" },
+      name: "lumenclip_automation_get",
+      arguments: { automationId: "automation-just-written" },
       overrides: {
         getAutomationRecord: vi.fn(async () => {
           throw appwriteReadQuotaError()
@@ -394,18 +457,11 @@ describe("LumenClip MCP server", () => {
     )
   })
 
-  it("updates template metadata without a schedule mutation surface", async () => {
+  it("pauses a slideshow automation and its schedule", async () => {
     const current = automationRecord()
     const patch = vi.fn(
-      async (input: {
-        name?: string
-        hidden?: boolean
-        status?: string
-        schema?: unknown
-      }) => ({
+      async (input: { status?: string; schema?: unknown }) => ({
         ...current,
-        name: input.name ?? current.name,
-        hidden: input.hidden ?? current.hidden,
         status:
           input.status === "paused" ? ("paused" as const) : current.status,
         schema: input.schema
@@ -423,24 +479,22 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_template_update",
-      arguments: {
-        templateId: current.id,
-        name: "Renamed template",
-        hidden: true,
-      },
+      name: "lumenclip_automation_update",
+      arguments: { automationId: current.id, action: "pause" },
     })
 
     expect(result.structuredContent).toMatchObject({
       id: current.id,
-      name: "Renamed template",
-      hidden: true,
+      status: "paused",
+      schedule: { paused: true },
     })
     expect(patch).toHaveBeenCalledWith(
       expect.objectContaining({
         id: current.id,
-        name: "Renamed template",
-        hidden: true,
+        status: "paused",
+        schema: expect.objectContaining({
+          schedule: expect.objectContaining({ paused: true }),
+        }),
       })
     )
   })
@@ -485,11 +539,11 @@ describe("LumenClip MCP server", () => {
     })
 
     const read = await client.callTool({
-      name: "lumenclip_template_hooks_get",
-      arguments: { templateId: current.id },
+      name: "lumenclip_automation_hooks_get",
+      arguments: { automationId: current.id },
     })
     expect(read.structuredContent).toMatchObject({
-      templateId: current.id,
+      automationId: current.id,
       total: 3,
       duplicateSlotCount: 1,
       duplicateGroups: [
@@ -500,16 +554,16 @@ describe("LumenClip MCP server", () => {
     })
 
     const update = await client.callTool({
-      name: "lumenclip_template_hooks_update",
+      name: "lumenclip_automation_hooks_update",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         expectedUpdatedAt: current.updatedAt,
         deduplicateNearMatches: true,
         hooks: current.schema.hooks,
       },
     })
     expect(update.structuredContent).toMatchObject({
-      templateId: current.id,
+      automationId: current.id,
       total: 2,
       duplicateSlotCount: 0,
     })
@@ -557,11 +611,11 @@ describe("LumenClip MCP server", () => {
     })
 
     const read = await client.callTool({
-      name: "lumenclip_template_get",
-      arguments: { templateId: current.id },
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
     })
     expect(read.structuredContent).toMatchObject({
-      template: {
+      automation: {
         schema: {
           automationKind: "slideshow",
           formatting: expect.any(Array),
@@ -571,13 +625,14 @@ describe("LumenClip MCP server", () => {
     })
 
     const upserted = await client.callTool({
-      name: "lumenclip_template_hook_upsert",
+      name: "lumenclip_automation_hook_upsert",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         hooks: [
           {
             id: "hook-new",
             text: "A new hook",
+            bodySlideCount: 12,
             tone: "Shadow voice",
           },
         ],
@@ -590,15 +645,16 @@ describe("LumenClip MCP server", () => {
         expect.objectContaining({
           id: "hook-new",
           enabled: true,
+          bodySlideCount: 12,
           tone: "Shadow voice",
         }),
       ]),
     })
 
     const malformed = await client.callTool({
-      name: "lumenclip_template_hook_upsert",
+      name: "lumenclip_automation_hook_upsert",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         hooks: [
           {
             id: "hook-malformed",
@@ -607,19 +663,19 @@ describe("LumenClip MCP server", () => {
         ],
       },
     })
-    expect(malformed.isError).toBe(true)
-    expect(malformed.content).toEqual([
-      expect.objectContaining({
-        text: expect.stringContaining(
-          "Dynamic slide-count hooks are no longer supported"
-        ),
-      }),
-    ])
+    expect(malformed.structuredContent).toMatchObject({
+      hookWarnings: [
+        expect.objectContaining({
+          hookId: "hook-malformed",
+          code: "NUMERIC_TOKEN_MISSING_NOUN",
+        }),
+      ],
+    })
 
     const disabled = await client.callTool({
-      name: "lumenclip_template_hook_set_enabled",
+      name: "lumenclip_automation_hook_set_enabled",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         hookIds: ["hook-new"],
         enabled: false,
       },
@@ -632,16 +688,16 @@ describe("LumenClip MCP server", () => {
     })
 
     const deleted = await client.callTool({
-      name: "lumenclip_template_hook_delete",
+      name: "lumenclip_automation_hook_delete",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         hookIds: ["hook-new"],
         confirmDelete: true,
       },
     })
     expect(deleted.structuredContent).toMatchObject({
       deletedHookIds: ["hook-new"],
-      total: 1,
+      total: 2,
     })
   })
 
@@ -661,12 +717,12 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_template_get",
-      arguments: { templateId: current.id },
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
     })
 
     expect(result.structuredContent).toMatchObject({
-      template: {
+      automation: {
         unresolvedCollectionReferences: [
           "collection-mystical-pictures-deleted",
           "collection-deleted-override",
@@ -677,7 +733,7 @@ describe("LumenClip MCP server", () => {
           id: "replace-missing-collection-references",
           severity: "required",
           tool: "lumenclip_collections_list",
-          blocks: ["lumenclip_template_run"],
+          blocks: ["lumenclip_automation_run"],
         }),
       ],
     })
@@ -718,12 +774,12 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_template_get",
-      arguments: { templateId: current.id },
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
     })
 
     expect(result.structuredContent).toMatchObject({
-      template: {
+      automation: {
         configurationWarnings: expect.arrayContaining([
           expect.objectContaining({
             code: "BODY_TEXT_LAYERS_COLLAPSED",
@@ -738,7 +794,7 @@ describe("LumenClip MCP server", () => {
       nextSteps: expect.arrayContaining([
         expect.objectContaining({
           id: "restore-body-heading-and-paragraph-layers",
-          tool: "lumenclip_template_schema_update",
+          tool: "lumenclip_automation_schema_update",
           args: expect.objectContaining({
             mode: "patch",
             schema: {
@@ -802,18 +858,18 @@ describe("LumenClip MCP server", () => {
     })
 
     const first = await client.callTool({
-      name: "lumenclip_template_clone",
+      name: "lumenclip_automation_clone",
       arguments: {
-        sourceTemplateId: source.id,
+        sourceAutomationId: source.id,
         name: "Astrology rankings",
         expectedUpdatedAt: source.updatedAt,
         requestId: "clone-rankings-1",
       },
     })
     const second = await client.callTool({
-      name: "lumenclip_template_clone",
+      name: "lumenclip_automation_clone",
       arguments: {
-        sourceTemplateId: source.id,
+        sourceAutomationId: source.id,
         name: "Astrology rankings",
         expectedUpdatedAt: source.updatedAt,
         requestId: "clone-rankings-1",
@@ -822,8 +878,8 @@ describe("LumenClip MCP server", () => {
 
     expect(first.structuredContent).toMatchObject({
       created: true,
-      sourceTemplateId: source.id,
-      template: {
+      sourceAutomationId: source.id,
+      automation: {
         name: "Astrology rankings",
         status: "paused",
         schema: {
@@ -846,7 +902,7 @@ describe("LumenClip MCP server", () => {
     expect(upsert).toHaveBeenCalledTimes(1)
   })
 
-  it("patches slide designs and their text items without replacing the schema", async () => {
+  it("patches formatting blocks and text items without replacing the schema", async () => {
     let current = automationRecord()
     const initialUpdatedAt = current.updatedAt
     current.schema.hooks = [
@@ -858,21 +914,13 @@ describe("LumenClip MCP server", () => {
       },
     ]
     const originalSocialSettings = current.schema.social_post_settings
-    const firstDesign = automationSlideDesigns(current.schema)[0]!
-    const textItemId = firstDesign.textItems[0]!.id
-    current.schema.slide_designs = automationSlideDesigns(current.schema).map(
-      (design) =>
-        design.id === firstDesign.id
-          ? {
-              ...design,
-              textItems: design.textItems.map((item) =>
-                item.id === textItemId
-                  ? { ...item, wordLengthMin: 20, wordLengthMax: 25 }
-                  : item
-              ),
-            }
-          : design
-    )
+    const body = current.schema.formatting.find((block) => block.id === "body")!
+    body.textItems[0] = {
+      ...body.textItems[0],
+      id: "text-body-paragraph",
+      wordLengthMin: 20,
+      wordLengthMax: 25,
+    }
     const patch = vi.fn(
       async ({
         schema,
@@ -900,46 +948,54 @@ describe("LumenClip MCP server", () => {
       now: () => new Date("2026-07-23T12:00:00.000Z"),
     })
 
-    const designResult = await client.callTool({
-      name: "lumenclip_template_slide_design_update",
+    const blockResult = await client.callTool({
+      name: "lumenclip_automation_formatting_update",
       arguments: {
-        templateId: current.id,
-        designId: firstDesign.id,
+        automationId: current.id,
+        blockId: "body",
         expectedUpdatedAt: current.updatedAt,
         patch: {
-          name: "Opening claim",
-          instructions: "Use for a concise first claim.",
-          collectionId: "mystical-pictures",
-          overlay: false,
+          slideCountMode: "dynamic",
+          slideCountMin: 5,
+          slideCountMax: 12,
+          slideOverrides: [
+            { slideIndex: 2, contentDirection: "Compare the second sign" },
+          ],
+          imageOverrides: [
+            { slideIndex: 2, collectionId: "mystical-pictures" },
+          ],
         },
       },
     })
-    expect(designResult.structuredContent).toMatchObject({
-      templateId: current.id,
-      slideDesign: {
-        id: firstDesign.id,
-        name: "Opening claim",
-        instructions: "Use for a concise first claim.",
-        collectionId: "mystical-pictures",
-        overlay: false,
+    expect(blockResult.structuredContent).toMatchObject({
+      automationId: current.id,
+      block: {
+        id: "body",
+        slideCountMode: "varying",
+        slideCountMin: 5,
+        slideCountMax: 12,
+        slideOverrides: [
+          { slideIndex: 2, contentDirection: "Compare the second sign" },
+        ],
+        imageOverrides: [{ slideIndex: 2, collectionId: "mystical-pictures" }],
       },
     })
 
     const textResult = await client.callTool({
-      name: "lumenclip_template_slide_text_item_update",
+      name: "lumenclip_automation_text_item_update",
       arguments: {
-        templateId: current.id,
-        designId: firstDesign.id,
-        textItemId,
+        automationId: current.id,
+        blockId: "body",
+        textItemId: "text-body-paragraph",
         expectedUpdatedAt: current.updatedAt,
         patch: { wordLengthMin: 15, wordLengthMax: 18 },
       },
     })
     expect(textResult.structuredContent).toMatchObject({
-      templateId: current.id,
-      designId: firstDesign.id,
+      automationId: current.id,
+      blockId: "body",
       textItem: {
-        id: textItemId,
+        id: "text-body-paragraph",
         wordLengthMin: 15,
         wordLengthMax: 18,
       },
@@ -969,12 +1025,12 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_template_get",
-      arguments: { templateId: current.id },
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
     })
 
     expect(result.structuredContent).toMatchObject({
-      template: {
+      automation: {
         schema: {
           hook_slots: { sign: "zodiac" },
           hook_slot_overrides: { SIGN: "zodiac" },
@@ -1002,9 +1058,9 @@ describe("LumenClip MCP server", () => {
       nextSteps: [
         expect.objectContaining({
           id: "remove-unused-hook-slot-overrides",
-          tool: "lumenclip_template_schema_update",
+          tool: "lumenclip_automation_schema_update",
           args: expect.objectContaining({
-            templateId: current.id,
+            automationId: current.id,
             schema: { hook_slots: { ZODIAC_CUSP: null } },
           }),
         }),
@@ -1012,11 +1068,11 @@ describe("LumenClip MCP server", () => {
     })
 
     const bindings = await client.callTool({
-      name: "lumenclip_template_variable_bindings_get",
-      arguments: { templateId: current.id },
+      name: "lumenclip_automation_variable_bindings_get",
+      arguments: { automationId: current.id },
     })
     expect(bindings.structuredContent).toMatchObject({
-      templateId: current.id,
+      automationId: current.id,
       bindings: [
         expect.objectContaining({ token: "[[SIGN]]", source: "override" }),
         expect.objectContaining({
@@ -1058,9 +1114,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_template_hook_upsert",
+      name: "lumenclip_automation_hook_upsert",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         hooks: [{ id: "bad-sign", text: "Why [[SIGN]] always wins" }],
       },
     })
@@ -1134,7 +1190,7 @@ describe("LumenClip MCP server", () => {
     })
 
     const first = await client.callTool({
-      name: "lumenclip_template_create",
+      name: "lumenclip_automation_create",
       arguments: {
         name: "Created by MCP",
         kind: "slideshow",
@@ -1143,7 +1199,7 @@ describe("LumenClip MCP server", () => {
       },
     })
     const second = await client.callTool({
-      name: "lumenclip_template_create",
+      name: "lumenclip_automation_create",
       arguments: {
         name: "Created by MCP",
         kind: "slideshow",
@@ -1157,9 +1213,9 @@ describe("LumenClip MCP server", () => {
       nextSteps: [
         expect.objectContaining({
           severity: "recommended",
-          tool: "lumenclip_template_clone",
+          tool: "lumenclip_automation_clone",
           args: expect.objectContaining({
-            sourceTemplateId: "automation-seed",
+            sourceAutomationId: "automation-seed",
           }),
         }),
       ],
@@ -1172,7 +1228,7 @@ describe("LumenClip MCP server", () => {
 
     const performance = await client.callTool({
       name: "lumenclip_hook_performance",
-      arguments: { templateId: "automation-1", days: 30 },
+      arguments: { automationId: "automation-1", days: 30 },
     })
     expect(performance.structuredContent).toMatchObject({
       performance: [
@@ -1204,7 +1260,7 @@ describe("LumenClip MCP server", () => {
     const failedJob = {
       ...ugcJob(current.id),
       id: "job-failed",
-      type: "run-template",
+      type: "run-automation",
       status: "failed" as const,
       error: "Generation failed",
       payload: {
@@ -1299,6 +1355,23 @@ describe("LumenClip MCP server", () => {
         async () => []
       ) as unknown as LumenClipMcpServices["postfastRequest"],
       now: () => new Date("2026-07-18T00:00:00.000Z"),
+    })
+
+    const schedule = await client.callTool({
+      name: "lumenclip_schedule_get",
+      arguments: { from: "2026-07-18T00:00:00.000Z", days: 2, limit: 50 },
+    })
+    expect(schedule.structuredContent).toMatchObject({
+      calendarItems: {
+        items: expect.arrayContaining([
+          expect.objectContaining({ status: "generation_failed" }),
+          expect.objectContaining({ status: "needs_action" }),
+        ]),
+        summary: expect.objectContaining({
+          generation_failed: 1,
+          needs_action: 1,
+        }),
+      },
     })
 
     const assets = await client.callTool({
@@ -1500,9 +1573,6 @@ describe("LumenClip MCP server", () => {
       previewUrl: expect.stringMatching(
         /^https:\/\/studio\.example\.com\/share\/slideshows\//
       ),
-      workflowUrl: expect.stringMatching(
-        /^https:\/\/studio\.example\.com\/share\/workflows\//
-      ),
       downloadUrl: expect.stringMatching(
         /^https:\/\/studio\.example\.com\/api\/public\/slideshows\/.+\/download\?token=/
       ),
@@ -1536,83 +1606,48 @@ describe("LumenClip MCP server", () => {
     })
   })
 
-  it("exposes a complete workflow trace and every addressed stage", async () => {
+  it("returns signed public delivery links for a ready generated video", async () => {
     vi.stubEnv("BASE_URL", "https://studio.example.com")
-    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
-    const automation = automationRecord()
-    const run = generatedRun(automation.id)
-    run.plan.debug = {
-      textModelPrompt: {
-        messages: [{ role: "user", content: "Generate the slideshow" }],
-      } as never,
+    vi.stubEnv("OUTPUT_SHARE_SECRET", "video-test-secret")
+    const video: GeneratedVideoExport = {
+      id: "ugc-output-1",
+      type: "ugc_ad",
+      status: "ready",
+      createdAt: "2026-07-22T12:00:00.000Z",
+      updatedAt: "2026-07-22T12:01:00.000Z",
+      title: "Product demo",
+      description: "A useful product demo.",
+      hashtags: ["#product"],
+      sourceConfig: { automationId: "automation-ugc", runId: "run-ugc" },
+      videoUrl: "/api/local-assets/ugc_avatar_videos/owner-1/run-ugc/video.mp4",
+      previewUrl:
+        "/api/local-assets/ugc_avatar_videos/owner-1/run-ugc/thumbnail.jpg",
     }
-    const slideshow = generatedSlideshow(run)
     const client = await connectClient({
-      listAutomationRuns: vi.fn(async () => [run]),
-      getAutomationRecord: vi.fn(async () => automation),
-      listSlideshowRecords: vi.fn(async () => [slideshow]),
+      listAutomationRuns: vi.fn(async () => []),
+      listGeneratedVideoExports: vi.fn(async () => [video]),
+      getGeneratedVideoExport: vi.fn(async (id) =>
+        id === video.id ? video : null
+      ),
+      listXAutomationRuns: vi.fn(async () => []),
+      listPostFastPostRecords: vi.fn(async () => []),
+      listMetricSnapshots: vi.fn(async () => []),
     })
 
-    const trace = await client.callTool({
-      name: "lumenclip_workflow_trace_get",
-      arguments: { outputId: run.slideshowId },
-    })
-    const traceContent = trace.structuredContent as {
-      workflowId: string
-      runId: string
-      outputId: string
-      workflowUrl: string
-      stages: Array<{
-        id: string
-        input: unknown
-        output: unknown
-      }>
-    }
-    expect(traceContent.workflowId).toBe("slideshow-generation")
-    expect(traceContent.runId).toBe(run.id)
-    expect(traceContent.outputId).toBe(run.slideshowId)
-    expect(traceContent.workflowUrl).toMatch(
-      /^https:\/\/studio\.example\.com\/share\/workflows\//
-    )
-    expect(traceContent.stages).toHaveLength(11)
-    expect(traceContent.stages.map((stage) => stage.id)).not.toEqual(
-      expect.arrayContaining([
-        "slideshow-generation.research-hook",
-        "slideshow-generation.retry-text-similarity",
-        "slideshow-generation.derive-visual-concepts",
-        "slideshow-generation.translate-plan",
-        "slideshow-generation.render-store-mp4",
-      ])
-    )
-    expect(
-      traceContent.stages.find(
-        (candidate) => candidate.id === "slideshow-generation.build-text-prompt"
-      )
-    ).toMatchObject({
-      id: "slideshow-generation.build-text-prompt",
-      input: expect.any(Object),
-      output: {
-        promptPayload: {
-          messages: [{ role: "user", content: "Generate the slideshow" }],
-        },
-      },
+    const inspected = await client.callTool({
+      name: "lumenclip_output_get",
+      arguments: { outputId: video.id },
     })
 
-    const stage = await client.callTool({
-      name: "lumenclip_workflow_stage_get",
-      arguments: {
-        outputId: run.slideshowId,
-        stageId: "slideshow-generation.generate-slide-text",
-      },
-    })
-    expect(stage.structuredContent).toMatchObject({
-      runId: run.id,
-      outputId: run.slideshowId,
-      stage: {
-        id: "slideshow-generation.generate-slide-text",
-        input: expect.any(Object),
-        output: expect.objectContaining({ title: run.plan.title }),
-      },
+    expect(inspected.structuredContent).toMatchObject({
+      id: video.id,
+      outputType: "video",
+      publicViewUrl: expect.stringMatching(
+        /^https:\/\/studio\.example\.com\/share\/videos\/ugc-output-1\?token=/
+      ),
+      downloadUrl: expect.stringMatching(
+        /^https:\/\/studio\.example\.com\/api\/public\/videos\/ugc-output-1\/media\?kind=video&download=1&token=/
+      ),
     })
   })
 
@@ -1748,31 +1783,31 @@ describe("LumenClip MCP server", () => {
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
     const current = automationRecord()
     const run = relativeRun(current.id)
-    const runWorkflow = vi.fn(async () => completedWorkflow(run, "request-1"))
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      listAutomationRuns: vi.fn(async () => [run]),
-      runPipelineWorkflow: runWorkflow,
+      runDueAutomations:
+        generate as unknown as LumenClipMcpServices["runDueAutomations"],
     })
 
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         requestId: "request-1",
         hook: "My exact slideshow hook",
       },
     })
 
-    expect(runWorkflow).toHaveBeenCalledWith({
-      workflowId: "slideshow-generation",
-      ownerId: "owner-1",
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
       requestId: "request-1",
-      workflowInput: {
-        automationId: current.id,
-        generationSource: "manual",
-        hook: "My exact slideshow hook",
-      },
+      hook: "My exact slideshow hook",
     })
 
     const summary = (
@@ -1814,15 +1849,16 @@ describe("LumenClip MCP server", () => {
     const run = relativeRun(current.id)
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      listAutomationRuns: vi.fn(async () => [run]),
-      runPipelineWorkflow: vi.fn(async () =>
-        completedWorkflow(run, "request-1")
-      ),
+      runDueAutomations: vi.fn(async () => ({
+        created: [run],
+        results: [],
+        skipped: [],
+      })) as unknown as LumenClipMcpServices["runDueAutomations"],
     })
 
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
-      arguments: { templateId: current.id, requestId: "request-1" },
+      arguments: { automationId: current.id, requestId: "request-1" },
     })
 
     const summary = (
@@ -1860,15 +1896,16 @@ describe("LumenClip MCP server", () => {
     const run = relativeRun(current.id)
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      listAutomationRuns: vi.fn(async () => [run]),
-      runPipelineWorkflow: vi.fn(async () =>
-        completedWorkflow(run, "request-1")
-      ),
+      runDueAutomations: vi.fn(async () => ({
+        created: [run],
+        results: [],
+        skipped: [],
+      })) as unknown as LumenClipMcpServices["runDueAutomations"],
     })
 
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
-      arguments: { templateId: current.id, requestId: "request-1" },
+      arguments: { automationId: current.id, requestId: "request-1" },
     })
 
     const summary = (
@@ -1903,7 +1940,7 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_templates_list",
+      name: "lumenclip_automations_list",
       arguments: { limit: 20 },
     })
 
@@ -1918,78 +1955,35 @@ describe("LumenClip MCP server", () => {
     })
   })
 
-  it("lists starter definitions through the same hidden template contract", async () => {
-    const starter = {
-      ...automationRecord(),
-      id: "starter-astrology",
-      name: "Astrology starter",
-      hidden: true,
-      status: "paused" as const,
-    }
-    const upsert = vi.fn(
-      async (input: { records: (typeof starter)[] }) => input.records
-    )
-    const client = await connectClient({
-      listAutomationRecords: vi.fn(async () => []),
-      listAutomationTemplateRecords: vi.fn(async () => [starter]),
-      upsertAutomationRecords:
-        upsert as unknown as LumenClipMcpServices["upsertAutomationRecords"],
-      listImageCollections: vi.fn(async () => []),
-      listXAutomations: vi.fn(async () => []),
-      listAutomationRuns: vi.fn(async () => []),
-      listXAutomationRuns: vi.fn(async () => []),
-    })
-
-    const result = await client.callTool({
-      name: "lumenclip_templates_list",
-      arguments: { visibility: "hidden" },
-    })
-
-    expect(result.structuredContent).toMatchObject({
-      total: 1,
-      items: [
-        {
-          id: "starter-astrology",
-          name: "Astrology starter",
-          hidden: true,
-          kind: "slideshow",
-        },
-      ],
-    })
-    expect(upsert).toHaveBeenCalledWith({ records: [starter] })
-  })
-
   it("runs a slideshow through the general retry-safe automation tool", async () => {
     const current = automationRecord()
     const run = generatedRun(current.id)
     run.plan.slides[0].text = Array.from({ length: 20 }, () => "word").join(" ")
-    const runWorkflow = vi.fn(async () =>
-      completedWorkflow(run, "general-run-1")
-    )
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      listAutomationRuns: vi.fn(async () => [run]),
-      runPipelineWorkflow: runWorkflow,
+      listAutomationRuns: vi.fn(async () => []),
+      runDueAutomations: generate,
     })
 
     const result = await client.callTool({
-      name: "lumenclip_template_run",
+      name: "lumenclip_automation_run",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         requestId: "general-run-1",
         hook: "My exact MCP hook",
       },
     })
 
-    expect(runWorkflow).toHaveBeenCalledWith({
-      workflowId: "slideshow-generation",
-      ownerId: "owner-1",
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
       requestId: "general-run-1",
-      workflowInput: {
-        automationId: current.id,
-        generationSource: "manual",
-        hook: "My exact MCP hook",
-      },
+      hook: "My exact MCP hook",
     })
     expect(result.structuredContent).toMatchObject({
       operation: { id: run.id, status: "succeeded" },
@@ -2006,7 +2000,7 @@ describe("LumenClip MCP server", () => {
       nextSteps: [
         expect.objectContaining({
           severity: "required",
-          tool: "lumenclip_template_run",
+          tool: "lumenclip_automation_run",
           blocks: ["lumenclip_output_publish"],
         }),
       ],
@@ -2051,7 +2045,7 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_hook_variants_generate",
-      arguments: { templateId: current.id, count: 2 },
+      arguments: { automationId: current.id, count: 2 },
     })
 
     expect(generateVariants).toHaveBeenCalledWith(current.schema, {
@@ -2061,7 +2055,7 @@ describe("LumenClip MCP server", () => {
       now: new Date("2026-08-01T12:00:00.000Z"),
     })
     expect(result.structuredContent).toMatchObject({
-      templateId: current.id,
+      automationId: current.id,
       count: 2,
       variants,
       nextAction: { tool: "lumenclip_hook_variant_select" },
@@ -2069,13 +2063,13 @@ describe("LumenClip MCP server", () => {
 
     const invalid = await client.callTool({
       name: "lumenclip_hook_variants_generate",
-      arguments: { templateId: current.id, count: 1 },
+      arguments: { automationId: current.id, count: 1 },
     })
     expect(invalid.isError).toBe(true)
 
     const tooMany = await client.callTool({
       name: "lumenclip_hook_variants_generate",
-      arguments: { templateId: current.id, count: 11 },
+      arguments: { automationId: current.id, count: 11 },
     })
     expect(tooMany.isError).toBe(true)
     expect(generateVariants).toHaveBeenCalledTimes(1)
@@ -2086,33 +2080,31 @@ describe("LumenClip MCP server", () => {
     const run = generatedRun(current.id)
     run.plan.hook = "Selected exact hook"
     run.plan.slides[0].text = "Selected exact hook"
-    const runWorkflow = vi.fn(async () =>
-      completedWorkflow(run, "selected-hook-1")
-    )
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      listAutomationRuns: vi.fn(async () => [run]),
-      runPipelineWorkflow: runWorkflow,
+      listAutomationRuns: vi.fn(async () => []),
+      runDueAutomations: generate,
     })
 
     const result = await client.callTool({
       name: "lumenclip_hook_variant_select",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         selectedHook: "Selected exact hook",
         requestId: "selected-hook-1",
       },
     })
 
-    expect(runWorkflow).toHaveBeenCalledWith({
-      workflowId: "slideshow-generation",
-      ownerId: "owner-1",
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
       requestId: "selected-hook-1",
-      workflowInput: {
-        automationId: current.id,
-        generationSource: "manual",
-        hook: "Selected exact hook",
-      },
+      hook: "Selected exact hook",
     })
     expect(result.structuredContent).toMatchObject({
       outputs: [
@@ -2177,7 +2169,7 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_templates_list",
+      name: "lumenclip_automations_list",
       arguments: { kind: "ugc", limit: 20 },
     })
 
@@ -2193,59 +2185,56 @@ describe("LumenClip MCP server", () => {
     })
   })
 
-  it("runs draft-only UGC generation through Windmill", async () => {
+  it("queues draft-only UGC generation through the general automation tool", async () => {
     const current = ugcAutomationRecord()
-    const video = {
-      id: "ugc-output-1",
-      type: "ugc_ad" as const,
-      status: "ready" as const,
-      createdAt: "2026-07-22T12:00:00.000Z",
-      updatedAt: "2026-07-22T12:01:00.000Z",
-      title: "UGC draft",
-      description: "",
-      hashtags: [],
-      sourceAutomationId: current.id,
-      sourceConfig: {
-        templateId: current.id,
-        requestId: "ugc-request-1",
-      },
-    }
-    const runWorkflow = vi.fn(async () => ({
-      workflowId: "ugc-video-generation" as const,
-      requestId: "ugc-request-1",
-      status: "succeeded" as const,
-      jobId: "windmill-ugc-request-1",
-      flowPath: "f/lumenclip/ugc_video_generation",
-      result: {},
+    const job = ugcJob(current.id)
+    const enqueue = vi.fn(async () => ({
+      id: job.id,
+      status: "enqueued" as const,
     }))
+    const slideshowRunner = vi.fn()
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      runPipelineWorkflow: runWorkflow,
-      listGeneratedVideoExports: vi.fn(async () => [video]),
+      enqueueJob: enqueue,
+      getJob: vi.fn(async () => job),
+      runDueAutomations: slideshowRunner,
+      ugcGenerationEnabled: () => true,
       now: () => new Date("2026-07-22T12:00:00.000Z"),
     })
 
     const result = await client.callTool({
-      name: "lumenclip_template_run",
+      name: "lumenclip_automation_run",
       arguments: {
-        templateId: current.id,
+        automationId: current.id,
         requestId: "ugc-request-1",
       },
     })
 
-    expect(runWorkflow).toHaveBeenCalledWith({
-      workflowId: "ugc-video-generation",
-      ownerId: "owner-1",
-      requestId: "ugc-request-1",
-      workflowInput: { templateId: current.id },
-    })
+    expect(slideshowRunner).not.toHaveBeenCalled()
+    expect(enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run-ugc-automation",
+        dedupeKey: `ugc-mcp:${current.id}:ugc-request-1`,
+        payload: expect.objectContaining({
+          automationId: current.id,
+          requestId: "ugc-request-1",
+          draftOnly: true,
+        }),
+      })
+    )
     expect(result.structuredContent).toMatchObject({
-      operation: {
-        id: video.id,
-        kind: "video.generate",
-        status: "succeeded",
-      },
-      outputs: [{ id: video.id, outputType: "video" }],
+      automationId: current.id,
+      requestId: "ugc-request-1",
+      expectedOutputId: expect.stringMatching(/^ugc-/),
+      estimate: { currency: "USD", totalUsd: expect.any(Number) },
+      operation: { id: job.id, kind: "ugc.generate", status: "running" },
+      outputs: [],
+      nextActions: [
+        {
+          tool: "lumenclip_operation_get",
+          arguments: { operationId: job.id },
+        },
+      ],
     })
   })
 
@@ -2259,19 +2248,157 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_ugc_estimate",
-      arguments: {
-        templateId: current.id,
-        actorSource: "collection",
-        actorCollectionId: "actor-portraits",
-        lipSyncTier: "premium",
-      },
+      arguments: { automationId: current.id, lipSyncTier: "premium" },
     })
 
     expect(enqueue).not.toHaveBeenCalled()
     expect(result.structuredContent).toMatchObject({
-      templateId: current.id,
+      automationId: current.id,
       estimate: { currency: "USD", tier: "premium" },
-      assumptions: { actorSource: "collection", lipSyncTier: "premium" },
+      assumptions: { lipSyncTier: "premium" },
+    })
+  })
+
+  it("reads progress for a queued UGC operation", async () => {
+    const current = ugcAutomationRecord()
+    const job = { ...ugcJob(current.id), status: "processing" as const }
+    const client = await connectClient({
+      getJob: vi.fn(async () => job),
+      getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
+        id: "ugcrun-progress",
+        automationId: current.id,
+        scheduledFor: String(
+          (job.payload as Record<string, unknown>).scheduledFor
+        ),
+        status: "voice",
+        error: null,
+        checkpoints: {},
+        stages: [
+          { name: "analysis", status: "done", assetPaths: [] },
+          { name: "script", status: "done", assetPaths: [] },
+          { name: "actor", status: "done", assetPaths: [] },
+          { name: "voice", status: "active", assetPaths: [] },
+          { name: "motion", status: "pending", assetPaths: [] },
+          { name: "lipsync", status: "pending", assetPaths: [] },
+          { name: "broll", status: "pending", assetPaths: [] },
+          { name: "composite", status: "pending", assetPaths: [] },
+          { name: "store", status: "pending", assetPaths: [] },
+          { name: "publish", status: "pending", assetPaths: [] },
+        ],
+        createdAt: "2026-07-22T12:00:01.000Z",
+        updatedAt: "2026-07-22T12:00:10.000Z",
+      })),
+      getGeneratedVideoExport: vi.fn(async () => null),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_operation_get",
+      arguments: { operationId: job.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      operation: {
+        id: job.id,
+        kind: "ugc.generate",
+        status: "running",
+        stage: "voice",
+        progress: 30,
+      },
+      outputs: [],
+    })
+  })
+
+  it("reports a completed UGC checkpoint as a successful stage operation", async () => {
+    const current = ugcAutomationRecord()
+    const baseJob = ugcJob(current.id)
+    const job = {
+      ...baseJob,
+      status: "completed" as const,
+      payload: {
+        ...(baseJob.payload as Record<string, unknown>),
+        stopAfter: "voice",
+      },
+    }
+    const client = await connectClient({
+      getJob: vi.fn(async () => job),
+      getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
+        id: "ugcrun-voice",
+        automationId: current.id,
+        scheduledFor: String(
+          (job.payload as Record<string, unknown>).scheduledFor
+        ),
+        status: "voice",
+        error: null,
+        checkpoints: { voice: { storagePath: "ugc/voice.wav" } },
+        stages: [
+          { name: "analysis", status: "done", assetPaths: [] },
+          { name: "script", status: "done", assetPaths: [] },
+          { name: "actor", status: "done", assetPaths: [] },
+          {
+            name: "voice",
+            status: "done",
+            assetPaths: ["ugc/voice.wav"],
+          },
+          { name: "motion", status: "pending", assetPaths: [] },
+          { name: "lipsync", status: "pending", assetPaths: [] },
+          { name: "broll", status: "pending", assetPaths: [] },
+          { name: "composite", status: "pending", assetPaths: [] },
+          { name: "store", status: "pending", assetPaths: [] },
+          { name: "publish", status: "pending", assetPaths: [] },
+        ],
+        createdAt: "2026-07-22T12:00:01.000Z",
+        updatedAt: "2026-07-22T12:00:10.000Z",
+      })),
+      getGeneratedVideoExport: vi.fn(async () => null),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_operation_get",
+      arguments: { operationId: job.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      operation: {
+        id: job.id,
+        kind: "ugc.stage.voice",
+        status: "succeeded",
+        stage: "voice",
+        progress: 100,
+      },
+      outputs: [],
+      errors: [],
+    })
+  })
+
+  it("returns no_images as a structured non-error skip from automation_run", async () => {
+    const current = automationRecord()
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      runDueAutomations: vi.fn(async () => ({
+        created: [],
+        results: [],
+        skipped: [{ automationId: current.id, reason: "no_images" as const }],
+      })),
+      now: () => new Date("2026-07-19T12:00:00.000Z"),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_run",
+      arguments: {
+        automationId: current.id,
+        requestId: "no-images-1",
+      },
+    })
+
+    expect(result.isError).not.toBe(true)
+    expect(result.structuredContent).toMatchObject({
+      automationId: current.id,
+      requestId: "no-images-1",
+      operation: { status: "failed", stage: "precondition" },
+      outputs: [],
+      skipped: [{ automationId: current.id, reason: "no_images" }],
+      errors: [{ code: "COLLECTION_EMPTY", retryable: true }],
     })
   })
 
@@ -2969,15 +3096,21 @@ describe("MCP analytics report", () => {
   })
 })
 
-async function connectClient(overrides: Partial<LumenClipMcpServices> = {}) {
-  const server = createLumenClipMcpServer("owner-1", {
-    getAutomationRecord: vi.fn(async () => null),
-    listAutomationRecords: vi.fn(async () => []),
-    listAutomationTemplateRecords: vi.fn(async () => []),
-    listAutomationRuns: vi.fn(async () => []),
-    listTikTokStudioAnalyticsImports: vi.fn(async () => []),
-    ...overrides,
-  })
+async function connectClient(
+  overrides: Partial<LumenClipMcpServices> = {},
+  options: { disabledToolNames?: Iterable<string> } = {}
+) {
+  const server = createLumenClipMcpServer(
+    "owner-1",
+    {
+      getAutomationRecord: vi.fn(async () => null),
+      listAutomationRecords: vi.fn(async () => []),
+      listAutomationRuns: vi.fn(async () => []),
+      listTikTokStudioAnalyticsImports: vi.fn(async () => []),
+      ...overrides,
+    },
+    options
+  )
   const client = new Client({ name: "lumenclip-test", version: "1.0.0" })
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()
@@ -3038,7 +3171,7 @@ function ugcAutomationRecord() {
 function ugcJob(automationId: string): Job {
   return {
     id: "job-ugc-1",
-    type: "run-ugc-template",
+    type: "run-ugc-automation",
     status: "queued",
     payload: {
       automationId,
@@ -3054,25 +3187,6 @@ function ugcJob(automationId: string): Job {
     createdAt: "2026-07-22T12:00:00.000Z",
     updatedAt: "2026-07-22T12:00:00.000Z",
     ownerId: "owner-1",
-  }
-}
-
-function completedWorkflow(
-  run: AutomationRunRecord,
-  requestId = run.requestId || "request-1",
-  workflowId:
-    "slideshow-generation" | "ugc-video-generation" = "slideshow-generation"
-) {
-  return {
-    workflowId,
-    requestId,
-    status: "succeeded" as const,
-    jobId: `windmill-${requestId}`,
-    flowPath:
-      workflowId === "ugc-video-generation"
-        ? "f/lumenclip/ugc_video_generation"
-        : "f/lumenclip/slideshow_generation",
-    result: { run: { id: run.id } },
   }
 }
 

@@ -2,6 +2,7 @@ import path from "node:path"
 
 import { clean } from "@/lib/guards"
 import { readJsonArrayStore } from "@/lib/json-store"
+import type { ProductSalesInspiration } from "@/lib/product-sales-inspirations"
 
 export type ProductCollectionItem = {
   id: string
@@ -15,8 +16,21 @@ export type ProductCollectionItem = {
   estimatedCommission: number
   storeImageUrl: string
   generatedImageUrl: string
+  media?: ProductCollectionMedia[]
+  salesInspirations?: ProductSalesInspiration[]
+  rating?: number
+  reviewCount?: number
   useCase: string
   sourcedAt: string
+}
+
+export type ProductCollectionMedia = {
+  id: string
+  type: "image" | "video"
+  role: "primary" | "gallery"
+  url: string
+  sourceUrl?: string
+  mimeType?: string
 }
 
 export type ProductCollection = {
@@ -50,12 +64,19 @@ function normalizeProductCollection(value: ProductCollection) {
     ...value,
     id,
     name,
-    items: value.items.filter(
-      (item) =>
-        clean(item?.id) &&
-        clean(item?.marketplaceUrl) &&
-        clean(item?.storeImageUrl) &&
-        clean(item?.generatedImageUrl)
-    ),
+    items: value.items
+      .filter(
+        (item) =>
+          clean(item?.id) &&
+          clean(item?.marketplaceUrl) &&
+          clean(item?.storeImageUrl) &&
+          clean(item?.generatedImageUrl)
+      )
+      .map((item) => ({
+        ...item,
+        salesInspirations: Array.isArray(item.salesInspirations)
+          ? item.salesInspirations
+          : [],
+      })),
   }
 }

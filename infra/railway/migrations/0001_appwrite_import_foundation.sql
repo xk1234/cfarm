@@ -2,10 +2,6 @@ CREATE TABLE IF NOT EXISTS app_users (
   id text PRIMARY KEY,
   email text NOT NULL,
   name text NOT NULL DEFAULT '',
-  email_verified boolean NOT NULL DEFAULT false,
-  password_hash text,
-  requires_password_reset boolean NOT NULL DEFAULT true,
-  preferences jsonb NOT NULL DEFAULT '{}'::jsonb,
   appwrite_created_at timestamptz,
   appwrite_updated_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -14,20 +10,6 @@ CREATE TABLE IF NOT EXISTS app_users (
 
 CREATE UNIQUE INDEX IF NOT EXISTS app_users_email_unique
   ON app_users (lower(email));
-
-CREATE TABLE IF NOT EXISTS auth_sessions (
-  id text PRIMARY KEY,
-  user_id text NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
-  secret_hash text NOT NULL UNIQUE,
-  expires_at timestamptz NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  last_seen_at timestamptz NOT NULL DEFAULT now(),
-  revoked_at timestamptz
-);
-
-CREATE INDEX IF NOT EXISTS auth_sessions_user_active
-  ON auth_sessions (user_id, expires_at)
-  WHERE revoked_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS domain_records (
   table_name text NOT NULL,

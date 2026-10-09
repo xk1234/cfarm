@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth"
 import { acceptWorkspaceInvitation } from "@/lib/workspace-members"
 
 const schema = z.object({
-  inviteToken: z.string().min(1).max(128),
+  token: z.string().min(10).max(256),
 })
 
 export async function POST(request: Request) {
@@ -22,7 +22,10 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   try {
-    await acceptWorkspaceInvitation({ ...parsed.data, user })
+    await acceptWorkspaceInvitation({
+      token: parsed.data.token,
+      user,
+    })
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json(

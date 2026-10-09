@@ -12,7 +12,6 @@ describe("WorkflowArtifactPreview", () => {
             {
               id: "slide-1",
               slide: 1,
-              role: "hook",
               text: "The Libra habit nobody notices",
               renderedImageUrl: "/slides/one.png",
             },

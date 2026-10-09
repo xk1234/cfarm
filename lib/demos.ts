@@ -1,13 +1,22 @@
 import "server-only"
 
-import { ID } from "node-appwrite"
-import { InputFile } from "node-appwrite/file"
+import { randomUUID } from "node:crypto"
+import path from "node:path"
 
-import { RecordQuery as Query } from "@/lib/record-query"
-import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
+import {
+  deleteDomainRecord,
+  getDomainRecord,
+  putDomainRecords,
+} from "@/lib/railway/domain-record-store"
+import {
+  readRailwayObject,
+  railwayObjectKey,
+  deleteRailwayObject,
+  putRailwayObject,
+} from "@/lib/railway/object-storage"
+import { ownedRowIdFor } from "@/lib/store-identity"
 
 const TABLE = "demos"
-const BUCKET = "demos"
 
 export type DemoVideo = {
   id: string
@@ -16,20 +25,59 @@ export type DemoVideo = {
   url: string
 }
 
+type DemoPayload = {
+  id: string
+  ownerId: string
+  title: string
+  contentType: string
+  storagePath: string
+  createdAt: string
+}
+
+function demoRowId(ownerId: string, id: string) {
+  return ownedRowIdFor(TABLE, ownerId, id, 0)
+}
+
 export async function listDemoVideos(ownerId: string): Promise<DemoVideo[]> {
-  const aw = getRuntimeStore()
-  const response = await aw.records.listRows(RUNTIME_DATABASE_ID, TABLE, [
-    Query.equal("owner_id", [ownerId]),
-    Query.limit(100),
-  ])
-  return response.rows
-    .map((row) => ({
-      id: String(row.$id),
-      title: String(row.title),
-      createdAt: String(row.created_at),
-      url: `/api/settings/demos/${row.$id}`,
+  const rows = await listDemoRecords(ownerId, 100)
+  return rows
+    .map((row) => row.payload as DemoPayload)
+    .map((payload) => ({
+      id: payload.id,
+      title: payload.title,
+      createdAt: payload.createdAt,
+      url: `/api/settings/demos/${payload.id}`,
     }))
     .toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+}
+
+async function listDemoRecords(
+  ownerId: string,
+  limit: number
+): Promise<Array<{ rowId: string; payload: DemoPayload }>> {
+  const { listDomainRecords } = await import(
+    "@/lib/railway/domain-record-store"
+  )
+  const records = await listDomainRecords({
+    table: TABLE,
+    ownerIds: [ownerId],
+    limit,
+    order: "desc",
+  })
+  return records.flatMap((record) =>
+    isDemoPayload(record.payload)
+      ? [{ rowId: record.rowId, payload: record.payload }]
+      : []
+  )
+}
+
+function isDemoPayload(value: unknown): value is DemoPayload {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      typeof (value as DemoPayload).id === "string" &&
+      typeof (value as DemoPayload).storagePath === "string"
+  )
 }
 
 export async function createDemoVideo(input: {
@@ -37,36 +85,63 @@ export async function createDemoVideo(input: {
   title: string
   file: File
 }) {
-  const aw = getRuntimeStore()
-  const id = ID.unique()
+  const id = `demo-${randomUUID()}`
   const bytes = Buffer.from(await input.file.arrayBuffer())
-  const stored = await aw.objects.createFile(
-    BUCKET,
+  const extension = path.extname(input.file.name) || ".mp4"
+  const payload: DemoPayload = {
     id,
-    InputFile.fromBuffer(bytes, input.file.name)
-  )
-  const now = new Date().toISOString()
-  await aw.records.createRow(RUNTIME_DATABASE_ID, TABLE, id, {
-    owner_id: input.ownerId,
+    ownerId: input.ownerId,
     title: input.title,
-    file_id: stored.$id,
-    content_type: input.file.type || "video/mp4",
-    created_at: now,
+    contentType: input.file.type || "video/mp4",
+    storagePath: `assets/demos/${input.ownerId}/${id}${extension}`,
+    createdAt: new Date().toISOString(),
+  }
+  await putRailwayObject({
+    key: railwayObjectKey("assets", `${input.ownerId}:${id}${extension}`),
+    body: bytes,
+    contentType: payload.contentType,
   })
+  await putDomainRecords([
+    {
+      table: TABLE,
+      rowId: demoRowId(input.ownerId, id),
+      ownerId: input.ownerId,
+      rid: id,
+      name: input.title,
+      ord: -Date.now(),
+      payload,
+    },
+  ])
   return {
     id,
     title: input.title,
-    createdAt: now,
+    createdAt: payload.createdAt,
     url: `/api/settings/demos/${id}`,
   }
 }
 
 export async function readDemoVideo(ownerId: string, id: string) {
-  const aw = getRuntimeStore()
-  const row = await aw.records.getRow(RUNTIME_DATABASE_ID, TABLE, id)
-  if (row.owner_id !== ownerId) return null
+  const record = await getDomainRecord(TABLE, demoRowId(ownerId, id))
+  const payload = record?.payload
+  if (!isDemoPayload(payload) || payload.ownerId !== ownerId) return null
   return {
-    bytes: await aw.objects.getFileView(BUCKET, String(row.file_id)),
-    contentType: String(row.content_type || "video/mp4"),
+    bytes: await readRailwayObject(
+      railwayObjectKey("assets", `${payload.ownerId}:${payload.id}${path.extname(payload.storagePath)}`)
+    ),
+    contentType: payload.contentType,
   }
+}
+
+export async function deleteDemoVideo(ownerId: string, id: string) {
+  const record = await getDomainRecord(TABLE, demoRowId(ownerId, id))
+  const payload = record?.payload
+  if (!isDemoPayload(payload) || payload.ownerId !== ownerId) return false
+  await deleteRailwayObject(
+    railwayObjectKey(
+      "assets",
+      `${payload.ownerId}:${payload.id}${path.extname(payload.storagePath)}`
+    )
+  )
+  await deleteDomainRecord(TABLE, demoRowId(ownerId, id))
+  return true
 }

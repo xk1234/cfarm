@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   createPipelineStageRegistry,
+  executeNamedPipeline,
   executePipelineStage,
   pipelineCatalog,
   type PipelineHandlerMap,
 } from "@/lib/pipeline-executor"
 import { PIPELINE_STAGE_CATALOG } from "@/lib/pipeline-stages"
-import { recordProviderRequest } from "@/lib/provider-request-trace"
 
 function handlers(overrides: Record<string, ReturnType<typeof vi.fn>> = {}) {
   return new Map(
@@ -26,7 +26,7 @@ function handlers(overrides: Record<string, ReturnType<typeof vi.fn>> = {}) {
 }
 
 describe("production pipeline executor", () => {
-  it("executes one exact registered handler", async () => {
+  it("pipes complete structured output through the exact registered handlers", async () => {
     const first = vi.fn(async (input: Record<string, unknown>) => ({
       ...input,
       selectedHook: "Why Cancer goes quiet",
@@ -37,13 +37,21 @@ describe("production pipeline executor", () => {
     }))
     const map = handlers({
       "slideshow-generation.validate-input": first,
-      "slideshow-generation.apply-fixed-slide-count": second,
+      "slideshow-generation.resolve-slide-count": second,
     })
     const registry = createPipelineStageRegistry(map)
     expect(registry.get("slideshow-generation.validate-input")?.handler).toBe(
       first
     )
 
+    const workflow = await executeNamedPipeline({
+      registry,
+      ownerId: "owner-1",
+      workflowId: "slideshow-generation",
+      workflowInput: { automationId: "automation-1" },
+      requestId: "request-1",
+      stopAfter: "slideshow-generation.resolve-slide-count",
+    })
     const single = await executePipelineStage({
       registry,
       ownerId: "owner-1",
@@ -52,85 +60,55 @@ describe("production pipeline executor", () => {
       requestId: "request-1",
     })
 
-    expect(first).toHaveBeenCalledOnce()
-    expect(second).not.toHaveBeenCalled()
+    expect(first).toHaveBeenCalledTimes(2)
+    expect(second).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedHook: "Why Cancer goes quiet" }),
+      expect.objectContaining({ ownerId: "owner-1" })
+    )
+    expect(workflow).toMatchObject({
+      status: "succeeded",
+      completedStages: 2,
+      output: {
+        selectedHook: "Why Cancer goes quiet",
+        researchedHook: "Why Cancer goes quiet",
+      },
+    })
     expect(single.output).toEqual({
       automationId: "automation-1",
       selectedHook: "Why Cancer goes quiet",
     })
   })
 
-  it("returns exact provider requests beside output without forwarding them", async () => {
-    const traced = handlers({
-      "linkedin-generation.resolve-brief": vi.fn(async (input) => {
-        recordProviderRequest({
-          provider: "OpenRouter",
-          operation: "chat.completions",
-          model: "openai/test",
-          request: {
-            model: "openai/test",
-            messages: [{ role: "user", content: "Exact prompt" }],
-          },
-        })
-        return { ...input, brief: { audience: "operators" } }
-      }),
-    })
-    const execution = await executePipelineStage({
-      registry: createPipelineStageRegistry(traced),
-      ownerId: "owner-1",
-      stageId: "linkedin-generation.resolve-brief",
-      stageInput: { niche: "SaaS" },
-    })
-
-    expect(execution.providerRequests).toEqual([
-      expect.objectContaining({
-        provider: "OpenRouter",
-        model: "openai/test",
-        request: expect.objectContaining({
-          messages: [{ role: "user", content: "Exact prompt" }],
-        }),
-      }),
-    ])
-    expect(execution.output).not.toHaveProperty("providerRequests")
-  })
-
-  it("represents intermediate media as typed preview and download artifacts", async () => {
+  it("pauses a workflow on a long-running stage operation", async () => {
+    const queued = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      operation: {
+        id: "job-1",
+        status: "running",
+        nextPollAfterMs: 5000,
+      },
+    }))
+    const later = vi.fn()
     const registry = createPipelineStageRegistry(
       handlers({
-        "slideshow-generation.select-slide-images": vi.fn(async () => ({
-          selectedImages: [
-            {
-              id: "image-1",
-              imageUrl: "https://cdn.example/slide.webp",
-              width: 1080,
-              height: 1920,
-            },
-          ],
-        })),
+        "ugc-video-generation.analyze-product": queued,
+        "ugc-video-generation.generate-script-plan": later,
       })
     )
-    const execution = await executePipelineStage({
+    const workflow = await executeNamedPipeline({
       registry,
       ownerId: "owner-1",
-      stageId: "slideshow-generation.select-slide-images",
-      stageInput: {},
+      workflowId: "ugc-video-generation",
+      workflowInput: { automationId: "ugc-1" },
     })
 
-    expect(execution.output.mediaArtifacts).toEqual([
-      expect.objectContaining({
-        kind: "image",
-        mimeType: "image/webp",
-        preview: {
-          type: "image",
-          url: "https://cdn.example/slide.webp",
-        },
-        download: {
-          url: "https://cdn.example/slide.webp",
-          fileName: "slide.webp",
-        },
-        metadata: { width: 1080, height: 1920 },
-      }),
-    ])
+    expect(workflow).toMatchObject({
+      status: "running",
+      activeStage: "ugc-video-generation.analyze-product",
+      completedStages: 0,
+      operation: { id: "job-1" },
+    })
+    expect(later).not.toHaveBeenCalled()
   })
 
   it("rejects secrets and media bytes at either side of a handler", async () => {
@@ -204,19 +182,16 @@ describe("production pipeline executor", () => {
     expect(forbiddenSecondCall).not.toHaveBeenCalled()
   })
 
-  it("publishes complete typed stage metadata for all seven live workflows", () => {
+  it("publishes complete typed stage metadata for all four live workflows", () => {
     const catalog = pipelineCatalog()
     expect(catalog.map((workflow) => workflow.id)).toEqual([
       "slideshow-generation",
       "ugc-video-generation",
-      "react-reveal-generation",
-      "greenscreen-meme-generation",
-      "template-video-generation",
       "linkedin-generation",
       "x-threads-generation",
     ])
     expect(catalog.map((workflow) => workflow.workflowStages.length)).toEqual([
-      11, 10, 5, 5, 9, 8, 13,
+      16, 9, 8, 12,
     ])
     expect(
       catalog.reduce((total, workflow) => total + workflow.stages.length, 0)
@@ -240,12 +215,21 @@ describe("production pipeline executor", () => {
     ).toBe(true)
     expect(allStages.map((stage) => stage.id)).toEqual(
       expect.arrayContaining([
+        "slideshow-generation.rendi-init-upload",
+        "slideshow-generation.rendi-upload-part",
+        "slideshow-generation.rendi-complete-upload",
+        "slideshow-generation.rendi-get-file",
+        "slideshow-generation.rendi-submit-command",
+        "slideshow-generation.rendi-get-command",
+        "slideshow-generation.rendi-download-output",
+        "slideshow-generation.rendi-persist-output",
         "slideshow-generation.list-image-collections-page",
         "slideshow-generation.read-one-source-asset",
         "slideshow-generation.create-one-output-asset",
         "slideshow-generation.create-result-document",
         "slideshow-generation.create-one-result-media",
         "slideshow-generation.create-one-post-intent",
+        "slideshow-generation.read-one-video-slide",
         "ugc-video-generation.elevenlabs-synthesize-speech",
         "ugc-video-generation.persist-voice-audio",
         "ugc-video-generation.persist-voice-timings",
@@ -281,17 +265,12 @@ describe("production pipeline executor", () => {
         )
     ).toBe(true)
     expect(
-      allStages.some((stage) =>
-        [
-          "slideshow-generation.research-hook",
-          "slideshow-generation.retry-text-similarity",
-          "slideshow-generation.derive-visual-concepts",
-          "slideshow-generation.translate-plan",
-          "slideshow-generation.render-store-mp4",
-          "slideshow-generation.list-usage-history",
-          "slideshow-generation.list-prior-runs",
-        ].includes(stage.id)
-      )
-    ).toBe(false)
+      catalog
+        .flatMap((workflow) => workflow.stages)
+        .find((stage) => stage.id === "slideshow-generation.research-hook")
+    ).toMatchObject({
+      provider: "OpenRouter + Exa",
+      model: "openai/gpt-5.4-mini",
+    })
   })
 })

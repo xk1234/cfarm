@@ -31,7 +31,6 @@ export type {
 
 export type GeneratedVideoListFilters = {
   rootDir?: string
-  id?: string
   type?: GeneratedVideoType
   automationId?: string
   limit?: number
@@ -47,26 +46,15 @@ const dbFileName = "exports.json"
 export async function listGeneratedVideoExports(
   filters: GeneratedVideoListFilters = {}
 ) {
-  const requestedId = clean(filters.id)
-  const requested = requestedId
-    ? await getGeneratedVideoExport(requestedId, filters.rootDir)
-    : null
-  const records = requestedId
-    ? requested
-      ? [requested]
-      : []
-    : await readGeneratedVideoExports(filters.rootDir, {
-        limit:
-          !filters.type && !filters.automationId ? filters.limit : undefined,
-      })
+  const records = await readGeneratedVideoExports(filters.rootDir, {
+    limit: !filters.type && !filters.automationId ? filters.limit : undefined,
+  })
   return records
     .filter(
       (record) =>
         (!filters.type || record.type === filters.type) &&
         (!filters.automationId ||
-          record.sourceAutomationId === filters.automationId ||
-          record.sourceConfig.automationId === filters.automationId ||
-          record.sourceConfig.templateId === filters.automationId)
+          record.sourceConfig.automationId === filters.automationId)
     )
     .slice(0, filters.limit ? Math.max(1, filters.limit) : undefined)
 }

@@ -22,15 +22,9 @@ describe("PostFrequencyGraph rendering", () => {
     )
     const cells = (html.match(/rounded-\[2px\]/g) ?? []).length
     expect(cells).toBe(8 * 7 + 5)
-  })
-
-  it("uses compact mobile cells and larger desktop cells", () => {
-    const html = renderToStaticMarkup(
-      <PostFrequencyGraph dates={dates} weeks={8} />
-    )
-
-    expect(html).toContain("size-2 rounded-[2px] sm:size-[13px]")
-    expect(html).toContain("gap-[2px] sm:gap-[4px]")
+    expect(html).toContain("w-[283px]")
+    expect(html).toContain("min-[420px]:w-[387px]")
+    expect(html).not.toContain("overflow-x-auto")
   })
 
   it("reports the real total, not zero", () => {

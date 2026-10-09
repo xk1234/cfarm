@@ -40,6 +40,8 @@ export type PublishPostInput = {
   integrationId: string
   provider: string
   content: string
+  title?: string
+  hashtags?: string[]
   media?: PostFastMedia[]
   controls?: Record<string, unknown>
   settings?: Record<string, unknown>
@@ -48,6 +50,7 @@ export type PublishPostInput = {
   postId?: string
   intentId?: string
   outputId?: string
+  outputIds?: string[]
   automationId?: string
   runId?: string
   sourceEntityId?: string
@@ -170,10 +173,13 @@ export async function publishPost(
       releaseUrl,
       scheduledAt: type === "schedule" ? input.date : undefined,
       content: input.content,
+      title: input.title,
+      hashtags: input.hashtags,
       media: input.media ?? [],
       postId: input.postId,
       intentId: input.intentId,
       outputId: input.outputId,
+      outputIds: input.outputIds,
       automationId: input.automationId,
       runId: input.runId,
       sourceEntityId: input.sourceEntityId,
@@ -216,11 +222,14 @@ export async function publishPost(
       linkState: "postfast_published",
       status: "failed",
       content: input.content,
+      title: input.title,
+      hashtags: input.hashtags,
       media: input.media ?? [],
       error: message,
       postId: input.postId,
       intentId: input.intentId,
       outputId: input.outputId,
+      outputIds: input.outputIds,
       automationId: input.automationId,
       runId: input.runId,
       sourceEntityId: input.sourceEntityId,

@@ -18,7 +18,6 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { queueWorkflowAndWait } from "@/lib/client-api"
 import {
   SettingsFooter,
   SettingsPage,
@@ -47,13 +46,11 @@ export function XAutomationStudio({
   initialAutomations,
   initialRuns,
   embedded = false,
-  modal = false,
   onClose,
 }: {
   initialAutomations: XAutomationRecord[]
   initialRuns: XAutomationRun[]
   embedded?: boolean
-  modal?: boolean
   onClose?: () => void
 }) {
   const [automations, setAutomations] = useState(initialAutomations)
@@ -64,7 +61,15 @@ export function XAutomationStudio({
   const [tab, setTab] = useState<StudioTab>("overview")
   const [mobileStage, setMobileStage] = useState<MobileStage>("setup")
   const [busy, setBusy] = useState<
-    "create" | "save" | "generate" | "image" | "derive" | "discover" | ""
+    | "create"
+    | "save"
+    | "generate"
+    | "image"
+    | "connect"
+    | "publish"
+    | "derive"
+    | "discover"
+    | ""
   >("")
   const [strategyError, setStrategyError] =
     useState<StrategyRequestError | null>(null)
@@ -74,7 +79,7 @@ export function XAutomationStudio({
     useState<XTrendCandidate | null>(null)
   const selected = automations.find((item) => item.id === selectedId)
   const preview = runs.find((run) => run.automationId === selectedId)
-  const showNativePreview = tab === "overview"
+  const showNativePreview = tab !== "settings"
 
   function update(patch: Partial<XAutomationRecord>) {
     if (!selected) return
@@ -88,8 +93,8 @@ export function XAutomationStudio({
   async function createAutomation(platform: XAutomationRecord["platform"]) {
     setBusy("create")
     try {
-      const payload = await request<{ template: XAutomationRecord }>(
-        "/api/social-templates",
+      const payload = await request<{ automation: XAutomationRecord }>(
+        "/api/x-automations",
         {
           method: "POST",
           body: JSON.stringify({
@@ -101,9 +106,9 @@ export function XAutomationStudio({
           }),
         }
       )
-      setAutomations((items) => [payload.template, ...items])
-      setSavedAutomations((items) => [payload.template, ...items])
-      setSelectedId(payload.template.id)
+      setAutomations((items) => [payload.automation, ...items])
+      setSavedAutomations((items) => [payload.automation, ...items])
+      setSelectedId(payload.automation.id)
     } catch (error) {
       toast.error(message(error))
     } finally {
@@ -115,20 +120,20 @@ export function XAutomationStudio({
     if (!selected) return null
     setBusy("save")
     try {
-      const payload = await request<{ template: XAutomationRecord }>(
-        "/api/social-templates",
+      const payload = await request<{ automation: XAutomationRecord }>(
+        "/api/x-automations",
         {
           method: "PATCH",
-          body: JSON.stringify({ template: selected }),
+          body: JSON.stringify({ automation: selected }),
         }
       )
-      let saved = payload.template
+      let saved = payload.automation
       if (deriveIfMissing && !saved.brief && saved.niche.label.trim()) {
-        const strategy = await request<{ template: XAutomationRecord }>(
-          `/api/social-templates/${encodeURIComponent(saved.id)}/derive-brief`,
+        const strategy = await request<{ automation: XAutomationRecord }>(
+          `/api/x-automations/${encodeURIComponent(saved.id)}/derive-brief`,
           { method: "POST" }
         )
-        saved = strategy.template
+        saved = strategy.automation
       }
       setAutomations((items) =>
         items.map((item) => (item.id === selected.id ? saved : item))
@@ -181,21 +186,17 @@ export function XAutomationStudio({
       const saved = await saveAutomation(false)
       if (!saved) return
       setBusy("generate")
-      const payload = await queueWorkflowAndWait<{ run: XAutomationRun }>(
-        "/api/social-templates/generate",
+      const payload = await request<{ editorRun: XAutomationRun }>(
+        `/api/templates/${encodeURIComponent(selected.id)}/generate`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          timeoutMs: 25 * 60_000,
-          toastOnError: false,
           body: JSON.stringify({
-            templateId: selected.id,
             topic: topic.trim(),
             sourceCandidate,
           }),
         }
       )
-      setRuns((items) => [payload.run, ...items])
+      setRuns((items) => [payload.editorRun, ...items])
       setTab("overview")
       setMobileStage("preview")
       toast.success("Draft generated with inferred strategy and AI review")
@@ -214,11 +215,11 @@ export function XAutomationStudio({
       if (!saved) return
       setBusy("discover")
       const payload = await request<{ candidates: XTrendCandidate[] }>(
-        "/api/social-templates/discover",
+        "/api/x-automations/discover",
         {
           method: "POST",
           body: JSON.stringify({
-            templateId: selected.id,
+            automationId: selected.id,
             query: discoveryQuery.trim(),
           }),
         }
@@ -243,12 +244,14 @@ export function XAutomationStudio({
       const saved = await saveAutomation(false)
       if (!saved) return
       setBusy("derive")
-      const payload = await request<{ template: XAutomationRecord }>(
-        `/api/social-templates/${encodeURIComponent(saved.id)}/derive-brief`,
+      const payload = await request<{ automation: XAutomationRecord }>(
+        `/api/x-automations/${encodeURIComponent(saved.id)}/derive-brief`,
         { method: "POST" }
       )
       setAutomations((items) =>
-        items.map((item) => (item.id === selected.id ? payload.template : item))
+        items.map((item) =>
+          item.id === selected.id ? payload.automation : item
+        )
       )
       toast.success("Content strategy generated")
     } catch (error) {
@@ -263,9 +266,9 @@ export function XAutomationStudio({
             ? String(requestError.payload.operation.id)
             : undefined,
       })
-      if (requestError?.payload.template) {
+      if (requestError?.payload.automation) {
         const failedAutomation = requestError.payload
-          .template as XAutomationRecord
+          .automation as XAutomationRecord
         setAutomations((items) =>
           items.map((item) =>
             item.id === failedAutomation.id ? failedAutomation : item
@@ -283,7 +286,7 @@ export function XAutomationStudio({
     setBusy("image")
     try {
       const payload = await request<{ run: XAutomationRun }>(
-        "/api/social-templates/image",
+        "/api/x-automations/image",
         {
           method: "POST",
           body: JSON.stringify({
@@ -306,11 +309,7 @@ export function XAutomationStudio({
     <main
       className={cn(
         "bg-app-surface-subtle text-app-text",
-        modal
-          ? "h-full min-h-0 overflow-y-auto"
-          : embedded
-            ? "min-h-full"
-            : "min-h-svh"
+        embedded ? "min-h-full" : "min-h-svh"
       )}
     >
       {!embedded ? (
@@ -323,13 +322,13 @@ export function XAutomationStudio({
             >
               <LuArrowLeft />
             </Button>
-            <h1 className="text-lg font-semibold">X and Threads templates</h1>
+            <h1 className="text-lg font-semibold">Post templates</h1>
           </div>
         </header>
       ) : null}
 
       <nav
-        aria-label="Template workflow"
+        aria-label="Post template editor"
         className={cn(
           "sticky z-20 grid grid-cols-3 gap-1 border-b border-app-panel-border bg-app-surface p-2 xl:hidden",
           embedded ? "top-0" : "top-14 md:top-0"
@@ -363,11 +362,9 @@ export function XAutomationStudio({
           showNativePreview
             ? "grid-cols-1 xl:grid-cols-[246px_minmax(460px,1fr)_minmax(360px,0.82fr)]"
             : "grid-cols-1 xl:grid-cols-[246px_minmax(0,1fr)]",
-          modal
-            ? "min-h-full"
-            : embedded
-              ? "min-h-[calc(100svh-3.5rem)] xl:min-h-[calc(100svh-2rem)]"
-              : "min-h-[calc(100svh-7rem)] xl:min-h-[calc(100svh-4rem)]"
+          embedded
+            ? "min-h-[calc(100svh-3.5rem)] xl:min-h-[calc(100svh-2rem)]"
+            : "min-h-[calc(100svh-7rem)] xl:min-h-[calc(100svh-4rem)]"
         )}
       >
         <aside
@@ -382,7 +379,7 @@ export function XAutomationStudio({
                 Start here
               </div>
               <p className="mt-1 text-sm font-semibold text-app-text">
-                Create the template you want to set up.
+                Choose the post template you want to create.
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Button
@@ -444,6 +441,7 @@ export function XAutomationStudio({
                 setMobileStage("draft")
               }}
             />
+            <div className="my-2 h-px bg-[#e1e0d8]" />
             <AutomationSettingsNavButton
               label="Settings"
               icon={LuSettings}
@@ -479,8 +477,8 @@ export function XAutomationStudio({
                   Template
                 </div>
                 <div className="text-[15px] font-semibold">
-                  {selected?.platform === "threads" ? "Threads" : "X"} Content
-                  Engine
+                  {selected?.platform === "threads" ? "Threads" : "X"} post
+                  template
                 </div>
               </div>
               <Button variant="ghost" size="sm" onClick={onClose}>
@@ -553,9 +551,8 @@ export function XAutomationStudio({
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">
                 {(preview?.platform ?? selected?.platform) === "threads"
-                  ? "Threads"
-                  : "X"}{" "}
-                preview
+                  ? "Threads preview"
+                  : "X preview"}
               </h2>
               <div className="flex gap-2">
                 {preview && selected?.media.mode === "generate" && (
@@ -573,6 +570,19 @@ export function XAutomationStudio({
                     Picture
                   </Button>
                 )}
+                {preview ? (
+                  <Button
+                    variant="action"
+                    size="sm"
+                    onClick={() =>
+                      window.location.assign(
+                        `/app/compose?output=${encodeURIComponent(preview.id)}`
+                      )
+                    }
+                  >
+                    Finish in Compose
+                  </Button>
+                ) : null}
               </div>
             </div>
             <XPreview run={preview} platform={selected?.platform} />
@@ -706,7 +716,7 @@ function ComposePanel({
         </Field>
         <div className="mt-3 inline-flex rounded-full border border-app-panel-border bg-app-surface-subtle px-3 py-1.5 text-xs font-bold">
           {automation.platform === "threads" ? "Threads" : "X"} · fixed for this
-          automation
+          template
         </div>
       </Panel>
 
@@ -748,7 +758,7 @@ function ComposePanel({
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <SelectField
-            label="Voice preset"
+            label="Voice"
             value={automation.generation.voicePreset}
             options={voicePresets.map((item) => item.id)}
             onChange={(voicePreset) =>
@@ -951,12 +961,6 @@ function XGeneralSettingsPanel({
           />
         }
       />
-      {automation.platform === "x" && automation.publishing.autoPost ? (
-        <div className="rounded-lg border border-[#ead8b4] bg-[#fff9ed] px-4 py-3 text-sm font-medium text-[#765a23]">
-          Multi-post X threads remain drafts because reply-chain publishing is
-          not available. Auto-post generation uses single-post presets only.
-        </div>
-      ) : null}
       <details className="rounded-xl border border-app-panel-border bg-app-surface p-4">
         <summary className="cursor-pointer text-sm font-bold">Advanced</summary>
         <div className="mt-4 space-y-4">
@@ -1158,7 +1162,7 @@ function XPreview({
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-sm">
-                <span className="font-bold">LumenClip</span>{" "}
+                <span className="font-bold">Draft</span>{" "}
                 <span className="text-app-muted-text">
                   @operator · now · {post.platform ?? "x"}
                 </span>
@@ -1389,9 +1393,7 @@ function EmptyState({
   return (
     <div className="grid min-h-[70svh] place-items-center text-center">
       <div>
-        <h2 className="text-xl font-semibold">
-          Create your social content engine
-        </h2>
+        <h2 className="text-xl font-semibold">Create a post template</h2>
         <div className="mt-4 flex justify-center gap-3">
           <Button variant="action" onClick={() => onCreate("x")}>
             <LuPlus /> New X template

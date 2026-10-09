@@ -4,7 +4,7 @@ import {
   canonicalRowFields,
   outputMediaRowFields,
 } from "@/lib/consolidated-records"
-import type { StoreRoute } from "@/lib/appwrite-stores"
+import type { StoreRoute } from "@/lib/store-identity"
 
 describe("consolidated record projections", () => {
   it("keeps permanent asset file metadata in the domain record, not duplicate columns", () => {

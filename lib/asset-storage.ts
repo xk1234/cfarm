@@ -1,11 +1,12 @@
-// Central helper for persisting binary assets in Railway object storage.
+// Central helper for persisting binary assets. Both backends use the same
+// deterministic bucket/file identity so cutover does not change public paths.
 // Pipelines that need a real local file stage it back out via stageAssetToTmp.
 import { randomUUID } from "node:crypto"
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { bucketForPath, dataRoot, fileIdForPath } from "@/lib/appwrite-stores"
+import { bucketForPath, dataRoot, fileIdForPath } from "@/lib/store-identity"
 import {
   deleteRailwayObject,
   putRailwayObject,
@@ -22,19 +23,18 @@ function toBuffer(bytes: Bytes): Buffer {
   return Buffer.from(bytes)
 }
 
-/** Data-relative POSIX path (e.g. "assets/files/x.png") for an absolute path, or null if outside data/. */
-function relativeAssetPath(absPath: string): string | null {
+function relativeDataPath(absPath: string): string | null {
   const rel = path.relative(dataRoot(), path.resolve(absPath))
   if (rel.startsWith("..") || path.isAbsolute(rel)) return null
   return rel.split(path.sep).join("/")
 }
 
-/** Upload or replace a data-tree file in Railway object storage. */
-export async function writeAsset(
+/** Upload (or replace) a data-tree file in Railway Storage. */
+export async function persistStoredAsset(
   absPath: string,
   bytes?: Bytes
 ): Promise<void> {
-  const relPath = relativeAssetPath(absPath)
+  const relPath = relativeDataPath(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
@@ -47,9 +47,9 @@ export async function writeAsset(
   })
 }
 
-/** Read a data-tree asset's bytes from Railway object storage. */
+/** Read a private object by its stable data-tree path. */
 export async function readAssetBytes(absPath: string): Promise<Buffer> {
-  const relPath = relativeAssetPath(absPath)
+  const relPath = relativeDataPath(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
@@ -58,9 +58,9 @@ export async function readAssetBytes(absPath: string): Promise<Buffer> {
   return readRailwayObject(railwayObjectKey(bucket, fileId))
 }
 
-/** Delete a data-tree file. Missing objects are already deleted. */
-export async function deleteAsset(absPath: string): Promise<void> {
-  const relPath = relativeAssetPath(absPath)
+/** Delete a private object; missing objects are already deleted. */
+export async function deleteStoredAsset(absPath: string): Promise<void> {
+  const relPath = relativeDataPath(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
@@ -69,20 +69,20 @@ export async function deleteAsset(absPath: string): Promise<void> {
   await deleteRailwayObject(railwayObjectKey(bucket, fileId))
 }
 
-/** Persist a binary asset without a local write. */
+/** Persist a binary asset without creating a local copy. */
 export async function persistAsset(
   absPath: string,
   bytes: Bytes
 ): Promise<void> {
-  await writeAsset(absPath, bytes)
+  await persistStoredAsset(absPath, bytes)
 }
 
-/** Create one deterministic storage object with exactly one Appwrite request. */
+/** Create one deterministic storage object with exactly one Railway request. */
 export async function createAssetOnce(
   absPath: string,
   bytes: Bytes
 ): Promise<void> {
-  const relPath = relativeAssetPath(absPath)
+  const relPath = relativeDataPath(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
@@ -98,24 +98,18 @@ export async function createAssetOnce(
   await putRailwayObject({ key, body: buffer })
 }
 
-/** Upload a scratch tree to a logical data-tree destination. */
-export async function persistAssetDirectory(
+export async function persistStoredAssetsInDir(
   dir: string,
   targetDir = dir
 ): Promise<void> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const abs = path.join(dir, entry.name)
     const target = path.join(targetDir, entry.name)
-    if (entry.isDirectory()) await persistAssetDirectory(abs, target)
-    else if (entry.isFile()) await writeAsset(target, await readFile(abs))
+    if (entry.isDirectory()) await persistStoredAssetsInDir(abs, target)
+    else if (entry.isFile())
+      await persistStoredAsset(target, await readFile(abs))
   }
 }
-
-// Temporary compatibility aliases for call sites and rollback-oriented tests.
-// New runtime code should use the backend-neutral names above.
-export const mirrorAssetToAppwrite = writeAsset
-export const deleteAssetFromAppwrite = deleteAsset
-export const mirrorDirToAppwrite = persistAssetDirectory
 
 /** Download a data-tree asset from Storage into a fresh tmp file; returns its path. */
 export async function stageAssetToTmp(absPath: string): Promise<string> {

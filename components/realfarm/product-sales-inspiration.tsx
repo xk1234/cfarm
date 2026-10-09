@@ -46,16 +46,21 @@ function InspirationMapping({
   inspiration: ProductSalesInspiration
 }) {
   const source = inspiration.source
+  const sourceSummary =
+    typeof source.views === "number" &&
+    typeof source.engagementRate === "number"
+      ? `${source.creator} · ${compactNumber.format(source.views)} views · ${formatEngagement(source.engagementRate)} engagement`
+      : `${source.assetName ?? source.creator}${source.page ? ` · page ${source.page}` : ""}`
 
   return (
     <details className="group py-3">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 marker:hidden">
         <span className="min-w-0">
           <span className="block truncate text-[12px] font-bold text-app-text">
-            {source.label}
+            {source.label ?? source.category ?? "Source inspiration"}
           </span>
           <span className="mt-0.5 block text-[10px] font-semibold text-app-muted-text">
-            <SourceMeta source={source} />
+            {sourceSummary}
           </span>
         </span>
         <span className="shrink-0 text-[10px] font-bold text-app-muted-text group-open:hidden">
@@ -80,9 +85,10 @@ function InspirationMapping({
           repurposed={inspiration.repurposed.visualHook}
         />
         <ScriptMapping inspiration={inspiration} />
-        <div className="rounded-[7px] border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-[17px] text-amber-950">
+        <div className="rounded-[7px] border border-app-warning/25 bg-app-warning-surface px-3 py-2 text-[11px] leading-[17px] text-app-text">
           <span className="font-bold">Why it fits:</span>{" "}
-          {inspiration.analysis.whyItFits}
+          {inspiration.analysis?.whyItFits ??
+            "This source pattern has been adapted to the product's strongest visible proof."}
         </div>
         {source.url ? (
           <a
@@ -91,7 +97,7 @@ function InspirationMapping({
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-[10px] font-bold text-app-muted-text underline underline-offset-2 hover:text-app-text"
           >
-            Open Reel Farm database
+            Open source in Reel Farm
             <IconArrowUpRight className="size-3" />
           </a>
         ) : null}
@@ -100,27 +106,9 @@ function InspirationMapping({
   )
 }
 
-function SourceMeta({ source }: { source: ProductSalesInspiration["source"] }) {
-  if (
-    source.platform === "reel_farm" &&
-    typeof source.views === "number" &&
-    typeof source.engagementRate === "number"
-  ) {
-    return (
-      <>
-        {source.creator} · {compactNumber.format(source.views)} views ·{" "}
-        {source.engagementRate.toFixed(1)}% like rate
-      </>
-    )
-  }
-
-  return (
-    <>
-      {source.creator}
-      {source.documentTitle ? ` · ${source.documentTitle}` : ""}
-      {source.page ? ` · p.${source.page}` : ""}
-    </>
-  )
+function formatEngagement(value: number) {
+  const percentage = value <= 1 ? value * 100 : value
+  return `${percentage.toFixed(1)}%`
 }
 
 function MappingRow({

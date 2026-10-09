@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest"
 
 import { defaultXAutomation, normalizeXAutomation } from "@/lib/x-automation"
 import {
-  buildXGenerationRequest,
   buildPostStructuredOutputSchema,
   derivePillarsFromNicheWithDiagnostics,
+  generateXAutomationRun,
   normalizeStructuredOutput,
   selectPostPlan,
   threadsRecycleCandidate,
@@ -33,36 +33,6 @@ function configuredAutomation() {
 }
 
 describe("preset-driven X generation", () => {
-  it("places a supplied reaction source in the generation prompt", () => {
-    const automation = configuredAutomation()
-    const plan = selectPostPlan(automation, {
-      platform: "x",
-      topic: "why creators abandon useful systems",
-      now: new Date("2026-08-10T00:00:00.000Z"),
-    })
-    const request = buildXGenerationRequest({
-      plan,
-      record: automation,
-      sourceCandidate: {
-        id: "manual-source",
-        source: "tiktok",
-        url: "https://www.tiktok.com/@creator/video/1",
-        author: "@creator",
-        text: "The creator says complex systems are always more effective.",
-        mediaUrls: [],
-        metrics: { views: 0, likes: 0, replies: 0, reposts: 0 },
-        engagementRate: 0,
-        relevanceScore: 0,
-        reason: "manual",
-      },
-    })
-
-    expect(request.user).toContain("REACTION SOURCE:")
-    expect(request.user).toContain("Reaction source platform: tiktok")
-    expect(request.user).toContain("complex systems are always more effective")
-    expect(request.user).toContain("React to the supplied source directly")
-  })
-
   it("retries the primary strategy model and falls back with diagnostics", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
@@ -295,5 +265,82 @@ describe("preset-driven X generation", () => {
         " "
       )
     ).toContain(expected)
+  })
+
+  it("uses one generation call and one repair at most", async () => {
+    const record = configuredAutomation()
+    const valid = {
+      hook: "unpopular opinion: tools slow creators",
+      belief: "more tools make publishing easier",
+      reasons:
+        "tools add steps hide choices slow work split focus cost money blur goals block learning and make fixes harder",
+      alternative: "use one workflow. which step slows you down?",
+    }
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ choices: [{ message: { content: "truncated json" } }] })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [{ message: { content: JSON.stringify(valid) } }],
+        })
+      )
+    const run = await generateXAutomationRun({
+      automation: record,
+      topic: "workflow sprawl",
+      apiKey: "test-key",
+      fetchImpl: fetchImpl as typeof fetch,
+      random: () => 0,
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    const request = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)) as {
+      max_tokens?: number
+      messages?: Array<{ role: string; content: string }>
+    }
+    expect(request.max_tokens).toBe(2_800)
+    expect(request.messages?.[0]?.content).toContain(
+      "Niche: creator systems. Audience: solo creators. Promise: repeatable content systems."
+    )
+    expect(request.messages?.[0]?.content).toContain(
+      "Core themes: content systems. Reader pains: inconsistent publishing."
+    )
+    expect(run.needsReview).toBe(false)
+    expect(run.plans?.[0]).toMatchObject({ platform: "x" })
+  })
+
+  it("generates Threads with its own short-post plan", async () => {
+    const record = configuredAutomation()
+    record.platform = "threads"
+    record.generation.hookStyles = ["threads_unpopular_opinion"]
+    const fetchImpl = vi.fn(async () =>
+      Response.json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                label: "UNPOPULAR OPINION",
+                take: "build trust before reach and serve people before metrics. which one are you choosing?",
+              }),
+            },
+          },
+        ],
+      })
+    ) as typeof fetch
+
+    const run = await generateXAutomationRun({
+      automation: record,
+      topic: "trust",
+      apiKey: "test-key",
+      fetchImpl,
+      random: () => 0,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(run.posts[0].platform).toBe("threads")
+    expect(run.plans?.[0]).toMatchObject({
+      platform: "threads",
+      archetype: "label_take",
+    })
   })
 })

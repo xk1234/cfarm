@@ -79,6 +79,37 @@ describe("canonical posts", () => {
     })
   })
 
+  it("preserves provider thumbnails without treating them as publish media", () => {
+    const record: PostFastPostRecord = {
+      id: "external-thumbnail",
+      sourceType: "external",
+      sourceId: "native-thumbnail",
+      integrationId: "integration-1",
+      provider: "tiktok",
+      status: "published",
+      linkState: "manually_linked",
+      statsSources: ["tiktok_studio"],
+      content: "Image post",
+      thumbnailUrl: "https://cdn.example.com/thumbnail.webp",
+      media: [],
+      createdAt: "2026-07-30T00:00:00.000Z",
+      updatedAt: "2026-07-30T00:00:00.000Z",
+    }
+
+    const post = postFromPostFastRecord(record, "owner-1")
+    expect(post.media).toEqual([
+      {
+        kind: "thumbnail",
+        url: record.thumbnailUrl,
+        order: 0,
+      },
+    ])
+    expect(postToPostFastRecord(post)).toMatchObject({
+      thumbnailUrl: record.thumbnailUrl,
+      media: [],
+    })
+  })
+
   it("scopes remote identities by owner, provider, and integration", () => {
     const first = postIdentityClaims({
       ownerId: "owner-1",

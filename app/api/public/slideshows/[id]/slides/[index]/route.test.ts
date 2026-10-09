@@ -29,7 +29,7 @@ describe("public slideshow image route", () => {
     )
   })
 
-  it("serves a signed slide from Railway object storage", async () => {
+  it("serves a signed slide from Appwrite Storage", async () => {
     const response = await GET(
       new Request(
         "https://app.example.com/api/public/slideshows/output-1/slides/1?token=signed"

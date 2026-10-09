@@ -1,33 +1,18 @@
-"use client"
-
-import dynamic from "next/dynamic"
-import type { TextItem } from "@/lib/realfarm-automation"
-import {
-  renderedImageItemEditorBounds,
-  renderedSlideSvg,
-  renderedTextItemEditorBounds,
-  slideDimensions,
-} from "@/lib/slideshow-renderer"
+import type { AutomationTextItem } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 import { LuPlus } from "react-icons/lu"
+
+import { FabricSlideshowCanvas } from "../fabric-slideshow-canvas"
 
 import {
   formatAspectRatioCss,
   formatPreviewCardSize,
-  konvaImageTransformPatch,
-  konvaTextTransformPatch,
+  fabricTextTransformPatch,
   previewSlideshowAspectRatio,
   previewSlideshowFont,
   previewSlideshowSlide,
   type AutomationFormatPreviewItem,
 } from "./format-helpers"
-import { clickTargetsSlideshowTextEditor } from "./slide-editor-events"
-
-const KonvaSlideOverlay = dynamic(
-  () =>
-    import("../konva-slide-overlay").then((module) => module.KonvaSlideOverlay),
-  { ssr: false }
-)
 
 function FormatEmptyCollectionTile() {
   return (
@@ -44,15 +29,11 @@ export function AutomationFormatPreviewCard({
   slotWidth,
   zoom,
   compact,
-  showLabel = true,
   selectedTextIndex,
-  selectedImageIndex = null,
   onSelect,
   onSelectText,
   onClearTextSelection,
   onTransformText,
-  onSelectImage = () => undefined,
-  onTransformImage = () => undefined,
   onAddText,
 }: {
   item: AutomationFormatPreviewItem
@@ -61,67 +42,32 @@ export function AutomationFormatPreviewCard({
   slotWidth: number
   zoom: number
   compact?: boolean
-  showLabel?: boolean
   selectedTextIndex: number | null
-  selectedImageIndex?: number | null
   onSelect: () => void
   onSelectText: (index: number) => void
   onClearTextSelection: () => void
-  onTransformText: (index: number, patch: Partial<TextItem>) => void
-  onSelectImage?: (index: number) => void
-  onTransformImage?: (
-    index: number,
-    patch: {
-      positionX: number
-      positionY: number
-      width: number
-      height: number
-    }
-  ) => void
+  onTransformText: (index: number, patch: Partial<AutomationTextItem>) => void
   onAddText?: () => void
 }) {
   const previewBaseScale = 2.5
+  const displayScale = compact ? 1 : previewBaseScale * zoom
   const size = formatPreviewCardSize(item.section.aspect_ratio, item.image)
-  const displayScale = compact
-    ? Math.min(0.72, 76 / size.height, 58 / size.width)
-    : previewBaseScale * zoom
   const slide = previewSlideshowSlide(item, index)
   const aspectRatio = previewSlideshowAspectRatio(item)
   const font = previewSlideshowFont(item)
   const overlayUrl = slide.overlayImage?.image_url
-  const previewSvg = item.image
-    ? renderedSlideSvg(slide, item.image.imageUrl, overlayUrl, {
-        aspectRatio,
-        font,
-        iconUrls: slide.iconLayout?.surrounding.map((icon) => icon.image_url),
-      })
-    : ""
-  const previewTextItems = slide.textItems
-  const dimensions = slideDimensions(aspectRatio)
-  const selectionBounds = renderedTextItemEditorBounds(
-    previewTextItems,
-    dimensions.width,
-    dimensions.height
-  )
-  const imageSelectionBounds = renderedImageItemEditorBounds(
-    slide.imageItems ?? [],
-    dimensions.width,
-    dimensions.height
-  )
+  const iconUrls = slide.iconLayout?.surrounding.map((icon) => icon.image_url)
 
   return (
     <div
       className={cn(
         "group/slide shrink-0 cursor-pointer transition-opacity duration-300",
-        active || compact ? "opacity-100" : "opacity-65"
+        active ? "opacity-100" : "opacity-65"
       )}
       style={{ width: slotWidth, minWidth: slotWidth, maxWidth: slotWidth }}
       role="button"
       tabIndex={0}
-      onClick={(event) => {
-        if (clickTargetsSlideshowTextEditor(event.target)) return
-        onSelect()
-      }}
+      onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           onSelect()
@@ -132,7 +78,7 @@ export function AutomationFormatPreviewCard({
         className="mx-auto"
         style={{
           width: size.width * displayScale,
-          height: (size.height + (showLabel ? 28 : 0)) * displayScale,
+          height: (size.height + 28) * displayScale,
         }}
       >
         <div
@@ -142,14 +88,12 @@ export function AutomationFormatPreviewCard({
             transform: `scale(${displayScale})`,
           }}
         >
-          {showLabel ? (
-            <div
-              className="mb-2 text-left text-[12px] font-bold text-app-muted-text"
-              style={{ width: size.width }}
-            >
-              {item.label}
-            </div>
-          ) : null}
+          <div
+            className="mb-2 text-left text-[12px] font-bold text-app-muted-text"
+            style={{ width: size.width }}
+          >
+            {item.label}
+          </div>
           <div
             className="relative overflow-hidden rounded-[2px] shadow-sm"
             style={{
@@ -162,46 +106,28 @@ export function AutomationFormatPreviewCard({
             }}
           >
             {item.image ? (
-              <>
-                <div
-                  className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
-                  dangerouslySetInnerHTML={{ __html: previewSvg }}
-                />
-                {active &&
-                (imageSelectionBounds.length > 0 ||
-                  (!item.section.noText && item.text)) ? (
-                  <KonvaSlideOverlay
-                    textBounds={
-                      !item.section.noText && item.text ? selectionBounds : []
-                    }
-                    imageBounds={imageSelectionBounds}
-                    canvasWidth={dimensions.width}
-                    canvasHeight={dimensions.height}
-                    displayWidth={size.width}
-                    displayHeight={size.height}
-                    selectedTextIndex={selectedTextIndex}
-                    selectedImageIndex={selectedImageIndex}
-                    onSelectText={onSelectText}
-                    onSelectImage={onSelectImage}
-                    onClearSelection={onClearTextSelection}
-                    onTextTransform={(textIndex, transform) =>
-                      onTransformText(
-                        textIndex,
-                        konvaTextTransformPatch({
-                          ...transform,
-                          textAlign: item.textItems[textIndex]?.textAlign,
-                        })
-                      )
-                    }
-                    onImageTransform={(imageIndex, transform) =>
-                      onTransformImage(
-                        imageIndex,
-                        konvaImageTransformPatch(transform)
-                      )
-                    }
-                  />
-                ) : null}
-              </>
+              <FabricSlideshowCanvas
+                slide={slide}
+                sourceUrl={item.image.imageUrl}
+                overlayUrl={overlayUrl}
+                aspectRatio={aspectRatio}
+                font={font}
+                iconUrls={iconUrls}
+                label={`${item.label} slideshow preview`}
+                editable={active && !item.section.noText && Boolean(item.text)}
+                selectedTextIndex={selectedTextIndex}
+                onSelectText={onSelectText}
+                onClearTextSelection={onClearTextSelection}
+                onTextTransform={(textIndex, transform) =>
+                  onTransformText(
+                    textIndex,
+                    fabricTextTransformPatch({
+                      ...transform,
+                      textAlign: item.textItems[textIndex]?.textAlign,
+                    })
+                  )
+                }
+              />
             ) : (
               <FormatEmptyCollectionTile />
             )}

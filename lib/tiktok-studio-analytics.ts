@@ -17,6 +17,7 @@ import {
   upsertMetricSnapshot,
   type PostFastMetricSnapshot,
   type TikTokStudioAnalytics,
+  type TikTokStudioHistoryPoint,
   type TikTokStudioSearchTerm,
   type TikTokStudioSlideMetric,
 } from "@/lib/postfast-metric-snapshots"
@@ -29,8 +30,6 @@ import {
 } from "@/lib/post-repository"
 import { outputPublicationsOwnerId } from "@/lib/output-publications"
 import { postToPostFastRecord, type Post } from "@/lib/posts"
-import { autoReconcileTikTokPublicationOutput } from "@/lib/publication-output-reconciliation"
-
 const rootDir = path.join(process.cwd(), "data")
 const storeFile = "tiktok-studio-analytics/imports.json"
 const storeKey = "imports"
@@ -48,6 +47,7 @@ export type TikTokStudioOverview = {
   caption?: string
   publishedAt?: string
   photoCount?: number
+  thumbnailUrl?: string
   views?: number
   likes?: number
   comments?: number
@@ -70,6 +70,8 @@ export type TikTokStudioParsedCapture = {
   slides: TikTokStudioSlideMetric[]
   trafficSources: Record<string, number>
   searchTerms: TikTokStudioSearchTerm[]
+  viewHistory7d?: TikTokStudioHistoryPoint[]
+  viewHistory48h?: TikTokStudioHistoryPoint[]
   audience?: TikTokStudioAudience
 }
 
@@ -666,20 +668,18 @@ export async function linkTikTokStudioAnalyticsImport(input: {
     authorUsername: record.capture.overview.authorUsername,
     photoCount: record.capture.overview.photoCount,
   })
-  const publication = await autoReconcileTikTokPublicationOutput(
-    await resolveOrCreateTikTokPost({
-      ownerId: await outputPublicationsOwnerId(),
-      postId: record.targetPostId,
-      integrationId: record.integrationId,
-      externalPostId: record.externalPostId,
-      releaseUrl: canonicalReleaseUrl,
-      publishedAt: record.capture.overview.publishedAt,
-      content: record.capture.overview.caption,
-      origin: "tiktok_studio_import",
-      linkMethod: "tiktok_studio",
-      statsSources: ["tiktok_studio"],
-    })
-  )
+  const publication = await resolveOrCreateTikTokPost({
+    ownerId: await outputPublicationsOwnerId(),
+    postId: record.targetPostId,
+    integrationId: record.integrationId,
+    externalPostId: record.externalPostId,
+    releaseUrl: canonicalReleaseUrl,
+    publishedAt: record.capture.overview.publishedAt,
+    content: record.capture.overview.caption,
+    origin: "tiktok_studio_import",
+    linkMethod: "tiktok_studio",
+    statsSources: ["tiktok_studio"],
+  })
   const linkedPublication = postToPostFastRecord(publication)
   const now = input.now ?? new Date()
   const linkedSnapshot = record.linkedSnapshotId
@@ -734,6 +734,7 @@ export type TikTokStudioDiscoveredPost = {
   releaseUrl: string
   content?: string
   publishedAt?: string
+  thumbnailUrl?: string
 }
 
 export async function createTikTokStudioAnalyticsDiscoveredBatch(input: {
@@ -745,23 +746,19 @@ export async function createTikTokStudioAnalyticsDiscoveredBatch(input: {
   const integrationId = clean(input.integrationId)
   if (!integrationId) throw new Error("Choose a TikTok account")
   const discovered = normalizeDiscoveredTikTokPosts(input.posts)
-  const { listAutomationRuns } = await import("@/lib/automation-runner")
-  const runs = await listAutomationRuns({ limit: 2_000, postRecords: [] })
   const publications: PostFastPostRecord[] = []
   for (const seed of discovered) {
-    const post = await autoReconcileTikTokPublicationOutput(
-      await resolveOrCreateTikTokPost({
-        ownerId: input.ownerId,
-        integrationId,
-        externalPostId: seed.externalPostId,
-        releaseUrl: seed.releaseUrl,
-        content: seed.content,
-        publishedAt: seed.publishedAt,
-        origin: "tiktok_studio_import",
-        linkMethod: "tiktok_studio",
-      }),
-      runs
-    )
+    const post = await resolveOrCreateTikTokPost({
+      ownerId: input.ownerId,
+      integrationId,
+      externalPostId: seed.externalPostId,
+      releaseUrl: seed.releaseUrl,
+      content: seed.content,
+      publishedAt: seed.publishedAt,
+      thumbnailUrl: seed.thumbnailUrl,
+      origin: "tiktok_studio_import",
+      linkMethod: "tiktok_studio",
+    })
     publications.push(postToPostFastRecord(post))
   }
   return createBatchSession({
@@ -821,6 +818,7 @@ export function normalizeDiscoveredTikTokPosts(
       releaseUrl: parsed.releaseUrl!,
       content: clean(item?.content).slice(0, 10_000) || undefined,
       publishedAt,
+      thumbnailUrl: normalizedHttpUrl(item?.thumbnailUrl),
     })
   }
   return [...byExternalPostId.values()]
@@ -1087,6 +1085,9 @@ export function parseTikTokStudioInsightPayload(
     caption: clean(aweme.desc),
     publishedAt: unixTimeIso(aweme.create_time),
     photoCount: images.length || undefined,
+    thumbnailUrl:
+      firstMediaImageUrl(images[0]) ||
+      firstMediaImageUrl(isRecord(aweme.video) ? aweme.video.cover : undefined),
     views,
     likes,
     comments,
@@ -1129,6 +1130,8 @@ export function parseTikTokStudioInsightPayload(
     root.video_traffic_source_percent_realtime
   )
   const searchTerms = searchTermList(root.item_search_terms)
+  const viewHistory7d = metricHistory(root.video_vv_history_7d)
+  const viewHistory48h = metricHistory(root.video_vv_history_48_hours)
   const audience = audienceFromRoot(root)
   const sections = uniqueSections([
     ...(Object.keys(overview).length > 0 ||
@@ -1150,6 +1153,8 @@ export function parseTikTokStudioInsightPayload(
     slides,
     trafficSources,
     searchTerms,
+    viewHistory7d,
+    viewHistory48h,
     audience,
   }
 }
@@ -1188,7 +1193,10 @@ function studioCaptureToMetricSnapshot(input: {
     capturedAt: input.capturedAt,
     publishedAt: input.publication.publishedAt ?? overview.publishedAt,
     content: input.publication.content || overview.caption,
-    thumbnailUrl: input.existing?.thumbnailUrl,
+    thumbnailUrl:
+      input.existing?.thumbnailUrl ??
+      input.publication.thumbnailUrl ??
+      overview.thumbnailUrl,
     releaseUrl:
       input.publication.releaseUrl ??
       canonicalTikTokPostUrl({
@@ -1224,6 +1232,8 @@ function studioCaptureToMetricSnapshot(input: {
       slides: capture.slides,
       trafficSources: capture.trafficSources,
       searchTerms: capture.searchTerms,
+      viewHistory7d: capture.viewHistory7d,
+      viewHistory48h: capture.viewHistory48h,
       audience: capture.audience,
     },
   }
@@ -1262,6 +1272,14 @@ export function mergeTikTokStudioParsedCaptures(
       incoming.searchTerms.length > 0
         ? incoming.searchTerms
         : (current?.searchTerms ?? []),
+    viewHistory7d:
+      (incoming.viewHistory7d?.length ?? 0) > 0
+        ? incoming.viewHistory7d
+        : (current?.viewHistory7d ?? []),
+    viewHistory48h:
+      (incoming.viewHistory48h?.length ?? 0) > 0
+        ? incoming.viewHistory48h
+        : (current?.viewHistory48h ?? []),
     audience: incoming.audience ?? current?.audience,
   }
 }
@@ -1386,6 +1404,22 @@ function searchTermList(value: unknown): TikTokStudioSearchTerm[] {
       record.percent ?? record.value ?? record.ratio ?? record[1]
     )
     return term && percent !== undefined ? [{ term, percent }] : []
+  })
+}
+
+function metricHistory(value: unknown): TikTokStudioHistoryPoint[] {
+  const source = Array.isArray(value)
+    ? value
+    : Array.isArray(unwrapRecord(value).value)
+      ? (unwrapRecord(value).value as unknown[])
+      : []
+  return source.map((item, index) => {
+    const row = isRecord(item) ? item : {}
+    return compactObject({
+      offset: index + 1,
+      status: finiteNumber(row.status),
+      value: metricNumber(item),
+    }) as TikTokStudioHistoryPoint
   })
 }
 
@@ -1540,14 +1574,6 @@ export function captureOwnerId(token: string) {
   return verifyCaptureToken(token).ownerId
 }
 
-export function captureDeviceOwnerId(token: string) {
-  const payload = verifyCaptureToken(token)
-  if (payload.version !== 3) {
-    throw new Error("A paired TikTok companion is required")
-  }
-  return payload.ownerId
-}
-
 function tokenSecret() {
   const secret = tokenSecrets()[0]
   if (!secret)
@@ -1556,9 +1582,9 @@ function tokenSecret() {
 }
 
 function tokenSecrets() {
-  return [clean(process.env.TIKTOK_STUDIO_CAPTURE_SECRET)].filter(
-    (value, index, values) => value && values.indexOf(value) === index
-  )
+  return [
+    clean(process.env.TIKTOK_STUDIO_CAPTURE_SECRET),
+  ].filter((value, index, values) => value && values.indexOf(value) === index)
 }
 
 function assertStudioUrl(value: string, postId: string) {
@@ -1592,6 +1618,43 @@ function tiktokStudioUrl(postId: string) {
 function finiteNumber(value: unknown) {
   const numeric = Number(value)
   return Number.isFinite(numeric) ? numeric : undefined
+}
+
+function normalizedHttpUrl(value: unknown) {
+  const candidate = clean(value)
+  if (!candidate) return undefined
+  try {
+    const url = new URL(candidate)
+    return ["http:", "https:"].includes(url.protocol)
+      ? url.toString()
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function firstMediaImageUrl(value: unknown) {
+  const record = isRecord(value) ? value : {}
+  const nested = [
+    record,
+    isRecord(record.display_image) ? record.display_image : {},
+    isRecord(record.image_url) ? record.image_url : {},
+    isRecord(record.cover) ? record.cover : {},
+  ]
+  for (const candidate of nested) {
+    const direct = normalizedHttpUrl(candidate.url || candidate.uri)
+    if (direct) return direct
+    const list = Array.isArray(candidate.url_list)
+      ? candidate.url_list
+      : Array.isArray(candidate.urlList)
+        ? candidate.urlList
+        : []
+    for (const item of list) {
+      const url = normalizedHttpUrl(item)
+      if (url) return url
+    }
+  }
+  return undefined
 }
 
 function unixTimeIso(value: unknown) {

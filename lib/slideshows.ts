@@ -13,8 +13,8 @@ import path from "node:path"
 
 import { toDataUrl } from "@/lib/data-url"
 import {
-  deleteAsset,
-  persistAssetDirectory,
+  deleteStoredAsset,
+  persistStoredAssetsInDir,
   readAssetBytes,
 } from "@/lib/asset-storage"
 import {
@@ -39,24 +39,35 @@ import {
 import {
   defaultSlideshowAspectRatio,
   defaultSlideshowFont,
-  type SlideshowImageItem,
   type SlideshowOverlayImage,
   type SlideshowOvalIconLayout,
   type SlideshowSlide,
   type SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
-import type { SlideshowSettings } from "@/lib/slideshow-contract"
 import { fetchWithTimeout } from "@/lib/http"
 export type {
   SlideshowOverlayImage,
-  SlideshowImageItem,
   SlideshowOvalIconLayout,
   SlideshowSlide,
   SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
-export type { SlideshowSettings } from "@/lib/slideshow-contract"
 
 export type SlideshowStatus = "exported" | "failed"
+
+export type SlideshowSettings = {
+  duration: number
+  // One aspect ratio and font for the whole slideshow — every slide/text box
+  // shares them (a carousel with mixed ratios gets cropped by TikTok/IG, and
+  // the font is a brand constant). Not per-slide / per-text-item.
+  aspect_ratio: string
+  font: string
+  background_color: string
+  transition_style: string
+  export_as_video: boolean
+  sound_id: string
+  sound_name: string
+  sound_url: string
+}
 
 // Authoring inputs: everything that describes a slideshow independent of any
 // render. This is the shape a caller conceptually fills in before rendering.
@@ -277,14 +288,6 @@ export function slideshowAssetRequests(record: SlideshowRecord) {
         sourceUrl: overlayUrl,
       })
     }
-    for (const [imageIndex, image] of (slide.imageItems ?? []).entries()) {
-      requests.push({
-        key: `${slideIndex}:image-layer:${imageIndex}`,
-        slideIndex,
-        role: `image-layer-${String(imageIndex + 1).padStart(2, "0")}`,
-        sourceUrl: image.source_image_url || image.image_url,
-      })
-    }
     for (const [iconIndex, icon] of (
       slide.iconLayout?.surrounding ?? []
     ).entries()) {
@@ -299,7 +302,7 @@ export function slideshowAssetRequests(record: SlideshowRecord) {
   })
 }
 
-/** One Appwrite Storage read plus local staging; rejects remote URLs. */
+/** One Railway Storage read plus local staging; rejects remote URLs. */
 export async function stageOneStoredSlideshowAsset(input: {
   scratchDir: string
   slideshowId: string
@@ -360,7 +363,6 @@ export async function renderOneStagedSlideshowSlide(input: {
   source: StagedSlideshowAsset
   overlay?: StagedSlideshowAsset
   icons?: StagedSlideshowAsset[]
-  imageItems?: StagedSlideshowAsset[]
 }) {
   assertSlideshowScratch(input.scratchDir)
   const slide = input.record.images[input.slideIndex]
@@ -385,11 +387,6 @@ export async function renderOneStagedSlideshowSlide(input: {
         imageDataUri(icon.filePath, icon.extension)
       )
     ),
-    imageItemUrls: await Promise.all(
-      (input.imageItems ?? []).map((image) =>
-        imageDataUri(image.filePath, image.extension)
-      )
-    ),
   })
   const base = `slide-${String(input.slideIndex + 1).padStart(3, "0")}`
   await writeFile(path.join(input.scratchDir, `${base}.svg`), svg)
@@ -400,9 +397,6 @@ export async function renderOneStagedSlideshowSlide(input: {
     sourcePublicUrl: input.source.publicUrl,
     overlayPublicUrl: input.overlay?.publicUrl,
     iconPublicUrls: (input.icons ?? []).map((icon) => icon.publicUrl),
-    imageItemPublicUrls: (input.imageItems ?? []).map(
-      (image) => image.publicUrl
-    ),
   }
 }
 
@@ -413,7 +407,6 @@ export function assembleSlideshowRenderRecord(input: {
     sourcePublicUrl: string
     overlayPublicUrl?: string
     iconPublicUrls?: string[]
-    imageItemPublicUrls?: string[]
   }>
 }) {
   return {
@@ -435,13 +428,6 @@ export function assembleSlideshowRenderRecord(input: {
                 slide.overlayImage.image_url,
             }
           : undefined,
-        imageItems: slide.imageItems?.map((item, imageIndex) => ({
-          ...item,
-          source_image_url:
-            output.imageItemPublicUrls?.[imageIndex] ||
-            item.source_image_url ||
-            item.image_url,
-        })),
         iconLayout: slide.iconLayout
           ? {
               ...slide.iconLayout,
@@ -500,7 +486,7 @@ export async function renderStoredSlideshowVideo(input: {
       durationSeconds: prepared.durationSeconds,
       slideImagePaths: prepared.slideImagePaths,
     })
-    await persistAssetDirectory(prepared.scratchDir, prepared.storageOutputDir)
+    await persistStoredAssetsInDir(prepared.scratchDir, prepared.storageOutputDir)
     return finalizeStoredSlideshowVideo({ ...prepared, ...rendered })
   } finally {
     await rm(prepared.scratchDir, { recursive: true, force: true })
@@ -1002,7 +988,6 @@ function normalizeSlide(
     image_url: imageUrl,
     source_image_url: clean(slide.source_image_url) || undefined,
     overlayImage: normalizeOverlayImage(slide.overlayImage),
-    imageItems: normalizeImageItems(slide.imageItems),
     overlay: Boolean(slide.overlay),
     iconLayout: normalizeOvalIconLayout(slide.iconLayout),
     textItems: Array.isArray(slide.textItems)
@@ -1056,35 +1041,6 @@ function normalizeOverlayImage(
     source_image_url: clean(value?.source_image_url) || undefined,
     padding: Math.max(0, normalizeNumber(value?.padding, 5)),
   }
-}
-
-function normalizeImageItems(
-  value: SlideshowImageItem[] | undefined
-): SlideshowImageItem[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item, index) => {
-    const imageUrl = clean(item.image_url)
-    if (!imageUrl) return []
-    return [
-      {
-        id: clean(item.id) || `image-${index + 1}`,
-        image_url: imageUrl,
-        source_image_url: clean(item.source_image_url) || undefined,
-        positionX: Math.max(
-          0,
-          Math.min(100, normalizeNumber(item.positionX, 50))
-        ),
-        positionY: Math.max(
-          0,
-          Math.min(100, normalizeNumber(item.positionY, 50))
-        ),
-        width: Math.max(2, Math.min(100, normalizeNumber(item.width, 44))),
-        height: Math.max(2, Math.min(100, normalizeNumber(item.height, 28))),
-        fit: item.fit === "contain" ? "contain" : "cover",
-        opacity: Math.max(0, Math.min(1, normalizeNumber(item.opacity, 1))),
-      },
-    ]
-  })
 }
 
 function normalizeTextItem(
@@ -1172,7 +1128,6 @@ async function writeSlideshowOutputs(
       sourcePublicUrl: string
       overlayPublicUrl?: string
       iconPublicUrls?: string[]
-      imageItemPublicUrls?: string[]
     }> = []
     for (const [index, slide] of record.images.entries()) {
       const sourceUrl = slide.source_image_url || slide.image_url
@@ -1225,13 +1180,6 @@ async function writeSlideshowOutputs(
                   slide.overlayImage.image_url,
               }
             : undefined,
-          imageItems: slide.imageItems?.map((item, imageIndex) => ({
-            ...item,
-            source_image_url:
-              output.imageItemPublicUrls?.[imageIndex] ||
-              item.source_image_url ||
-              item.image_url,
-          })),
           iconLayout: slide.iconLayout
             ? {
                 ...slide.iconLayout,
@@ -1251,7 +1199,7 @@ async function writeSlideshowOutputs(
       }),
     }
 
-    await persistAssetDirectory(scratchDir, logicalOutputDir)
+    await persistStoredAssetsInDir(scratchDir, logicalOutputDir)
     return outputRecord
   } finally {
     await rm(scratchDir, { recursive: true, force: true })
@@ -1276,7 +1224,7 @@ async function writeSlideshowSlideOutput(
       aspectRatio: record.settings.aspect_ratio,
       font: record.settings.font,
     })
-    await persistAssetDirectory(scratchDir, logicalOutputDir)
+    await persistStoredAssetsInDir(scratchDir, logicalOutputDir)
     return {
       ...slide,
       image_url: output.publicUrl,
@@ -1290,13 +1238,6 @@ async function writeSlideshowSlideOutput(
               slide.overlayImage.image_url,
           }
         : undefined,
-      imageItems: slide.imageItems?.map((item, imageIndex) => ({
-        ...item,
-        source_image_url:
-          output.imageItemPublicUrls?.[imageIndex] ||
-          item.source_image_url ||
-          item.image_url,
-      })),
       iconLayout: slide.iconLayout
         ? {
             ...slide.iconLayout,
@@ -1330,10 +1271,6 @@ async function deleteSlideshowOutput(
       slide.image_url,
       slide.source_image_url,
       slide.overlayImage?.source_image_url,
-      ...(slide.imageItems?.flatMap((item) => [
-        item.image_url,
-        item.source_image_url,
-      ]) ?? []),
       ...(slide.iconLayout?.surrounding.flatMap((icon) => [
         icon.image_url,
         icon.source_image_url,
@@ -1345,7 +1282,7 @@ async function deleteSlideshowOutput(
       .filter((url): url is string => Boolean(url?.startsWith(outputPrefix)))
       .map((url) => localAssetPathForUrl(url))
       .filter((assetPath): assetPath is string => Boolean(assetPath))
-      .map((assetPath) => deleteAsset(assetPath))
+      .map((assetPath) => deleteStoredAsset(assetPath))
   )
   await rm(path.join(rootDir, "outputs", record.id), {
     recursive: true,
@@ -1382,15 +1319,6 @@ async function materializeSlideImage(input: {
       })
     )
   )
-  const imageItemSources = await Promise.all(
-    (input.slide.imageItems ?? []).map((item, imageIndex) =>
-      materializeSlideAsset({
-        ...input,
-        sourceUrl: item.source_image_url || item.image_url,
-        prefix: `image-layer-${String(imageIndex + 1).padStart(2, "0")}`,
-      })
-    )
-  )
   const fileName = `slide-${String(input.slideIndex + 1).padStart(3, "0")}.svg`
   const { configureFontconfig } = await import("@/lib/font-config")
   configureFontconfig()
@@ -1407,11 +1335,6 @@ async function materializeSlideImage(input: {
     iconUrls: await Promise.all(
       iconSources.map((icon) => imageDataUri(icon.filePath, icon.extension))
     ),
-    imageItemUrls: await Promise.all(
-      imageItemSources.map((image) =>
-        imageDataUri(image.filePath, image.extension)
-      )
-    ),
   })
   const svgPath = path.join(input.outputDir, fileName)
   await writeFile(svgPath, svg)
@@ -1426,7 +1349,6 @@ async function materializeSlideImage(input: {
     sourcePublicUrl: source.publicUrl,
     overlayPublicUrl: overlaySource?.publicUrl,
     iconPublicUrls: iconSources.map((icon) => icon.publicUrl),
-    imageItemPublicUrls: imageItemSources.map((image) => image.publicUrl),
   }
 }
 
@@ -1636,7 +1558,7 @@ async function copyLocalAsset(sourceUrl: string, filePath: string) {
     return false
   }
 
-  // Source assets live in Appwrite Storage; stage the bytes into the scratch dir.
+  // Source assets live in Railway Storage; stage the bytes into the scratch dir.
   const bytes = await readAssetBytes(sourcePath)
   await writeFile(filePath, bytes)
   return true

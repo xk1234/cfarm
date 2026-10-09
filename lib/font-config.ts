@@ -3,19 +3,12 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-import {
-  BUNDLED_FONT_FILE,
-  SLIDESHOW_FONT_FACES,
-} from "@/lib/slideshow-font-family"
+import { BUNDLED_FONT_FILE } from "@/lib/slideshow-font-family"
 
 export {
   BUNDLED_FONT_FAMILY,
   BUNDLED_FONT_FILE,
-  PIN_SET_34A_FONT_ASSIGNMENTS,
-  SLIDESHOW_FONT_FACES,
   resolveSlideshowFont,
-  resolveSlideshowFontWeight,
-  slideshowFontOptions,
 } from "@/lib/slideshow-font-family"
 
 let configured = false
@@ -46,11 +39,11 @@ export function bundledFontDir(): string | null {
 
 /**
  * Ensure fontconfig can find the bundled TTF in environments that ship no
- * default font config (notably the Appwrite node-22 Alpine runtime). Writes a
+ * default font config (notably the Railway node-22 Alpine runtime). Writes a
  * minimal fonts.conf — with the font directory resolved at runtime, since the
  * absolute path differs between the Next app and the function container — into
  * a temp cache and points FONTCONFIG_FILE at it. Idempotent; must be called
- * before the first `sharp()` call that rasterizes SVG `<text>`.
+ * before a native renderer (Fabric/node-canvas or Sharp) resolves slide text.
  *
  * Returns whether fontconfig was configured. A missing font directory is NOT
  * fatal: rendering falls back to whatever fonts the host provides, which is the
@@ -88,22 +81,11 @@ export function configureFontconfig(fontDir?: string | null): boolean {
     /* already present */
   }
   const confPath = path.join(/* turbopackIgnore: true */ cacheDir, "fonts.conf")
-  const variantRules = SLIDESHOW_FONT_FACES.flatMap((face) => {
-    if (!face.fontconfigFamily || !face.fontconfigStyle) return []
-    return [
-      `  <match target="pattern">
-    <test name="family" compare="eq"><string>${face.family}</string></test>
-    <edit name="family" mode="assign"><string>${face.fontconfigFamily}</string></edit>
-    <edit name="style" mode="assign"><string>${face.fontconfigStyle}</string></edit>
-  </match>`,
-    ]
-  }).join("\n")
   const conf = `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
   <dir>${absoluteDir}</dir>
   <cachedir>${cacheDir}</cachedir>
-${variantRules}
 </fontconfig>
 `
   if (

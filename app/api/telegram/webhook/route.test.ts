@@ -1,15 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
-  getJob: vi.fn(),
+  getRow: vi.fn(),
   markReminderGenerationPosted: vi.fn(),
   telegramBotRequest: vi.fn(),
   getReminderSettings: vi.fn(),
 }))
 
-vi.mock("@/lib/railway/job-repository", () => ({
-  railwayJobRepository: { get: mocks.getJob },
-}))
 vi.mock("@/lib/reminder-actions", () => ({
   markReminderGenerationPosted: mocks.markReminderGenerationPosted,
 }))
@@ -36,20 +33,20 @@ describe("Telegram reminder webhook", () => {
   it("rejects requests without Telegram's webhook secret", async () => {
     const response = await POST(webhookRequest("wrong-secret"))
     expect(response.status).toBe(401)
-    expect(mocks.getJob).not.toHaveBeenCalled()
+    expect(mocks.getRow).not.toHaveBeenCalled()
   })
 
   it("marks the source generation posted and removes the action button", async () => {
-    mocks.getJob.mockResolvedValue({
-      id: "job-ready-1",
+    mocks.getRow.mockResolvedValue({
+      $id: "job-ready-1",
       type: "send-notification",
-      ownerId: "owner-1",
-      payload: {
+      owner_id: "owner-1",
+      payload: JSON.stringify({
         event: "ready_to_post",
         sourceType: "slideshow",
         sourceId: "slideshow-1",
         requiresPostConfirmation: true,
-      },
+      }),
     })
     mocks.markReminderGenerationPosted.mockResolvedValue({
       alreadyPosted: false,

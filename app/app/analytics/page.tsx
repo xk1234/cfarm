@@ -1,25 +1,28 @@
-import { redirect } from "next/navigation"
-
-import { AnalyticsView } from "@/features/analytics/ui/analytics-view"
-import { WorkspaceShell } from "@/features/workspace/ui/workspace-shell"
-import { getCurrentUser } from "@/lib/auth"
+import { WorkspaceRoute } from "@/components/realfarm/routes/workspace-route"
 
 export default async function AnalyticsPage({
   searchParams,
 }: {
   searchParams: Promise<{
     companion?: string | string[]
+    platformPostId?: string | string[]
   }>
 }) {
-  const [query, user] = await Promise.all([searchParams, getCurrentUser()])
+  const query = await searchParams
   const companion = first(query.companion)
-  const companionIntent = companion === "tiktok-studio" ? companion : undefined
-  if (!user) redirect("/?auth=sign-in&next=/app/analytics")
+  const companionIntent =
+    companion === "tiktok-studio" || companion === "tiktok-comments"
+      ? companion
+      : undefined
 
   return (
-    <WorkspaceShell view="analytics" ownerName={user.name}>
-      <AnalyticsView companionIntent={companionIntent} />
-    </WorkspaceShell>
+    <WorkspaceRoute
+      navigation={{
+        view: "analytics",
+        companionIntent,
+        platformPostId: first(query.platformPostId)?.trim() || undefined,
+      }}
+    />
   )
 }
 

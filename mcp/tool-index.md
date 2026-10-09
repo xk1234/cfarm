@@ -6,30 +6,32 @@ several workflows, but its input/output contract has one obvious owner.
 | Tool                                             | Primary use case                                | Availability       |
 | ------------------------------------------------ | ----------------------------------------------- | ------------------ |
 | `lumenclip_pipeline_catalog`                     | [Workflows](workflows/README.md)                | Implemented        |
+| `lumenclip_pipeline_stage_run`                   | [Workflows](workflows/README.md)                | Implemented        |
 | `lumenclip_pipeline_run`                         | [Workflows](workflows/README.md)                | Implemented        |
+| `lumenclip_workflow_fork`                        | [Workflows](workflows/README.md)                | Implemented        |
 | `lumenclip_workspace_get`                        | [Workspace](workspace/README.md)                | Proposed v1        |
-| `lumenclip_templates_list`                       | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_create`                      | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_clone`                       | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_get`                         | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_variable_bindings_get`       | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_experiment_dimensions`       | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_experiment_run`              | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_schema_update`               | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_slide_design_update`         | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_slide_text_item_update`      | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_delete`                      | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_hooks_get`                   | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_hooks_update`                | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_hook_upsert`                 | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_hook_set_enabled`            | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_hook_delete`                 | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_hook_variants_generate`               | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_hook_variant_select`                  | [Templates](templates/README.md)                | Implemented        |
+| `lumenclip_templates_list`                       | [Templates](templates/README.md)                | Proposed v1        |
+| `lumenclip_template_get`                         | [Templates](templates/README.md)                | Proposed v1        |
+| `lumenclip_automations_list`                     | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_templates_list`            | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_create`                    | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_get`                       | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_schema_update`             | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_formatting_update`         | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_text_item_update`          | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_delete`                    | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_hooks_get`                 | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_hooks_update`              | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_hook_upsert`               | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_hook_set_enabled`          | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_hook_delete`               | [Automations](automations/README.md)            | Implemented        |
 | `lumenclip_hook_performance`                     | [Analytics](analytics/README.md)                | Implemented        |
-| `lumenclip_run_plan_get`                         | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_update`                      | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_run`                         | [Templates](templates/README.md)                | Implemented        |
+| `lumenclip_run_plan_get`                         | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_preview`                   | [Automations](automations/README.md)            | Proposed v1        |
+| `lumenclip_automation_create_from_template`      | [Automations](automations/README.md)            | Proposed v1        |
+| `lumenclip_automation_save`                      | [Automations](automations/README.md)            | Proposed v1        |
+| `lumenclip_automation_update`                    | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_run`                       | [Automations](automations/README.md)            | Implemented        |
 | `lumenclip_collections_list`                     | [Collections](collections/README.md)            | Implemented        |
 | `lumenclip_product_collection_get`               | [Collections](collections/README.md)            | Implemented        |
 | `lumenclip_assets_list`                          | [Collections](collections/README.md)            | Implemented        |
@@ -55,12 +57,16 @@ several workflows, but its input/output contract has one obvious owner.
 | `lumenclip_workspace_members_list`               | [Accounts and publishing](publishing/README.md) | Implemented        |
 | `lumenclip_output_publish`                       | [Accounts and publishing](publishing/README.md) | Implemented        |
 | `lumenclip_output_mark_published`                | [Accounts and publishing](publishing/README.md) | Implemented        |
+| `lumenclip_tiktok_import_start`                  | [Accounts and publishing](publishing/README.md) | Implemented        |
+| `lumenclip_tiktok_import_preview`                | [Accounts and publishing](publishing/README.md) | Implemented        |
+| `lumenclip_tiktok_publications_link`             | [Accounts and publishing](publishing/README.md) | Implemented        |
+| `lumenclip_schedule_get`                         | [Scheduling](scheduling/README.md)              | Implemented        |
 | `lumenclip_analytics_report`                     | [Analytics](analytics/README.md)                | Implemented        |
 | `lumenclip_tiktok_studio_analytics_import_start` | [Analytics](analytics/README.md)                | Implemented        |
 | `lumenclip_tiktok_studio_analytics_report`       | [Analytics](analytics/README.md)                | Implemented        |
 | `lumenclip_tiktok_studio_analytics_batch_start`  | [Analytics](analytics/README.md)                | Implemented        |
 | `lumenclip_export_create`                        | [Exports](exports/README.md)                    | Deferred beyond v1 |
 
-Video and social generation intentionally reuse the template tools rather
+Video and social generation intentionally reuse the automation tools rather
 than defining provider-specific MCP tools. Scheduling likewise reuses
-template configuration and publishing; see [Scheduling](scheduling/README.md).
+automation configuration and publishing; see [Scheduling](scheduling/README.md).

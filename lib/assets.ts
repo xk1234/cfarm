@@ -2,7 +2,7 @@ import { clean } from "@/lib/guards"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 
-import { deleteAsset, persistAsset } from "@/lib/asset-storage"
+import { deleteStoredAsset, persistAsset } from "@/lib/asset-storage"
 import {
   readJsonArrayRecord,
   readJsonArrayStore,
@@ -340,7 +340,7 @@ async function deleteUnusedAssetFiles(
   }
 
   for (const filePath of filePaths.keys()) {
-    await deleteAsset(filePath)
+    await deleteStoredAsset(filePath)
   }
 
   return filePaths.size

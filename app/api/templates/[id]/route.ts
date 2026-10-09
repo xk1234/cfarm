@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server"
 
-import { withHandler, readRouteId } from "@/lib/api"
-import { deleteAutomationCascade } from "@/lib/delete-automation"
+import { ApiError, readRouteId, withHandler } from "@/lib/api"
+import {
+  contentTemplateFromMediaRecord,
+  contentTemplateFromPostRecord,
+} from "@/lib/content-templates"
+import { deleteAutomationRecord, getAutomationRecord } from "@/lib/automations"
+import { deleteXAutomation, getXAutomation } from "@/lib/x-automation-store"
 
-export const dynamic = "force-dynamic"
-
-export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
-  async (_request, { params }) => {
-    const id = await readRouteId(params)
-
-    if (!id) {
-      return NextResponse.json(
-        { error: "A template id is required" },
-        { status: 400 }
-      )
+export const DELETE = withHandler<RouteContext<"/api/templates/[id]">>(
+  async (_request, context) => {
+    const id = await readRouteId(context.params)
+    if (!id) throw new ApiError(400, "A template id is required")
+    const text = await getXAutomation(id)
+    if (text) {
+      await deleteXAutomation(id)
+      return NextResponse.json({ deleted: contentTemplateFromPostRecord(text) })
     }
-
-    const result = await deleteAutomationCascade({ id })
-    if (
-      result.alreadyDeleted &&
-      result.deletedSlideshowsCount === 0 &&
-      result.deletedRunsCount === 0 &&
-      result.deletedPostFastPostsCount === 0
-    ) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 })
-    }
-    return NextResponse.json(result)
+    const media = await getAutomationRecord(id)
+    if (!media) throw new ApiError(404, "Template not found")
+    await deleteAutomationRecord({ id })
+    return NextResponse.json({ deleted: contentTemplateFromMediaRecord(media) })
   }
 )

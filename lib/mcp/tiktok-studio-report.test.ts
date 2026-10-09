@@ -9,8 +9,8 @@ vi.mock("@/lib/output-publications", () => ({
   writeCanonicalPostWithLegacyProjection: vi.fn(),
 }))
 
-vi.mock("@/lib/post-repository-appwrite", () => ({
-  appwritePostRepository: {
+vi.mock("@/lib/post-repository-store", () => ({
+  railwayPostRepository: {
     listPosts: readMocks.canonicalList,
   },
 }))

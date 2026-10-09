@@ -11,59 +11,7 @@ import {
   type PostFastProviderControlsByProvider,
 } from "@/lib/postfast-provider-controls"
 import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
-import type {
-  Automation,
-  AutomationAspectRatio,
-  AutomationDay,
-  AutomationImageFit,
-  AutomationImageGrid,
-  AutomationImageMode,
-  AutomationLifecycleStatus,
-  AutomationPostingMode,
-  AutomationSchedule,
-  AutomationTextAlign,
-  AutomationTextAnchor,
-  AutomationTextPosition,
-  ImageCollectionConfig,
-  PromptFormatting,
-  TikTokPostMode,
-  TikTokPublishType,
-  TikTokVisibility,
-} from "@/lib/automation-base-contract"
-
-export type {
-  AutomationAspectRatio,
-  AutomationDay,
-  AutomationImageFit,
-  AutomationImageGrid,
-  AutomationImageMode,
-  AutomationLifecycleStatus,
-  AutomationPostingMode,
-  AutomationSchedule,
-  AutomationStatus,
-  AutomationTextAlign,
-  AutomationTextAnchor,
-  AutomationTextPosition,
-  ImageCollectionConfig,
-  PromptFormatting,
-  TikTokPostMode,
-  TikTokPublishType,
-  TikTokVisibility,
-  Time,
-} from "@/lib/automation-base-contract"
-
-export {
-  alignmentLabel,
-  anchorLabel,
-  aspectRatioLabel,
-  imageGridLabel,
-  labelToAlignment,
-  labelToAnchor,
-  labelToAspectRatio,
-  labelToImageGrid,
-  labelToWordLength,
-  wordLengthLabel,
-} from "@/lib/realfarm-automation-labels"
+import type { Automation } from "@/lib/realfarm-data"
 import {
   defaultAutomationLanguage,
   defaultAutomationPublishType,
@@ -79,6 +27,48 @@ import {
 
 export { applyHookCase } from "@/lib/slideshow-plan-core"
 
+export type AutomationStatus = "paused" | "live"
+// Canonical persisted/lifecycle status. `unknown` covers records that predate
+// the enum. This is the single source of truth for automation status shared by
+// the stored record and the UI summary view.
+export type AutomationLifecycleStatus = AutomationStatus | "unknown"
+export type AutomationAspectRatio = "9:16" | "4:5" | "3:4" | "3:2" | "1:1"
+export type AutomationImageFit = "cover" | "contain" | "fit"
+export type AutomationImageGrid = "none" | "2x2" | "1x2" | "1x3" | "oval-icons"
+export type AutomationImageMode = "collection" | "single_image"
+export type AutomationTextAlign = "left" | "center" | "right"
+export type AutomationTextAnchor = "padded" | "flush"
+export type AutomationTextPosition = "top" | "center" | "bottom"
+export type TikTokVisibility =
+  "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "SELF_ONLY"
+export type TikTokPostMode = "MEDIA_UPLOAD" | "DIRECT_POST"
+export type TikTokPublishType = "slideshow" | "video"
+export type AutomationDay =
+  "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun"
+export type Time = string
+
+export type PromptFormatting = {
+  style: string
+  narrative: string
+  num_of_slides: number
+  hook_case?: import("@/lib/hook-casing").HookCaseMode
+}
+
+export type ImageCollectionConfig = {
+  first_slide: {
+    collection: string
+    mode: AutomationImageMode
+    single_image: string | null
+  }
+  all_slides: string
+  cta_slide: {
+    check: boolean
+    cta_collection_id: string
+    image_id: string | null
+  }
+  video_demo_asset_id?: string
+}
+
 export type PostTextSetting = {
   mode: "prompt" | "static"
   static_text: string
@@ -93,6 +83,8 @@ export type TextItem = {
   textStyle: string
   font: string
   textPosition: AutomationTextPosition
+  textPositionX?: number
+  textPositionY?: number
   textItemWidth: string
   wordLengthMin: number
   wordLengthMax: number
@@ -102,12 +94,10 @@ export type TextItem = {
   textAlign: AutomationTextAlign
   textAnchor: AutomationTextAnchor
   textVerticalAnchor?: AutomationTextAnchor
-  positionX?: number
-  positionY?: number
-  fontWeight?: number
-  backgroundMode?: "line" | "block"
-  backgroundRadius?: number
 }
+
+/** @deprecated Use TextItem; kept as a source-compatible alias. */
+export type AutomationTextItem = TextItem
 
 export type AutomationFormatSectionId = "hook" | "body" | "cta"
 
@@ -121,21 +111,9 @@ export type AutomationImageOverride = {
   collectionId: string
 }
 
-export type AutomationImageItem = {
-  id: string
-  collectionId: string
-  imageId: string
-  positionX: number
-  positionY: number
-  width: number
-  height: number
-  fit: "cover" | "contain"
-  opacity: number
-}
-
 export type AutomationFormatSection = {
   id: AutomationFormatSectionId
-  textItems: TextItem[]
+  textItems: AutomationTextItem[]
   aspect_ratio: AutomationAspectRatio
   imageGrid: AutomationImageGrid
   slideCount: number
@@ -145,7 +123,6 @@ export type AutomationFormatSection = {
   noText: boolean
   overlay: boolean
   aiImageSelection?: boolean
-  imageItems?: AutomationImageItem[]
   overlayImage?: {
     enabled: boolean
     collectionId?: string
@@ -154,7 +131,6 @@ export type AutomationFormatSection = {
   slideOverrides?: AutomationSlideOverride[]
   imageOverrides?: AutomationImageOverride[]
   imageMode?: AutomationImageMode
-  visualPresetId?: string
 }
 
 export type AutomationToneSection = {
@@ -179,22 +155,6 @@ export type AutomationTonePresetOption =
 
 export type AutomationFormattingItem = AutomationFormatSection
 
-export type AutomationSlideDesign = Omit<
-  AutomationFormatSection,
-  | "id"
-  | "slideCount"
-  | "slideCountMode"
-  | "slideCountMin"
-  | "slideCountMax"
-  | "slideOverrides"
-  | "imageOverrides"
-> & {
-  id: string
-  name: string
-  instructions: string
-  collectionId: string
-}
-
 export type RuntimeAutomationTemplate = Pick<
   AutomationSchema,
   | "automationKind"
@@ -212,7 +172,6 @@ export type RuntimeAutomationTemplate = Pick<
   | "ugc"
 > & {
   hooks?: AutomationHookItem[]
-  slide_designs?: AutomationSlideDesign[]
   social_post_settings?: AutomationSocialPostSettings
   social_publish_as?: AutomationSocialPublishAs
 }
@@ -230,6 +189,19 @@ export type AutomationSocialPublishAs = Partial<
   Record<AutomationSocialProvider, TikTokPublishType>
 >
 
+export type AutomationSchedule = {
+  timezone: string
+  posting_times: {
+    time: Time
+    days: AutomationDay[]
+    enabled?: boolean
+  }[]
+  paused?: boolean
+  jitter_minutes?: number
+}
+
+export type AutomationPostingMode = "manual" | "review" | "auto"
+
 export type AutomationReusePolicy = {
   image_exclusion_days?: number
   image_exclusion_limit?: number
@@ -245,18 +217,8 @@ export type AutomationHookItem = {
   enabled: boolean
   bodySlideCount?: number
   tone?: string
-  contentDirection?: string
-  content?: string
   createdAt: string
   updatedAt?: string
-  source?: {
-    provider: "lumenlab"
-    projectId: string
-    projectTitle: string
-    hookId?: string
-    scriptId?: string
-    importedAt: string
-  }
 }
 
 export type AutomationContentFormat =
@@ -288,9 +250,6 @@ export type AutomationVideoTemplateId =
   | "aesthetic"
   | "story_over_broll"
   | "faceless_reel"
-  | "split_screen"
-  | "fake_text"
-  | "faceless_short"
 
 export const automationVideoTemplateIds: AutomationVideoTemplateId[] = [
   "ugc_ad",
@@ -303,9 +262,6 @@ export const automationVideoTemplateIds: AutomationVideoTemplateId[] = [
   "aesthetic",
   "story_over_broll",
   "faceless_reel",
-  "split_screen",
-  "fake_text",
-  "faceless_short",
 ]
 
 export type AutomationVideoTransition = "cut" | "fade"
@@ -323,13 +279,13 @@ export type AutomationVideoSegment = {
   clipDurationMs: number
   playFullVideo?: boolean
   transition: AutomationVideoTransition
-  textItems: TextItem[]
+  textItems: AutomationTextItem[]
 }
 
 export type AutomationVideoFormat = {
   template: AutomationVideoTemplateId
   hookPlacement: "global" | "first_segment"
-  globalTextItems: TextItem[]
+  globalTextItems: AutomationTextItem[]
   segments: AutomationVideoSegment[]
 }
 
@@ -337,8 +293,8 @@ export type AutomationUgcConfig = {
   enabled: boolean
   productUrl?: string
   productBrief?: string
-  actorSource: "generate" | "collection"
-  actorCollectionId?: string
+  actorSource: "generate" | "gallery" | "upload"
+  actorAssetUrl?: string
   actorPrompt?: string
   voiceId: string
   voiceModel?: string
@@ -366,7 +322,6 @@ export type AutomationSchema = {
   image_collection_ids: ImageCollectionConfig
   tone: AutomationToneSection
   formatting: AutomationFormattingItem[]
-  slide_designs: AutomationSlideDesign[]
   tiktok_post_settings: {
     caption: PostTextSetting
     description: PostTextSetting
@@ -406,7 +361,6 @@ export const automationAspectRatios: AutomationAspectRatio[] = [
   "9:16",
   "4:5",
   "3:4",
-  "4:3",
   "3:2",
   "1:1",
 ]
@@ -426,44 +380,24 @@ export const automationAlignments: AutomationTextAlign[] = [
 export const automationAnchors: AutomationTextAnchor[] = ["padded", "flush"]
 
 export function defaultAutomationTextItem(
-  overrides: Partial<TextItem> = {}
-): TextItem {
-  const textPosition = overrides.textPosition ?? "center"
-  const textAlign = overrides.textAlign ?? "center"
-  const textAnchor = overrides.textAnchor ?? "padded"
+  overrides: Partial<AutomationTextItem> = {}
+): AutomationTextItem {
   return {
     id: `text-${Math.random().toString(36).slice(2, 10)}`,
     text: "",
     fontSize: "8px",
     textStyle: "whiteText",
     font: "TikTok Display Medium",
-    textPosition,
+    textPosition: "center",
     textItemWidth: "60%",
     wordLengthMin: 5,
     wordLengthMax: 10,
     contentDirection: "",
     textMode: "prompt",
     staticText: "",
-    textAlign,
-    textAnchor,
+    textAlign: "center",
+    textAnchor: "padded",
     textVerticalAnchor: "padded",
-    positionX:
-      overrides.positionX ??
-      (textAlign === "left"
-        ? textAnchor === "flush"
-          ? 1.5
-          : 10
-        : textAlign === "right"
-          ? textAnchor === "flush"
-            ? 98.5
-            : 90
-          : 50),
-    positionY:
-      overrides.positionY ??
-      (textPosition === "bottom" ? 82 : textPosition === "top" ? 16 : 45),
-    fontWeight: 800,
-    backgroundMode: "line",
-    backgroundRadius: 6,
     ...overrides,
   }
 }
@@ -491,12 +425,6 @@ export function defaultAutomationSchema(
     social_integrations: [],
     ...template,
     hooks: template.hooks ?? [],
-    slide_designs:
-      template.slide_designs ??
-      legacyFormattingToSlideDesigns(
-        template.formatting,
-        template.image_collection_ids
-      ),
     social_post_settings:
       template.social_post_settings ?? defaultSocialPostSettings(),
     social_publish_as: normalizeSocialPublishAs(template.social_publish_as, {}),
@@ -511,9 +439,8 @@ export function defaultAutomationSchema(
           time,
           days: allDays,
         })),
-      paused: true,
     },
-    posting_mode: "manual",
+    posting_mode: "auto",
     generation_lead_minutes: 30,
   }
 }
@@ -542,49 +469,6 @@ export function defaultAutomationTemplate(
   const bodyDefaults = defaultAutomationTemplateDefaults.formatting.body
   const ctaDefaults = defaultAutomationTemplateDefaults.formatting.cta
 
-  const formatting: AutomationFormattingItem[] = [
-    {
-      id: "hook",
-      textItems: [
-        defaultAutomationTextItem({
-          ...hookDefaults.textItem,
-        }),
-      ],
-      aspect_ratio: hookDefaults.aspect_ratio,
-      imageGrid: hookDefaults.imageGrid,
-      slideCount: hookDefaults.slideCount,
-      noText: hookDefaults.noText,
-      overlay: hookDefaults.overlay,
-    },
-    {
-      id: "body",
-      textItems: [
-        defaultAutomationTextItem({
-          ...bodyDefaults.textItem,
-        }),
-      ],
-      aspect_ratio: bodyDefaults.aspect_ratio,
-      imageGrid: bodyDefaults.imageGrid,
-      slideCount: bodyDefaults.slideCount,
-      noText: bodyDefaults.noText,
-      overlay: bodyDefaults.overlay,
-    },
-    {
-      id: "cta",
-      textItems: [
-        defaultAutomationTextItem({
-          ...ctaDefaults.textItem,
-        }),
-      ],
-      aspect_ratio: ctaDefaults.aspect_ratio,
-      imageGrid: ctaDefaults.imageGrid,
-      slideCount: ctaDefaults.slideCount,
-      noText: ctaDefaults.noText,
-      overlay: ctaDefaults.overlay,
-      imageMode: ctaDefaults.imageMode,
-    },
-  ]
-
   return {
     automationKind:
       automation.automationKind === "video" ||
@@ -601,11 +485,48 @@ export function defaultAutomationTemplate(
     hooks: [],
     image_collection_ids: defaultImageCollectionConfig(),
     tone: { value: tone, preset: "custom" },
-    formatting,
-    slide_designs: legacyFormattingToSlideDesigns(
-      formatting,
-      defaultImageCollectionConfig()
-    ),
+    formatting: [
+      {
+        id: "hook",
+        textItems: [
+          defaultAutomationTextItem({
+            ...hookDefaults.textItem,
+          }),
+        ],
+        aspect_ratio: hookDefaults.aspect_ratio,
+        imageGrid: hookDefaults.imageGrid,
+        slideCount: hookDefaults.slideCount,
+        noText: hookDefaults.noText,
+        overlay: hookDefaults.overlay,
+      },
+      {
+        id: "body",
+        textItems: [
+          defaultAutomationTextItem({
+            ...bodyDefaults.textItem,
+          }),
+        ],
+        aspect_ratio: bodyDefaults.aspect_ratio,
+        imageGrid: bodyDefaults.imageGrid,
+        slideCount: bodyDefaults.slideCount,
+        noText: bodyDefaults.noText,
+        overlay: bodyDefaults.overlay,
+      },
+      {
+        id: "cta",
+        textItems: [
+          defaultAutomationTextItem({
+            ...ctaDefaults.textItem,
+          }),
+        ],
+        aspect_ratio: ctaDefaults.aspect_ratio,
+        imageGrid: ctaDefaults.imageGrid,
+        slideCount: ctaDefaults.slideCount,
+        noText: ctaDefaults.noText,
+        overlay: ctaDefaults.overlay,
+        imageMode: ctaDefaults.imageMode,
+      },
+    ],
     tiktok_post_settings: {
       ...defaultAutomationTemplateDefaults.tiktok_post_settings,
       caption: {
@@ -652,11 +573,6 @@ export function mergeAutomationSchema(
     formatting: normalizeFormatting(
       normalizedDraft.formatting,
       defaults.formatting
-    ),
-    slide_designs: normalizeSlideDesigns(
-      normalizedDraft.slide_designs,
-      normalizedDraft.formatting,
-      normalizedDraft.image_collection_ids
     ),
     social_integrations: normalizeAutomationSocialIntegrations(
       normalizedDraft.social_integrations
@@ -755,11 +671,6 @@ export function normalizeAutomationSchema(
     ),
     tone: normalizeAutomationTone(source.tone, defaults.tone),
     formatting: normalizedFormatting,
-    slide_designs: normalizeSlideDesigns(
-      sourceRecord.slide_designs,
-      normalizedFormatting,
-      source.image_collection_ids
-    ),
     tiktok_post_settings: {
       ...normalizeTikTokPostSettings(
         source.tiktok_post_settings,
@@ -819,8 +730,10 @@ export function normalizeUgcConfig(value: unknown): AutomationUgcConfig {
     productUrl: clean(source.productUrl) || undefined,
     productBrief: clean(source.productBrief) || undefined,
     actorSource:
-      source.actorSource === "collection" ? "collection" : "generate",
-    actorCollectionId: clean(source.actorCollectionId) || undefined,
+      source.actorSource === "gallery" || source.actorSource === "upload"
+        ? source.actorSource
+        : "generate",
+    actorAssetUrl: clean(source.actorAssetUrl) || undefined,
     actorPrompt: clean(source.actorPrompt) || undefined,
     voiceId: clean(source.voiceId),
     voiceModel: clean(source.voiceModel) || undefined,
@@ -873,8 +786,6 @@ export function ugcLiveConfigurationErrors(
   const errors: string[] = []
   if (!ugc.productUrl && !ugc.productBrief)
     errors.push("AI UGC requires a product URL or brief")
-  if (ugc.actorSource === "collection" && !ugc.actorCollectionId)
-    errors.push("AI UGC requires an actor image collection")
   if (!ugc.voiceId) errors.push("AI UGC requires an ElevenLabs voice id")
   return errors
 }
@@ -1031,33 +942,6 @@ export function automationFormatSection(
   )
 }
 
-export function automationSlideDesigns(
-  schema: Pick<
-    AutomationSchema,
-    "slide_designs" | "formatting" | "image_collection_ids"
-  >
-) {
-  return normalizeSlideDesigns(
-    schema.slide_designs,
-    schema.formatting,
-    schema.image_collection_ids
-  )
-}
-
-export function schemaWithAutomationSlideDesigns(
-  schema: AutomationSchema,
-  slideDesigns: AutomationSlideDesign[]
-): AutomationSchema {
-  return {
-    ...schema,
-    slide_designs: normalizeSlideDesigns(
-      slideDesigns,
-      schema.formatting,
-      schema.image_collection_ids
-    ),
-  }
-}
-
 export function updateAutomationFormatSection<
   K extends "hook" | "content" | "cta",
 >(
@@ -1172,27 +1056,6 @@ function normalizeAutomationHookItems(
     if (!isRecord(raw)) return []
     const text = clean(raw.text)
     if (!text || isAutomationHookInstruction(text)) return []
-    const rawSource = isRecord(raw.source) ? raw.source : null
-    const source =
-      rawSource?.provider === "lumenlab" &&
-      clean(rawSource.projectId) &&
-      (clean(rawSource.hookId) || clean(rawSource.scriptId))
-        ? {
-            provider: "lumenlab" as const,
-            projectId: clean(rawSource.projectId),
-            projectTitle: clean(rawSource.projectTitle) || "LumenLab project",
-            ...(clean(rawSource.hookId)
-              ? { hookId: clean(rawSource.hookId) }
-              : {}),
-            ...(clean(rawSource.scriptId)
-              ? { scriptId: clean(rawSource.scriptId) }
-              : {}),
-            importedAt:
-              clean(rawSource.importedAt) ||
-              clean(raw.createdAt) ||
-              new Date(0).toISOString(),
-          }
-        : undefined
     return [
       {
         id: clean(raw.id) || automationHookId(text),
@@ -1202,15 +1065,8 @@ function normalizeAutomationHookItems(
           ? { bodySlideCount: hookBodySlideCount(raw.bodySlideCount) }
           : {}),
         ...(clean(raw.tone) ? { tone: clean(raw.tone) } : {}),
-        ...(clean(raw.contentDirection)
-          ? { contentDirection: clean(raw.contentDirection).slice(0, 5_000) }
-          : {}),
-        ...(clean(raw.content)
-          ? { content: clean(raw.content).slice(0, 20_000) }
-          : {}),
         createdAt: clean(raw.createdAt) || new Date(0).toISOString(),
         ...(clean(raw.updatedAt) ? { updatedAt: clean(raw.updatedAt) } : {}),
-        ...(source ? { source } : {}),
       } satisfies AutomationHookItem,
     ]
   })
@@ -1355,10 +1211,7 @@ function tonePresetKey(value: string) {
 }
 
 export function automationTotalSlideCount(
-  schema: Pick<
-    AutomationSchema,
-    "prompt_formatting" | "formatting" | "slide_designs"
-  >
+  schema: Pick<AutomationSchema, "prompt_formatting" | "formatting">
 ) {
   const configured = Number(schema.prompt_formatting?.num_of_slides)
   if (Number.isFinite(configured) && configured > 0) {
@@ -1442,11 +1295,9 @@ export function automationCollectionId(
 }
 
 export function automationCollectionIds(
-  schema: Pick<AutomationSchema, "image_collection_ids"> &
-    Partial<Pick<AutomationSchema, "slide_designs">>
+  schema: Pick<AutomationSchema, "image_collection_ids">
 ) {
   return [
-    ...(schema.slide_designs ?? []).map((design) => design.collectionId),
     automationCollectionId(schema, "hook"),
     automationCollectionId(schema, "content"),
     automationCollectionId(schema, "cta"),
@@ -1557,11 +1408,8 @@ export function schemaWithAutomationCollectionId(
 
 export function automationSharedSlideStyle(schema: AutomationSchema) {
   const content = automationFormatSection(schema, "content")
-  const firstDesign = automationSlideDesigns(schema)[0]
   return {
-    aspectRatio:
-      firstDesign?.aspect_ratio || schema.aspect_ratio || content.aspect_ratio,
-    imageGrid: firstDesign?.imageGrid || content.imageGrid,
+    aspectRatio: schema.aspect_ratio || content.aspect_ratio || "9:16",
     font: schema.font || content.textItems[0]?.font || "TikTok Display Medium",
     imageFit: schema.image_fit,
     overlay: content.overlay,
@@ -1572,27 +1420,19 @@ export function schemaWithAutomationSharedSlideStyle(
   schema: AutomationSchema,
   patch: Partial<{
     aspectRatio: AutomationAspectRatio
-    imageGrid: AutomationImageGrid
     font: string
     imageFit: AutomationImageFit
     overlay: boolean
   }>
 ): AutomationSchema {
-  const slideDesigns = automationSlideDesigns(schema).map((design) => ({
-    ...design,
-    aspect_ratio: patch.aspectRatio ?? design.aspect_ratio,
-    imageGrid: patch.imageGrid ?? design.imageGrid,
-  }))
   return {
     ...schema,
     aspect_ratio: patch.aspectRatio ?? schema.aspect_ratio,
     font: patch.font ?? schema.font,
     image_fit: patch.imageFit ?? schema.image_fit,
-    slide_designs: slideDesigns,
     formatting: schema.formatting.map((item) => ({
       ...item,
       aspect_ratio: patch.aspectRatio ?? item.aspect_ratio,
-      imageGrid: patch.imageGrid ?? item.imageGrid,
       overlay: patch.overlay ?? item.overlay,
       textItems: item.textItems.map((textItem) => ({
         ...textItem,
@@ -1639,7 +1479,7 @@ export function normalizePostingTimes(
 
 function normalizeNonNegativeNumber(value: unknown) {
   const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
 function normalizeBoundedNumber(value: unknown, min: number, max: number) {
@@ -1683,7 +1523,12 @@ function normalizeReusePolicy(
       1
     ),
   }
-  return Object.values(policy).some((item) => item !== undefined)
+  return policy.image_exclusion_days ||
+    policy.image_exclusion_limit ||
+    policy.hook_exclusion_days ||
+    policy.text_exclusion_days ||
+    policy.text_exclusion_limit ||
+    policy.text_similarity_threshold
     ? policy
     : undefined
 }
@@ -1696,6 +1541,50 @@ export function automationCreatedAt(automation: Automation, index: number) {
     return new Date(maybeAutomation.created_at).getTime()
   }
   return DateTime.now().minus({ days: index }).toMillis()
+}
+
+export function labelToAspectRatio(value: string): AutomationAspectRatio {
+  return value as AutomationAspectRatio
+}
+
+export function aspectRatioLabel(value: AutomationAspectRatio) {
+  return value
+}
+
+export function labelToImageGrid(value: string): AutomationImageGrid {
+  if (value === "None") return "none"
+  if (value === "Oval icons") return "oval-icons"
+  return value as AutomationImageGrid
+}
+
+export function imageGridLabel(value: AutomationImageGrid) {
+  if (value === "none") return "None"
+  if (value === "oval-icons") return "Oval icons"
+  return value
+}
+
+export function wordLengthLabel(value: number) {
+  return `${value} words`
+}
+
+export function labelToWordLength(value: string) {
+  return Number(value.replace(" words", "")) || 5
+}
+
+export function alignmentLabel(value: AutomationTextAlign) {
+  return `${value[0].toUpperCase()}${value.slice(1)} align`
+}
+
+export function labelToAlignment(value: string): AutomationTextAlign {
+  return value.toLowerCase().replace(" align", "") as AutomationTextAlign
+}
+
+export function anchorLabel(value: AutomationTextAnchor) {
+  return value[0].toUpperCase() + value.slice(1)
+}
+
+export function labelToAnchor(value: string): AutomationTextAnchor {
+  return value.toLowerCase() as AutomationTextAnchor
 }
 
 function defaultAutomationSection(
@@ -1736,25 +1625,13 @@ function normalizePromptFormatting(
   fallback: PromptFormatting
 ): PromptFormatting {
   const record = isRecord(value) ? value : {}
-  const numOfSlides = Math.max(
-    1,
-    Math.round(numberValue(record.num_of_slides, fallback.num_of_slides))
-  )
   return {
     style: clean(record.style) || fallback.style,
     narrative:
       typeof record.narrative === "string"
         ? record.narrative.trim()
         : fallback.narrative,
-    num_of_slides: numOfSlides,
-    // Kept equal only while older records and clients still carry these keys.
-    // Generation uses num_of_slides as its single fixed source of truth.
-    slide_count_min: numOfSlides,
-    slide_count_max: numOfSlides,
-    slide_planning_prompt:
-      typeof record.slide_planning_prompt === "string"
-        ? record.slide_planning_prompt.trim()
-        : (fallback.slide_planning_prompt ?? ""),
+    num_of_slides: numberValue(record.num_of_slides, fallback.num_of_slides),
     hook_case:
       record.hook_case === "lowercase" ||
       record.hook_case === "uppercase" ||
@@ -1846,16 +1723,22 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
         record.slideCount,
         defaultAutomationSection(id).slideCount
       ),
-      slideCountMode: "static",
-      slideCountMin: undefined,
-      slideCountMax: undefined,
+      slideCountMode:
+        record.slideCountMode === "varying" ? "varying" : "static",
+      slideCountMin:
+        record.slideCountMin === undefined
+          ? undefined
+          : Math.max(1, numberValue(record.slideCountMin, 1)),
+      slideCountMax:
+        record.slideCountMax === undefined
+          ? undefined
+          : Math.max(1, numberValue(record.slideCountMax, 1)),
       noText: Boolean(record.noText),
       overlay:
         typeof record.overlay === "boolean"
           ? record.overlay
           : defaultAutomationSection(id).overlay,
       aiImageSelection: Boolean(record.aiImageSelection),
-      imageItems: normalizeImageItems(record.imageItems),
       overlayImage: normalizeOverlayImage(record.overlayImage),
       slideOverrides: normalizeSlideOverrides(record.slideOverrides),
       imageOverrides: normalizeImageOverrides(record.imageOverrides),
@@ -1865,134 +1748,8 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
           : record.imageMode === "collection"
             ? "collection"
             : defaultAutomationSection(id).imageMode,
-      visualPresetId: clean(record.visualPresetId) || undefined,
     },
   ]
-}
-
-function normalizeSlideDesigns(
-  value: unknown,
-  formatting: AutomationFormattingItem[],
-  imageCollections: ImageCollectionConfig
-): AutomationSlideDesign[] {
-  const items = Array.isArray(value) ? value : []
-  const normalized = items.flatMap((item, index) =>
-    normalizeSlideDesign(item, index)
-  )
-  if (normalized.length === 0) {
-    return legacyFormattingToSlideDesigns(formatting, imageCollections)
-  }
-  return normalized.map((design, index) => ({
-    ...design,
-    collectionId:
-      design.collectionId ||
-      (index === 0
-        ? imageCollections.first_slide.collection || imageCollections.all_slides
-        : imageCollections.all_slides ||
-          imageCollections.first_slide.collection),
-  }))
-}
-
-function normalizeSlideDesign(
-  value: unknown,
-  index: number
-): AutomationSlideDesign[] {
-  if (!isRecord(value)) return []
-  const fallback = defaultAutomationSection("body")
-  const id = clean(value.id) || `slide-design-${index + 1}`
-  const textItems = Array.isArray(value.textItems)
-    ? value.textItems.map(normalizeTextItem)
-    : fallback.textItems
-  return [
-    {
-      id,
-      name: clean(value.name) || `Slide ${index + 1}`,
-      instructions: clean(value.instructions),
-      collectionId: clean(value.collectionId),
-      textItems,
-      aspect_ratio: automationAspectRatios.includes(
-        value.aspect_ratio as AutomationAspectRatio
-      )
-        ? (value.aspect_ratio as AutomationAspectRatio)
-        : fallback.aspect_ratio,
-      imageGrid: automationImageGrids.includes(
-        value.imageGrid as AutomationImageGrid
-      )
-        ? (value.imageGrid as AutomationImageGrid)
-        : fallback.imageGrid,
-      noText: Boolean(value.noText),
-      overlay:
-        typeof value.overlay === "boolean" ? value.overlay : fallback.overlay,
-      aiImageSelection: Boolean(value.aiImageSelection),
-      imageItems: normalizeImageItems(value.imageItems),
-      overlayImage: normalizeOverlayImage(value.overlayImage),
-      imageMode:
-        value.imageMode === "single_image" ? "single_image" : "collection",
-      visualPresetId: clean(value.visualPresetId) || undefined,
-    },
-  ]
-}
-
-function legacyFormattingToSlideDesigns(
-  formatting: AutomationFormattingItem[],
-  imageCollections: ImageCollectionConfig
-): AutomationSlideDesign[] {
-  const designs: AutomationSlideDesign[] = []
-  const add = (
-    section: AutomationFormatSection,
-    collectionId: string,
-    count: number
-  ) => {
-    for (let index = 0; index < count; index += 1) {
-      const textItems = section.textItems.map((item) => ({ ...item }))
-      designs.push({
-        id: `slide-design-${designs.length + 1}`,
-        name: `Slide ${designs.length + 1}`,
-        instructions: clean(textItems[0]?.contentDirection),
-        collectionId,
-        textItems,
-        aspect_ratio: section.aspect_ratio,
-        imageGrid: section.imageGrid,
-        noText: section.noText,
-        overlay: section.overlay,
-        aiImageSelection: section.aiImageSelection,
-        imageItems: section.imageItems?.map((item) => ({ ...item })),
-        overlayImage: section.overlayImage
-          ? { ...section.overlayImage }
-          : undefined,
-        imageMode: section.imageMode,
-        visualPresetId: section.visualPresetId,
-      })
-    }
-  }
-  const hook =
-    formatting.find((section) => section.id === "hook") ??
-    defaultAutomationSection("hook")
-  const body =
-    formatting.find((section) => section.id === "body") ??
-    defaultAutomationSection("body")
-  const cta =
-    formatting.find((section) => section.id === "cta") ??
-    defaultAutomationSection("cta")
-  add(
-    hook,
-    imageCollections.first_slide.collection,
-    Math.max(0, Math.round(hook.slideCount))
-  )
-  add(
-    body,
-    imageCollections.all_slides,
-    Math.max(1, Math.round(body.slideCount))
-  )
-  if (cta.slideCount > 0 || imageCollections.cta_slide.check) {
-    add(
-      cta,
-      imageCollections.cta_slide.cta_collection_id ||
-        imageCollections.all_slides,
-      Math.max(1, Math.round(cta.slideCount || 1))
-    )
-  }
-  return designs
 }
 
 function normalizeAutomationTone(
@@ -2077,39 +1834,10 @@ function normalizeOverlayImage(
   }
 }
 
-function normalizeImageItems(value: unknown): AutomationImageItem[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item, index) => {
-    if (!isRecord(item)) return []
-    const collectionId = clean(item.collectionId)
-    const imageId = clean(item.imageId)
-    if (!collectionId || !imageId) return []
-    return [
-      {
-        id: clean(item.id) || `image-${index + 1}`,
-        collectionId,
-        imageId,
-        positionX: clampEditorPercent(numberValue(item.positionX, 50)),
-        positionY: clampEditorPercent(numberValue(item.positionY, 50)),
-        width: clampEditorSize(numberValue(item.width, 44)),
-        height: clampEditorSize(numberValue(item.height, 28)),
-        fit: item.fit === "contain" ? "contain" : "cover",
-        opacity: Math.max(0, Math.min(1, numberValue(item.opacity, 1))),
-      },
-    ]
-  })
-}
-
-function clampEditorPercent(value: number) {
-  return Math.max(0, Math.min(100, value))
-}
-
-function clampEditorSize(value: number) {
-  return Math.max(2, Math.min(100, value))
-}
-
-function normalizeTextItem(value: unknown): TextItem {
+function normalizeTextItem(value: unknown): AutomationTextItem {
   const record = isRecord(value) ? value : {}
+  const textPositionX = numberValue(record.textPositionX, Number.NaN)
+  const textPositionY = numberValue(record.textPositionY, Number.NaN)
   return defaultAutomationTextItem({
     id: clean(record.id) || undefined,
     text: clean(record.text),
@@ -2122,6 +1850,12 @@ function normalizeTextItem(value: unknown): TextItem {
       record.textPosition === "center"
         ? record.textPosition
         : "center",
+    textPositionX: Number.isFinite(textPositionX)
+      ? Math.max(0, Math.min(100, textPositionX))
+      : undefined,
+    textPositionY: Number.isFinite(textPositionY)
+      ? Math.max(0, Math.min(100, textPositionY))
+      : undefined,
     textItemWidth: clean(record.textItemWidth) || "60%",
     wordLengthMin: numberValue(record.wordLengthMin, 5),
     wordLengthMax: numberValue(record.wordLengthMax, 10),
@@ -2137,31 +1871,7 @@ function normalizeTextItem(value: unknown): TextItem {
     textAnchor: record.textAnchor === "flush" ? "flush" : "padded",
     textVerticalAnchor:
       record.textVerticalAnchor === "flush" ? "flush" : "padded",
-    positionX: numberValue(record.positionX, textPositionXFallback(record)),
-    positionY: numberValue(record.positionY, textPositionYFallback(record)),
-    fontWeight: Math.max(
-      100,
-      Math.min(900, numberValue(record.fontWeight, 800))
-    ),
-    backgroundMode: record.backgroundMode === "block" ? "block" : "line",
-    backgroundRadius: Math.max(
-      0,
-      Math.min(48, numberValue(record.backgroundRadius, 6))
-    ),
   })
-}
-
-function textPositionXFallback(record: Record<string, unknown>) {
-  const flush = record.textAnchor === "flush"
-  if (record.textAlign === "left") return flush ? 1.5 : 10
-  if (record.textAlign === "right") return flush ? 98.5 : 90
-  return 50
-}
-
-function textPositionYFallback(record: Record<string, unknown>) {
-  if (record.textPosition === "bottom") return 82
-  if (record.textPosition === "top") return 16
-  return 45
 }
 
 function normalizeTikTokPostSettings(

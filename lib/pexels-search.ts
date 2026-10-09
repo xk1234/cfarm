@@ -6,8 +6,6 @@ import {
   readRecord,
 } from "@/lib/guards"
 
-type UnknownRecord = Record<string, unknown>
-
 export function buildPexelsSearchUrl(query: string, limit: number) {
   const url = new URL("https://api.pexels.com/v1/search")
   url.searchParams.set("query", query.trim())

@@ -2,7 +2,7 @@ import path from "node:path"
 
 import { NextResponse } from "next/server"
 
-import { bucketForPath, fileIdForPath } from "@/lib/appwrite-stores"
+import { bucketForPath, fileIdForPath } from "@/lib/store-identity"
 import { railwayFileResponse } from "@/lib/railway/storage-response"
 
 export const dynamic = "force-dynamic"

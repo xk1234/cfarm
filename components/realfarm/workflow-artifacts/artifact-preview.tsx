@@ -64,7 +64,6 @@ function SlideshowArtifact({ value }: { value: unknown }) {
         {slides.map((item, index) => {
           const slide = asRecord(item) ?? {}
           const slideNumber = slide.slide ?? index + 1
-          const role = stringValue(slide.role)
           const text =
             stringValue(slide.text) ??
             stringValue(slide.title) ??
@@ -82,16 +81,9 @@ function SlideshowArtifact({ value }: { value: unknown }) {
                 className="min-h-28 rounded-none border-0 border-r border-app-panel-border"
               />
               <div className="min-w-0 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-app-text-faint">
-                    Slide {String(slideNumber)}
-                  </span>
-                  {role ? (
-                    <span className="text-[10px] font-semibold text-app-muted-text">
-                      {humanizeArtifactKey(role)}
-                    </span>
-                  ) : null}
-                </div>
+                <span className="text-xs font-semibold text-app-text-faint">
+                  Slide {String(slideNumber)}
+                </span>
                 <p className="mt-2 text-sm leading-5 whitespace-pre-wrap text-app-text">
                   {text ?? "No text on this slide"}
                 </p>

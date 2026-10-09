@@ -1,6 +1,5 @@
 import { clean, isRecord } from "@/lib/guards"
 import { llmSlopPromptLine } from "@/lib/llm-slop"
-import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 import {
   automationHookId,
@@ -12,7 +11,7 @@ import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-regis
 import {
   extractTikTokSlideTexts,
   fetchTikTokSlideshowPost,
-} from "@/lib/tiktok-slideshow-transcription"
+} from "@/lib/tiktok-publication-import"
 
 export type TikTokSlideshowTranscript = {
   postId: string
@@ -67,17 +66,6 @@ export async function analyzeSlideshowTone(
 ): Promise<SlideshowToneAnalysis> {
   const apiKey = getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const managedPrompt = await getLumenclipChatPrompt(
-    "slideshowToneAnalysis",
-    {
-      tone_options: automationTonePresetOptions.join(", "),
-      slop_rule: llmSlopPromptLine(),
-      transcript: JSON.stringify({
-        caption: transcript.caption,
-        slides: transcript.slides,
-      }),
-    }
-  )
   const result = await openRouterJson({
     apiKey,
     model: openRouterModelForUseCase("toneAnalysis"),
@@ -111,11 +99,16 @@ export async function analyzeSlideshowTone(
         required: ["tone", "language", "observations"],
       },
     },
-    messages: managedPrompt.messages,
-    trace: {
-      feature: "slideshow-tone-analysis",
-      prompt: managedPrompt.prompt,
-    },
+    system: [
+      "Judge the writing voice of a TikTok slideshow transcript.",
+      `Choose tone.value from: ${automationTonePresetOptions.join(", ")} when one is a clear fit. In that case set tone.preset to its lowercase key. Otherwise write a short specific custom tone value and set tone.preset to "custom".`,
+      "Return 2-5 short, concrete observations limited to voice, grammatical person, and sentence shape.",
+      llmSlopPromptLine(),
+    ].join("\n"),
+    user: JSON.stringify({
+      caption: transcript.caption,
+      slides: transcript.slides,
+    }),
   })
   const tone = normalizeTone(result.tone)
   const observations = normalizeObservations(result.observations)

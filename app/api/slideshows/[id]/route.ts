@@ -28,7 +28,7 @@ import {
 import {
   collectionAliases,
   storedToCollection,
-} from "@/features/collections/domain/collections"
+} from "@/lib/realfarm-collections"
 
 export const dynamic = "force-dynamic"
 
@@ -48,7 +48,7 @@ export const GET = withHandler<{ params: Promise<{ id: string }> }>(
     })
     if (!run) {
       return NextResponse.json(
-        { error: "Template run not found" },
+        { error: "Automation run not found" },
         { status: 404 }
       )
     }
@@ -114,7 +114,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
       })
       if (!updatedRun) {
         return NextResponse.json(
-          { error: "Template run not found" },
+          { error: "Automation run not found" },
           { status: 404 }
         )
       }
@@ -155,7 +155,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
       if (payload.action === "updateMetadata") {
         if (!run) {
           return NextResponse.json(
-            { error: "Template run not found" },
+            { error: "Automation run not found" },
             { status: 404 }
           )
         }
@@ -183,7 +183,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
       if (payload.action === "replaceImage") {
         if (!run) {
           return NextResponse.json(
-            { error: "Template run not found" },
+            { error: "Automation run not found" },
             { status: 404 }
           )
         }
@@ -192,7 +192,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
         )
         if (!image) {
           return NextResponse.json(
-            { error: "Choose an image from this template's collections." },
+            { error: "Choose an image from this automation's collections." },
             { status: 400 }
           )
         }
@@ -229,7 +229,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
       if (payload.action === "replaceText") {
         if (!run) {
           return NextResponse.json(
-            { error: "Template run not found" },
+            { error: "Automation run not found" },
             { status: 404 }
           )
         }

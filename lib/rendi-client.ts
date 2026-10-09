@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto"
 
 import { cleanString, readLooseRecord, readTrimmedString } from "@/lib/guards"
 import { fetchWithTimeout } from "@/lib/http"
-import { readResponseBytes } from "@/lib/bounded-fetch"
 import { pollUntil } from "@/lib/poll"
 
 const RENDI_API_BASE_URL = "https://api.rendi.dev"
@@ -220,12 +219,7 @@ export async function downloadRendiOutputBytes(input: {
   if (!response.ok) {
     throw new Error(`Failed to download Rendi output with ${response.status}`)
   }
-  return new Uint8Array(
-    await readResponseBytes(
-      response,
-      Math.max(1, Number(process.env.RENDI_MAX_OUTPUT_BYTES ?? 1024 ** 3))
-    )
-  )
+  return new Uint8Array(await response.arrayBuffer())
 }
 
 export async function submitRendiCommand(input: {

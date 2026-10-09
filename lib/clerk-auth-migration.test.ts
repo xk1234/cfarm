@@ -1,58 +1,63 @@
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import { existsSync, readFileSync } from "node:fs"
+import path from "node:path"
+
 import { describe, expect, it } from "vitest"
 
-const root = resolve(import.meta.dirname, "..")
-const read = (path: string) => readFileSync(resolve(root, path), "utf8")
+const root = process.cwd()
 
-describe("Clerk authentication cutover", () => {
-  it("uses Clerk middleware with the auto-proxy matcher", () => {
-    const source = read("proxy.ts")
-    expect(source).toContain("clerkMiddleware")
-    expect(source).toContain('"/__clerk/:path*"')
-    expect(source).not.toContain("SESSION_COOKIE")
+describe("Clerk auth migration", () => {
+  it("does not restore removed Appwrite auth surfaces", () => {
+    const removedPaths = [
+      "app/api/auth/login/route.ts",
+      "app/api/auth/logout/route.ts",
+      "app/api/auth/register/route.ts",
+      "app/api/auth/recovery/request/route.ts",
+      "app/api/auth/recovery/confirm/route.ts",
+      "app/api/auth/verification/confirm/route.ts",
+      "app/api/auth/verification/resend/route.ts",
+      "app/reset-password/page.tsx",
+      "app/verify-email/page.tsx",
+      "components/auth-form.tsx",
+      "components/password-reset-card.tsx",
+      "components/email-verification-card.tsx",
+    ]
+
+    for (const file of removedPaths) {
+      expect(existsSync(path.join(root, file)), file).toBe(false)
+    }
   })
 
-  it("lets extension token endpoints handle their own authentication", () => {
-    const source = read("proxy.ts")
-    expect(source).toContain('pathname === "/api/tiktok-comments/device"')
-    expect(source).toContain('pathname === "/api/tiktok-comments/capture"')
-  })
+  it("keeps credential and session handling out of the Appwrite adapter", () => {
+    const source = readFileSync(path.join(root, "lib/auth.ts"), "utf8")
 
-  it("lets Windmill callbacks handle their own bearer authentication", () => {
-    const source = read("proxy.ts")
-    expect(source).toContain('pathname.startsWith("/api/internal/windmill/")')
-  })
-
-  it("places ClerkProvider inside the root body", () => {
-    const source = read("app/layout.tsx")
-    expect(source.indexOf("<body")).toBeLessThan(
-      source.indexOf("<ClerkProvider")
-    )
-    expect(source.indexOf("</ClerkProvider>")).toBeLessThan(
-      source.indexOf("</body>")
-    )
-  })
-
-  it("uses modal-only Clerk components without auth pages", () => {
-    const button = read("components/clerk-auth-button.tsx")
-    expect(button).toContain('mode="modal"')
-    expect(button).toContain("<SignInButton")
-    expect(button).toContain("<SignUpButton")
-    expect(read("proxy.ts")).toContain(
-      'entry.searchParams.set("auth", "sign-in")'
+    expect(source).not.toContain("node-appwrite")
+    expect(source).not.toMatch(/APPWRITE_/)
+    expect(source).not.toMatch(/\bAccount\b/)
+    expect(source).not.toMatch(/SESSION_COOKIE|lumenclip-session/)
+    expect(source).not.toMatch(
+      /createEmailPasswordSession|createRecovery|createEmailVerification/
     )
   })
 
-  it("has no Appwrite dependency in the runtime auth modules", () => {
-    expect(read("lib/auth.ts")).not.toMatch(/appwrite/i)
-    expect(read("lib/workspace-members.ts")).not.toMatch(/node-appwrite|Teams/)
+  it("uses Clerk testing helpers for authenticated documentation captures", () => {
+    for (const file of [
+      "scripts/capture-automations-docs.mjs",
+      "scripts/capture-hook-docs.mjs",
+    ]) {
+      const source = readFileSync(path.join(root, file), "utf8")
+      expect(source).toContain("@clerk/testing/playwright")
+      expect(source).not.toContain("/api/auth/")
+    }
   })
 
-  it("imports Railway identities into Clerk without changing owner ids", () => {
-    const source = read("scripts/migrate-railway-users-to-clerk.mts")
-    expect(source).toContain("FROM app_users")
-    expect(source).toContain("external_id: source.id")
-    expect(source).toContain("skip_password_requirement: true")
+  it("keeps a one-time user and preference importer for the cutover", () => {
+    const migration = path.join(
+      root,
+      "scripts/migrate-appwrite-users-to-clerk.mts"
+    )
+    expect(existsSync(migration)).toBe(true)
+    const source = readFileSync(migration, "utf8")
+    expect(source).toContain("external_id: sourceUser.$id")
+    expect(source).toContain("lumenclipPreferences: sourceUser.prefs")
   })
 })

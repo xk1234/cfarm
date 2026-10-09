@@ -1,6 +1,7 @@
 "use client"
 
 import { IconLayoutGrid, IconTable } from "@tabler/icons-react"
+import { ToggleGroup } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -17,36 +18,39 @@ export function ViewModeToggle({
   className?: string
 }) {
   return (
-    <div
-      className={cn(
-        "app-segmented-control shrink-0",
-        className
-      )}
-      role="group"
+    <ToggleGroup.Root
+      type="single"
+      value={value}
+      onValueChange={(nextValue) => {
+        if (nextValue === "grid" || nextValue === "table") {
+          onChange(nextValue)
+        }
+      }}
+      className={cn("app-segmented-control shrink-0", className)}
       aria-label="View mode"
     >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className={cn(value === "grid" && "bg-app-surface shadow-app-control")}
-        onClick={() => onChange("grid")}
-        aria-label="Grid view"
-        aria-pressed={value === "grid"}
-      >
-        <IconLayoutGrid className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className={cn(value === "table" && "bg-app-surface shadow-app-control")}
-        onClick={() => onChange("table")}
-        aria-label="Table view"
-        aria-pressed={value === "table"}
-      >
-        <IconTable className="size-4" />
-      </Button>
-    </div>
+      <ToggleGroup.Item value="grid" asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="data-[state=on]:bg-app-surface data-[state=on]:shadow-app-control"
+          aria-label="Grid view"
+        >
+          <IconLayoutGrid className="size-4" />
+        </Button>
+      </ToggleGroup.Item>
+      <ToggleGroup.Item value="table" asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="data-[state=on]:bg-app-surface data-[state=on]:shadow-app-control"
+          aria-label="Table view"
+        >
+          <IconTable className="size-4" />
+        </Button>
+      </ToggleGroup.Item>
+    </ToggleGroup.Root>
   )
 }

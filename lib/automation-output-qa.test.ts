@@ -5,11 +5,12 @@ import type { AutomationRunRecord } from "@/lib/automation-runner"
 import { defaultAutomationSchema } from "@/lib/realfarm-automation"
 
 describe("automation output QA", () => {
-  it("validates only the current output's count, tokens, draws, and word limits", () => {
+  it("finds count, token, duplicate draw, near duplicate, and word limits", () => {
     const run = outputRun("run-new", "slide-new")
     run.plan.hook = "7 things [[ZODIAC]] hides"
     run.plan.hookSubstitutions = { ZODIAC: "Cancer", SIGN: "Cancer" }
     run.plan.slides[1]!.textItems![0]!.text = "[[UNKNOWN]]"
+    const prior = outputRun("run-old", "slide-old")
     const schema = defaultAutomationSchema({
       id: "automation-1",
       name: "Astrology",
@@ -33,6 +34,7 @@ describe("automation output QA", () => {
 
     const report = validateAutomationRunOutput({
       run,
+      priorRuns: [prior],
       schema,
     })
 
@@ -43,6 +45,7 @@ describe("automation output QA", () => {
         "COUNT_MISMATCH",
         "UNRESOLVED_TOKEN",
         "DUPLICATE_VARIABLE_DRAW",
+        "NEAR_DUPLICATE_OUTPUT",
         "WORD_LENGTH_VIOLATION",
       ])
     )

@@ -1,1 +1,0 @@
-FROM ghcr.io/windmill-labs/windmill:main@sha256:99ddb6664d8519a4c45d7bb18fa26d1f0c90f32ba1dc1dcce40412095e832937

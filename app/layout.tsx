@@ -1,14 +1,15 @@
 import type { Metadata } from "next"
 import { ClerkProvider } from "@clerk/nextjs"
-import { Suspense } from "react"
+import { shadcn } from "@clerk/ui/themes"
+import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core"
 import { Geist, Geist_Mono } from "next/font/google"
-import { RootProvider } from "fumadocs-ui/provider/next"
-import "react-loading-skeleton/dist/skeleton.css"
+
+import "@mantine/core/styles.layer.css"
+import "@mantine/notifications/styles.layer.css"
+import "@xyflow/react/dist/style.css"
 
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { AppToaster } from "@/components/ui/app-toaster"
-import { ClerkAuthModalController } from "@/components/clerk-auth-modal-controller"
+import { AppProviders } from "@/components/app-providers"
 import { cn } from "@/lib/utils"
 
 const geistHeading = Geist({ subsets: ["latin"], variable: "--font-heading" })
@@ -49,6 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      {...mantineHtmlProps}
       suppressHydrationWarning
       className={cn(
         "antialiased",
@@ -57,15 +59,12 @@ export default function RootLayout({
         geistHeading.variable
       )}
     >
-      <body suppressHydrationWarning className="flex min-h-screen flex-col">
-        <ClerkProvider dynamic>
-          <Suspense fallback={null}>
-            <ClerkAuthModalController />
-          </Suspense>
-          <ThemeProvider defaultTheme="light" enableSystem={false}>
-            <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
-            <AppToaster />
-          </ThemeProvider>
+      <head>
+        <ColorSchemeScript defaultColorScheme="light" />
+      </head>
+      <body className="flex min-h-screen flex-col">
+        <ClerkProvider appearance={{ theme: shadcn }}>
+          <AppProviders>{children}</AppProviders>
         </ClerkProvider>
       </body>
     </html>

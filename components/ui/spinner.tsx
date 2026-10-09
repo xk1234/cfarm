@@ -1,4 +1,4 @@
-import { ClipLoader } from "react-spinners"
+import { Loader } from "@mantine/core"
 
 import { cn } from "@/lib/utils"
 
@@ -21,7 +21,7 @@ export function Spinner({
       aria-label={ariaLabel}
       className={cn("inline-flex", className)}
     >
-      <ClipLoader size={size} color={color} speedMultiplier={0.9} />
+      <Loader size={size} color={color} type="oval" />
     </span>
   )
 }

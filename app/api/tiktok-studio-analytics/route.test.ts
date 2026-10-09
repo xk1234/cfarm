@@ -99,6 +99,7 @@ describe("TikTok Studio analytics route", () => {
         releaseUrl: "https://www.tiktok.com/@creator/video/7662360324313517330",
         content: "Studio caption",
         publishedAt: "2026-07-30T00:00:00.000Z",
+        thumbnailUrl: "https://p16-sign.tiktokcdn-us.com/example.webp",
       },
     ]
     const response = await POST(

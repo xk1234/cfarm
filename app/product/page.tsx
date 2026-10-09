@@ -5,14 +5,14 @@ import {
   IconPlayerPlay,
   IconRoute,
   IconSparkles,
-} from "@tabler/icons-react"
+} from "@tabler/icons-react";
 
 import {
   CTASection,
   MarketingFooter,
   MarketingNav,
   PageHero,
-} from "@/components/marketing/marketing-shell"
+} from "@/components/marketing/marketing-shell";
 
 const groups = [
   {
@@ -28,24 +28,24 @@ const groups = [
   {
     icon: IconRoute,
     title: "Workflows with visible inputs",
-    body: "Build a reusable template from named collections, text direction, and independent slide designs.",
+    body: "Generate scripts, hooks, captions, and slideshow copy from saved sources and reusable templates.",
     bullets: [
       "Inspect every input before a run",
       "Persist run history and generated artifacts",
-      "Revise the text or visuals without rebuilding the workflow",
+      "Pause or revise without rebuilding the workflow",
     ],
   },
   {
     icon: IconSparkles,
     title: "Reusable creator assets",
-    body: "Keep assets, captions, prompt attachments, references, and generated videos attached to a stable record.",
+    body: "Keep assets, captions, prompt attachments, references, and generated copy attached to a saved record.",
     bullets: [
       "Reduce prompt drift between campaigns",
       "Reuse approved references and collections",
       "Trace outputs back to their creative source",
     ],
   },
-]
+];
 
 export default function ProductPage() {
   return (
@@ -53,7 +53,7 @@ export default function ProductPage() {
       <MarketingNav />
       <PageHero
         title="The operating layer around your creative tools."
-        description="LumenClip connects reusable media, generation workflows, review, scheduling, and output history without replacing the tools you already trust."
+        description="LumenClip is an AI content product for creators and marketing teams. The private beta combines a source library with on-demand script, hook, caption, and slideshow-copy generation, plus saved outputs for human review."
       />
       <section className="border-y border-brand-border bg-white py-24">
         <div className="mx-auto max-w-[1280px] space-y-24 px-5 lg:px-8">
@@ -107,7 +107,7 @@ export default function ProductPage() {
               "Select a saved source or collection",
               "Generate against a named template",
               "Review artifacts and captions",
-              "Approve, export, or schedule",
+              "Review and export approved copy",
             ].map((item, index) => (
               <div key={item} className="bg-white p-6">
                 <span className="font-mono text-xs text-brand-accent">
@@ -119,11 +119,42 @@ export default function ProductPage() {
           </div>
         </div>
       </section>
+      <section className="mx-auto max-w-[1280px] px-5 pb-16 lg:px-8">
+        <h2 className="text-3xl font-semibold">Built by two cofounders</h2>
+        <p className="mt-5 max-w-[65ch] text-base leading-7 text-brand-muted">
+          <a
+            className="underline"
+            href="https://www.linkedin.com/in/ye-x-4486a218b/"
+          >
+            Ye Xinkang
+          </a>
+          {" and "}
+          <a
+            className="underline"
+            href="https://www.linkedin.com/in/fiona-wang-4332b01/"
+          >
+            Fiona Wang
+          </a>
+          {" cofounded LumenClip in June 2025. See our "}
+          <a
+            className="underline"
+            href="https://www.linkedin.com/company/lumenclips/"
+          >
+            company LinkedIn page
+          </a>
+          .
+        </p>
+        <p className="mt-4 max-w-[65ch] text-sm leading-6 text-brand-muted">
+          Text and slideshow-copy generation is available on demand. Queued
+          video generation and shared team features remain in development during
+          the private beta.
+        </p>
+      </section>
       <CTASection
         title="Start with one workflow worth repeating."
         body="The fastest way to understand LumenClip is to connect one source, one collection, and one output path."
       />
       <MarketingFooter />
     </main>
-  )
+  );
 }

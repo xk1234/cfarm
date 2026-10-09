@@ -1,8 +1,11 @@
-import type { AutomationRunSlideView } from "@/lib/automation-run-contract"
+import type {
+  AutomationRunRecord,
+  AutomationRunSlide,
+} from "@/lib/automation-runner"
 import {
   automationFormatSection,
   type AutomationSchema,
-  type TextItem,
+  type AutomationTextItem,
 } from "@/lib/realfarm-automation"
 import { isRuntimeHookVariable } from "@/lib/hook-variables"
 import { wordRangeViolation } from "@/lib/temp-slide-testing-shared"
@@ -11,6 +14,7 @@ export type AutomationOutputQaFindingCode =
   | "COUNT_MISMATCH"
   | "UNRESOLVED_TOKEN"
   | "DUPLICATE_VARIABLE_DRAW"
+  | "NEAR_DUPLICATE_OUTPUT"
   | "EMPTY_SLIDE_TEXT"
   | "WORD_LENGTH_VIOLATION"
 
@@ -22,6 +26,7 @@ export type AutomationOutputQaFinding = {
   textItemId?: string
   expected?: number | string
   actual?: number | string
+  priorOutputId?: string
 }
 
 export type AutomationOutputQaReport = {
@@ -31,24 +36,13 @@ export type AutomationOutputQaReport = {
   findings: AutomationOutputQaFinding[]
 }
 
-type AutomationOutputQaSlide = AutomationRunSlideView & {
-  displayText?: boolean
-  textItems?: Array<{ id: string; text: string }>
-}
-
-type AutomationOutputQaRun = {
-  plan: {
-    hook: string
-    hookSubstitutions?: Record<string, string>
-    slides: AutomationOutputQaSlide[]
-  }
-}
-
 const unresolvedTokenPattern = /\[\[[A-Z][A-Z0-9_-]*\]\]/gi
 const countTokenPattern = /(COUNT|NUMBER|TOTAL|ITEMS?|THINGS?|WAYS?|SIGNS?)/i
-export function validateAutomationRunOutput<
-  Run extends AutomationOutputQaRun,
->(input: { run: Run; schema?: AutomationSchema }): AutomationOutputQaReport {
+export function validateAutomationRunOutput(input: {
+  run: AutomationRunRecord
+  schema?: AutomationSchema
+  priorRuns?: AutomationRunRecord[]
+}): AutomationOutputQaReport {
   const findings: AutomationOutputQaFinding[] = []
   const slides = input.run.plan.slides
   const bodySlides = slides.filter((slide) => slide.role === "content")
@@ -59,7 +53,10 @@ export function validateAutomationRunOutput<
   if (input.schema?.distinct_variable_draws !== false) {
     findings.push(...duplicateVariableDrawFindings(input.run))
   }
-  findings.push(...slideTextFindings(slides, input.schema))
+  findings.push(
+    ...nearDuplicateFindings(input.run, input.priorRuns ?? []),
+    ...slideTextFindings(slides, input.schema)
+  )
 
   return {
     valid: !findings.some((finding) => finding.severity === "error"),
@@ -70,7 +67,7 @@ export function validateAutomationRunOutput<
 }
 
 function countMismatchFindings(
-  run: AutomationOutputQaRun,
+  run: AutomationRunRecord,
   bodySlideCount: number
 ): AutomationOutputQaFinding[] {
   if (bodySlideCount === 0) return []
@@ -100,7 +97,7 @@ function countMismatchFindings(
 }
 
 function unresolvedTokenFindings(
-  run: AutomationOutputQaRun
+  run: AutomationRunRecord
 ): AutomationOutputQaFinding[] {
   const values: Array<{
     text: string
@@ -113,7 +110,7 @@ function unresolvedTokenFindings(
         values.push({ text: item.text, slideIndex, textItemId: item.id })
       )
     } else {
-      values.push({ text: slide.text ?? "", slideIndex })
+      values.push({ text: slide.text, slideIndex })
     }
   })
   return values.flatMap((value) => {
@@ -131,7 +128,7 @@ function unresolvedTokenFindings(
 }
 
 function duplicateVariableDrawFindings(
-  run: AutomationOutputQaRun
+  run: AutomationRunRecord
 ): AutomationOutputQaFinding[] {
   const byValue = new Map<string, string[]>()
   for (const [name, rawValue] of Object.entries(
@@ -158,8 +155,43 @@ function duplicateVariableDrawFindings(
   )
 }
 
+function nearDuplicateFindings(
+  run: AutomationRunRecord,
+  priorRuns: AutomationRunRecord[]
+): AutomationOutputQaFinding[] {
+  if (!run.plan.hookId) return []
+  const primary = primaryVariableValue(run)
+  if (!primary) return []
+  const prior = priorRuns.find(
+    (candidate) =>
+      candidate.id !== run.id &&
+      candidate.plan.hookId === run.plan.hookId &&
+      primaryVariableValue(candidate)?.toLocaleLowerCase() ===
+        primary.toLocaleLowerCase()
+  )
+  if (!prior) return []
+  return [
+    {
+      code: "NEAR_DUPLICATE_OUTPUT",
+      severity: "warning",
+      expected: "a new hook-variable combination",
+      actual: primary,
+      priorOutputId: prior.slideshowId ?? prior.id,
+      message: `This output reuses hook ${run.plan.hookId} with the primary value “${primary}” from an earlier output.`,
+    },
+  ]
+}
+
+function primaryVariableValue(run: AutomationRunRecord) {
+  const entries = Object.entries(run.plan.hookSubstitutions ?? {})
+  const preferred = entries.find(
+    ([name, value]) => value.trim() && !isRuntimeHookVariable(name)
+  )
+  return preferred?.[1].trim()
+}
+
 function slideTextFindings(
-  slides: AutomationOutputQaSlide[],
+  slides: AutomationRunSlide[],
   schema?: AutomationSchema
 ): AutomationOutputQaFinding[] {
   return slides.flatMap((slide, slideIndex) => {
@@ -217,7 +249,7 @@ function slideTextFindings(
 
 function wordLengthFindings(
   text: string,
-  configured: TextItem,
+  configured: AutomationTextItem,
   slideIndex: number,
   textItemId: string
 ): AutomationOutputQaFinding[] {

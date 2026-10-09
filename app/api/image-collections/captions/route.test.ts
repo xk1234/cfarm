@@ -1,41 +1,41 @@
+import { mkdir, rm } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const {
-  getGenerationModelSettings,
-  readAssetBytes,
-  updateImageCollectionCaptions,
-} = vi.hoisted(() => ({
-  getGenerationModelSettings: vi.fn(),
-  readAssetBytes: vi.fn(),
-  updateImageCollectionCaptions: vi.fn(),
-}))
+import {
+  deleteStoredAsset,
+  persistStoredAsset,
+} from "@/lib/asset-storage"
 
-vi.mock("@/lib/asset-storage", () => ({ readAssetBytes }))
-vi.mock("@/lib/generation-model-settings", () => ({
-  getGenerationModelSettings,
-}))
-vi.mock("@/lib/image-collections", () => ({ updateImageCollectionCaptions }))
+// Appwrite-only: local image fixtures are seeded into Storage (media lives in
+// Storage now, not disk). Run against cfarm via vitest.setup.ts.
+let tempRoot: string
 
 beforeEach(async () => {
-  getGenerationModelSettings.mockResolvedValue({
-    imageCaptioningModel: "openai/gpt-5.6-luna",
-  })
-  readAssetBytes.mockResolvedValue(new Uint8Array([137, 80, 78, 71]))
-  updateImageCollectionCaptions.mockImplementation(async (collection) =>
-    structuredClone(collection)
-  )
+  tempRoot = await makeTempRoot()
+  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
   vi.stubEnv("OPENROUTER_API_KEY", "openrouter-test-key")
 })
 
 afterEach(async () => {
+  await deleteStoredAsset(
+    path.join(tempRoot, "data", "assets", "local.png")
+  )
   vi.unstubAllEnvs()
-  vi.clearAllMocks()
   vi.restoreAllMocks()
   vi.resetModules()
+  await rm(tempRoot, { recursive: true, force: true })
 })
 
 describe("POST /api/image-collections/captions", () => {
   it("uses the Luna default to caption every image, including images with existing captions", async () => {
+    await persistStoredAsset(
+      path.join(tempRoot, "data", "assets", "local.png"),
+      new Uint8Array([137, 80, 78, 71])
+    )
+
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         void input
@@ -102,20 +102,6 @@ describe("POST /api/image-collections/captions", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(firstRequest.model).toBe("openai/gpt-5.6-luna")
     expect(secondRequest.model).toBe("openai/gpt-5.6-luna")
-    expect(firstRequest.messages[0]).toEqual({
-      role: "system",
-      content:
-        "Caption images for a slideshow image collection. Return one concise factual caption only. No markdown, no quotes, no hashtags.",
-    })
-    expect(firstRequest.messages[1]).toMatchObject({
-      role: "user",
-      content: expect.arrayContaining([
-        {
-          type: "text",
-          text: "Write a natural one-sentence caption describing this image. Mention the main subject, setting, mood, and useful visual details in under 24 words.",
-        },
-      ]),
-    })
     expect(extractImageUrl(firstRequest)).toBe(
       "https://images.example.com/remote.jpg"
     )
@@ -250,6 +236,15 @@ describe("POST /api/image-collections/captions", () => {
     ])
   })
 })
+
+async function makeTempRoot() {
+  const root = path.join(
+    os.tmpdir(),
+    `cfarm-image-captions-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  )
+  await mkdir(root, { recursive: true })
+  return root
+}
 
 function extractImageUrl(request: {
   messages: Array<{ content: Array<{ image_url?: { url?: string } }> | string }>

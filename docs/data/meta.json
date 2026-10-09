@@ -2,16 +2,14 @@
   "title": "Data",
   "pages": [
     "index",
-    "schema-reference",
     "persistence",
     "workspace-assets",
-    "templates",
+    "automations",
     "generation-outputs",
     "publishing-analytics",
     "operations-access",
     "backend-architecture",
     "railway-migration",
-    "backend-endpoints",
-    "local-appwrite"
+    "backend-endpoints"
   ]
 }

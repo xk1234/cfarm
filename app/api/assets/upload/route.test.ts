@@ -2,7 +2,6 @@ import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import {
   afterAll,
   afterEach,
@@ -13,9 +12,8 @@ import {
   vi,
 } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
-import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
+import { deleteStoredAsset } from "@/lib/asset-storage"
 import { readJsonArrayStore } from "@/lib/json-store"
 
 // Appwrite-only: `data/assets/assets.json` -> `assets` table, media -> Storage.
@@ -89,7 +87,7 @@ describe("POST /api/assets/upload", () => {
     })
 
     // Clean up the uploaded Storage fixture.
-    await deleteAssetFromAppwrite(
+    await deleteStoredAsset(
       path.join(
         tempRoot,
         "data",

@@ -51,6 +51,9 @@ describe("TikTok Studio post discovery helpers", () => {
       href: "https://www.tiktok.com/@horoiq/video/7669076017918561554",
       textContent: "A useful caption",
       parentElement: row,
+      querySelector: () => ({
+        currentSrc: "https://p16-sign.tiktokcdn-us.com/example.webp",
+      }),
     }
     const documentRoot = {
       querySelectorAll: () => [anchor, anchor],
@@ -63,6 +66,7 @@ describe("TikTok Studio post discovery helpers", () => {
         externalPostId: "7669076017918561554",
         content: "A useful caption",
         publishedAt: expect.any(String),
+        thumbnailUrl: "https://p16-sign.tiktokcdn-us.com/example.webp",
       }),
     ])
   })

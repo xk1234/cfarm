@@ -1,7 +1,7 @@
 import type {
   ComposerValue,
   ConnectedComposerAccount,
-} from "@/features/composer/domain/composer"
+} from "@/components/realfarm/composer/composer-types"
 import { getSocialProvider } from "@/lib/social/registry"
 
 export function composeLimitErrors(

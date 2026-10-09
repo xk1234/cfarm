@@ -50,6 +50,12 @@ export type TikTokStudioSearchTerm = {
   percent: number
 }
 
+export type TikTokStudioHistoryPoint = {
+  offset: number
+  status?: number
+  value?: number
+}
+
 export type TikTokStudioAnalytics = {
   schemaVersion: 1
   studioUrl: string
@@ -59,6 +65,7 @@ export type TikTokStudioAnalytics = {
     caption?: string
     publishedAt?: string
     photoCount?: number
+    thumbnailUrl?: string
     views?: number
     likes?: number
     comments?: number
@@ -72,6 +79,8 @@ export type TikTokStudioAnalytics = {
   slides: TikTokStudioSlideMetric[]
   trafficSources: Record<string, number>
   searchTerms: TikTokStudioSearchTerm[]
+  viewHistory7d?: TikTokStudioHistoryPoint[]
+  viewHistory48h?: TikTokStudioHistoryPoint[]
   audience?: {
     uniqueViewers?: number
     newViewerPercent?: number

@@ -5,8 +5,8 @@ import path from "node:path"
 import { describe, expect, it, vi } from "vitest"
 
 import {
-  deleteAssetFromAppwrite,
-  mirrorAssetToAppwrite,
+  deleteStoredAsset,
+  persistStoredAsset,
 } from "@/lib/asset-storage"
 
 import {
@@ -80,7 +80,7 @@ describe("kie image helpers", () => {
       "product-shots",
       "product-preview.png"
     )
-    await mirrorAssetToAppwrite(imagePath, new Uint8Array([0, 1, 2, 3]))
+    await persistStoredAsset(imagePath, new Uint8Array([0, 1, 2, 3]))
 
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -129,7 +129,7 @@ describe("kie image helpers", () => {
     expect(requestBody.base64Data).toMatch(/^data:image\/png;base64,/)
     expect(requestBody.fileName).toContain("product-preview.png")
     expect(requestBody.uploadPath).toBe("images/realfarm")
-    await deleteAssetFromAppwrite(imagePath)
+    await deleteStoredAsset(imagePath)
     await rm(tempRoot, { recursive: true, force: true })
     vi.restoreAllMocks()
   })
@@ -146,7 +146,7 @@ describe("kie image helpers", () => {
       "demos",
       "motion.mp4"
     )
-    await mirrorAssetToAppwrite(motionPath, new Uint8Array([0, 1, 2, 3]))
+    await persistStoredAsset(motionPath, new Uint8Array([0, 1, 2, 3]))
     const fetchImpl = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>
         new Response(
@@ -178,7 +178,7 @@ describe("kie image helpers", () => {
     }
     expect(requestBody.base64Data).toMatch(/^data:video\/mp4;base64,/)
     expect(requestBody.uploadPath).toBe("videos/realfarm")
-    await deleteAssetFromAppwrite(motionPath)
+    await deleteStoredAsset(motionPath)
     await rm(tempRoot, { recursive: true, force: true })
     vi.restoreAllMocks()
   })

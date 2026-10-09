@@ -28,8 +28,8 @@ vi.mock("@/lib/postfast-posts", () => ({
   deletePostFastPostRecordById: vi.fn(),
 }))
 
-vi.mock("@/lib/post-repository-appwrite", () => ({
-  appwritePostRepository: {
+vi.mock("@/lib/post-repository-store", () => ({
+  railwayPostRepository: {
     listPosts: mocks.canonicalList,
     getPost: mocks.canonicalGet,
     upsertPost: mocks.canonicalUpsert,

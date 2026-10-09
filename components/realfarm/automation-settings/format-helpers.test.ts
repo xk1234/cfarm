@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  konvaImageTransformPatch,
-  konvaTextTransformPatch,
+  fabricTextTransformPatch,
   newAutomationTextItemAfter,
   previewSlideshowAspectRatio,
   previewSlideshowFont,
@@ -70,7 +69,6 @@ function previewItem(): AutomationFormatPreviewItem {
     image: { id: "base", imageUrl: "/base.jpg" } as never,
     images: [],
     overlayImages: [{ id: "overlay", imageUrl: "/overlay.jpg" } as never],
-    imageItems: [],
     text: "First text",
     textItem: first,
     textItems: [first, second],
@@ -78,51 +76,6 @@ function previewItem(): AutomationFormatPreviewItem {
 }
 
 describe("slideshow format preview controls", () => {
-  it("converts image drag and resize geometry into layer percentages", () => {
-    expect(
-      konvaImageTransformPatch({
-        left: 216,
-        top: 384,
-        width: 540,
-        height: 480,
-        canvasWidth: 1080,
-        canvasHeight: 1920,
-      })
-    ).toEqual({ positionX: 45, positionY: 32.5, width: 50, height: 25 })
-  })
-
-  it("converts Konva drag and resize geometry into template percentages", () => {
-    expect(
-      konvaTextTransformPatch({
-        left: 216,
-        top: 384,
-        width: 540,
-        height: 192,
-        canvasWidth: 1080,
-        canvasHeight: 1920,
-        textAlign: "center",
-      })
-    ).toEqual({
-      positionX: 45,
-      positionY: 25,
-      textItemWidth: "50%",
-    })
-  })
-
-  it("keeps right-aligned Konva text anchored to the resized right edge", () => {
-    expect(
-      konvaTextTransformPatch({
-        left: 108,
-        top: 0,
-        width: 432,
-        height: 192,
-        canvasWidth: 1080,
-        canvasHeight: 1920,
-        textAlign: "right",
-      })
-    ).toMatchObject({ positionX: 50, textItemWidth: "40%" })
-  })
-
   it("creates added text in the same layout region as the previous item", () => {
     const previous = defaultAutomationTextItem({
       fontSize: "22px",
@@ -189,6 +142,51 @@ describe("slideshow format preview controls", () => {
     item.textItems[0] = { ...item.textItems[0], textAlign: "right" }
     item.section.textItems = item.textItems
     expect(previewSlideshowTextItems(item)[0].textPosition.x).toBe(98.5)
+  })
+
+  it("uses freeform Fabric coordinates without placement stacking", () => {
+    const item = previewItem()
+    item.textItems[0] = {
+      ...item.textItems[0],
+      textPositionX: 27.5,
+      textPositionY: 63.2,
+    }
+    item.section.textItems = item.textItems
+
+    expect(previewSlideshowTextItems(item)[0]).toMatchObject({
+      textPosition: { x: 27.5, y: 63.2 },
+      textPlacement: undefined,
+    })
+  })
+
+  it("converts Fabric geometry into persistent aligned coordinates", () => {
+    expect(
+      fabricTextTransformPatch({
+        left: 108,
+        top: 480,
+        width: 432,
+        height: 192,
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        textAlign: "left",
+      })
+    ).toEqual({
+      textPositionX: 10,
+      textPositionY: 30,
+      textItemWidth: "40%",
+    })
+
+    expect(
+      fabricTextTransformPatch({
+        left: 108,
+        top: 480,
+        width: 432,
+        height: 192,
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        textAlign: "right",
+      }).textPositionX
+    ).toBe(50)
   })
 
   it("updates only the selected text item", () => {

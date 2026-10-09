@@ -41,6 +41,8 @@ control sidebar order.
 | Library                    | Declared version | Role in LumenClip                                                                                                                                               | Representative usage                                        |
 | -------------------------- | ---------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `radix-ui`                 |         `^1.6.0` | Accessible dialogs, popovers, tabs, dropdowns, and other headless primitives.                                                                                   | `components/ui/modal.tsx`, collection and settings surfaces |
+| `@mantine/core`            |         `^9.5.1` | Maintained provider and shared loading/progress primitives behind LumenClip compatibility components.                                                           | `components/app-providers.tsx`, `components/ui/`            |
+| `@mantine/notifications`   |         `^9.5.1` | Provider-backed notification surface available to migrated components.                                                                                          | `components/app-providers.tsx`                               |
 | `class-variance-authority` |         `^0.7.1` | Typed visual variants for reusable UI components.                                                                                                               | `components/ui/button.tsx`                                  |
 | `clsx`                     |         `^2.1.1` | Conditional class-name composition.                                                                                                                             | `lib/utils.ts`                                              |
 | `tailwind-merge`           |         `^3.6.0` | Resolves conflicting Tailwind utility classes inside the shared `cn()` helper.                                                                                  | `lib/utils.ts`                                              |
@@ -50,19 +52,19 @@ control sidebar order.
 | `@tabler/icons-react`      |        `^3.44.0` | Primary icon set across the application workspace and marketing pages.                                                                                          | `components/realfarm/`, `app/`                              |
 | `lucide-react`             |        `^1.22.0` | Secondary icon set used by settings, debug, and documentation components.                                                                                       | `components/x-automation-studio.tsx`, `components/docs/`    |
 | `sonner`                   |         `^2.0.7` | Toast notifications, async progress, errors, and undo actions.                                                                                                  | `components/realfarm-workspace.tsx`, automation editors     |
-| `react-loading-skeleton`   |          `3.5.0` | Shared skeleton loading states and base skeleton stylesheet.                                                                                                    | `components/ui/loading-skeleton.tsx`, `app/layout.tsx`      |
-| `react-spinners`           |        `^0.17.0` | Compact progress indicators where a skeleton is not appropriate.                                                                                                | `components/ui/spinner.tsx`                                 |
+| `@xyflow/react`            |        `^12.11.2` | Pan-and-zoom workflow stage canvases shared by slideshow and UGC run inspection.                                                                                 | `components/ui/workflow-stage-map.tsx`                      |
+| `@uiw/react-json-view`     | `2.0.0-alpha.43` | Read-only, collapsible JSON trees used by workflow input/output inspection.                                                                                      | `components/ui/json-viewer.tsx`                             |
 
 Tailwind CSS itself is a development dependency because it runs during the
 build; its generated classes are consumed by the runtime UI.
 
 ## Data fetching, validation, and time
 
-| Library | Declared version | Role in LumenClip                                                                            | Representative usage                                                         |
-| ------- | ---------------: | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `swr`   |         `^2.4.2` | Client-side request caching and revalidation for accounts, navigation badges, and analytics. | `components/realfarm/social-account-selection.tsx`, analytics and navigation |
-| `zod`   |         `^4.4.3` | Runtime validation for API request payloads and selected worker inputs.                      | `lib/api.ts`, `app/api/**/route.ts`                                          |
-| `luxon` |         `^3.7.2` | Time-zone-aware schedules, calendar projections, and automation slot calculations.           | `lib/automation-slots.ts`, analytics and scheduler code                      |
+| Library                | Declared version | Role in LumenClip                                                                                   | Representative usage                                                         |
+| ---------------------- | ---------------: | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `@tanstack/react-query` |       `^5.101.4` | Client request caching, polling, previous-data retention, explicit refetches, and cache mutations. | `lib/client-query.ts`, analytics, accounts, calendar, settings, and navigation |
+| `zod`                  |         `^4.4.3` | Runtime validation for API request payloads and selected worker inputs.                             | `lib/api.ts`, `app/api/**/route.ts`                                          |
+| `luxon`                |         `^3.7.2` | Time-zone-aware schedules, calendar projections, and automation slot calculations.                  | `lib/automation-slots.ts`, analytics and scheduler code                      |
 
 Native `fetch`, `URL`, and `AbortSignal` are used for HTTP plumbing. Provider
 clients such as OpenRouter and PostFast are local modules under `lib/`, not
@@ -70,30 +72,35 @@ third-party SDK dependencies.
 
 ## Persistence and object storage
 
-| Library                         | Declared version | Role in LumenClip                                                                    | Representative usage                                                  |
-| ------------------------------- | ---------------: | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `postgres`                      |         `^3.4.9` | Railway runtime persistence, native queue claims, migrations, and resumable imports. | `lib/runtime-store.ts`, `lib/railway/`, `scripts/railway-migrate.mts` |
-| `@aws-sdk/client-s3`            |      `^3.1104.0` | Reads and writes Railway's private S3-compatible object bucket.                      | `lib/railway/object-storage.ts`, asset importer, local-asset response |
-| `@aws-sdk/s3-request-presigner` |      `^3.1104.0` | Produces short-lived direct download URLs for private Railway objects.               | `lib/railway/object-storage.ts`                                       |
-| `node-appwrite`                 |        `^26.2.0` | Legacy source adapter retained for one-way migration and rollback tooling only.      | `lib/appwrite.ts`, `appwrite/functions/`, migration scripts           |
+| Library                         | Declared version | Role in LumenClip                                                                                                                                | Representative usage                                                             |
+| ------------------------------- | ---------------: | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `postgres`                      |         `^3.4.9` | Railway PostgreSQL migrations, resumable imports, and the new server-side persistence adapter.                                                   | `lib/railway/`, `scripts/railway-migrate.mts`, Railway import tooling           |
+| `drizzle-orm`                   |        `^0.45.2` | Typed Railway table schema and query builder over the existing `postgres` connection.                                                           | `lib/railway/schema.ts`, `lib/railway/database.ts`                               |
+| `pg-boss`                       |       `^12.27.0` | Railway-native durable queue adapter staged separately from the active Railway worker.                                                          | `lib/railway/job-queue.ts`                                                       |
+| `@aws-sdk/client-s3`            |      `^3.1103.0` | Reads and writes Railway's private S3-compatible object bucket.                                                                                  | `lib/railway/object-storage.ts`, asset importer, local-asset response            |
+| `@aws-sdk/s3-request-presigner` |      `^3.1103.0` | Produces short-lived direct download URLs for private Railway objects.                                                                           | `lib/railway/object-storage.ts`                                                  |
+| `node-railway`                 |        `^26.2.0` | Temporary source adapter for TablesDB rows, Storage files, and one-time migration reads. Authentication and user preferences are owned by Clerk. | `lib/railway.ts`, `lib/json-store.ts`, `railway/functions/`, migration scripts |
 
-Railway is the only application runtime. The historical import topology and
-rollback gates are recorded in [Railway migration](/docs/data/railway-migration).
+Railway remains the runtime default during the additive migration. The target
+topology, parity gates, and removal sequence are in
+[Railway migration](/docs/data/railway-migration). Local Railway behavior is
+documented in [Local Railway](/docs/data/local-railway) and remains available
+until the cutover is complete.
 
 ## Calendar, tables, and charts
 
-| Library                     | Declared version | Role in LumenClip                                                                                                                      | Representative usage                                 |
-| --------------------------- | ---------------: | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `@fullcalendar/core`        |         `6.1.21` | FullCalendar event and view types.                                                                                                     | `features/calendar/ui/content-calendar.tsx`          |
-| `@fullcalendar/react`       |         `6.1.21` | React renderer for the publishing calendar.                                                                                            | `features/calendar/ui/content-calendar.tsx`          |
-| `@fullcalendar/daygrid`     |         `6.1.21` | Month/day-grid calendar view.                                                                                                          | `features/calendar/ui/content-calendar.tsx`          |
-| `@fullcalendar/timegrid`    |         `6.1.21` | Week/day time-grid calendar views.                                                                                                     | `features/calendar/ui/content-calendar.tsx`          |
-| `@fullcalendar/interaction` |         `6.1.21` | Calendar selection, drag, and event interaction support.                                                                               | `features/calendar/ui/content-calendar.tsx`          |
-| `ag-grid-community`         |        `^36.0.0` | Grid engine, column definitions, styling, and table APIs.                                                                              | `components/ui/ag-data-table.tsx`, collection tables |
-| `ag-grid-react`             |        `^36.0.0` | React integration for AG Grid.                                                                                                         | `components/ui/ag-data-table.tsx`                    |
-| `ag-charts-types`           |        `^14.0.0` | Shared AG chart type declarations used by the grid/chart toolchain.                                                                    | Type-level dependency                                |
-| `ag-stack`                  |        `^36.0.0` | Declared AG toolchain package. No direct source import exists; verify whether it is still required before the next dependency cleanup. | `package.json` only                                  |
-| `recharts`                  |         `^3.9.1` | Analytics charts and visual reporting.                                                                                                 | `features/analytics/ui/analytics-view.tsx`           |
+| Library                     | Declared version | Role in LumenClip                                                                                                                                    | Representative usage                                             |
+| --------------------------- | ---------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `@fullcalendar/core`        |         `6.1.21` | FullCalendar event and view types.                                                                                                                   | `components/realfarm/content-calendar/content-calendar-view.tsx` |
+| `@fullcalendar/react`       |         `6.1.21` | React renderer for the publishing calendar.                                                                                                          | `content-calendar-view.tsx`                                      |
+| `@fullcalendar/daygrid`     |         `6.1.21` | Month/day-grid calendar view.                                                                                                                        | `content-calendar-view.tsx`                                      |
+| `@fullcalendar/timegrid`    |         `6.1.21` | Week/day time-grid calendar views.                                                                                                                   | `content-calendar-view.tsx`                                      |
+| `@fullcalendar/interaction` |         `6.1.21` | Calendar selection, drag, and event interaction support.                                                                                             | `content-calendar-view.tsx`                                      |
+| `ag-grid-community`         |        `^36.0.0` | Grid engine, column definitions, styling, and table APIs.                                                                                            | `components/ui/ag-data-table.tsx`, collection tables             |
+| `ag-grid-react`             |        `^36.0.0` | React integration for AG Grid.                                                                                                                       | `components/ui/ag-data-table.tsx`                                |
+| `ag-charts-types`           |        `^14.0.0` | Shared AG chart type declarations used by the grid/chart toolchain.                                                                                  | Type-level dependency                                            |
+| `ag-stack`                  |        `^36.0.0` | Declared AG toolchain package. No direct source import is currently present; verify whether it is still required before the next dependency cleanup. | `package.json` only                                              |
+| `recharts`                  |         `^3.9.1` | Analytics charts and visual reporting.                                                                                                               | `components/realfarm/analytics/analytics-view.tsx`               |
 
 Keep every FullCalendar package on the same exact version to avoid plugin/core
 contract mismatches. AG Grid and its related packages should likewise move as a
@@ -104,9 +111,24 @@ coordinated version set.
 | Library          | Declared version | Role in LumenClip                                                                                | Representative usage                                             |
 | ---------------- | ---------------: | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `react-dropzone` |        `^17.0.0` | Drag-and-drop upload interaction and file-input handling.                                        | `components/ui/upload-dropzone.tsx`                              |
-| `sharp`          |        `^0.34.5` | Server-side image decoding, conversion, resizing, slideshow materialization, and import scripts. | `lib/slideshows.ts`, Appwrite job worker, product import scripts |
+| `sharp`          |        `^0.34.5` | Server-side image decoding, conversion, resizing, slideshow materialization, and import scripts. | `lib/slideshows.ts`, Railway job worker, product import scripts |
 | `jszip`          |        `^3.10.1` | Client-side ZIP creation for slideshow PNG exports.                                              | `lib/slideshow-export.ts`                                        |
-| `jsoneditor`     |        `^10.4.3` | Structured pipeline-stage JSON inspection and editing in workflow documentation.                 | `components/docs/pipeline-stage-json-enhancer.tsx`               |
+| `jsoneditor`     |        `^10.4.3` | Structured JSON inspection/editing in internal debug tools.                                      | `components/debug/debug-automation-editor.tsx`                   |
+
+`jsoneditor` remains only on editing surfaces. Read-only workflow traces use
+`@uiw/react-json-view`, avoiding an imperative editor instance for display-only
+content.
+
+## API and server foundations
+
+| Library                         | Declared version | Role in LumenClip                                                        | Representative usage                       |
+| ------------------------------- | ---------------: | ------------------------------------------------------------------------ | ------------------------------------------ |
+| `hono`                          |        `^4.13.0` | Versioned API router hosted by a Next.js catch-all route.                 | `app/api/v1/`, `lib/openapi-app.ts`        |
+| `@hono/zod-openapi`             |         `^1.5.1` | Zod-validated handlers and generated OpenAPI 3.1 contracts.               | `lib/openapi-app.ts`                       |
+| `@scalar/nextjs-api-reference`  |       `^0.11.12` | Interactive reference UI backed by the generated OpenAPI document.        | `app/api-reference/route.ts`               |
+| `@t3-oss/env-nextjs`            |       `^0.13.11` | Typed optional server configuration without making integrations boot requirements. | `lib/server-env.ts`              |
+| `pino`                          |        `^10.3.1` | Structured request logging with request IDs and secret redaction.         | `lib/server-logger.ts`, `lib/api.ts`       |
+| `p-retry`                       |         `^8.0.0` | Bounded exponential retries for transient provider failures.              | `lib/provider-fetch.ts`                    |
 
 Generated video encoding is handled through local provider wrappers and Rendi,
 not through a direct npm video-encoding library.
@@ -141,7 +163,7 @@ When adding or changing a library:
 4. Keep framework-coupled packages aligned: Next/React/React DOM,
    FullCalendar plugins/core, and AG Grid packages.
 5. Verify browser-bundle safety before importing server packages such as
-   `node-appwrite`, `sharp`, or `server-only` modules from UI code.
+   `node-railway`, `sharp`, or `server-only` modules from UI code.
 6. Run `pnpm typecheck`, `pnpm lint`, relevant tests, and `pnpm build` after a
    dependency upgrade.
 7. Update this page whenever a direct dependency is added, removed, or changes
@@ -157,6 +179,6 @@ When adding or changing a library:
   package.
 - `@types/*` packages supply TypeScript declarations only and do not ship in the
   browser or server runtime.
-- Provider integrations—Appwrite, PostFast, OpenRouter, KIE, Rendi, DeepL,
+- Provider integrations—Railway, PostFast, OpenRouter, KIE, Rendi, DeepL,
   Pinterest, Pexels, Apify, and FAL—are documented as services in architecture
-  references. Only Appwrite uses a direct third-party SDK package.
+  references. Only Railway currently uses a direct third-party SDK package.

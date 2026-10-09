@@ -1,4 +1,4 @@
-// Preset definitions for video automation templates. Each preset seeds an
+// Built-in video templates. Each definition seeds an editable
 // AutomationVideoFormat (segments + text overlays) modeled on the winning
 // low-effort TikTok ad formats: react & reveal, compilation, birdseye POV,
 // screen record, screenshot pictures, and aesthetic video. Carousel is
@@ -10,7 +10,7 @@ import {
   type AutomationVideoTemplateId,
 } from "@/lib/realfarm-automation"
 
-export type VideoAutomationTemplatePreset = {
+export type VideoTemplateDefinition = {
   id: AutomationVideoTemplateId
   name: string
   tagline: string
@@ -49,7 +49,7 @@ function segment(
   }
 }
 
-const ugcAdPreset: VideoAutomationTemplatePreset = {
+const ugcAdTemplate: VideoTemplateDefinition = {
   id: "ugc_ad",
   name: "UGC Ad — AI actor",
   tagline: "Generated actor, voice, lip sync, and b-roll",
@@ -63,7 +63,7 @@ const ugcAdPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const greenscreenMemePreset: VideoAutomationTemplatePreset = {
+const greenscreenMemeTemplate: VideoTemplateDefinition = {
   id: "greenscreen_meme",
   name: "Greenscreen Meme",
   tagline: "Meme clip over a fresh background",
@@ -106,7 +106,7 @@ const greenscreenMemePreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const reactRevealPreset: VideoAutomationTemplatePreset = {
+const reactRevealTemplate: VideoTemplateDefinition = {
   id: "react_reveal",
   name: "React & Reveal",
   tagline: "Full reaction clip, then the full reveal",
@@ -160,7 +160,7 @@ const reactRevealPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const compilationPreset: VideoAutomationTemplatePreset = {
+const compilationTemplate: VideoTemplateDefinition = {
   id: "compilation",
   name: "Compilation",
   tagline: "4-6 fast cuts, one persistent hook",
@@ -192,7 +192,7 @@ const compilationPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const birdseyePovPreset: VideoAutomationTemplatePreset = {
+const birdseyePovTemplate: VideoTemplateDefinition = {
   id: "birdseye_pov",
   name: "Birdseye POV",
   tagline: "Problem clip, then the better way",
@@ -245,7 +245,7 @@ const birdseyePovPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const screenRecordPreset: VideoAutomationTemplatePreset = {
+const screenRecordTemplate: VideoTemplateDefinition = {
   id: "screen_record",
   name: "Screen Record",
   tagline: "Talk 3s, cut to the demo, close",
@@ -307,7 +307,7 @@ const screenRecordPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const screenshotPicturesPreset: VideoAutomationTemplatePreset = {
+const screenshotPicturesTemplate: VideoTemplateDefinition = {
   id: "screenshot_pictures",
   name: "Screenshot Pictures",
   tagline: "Static proof with a mini plot",
@@ -383,7 +383,7 @@ const screenshotPicturesPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const aestheticPreset: VideoAutomationTemplatePreset = {
+const aestheticTemplate: VideoTemplateDefinition = {
   id: "aesthetic",
   name: "Aesthetic Video",
   tagline: "Mood clips + one long caption",
@@ -420,7 +420,7 @@ const aestheticPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const storyOverBrollPreset: VideoAutomationTemplatePreset = {
+const storyOverBrollTemplate: VideoTemplateDefinition = {
   id: "story_over_broll",
   name: "Story over B-roll",
   tagline: "Four story beats over fast b-roll",
@@ -519,7 +519,7 @@ const storyOverBrollPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const facelessReelPreset: VideoAutomationTemplatePreset = {
+const facelessReelTemplate: VideoTemplateDefinition = {
   id: "faceless_reel",
   name: "Faceless Reel",
   tagline: "One energy clip, one bold claim",
@@ -564,199 +564,24 @@ const facelessReelPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
-const splitScreenPreset: VideoAutomationTemplatePreset = {
-  id: "split_screen",
-  name: "Split Screen",
-  tagline: "Two synchronized clips, one vertical canvas",
-  description:
-    "Stacks two videos in a 9:16 frame with the first clip setting the duration, a crisp divider, optional persistent captions, and background music.",
-  buildFormat: () => ({
-    template: "split_screen",
-    hookPlacement: "global",
-    globalTextItems: [
-      defaultAutomationTextItem({
-        contentDirection:
-          "one concise caption that explains the comparison or connects both clips",
-        textStyle: "outline",
-        fontSize: "8px",
-        textPosition: "center",
-        textItemWidth: "86%",
-        wordLengthMin: 5,
-        wordLengthMax: 14,
-      }),
-    ],
-    segments: [
-      segment({
-        id: "split-primary",
-        label: "Top video",
-        guidance:
-          "The primary clip. It fills the top half and sets the finished video duration, capped at 60 seconds.",
-        mediaKind: "video",
-        clipCount: 1,
-        clipDurationMs: 9000,
-        playFullVideo: true,
-      }),
-      segment({
-        id: "split-secondary",
-        label: "Bottom video",
-        guidance:
-          "The supporting, gameplay, reaction, or satisfying clip shown in the bottom half. It loops to match the primary clip.",
-        mediaKind: "video",
-        clipCount: 1,
-        clipDurationMs: 9000,
-        playFullVideo: true,
-      }),
-    ],
-  }),
-}
-
-const fakeTextPreset: VideoAutomationTemplatePreset = {
-  id: "fake_text",
-  name: "Fake Text Story",
-  tagline: "Message bubbles reveal over looping b-roll",
-  description:
-    "Turns a hook into an alternating receiver/sender conversation, revealing each message in sequence over a looping background clip.",
-  buildFormat: () => ({
-    template: "fake_text",
-    hookPlacement: "global",
-    globalTextItems: [
-      defaultAutomationTextItem({
-        contentDirection:
-          "receiver opening message that creates a curiosity gap",
-        wordLengthMin: 3,
-        wordLengthMax: 10,
-      }),
-      defaultAutomationTextItem({
-        contentDirection:
-          "sender reply that raises the stakes without resolving the story",
-        wordLengthMin: 3,
-        wordLengthMax: 11,
-      }),
-      defaultAutomationTextItem({
-        contentDirection:
-          "receiver follow-up that adds one concrete, surprising detail",
-        wordLengthMin: 4,
-        wordLengthMax: 12,
-      }),
-      defaultAutomationTextItem({
-        contentDirection:
-          "sender final message that lands the reveal or payoff",
-        wordLengthMin: 4,
-        wordLengthMax: 12,
-      }),
-    ],
-    segments: [
-      segment({
-        id: "fake-text-background",
-        label: "Background video",
-        guidance:
-          "A low-distraction gameplay, satisfying, or aesthetic background clip. It loops while the conversation is revealed.",
-        mediaKind: "video",
-        clipCount: 1,
-        clipDurationMs: 9000,
-        playFullVideo: true,
-      }),
-    ],
-  }),
-}
-
-const facelessShortPreset: VideoAutomationTemplatePreset = {
-  id: "faceless_short",
-  name: "Faceless Short",
-  tagline: "Narrative captions over rapid visual beats",
-  description:
-    "Builds a 30–60 second faceless short from several b-roll clips with a bold opening, compact narrative beats, and a final payoff.",
-  buildFormat: () => ({
-    template: "faceless_short",
-    hookPlacement: "first_segment",
-    globalTextItems: [],
-    segments: [
-      segment({
-        id: "faceless-hook",
-        label: "Hook",
-        guidance:
-          "A high-motion opening clip paired with a specific claim, story premise, or surprising fact.",
-        clipCount: 1,
-        clipDurationMs: 2800,
-        textItems: [
-          defaultAutomationTextItem({
-            contentDirection:
-              "bold opening line that states the exact topic and creates an open loop",
-            textStyle: "outline",
-            fontSize: "10px",
-            textPosition: "center",
-            textItemWidth: "86%",
-            wordLengthMin: 6,
-            wordLengthMax: 15,
-          }),
-        ],
-      }),
-      segment({
-        id: "faceless-story",
-        label: "Story beats",
-        guidance:
-          "Four related b-roll clips that advance one continuous explanation or story.",
-        clipCount: 4,
-        clipDurationMs: 2600,
-        transition: "fade",
-        textItems: [
-          defaultAutomationTextItem({
-            contentDirection:
-              "the next concrete narrative beat; continue the same subject without restarting",
-            textStyle: "outline",
-            fontSize: "8px",
-            textPosition: "center",
-            textItemWidth: "86%",
-            wordLengthMin: 5,
-            wordLengthMax: 13,
-          }),
-        ],
-      }),
-      segment({
-        id: "faceless-payoff",
-        label: "Payoff",
-        guidance:
-          "A final clip that resolves the opening claim with a useful takeaway or qualitative outcome.",
-        clipCount: 1,
-        clipDurationMs: 3200,
-        textItems: [
-          defaultAutomationTextItem({
-            contentDirection:
-              "final payoff and useful takeaway that resolves the opening line",
-            textStyle: "background",
-            fontSize: "8px",
-            textPosition: "bottom",
-            textItemWidth: "86%",
-            wordLengthMin: 6,
-            wordLengthMax: 15,
-          }),
-        ],
-      }),
-    ],
-  }),
-}
-
-export const videoAutomationTemplatePresets: VideoAutomationTemplatePreset[] = [
-  ugcAdPreset,
-  greenscreenMemePreset,
-  reactRevealPreset,
-  compilationPreset,
-  birdseyePovPreset,
-  screenRecordPreset,
-  screenshotPicturesPreset,
-  aestheticPreset,
-  storyOverBrollPreset,
-  facelessReelPreset,
-  splitScreenPreset,
-  fakeTextPreset,
-  facelessShortPreset,
+export const builtInVideoTemplates: VideoTemplateDefinition[] = [
+  ugcAdTemplate,
+  greenscreenMemeTemplate,
+  reactRevealTemplate,
+  compilationTemplate,
+  birdseyePovTemplate,
+  screenRecordTemplate,
+  screenshotPicturesTemplate,
+  aestheticTemplate,
+  storyOverBrollTemplate,
+  facelessReelTemplate,
 ]
 
-export function videoAutomationTemplatePreset(
+export function builtInVideoTemplate(
   id: AutomationVideoTemplateId | undefined
 ) {
   return (
-    videoAutomationTemplatePresets.find((preset) => preset.id === id) ??
-    ugcAdPreset
+    builtInVideoTemplates.find((template) => template.id === id) ??
+    ugcAdTemplate
   )
 }

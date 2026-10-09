@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest"
 import { configureFontconfig } from "@/lib/font-config"
 import { selectSlideshowImageWithAi } from "@/lib/slideshow-image-matching"
 import { renderedSlideSvg } from "@/lib/slideshow-renderer"
-import { generateSlideshowText } from "@/lib/slideshow-generation-engine"
+import { generateSlideshowText } from "@/lib/slideshow-text-generation"
 import type { TempSlideTestingAutomation } from "@/lib/temp-slide-testing"
 
 function envKey(name: string) {

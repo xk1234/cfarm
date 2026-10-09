@@ -4,6 +4,7 @@ import { IconChevronLeft, IconVideo } from "@tabler/icons-react"
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { SoundSelector } from "@/components/realfarm/creator-ui"
 import { PinterestPreviewTile } from "@/components/realfarm/shared-media"
+import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import {
   automationCollectionId,
@@ -13,14 +14,14 @@ import {
   schemaWithAutomationCollectionId,
   updateAutomationFormatSection,
   type AutomationSchema,
-  type TextItem,
+  type AutomationTextItem,
   type AutomationVideoTemplateId,
 } from "@/lib/realfarm-automation"
 import {
-  videoAutomationTemplatePreset,
-  videoAutomationTemplatePresets,
+  builtInVideoTemplate,
+  builtInVideoTemplates,
 } from "@/lib/video-automation-templates"
-import type { CreatedImageCollection } from "@/features/collections/domain/collections"
+import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import { previewTextForTextItem } from "@/lib/realfarm-preview-text"
 import { randomTikTokSoundLabel } from "@/lib/slideshow-publishing-config"
@@ -44,6 +45,7 @@ export function VideoAutomationFormatPanel({
   onCreateCollection,
   onConfigChange,
   onBack,
+  onSave,
 }: {
   automation: Automation
   config: AutomationSchema
@@ -54,6 +56,7 @@ export function VideoAutomationFormatPanel({
   onCreateCollection: (collection: CreatedImageCollection) => void
   onConfigChange: (config: AutomationSchema) => void
   onBack: () => void
+  onSave: () => void
 }) {
   const [selectedVideoTextIndex, setSelectedVideoTextIndex] = useState<
     number | null
@@ -126,7 +129,7 @@ export function VideoAutomationFormatPanel({
     })
   }
 
-  function updateVideoTextItem(patch: Partial<TextItem>) {
+  function updateVideoTextItem(patch: Partial<AutomationTextItem>) {
     const textIndex = selectedVideoTextIndex ?? 0
     onConfigChange(
       updateAutomationFormatSection(config, "hook", {
@@ -197,13 +200,13 @@ export function VideoAutomationFormatPanel({
                 onChange={(event) =>
                   onConfigChange({
                     ...config,
-                    video_format: videoAutomationTemplatePreset(
+                    video_format: builtInVideoTemplate(
                       event.target.value as AutomationVideoTemplateId
                     ).buildFormat(),
                   })
                 }
               >
-                {videoAutomationTemplatePresets.map((item) => (
+                {builtInVideoTemplates.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
                   </option>
@@ -262,6 +265,16 @@ export function VideoAutomationFormatPanel({
             </section>
           </div>
         </div>
+        <div className="border-t border-app-panel-border p-3">
+          <Button
+            variant="action"
+            size="appDefault"
+            className="w-full"
+            onClick={onSave}
+          >
+            Save Changes
+          </Button>
+        </div>
       </aside>
 
       <main className="relative isolate grid min-h-0 place-items-center overflow-y-auto bg-[#b9b9b6] p-8">
@@ -318,7 +331,7 @@ function VideoAutomationPreviewText({
   active,
   onClick,
 }: {
-  textItem: TextItem
+  textItem: AutomationTextItem
   text: string
   active: boolean
   onClick?: () => void

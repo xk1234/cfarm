@@ -1,15 +1,19 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs"
+import { mkdirSync } from "node:fs"
 import path from "node:path"
-import { parseEnv } from "node:util"
 
+import { clerk } from "@clerk/testing/playwright"
 import { chromium } from "@playwright/test"
-import { Client, Query, Users } from "node-appwrite"
 
 const root = path.resolve(import.meta.dirname, "..")
-const baseUrl = process.env.AUTOMATION_DOCS_URL ?? "http://localhost:3000"
+const baseUrl = process.env.TEMPLATES_DOCS_URL ?? "http://localhost:3000"
 const outputDirectory = path.join(root, "public", "docs", "templates")
-const accountEmail = `docs-hooks-${Date.now()}@example.com`
-const accountPassword = "Documentation2026"
+const accountEmail = process.env.TEMPLATES_DOCS_EMAIL
+
+if (!accountEmail) {
+  throw new Error(
+    "Set TEMPLATES_DOCS_EMAIL to an existing Clerk development user."
+  )
+}
 
 mkdirSync(outputDirectory, { recursive: true })
 
@@ -28,21 +32,11 @@ page.on("console", (message) => {
 page.on("pageerror", (error) => browserErrors.push(error.message))
 
 try {
-  const registration = await context.request.post(
-    `${baseUrl}/api/auth/register`,
-    {
-      data: {
-        name: "Hook documentation",
-        email: accountEmail,
-        password: accountPassword,
-      },
-    }
-  )
-  if (registration.status() !== 201) {
-    throw new Error(
-      `Documentation account registration failed (${registration.status()}).`
-    )
-  }
+  await page.goto(baseUrl, {
+    waitUntil: "domcontentloaded",
+    timeout: 120_000,
+  })
+  await clerk.signIn({ page, emailAddress: accountEmail })
 
   await page.goto(`${baseUrl}/app`, {
     waitUntil: "domcontentloaded",
@@ -56,16 +50,14 @@ try {
     .getByRole("button", { name: "Overview", exact: true })
     .waitFor({ timeout: 60_000 })
 
-  const automationsResponse = await context.request.get(
-    `${baseUrl}/api/templates`
-  )
-  if (!automationsResponse.ok()) {
+  const templatesResponse = await context.request.get(`${baseUrl}/api/templates`)
+  if (!templatesResponse.ok()) {
     throw new Error(
-      `Failed to load the documentation automation (${automationsResponse.status()}).`
+      `Failed to load the documentation templates (${templatesResponse.status()}).`
     )
   }
-  const automations = await automationsResponse.json()
-  const record = automations.records?.[0]
+  const templates = await templatesResponse.json()
+  const record = templates.records?.[0]
   if (!record?.id || !Array.isArray(record.schema?.hooks)) {
     throw new Error(
       "The documentation automation did not expose a hook catalog."
@@ -148,12 +140,14 @@ try {
       },
     ],
   }
-  await page.route(`**/api/templates/${automationId}/hook-analytics`, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(analytics),
-    })
+  await page.route(
+    `**/api/templates/${automationId}/hook-analytics`,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(analytics),
+      })
   )
 
   await page.goto(`${baseUrl}/app?view=templates`, {
@@ -226,29 +220,4 @@ try {
     )
   }
   await browser.close()
-  await deleteLocalDocumentationAccount(accountEmail)
-}
-
-async function deleteLocalDocumentationAccount(email) {
-  const environment = [".env", ".env.local"].reduce((values, filename) => {
-    const filePath = path.join(root, filename)
-    if (!existsSync(filePath)) return values
-    return { ...values, ...parseEnv(readFileSync(filePath, "utf8")) }
-  }, {})
-  if (
-    environment.APPWRITE_ENDPOINT !== "http://localhost:9080/v1" ||
-    environment.APPWRITE_PROJECT_ID !== "cfarm-local" ||
-    !environment.APPWRITE_API_KEY
-  ) {
-    throw new Error(
-      "Refusing to clean up the docs account outside local Appwrite."
-    )
-  }
-  const client = new Client()
-    .setEndpoint(environment.APPWRITE_ENDPOINT)
-    .setProject(environment.APPWRITE_PROJECT_ID)
-    .setKey(environment.APPWRITE_API_KEY)
-  const users = new Users(client)
-  const matches = await users.list({ queries: [Query.equal("email", [email])] })
-  await Promise.all(matches.users.map((user) => users.delete(user.$id)))
 }

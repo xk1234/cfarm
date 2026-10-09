@@ -1,4 +1,4 @@
-import type { AnalyticsPayload } from "@/features/analytics/domain/analytics"
+import type { AnalyticsPayload } from "@/components/realfarm/analytics/analytics-view"
 import type { CanonicalMetric } from "@/lib/metric-registry"
 import type { PostFastSocialProvider } from "@/lib/postfast-client"
 

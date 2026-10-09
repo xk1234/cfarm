@@ -5,12 +5,13 @@ import {
   slideshowToneToAutomationFields,
   transcribeTikTokSlideshow,
 } from "@/lib/slideshow-tone-analysis"
-import { normalizeTikTokSlideshowUrls } from "@/lib/tiktok-slideshow-transcription"
+import { normalizeTikTokUrls } from "@/lib/tiktok-publication-import"
 
 export const dynamic = "force-dynamic"
 // Scraping the slideshow and transcribing its slides both happen inline. A
 // measured real scrape took over 45s, so this needs the long end of the
-// platform budget.
+// platform budget; deployments capped below 300s should use the async
+// startTikTokPublicationImport path instead.
 export const maxDuration = 300
 
 export async function POST(request: Request) {
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    normalizeTikTokSlideshowUrls([url])
+    normalizeTikTokUrls([url])
   } catch (error) {
     return NextResponse.json(
       {

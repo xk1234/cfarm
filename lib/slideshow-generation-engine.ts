@@ -17,10 +17,8 @@ import {
 } from "@/lib/realfarm-generation-model-registry"
 import { clean, isRecord } from "@/lib/guards"
 import { fetchJson, providerErrorMessage } from "@/lib/http"
-import { getLumenclipChatPrompt } from "@/lib/langfuse-prompts"
 import { llmSlopMatches, normalizeLlmPunctuation } from "@/lib/llm-slop"
 import { parseOpenRouterContent } from "@/lib/openrouter"
-import { recordProviderRequest } from "@/lib/provider-request-trace"
 import {
   expandAllHookCombinations,
   type HookExpansionResult,
@@ -104,8 +102,6 @@ export type SlideshowHookSelection = {
   hookId: string
   bodySlideCount?: number
   tone?: string
-  contentDirection?: string
-  content?: string
 }
 
 /**
@@ -118,8 +114,6 @@ export function selectSlideshowHook(input: {
     text: string
     bodySlideCount?: number
     tone?: string
-    contentDirection?: string
-    content?: string
   }>
   hookSlots?: Record<string, string>
   wordCollections: WordCollectionRecord[]
@@ -159,8 +153,6 @@ export function selectSlideshowHook(input: {
           hookId: hookItem.id,
           bodySlideCount: hookItem.bodySlideCount,
           tone: hookItem.tone,
-          contentDirection: hookItem.contentDirection,
-          content: hookItem.content,
         }))
       )
     } catch (error) {
@@ -202,22 +194,6 @@ export function selectSlideshowHook(input: {
         ) * available.length
       )
   return available[Math.min(available.length - 1, Math.max(0, selectedIndex))]
-}
-
-export function slideshowHookSourcePrompt(
-  selection: Pick<SlideshowHookSelection, "contentDirection" | "content">
-) {
-  const direction = selection.contentDirection?.trim()
-  const content = selection.content?.trim()
-  if (!direction && !content) return ""
-  return [
-    "Hook-specific LumenLab source brief:",
-    direction ? `Content direction: ${direction}` : "",
-    content ? `Source content: ${content}` : "",
-    "Develop the selected hook using this brief. Preserve the source's factual claims and intended payoff; do not switch to a generic topic or invent unsupported facts.",
-  ]
-    .filter(Boolean)
-    .join("\n")
 }
 
 export function slideshowHookUsageKey(hook: string) {
@@ -269,7 +245,7 @@ export function imagesForSlideshowSection<T extends { imageCaption: string }>(
 
 /**
  * Shared visual-concept derivation and image choice. Callers inject already
- * loaded candidates for each slide, keeping storage and Appwrite out of this
+ * loaded candidates for each slide, keeping storage and Railway out of this
  * module while preserving one selection algorithm.
  */
 export async function selectSlideshowImages<
@@ -728,24 +704,6 @@ async function requestStructuredOutputAttempt(input: {
   requireHookSubjectCoverage?: boolean
   allowViolations: boolean
 }) {
-  const { langfusePromptVariables, ...providerPromptPayload } =
-    input.promptPayload
-  const managedPrompt = langfusePromptVariables
-    ? await getLumenclipChatPrompt("slideshowText", langfusePromptVariables)
-    : null
-  const requestBody = {
-    ...providerPromptPayload,
-    model: input.model,
-    messages: managedPrompt
-      ? [...managedPrompt.messages, ...input.promptPayload.messages.slice(2)]
-      : input.promptPayload.messages,
-  }
-  recordProviderRequest({
-    provider: "OpenRouter",
-    operation: "chat.completions",
-    model: input.model,
-    request: requestBody,
-  })
   const payload = await fetchJson<OpenRouterResponse>(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -754,15 +712,11 @@ async function requestStructuredOutputAttempt(input: {
         Authorization: `Bearer ${input.apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({ ...input.promptPayload, model: input.model }),
     },
     {
       fetchImpl: input.fetchImpl,
       timeoutMs: 120_000,
-      trace: {
-        feature: "slideshow-text",
-        prompt: managedPrompt?.prompt,
-      },
       errorMessage: (response, value) => {
         const providerError =
           typeof value === "object" &&
@@ -1025,23 +979,6 @@ export async function researchSelectedHookAttempt(input: {
   hook: string
   automationName: string
 }) {
-  const managedPrompt = await getLumenclipChatPrompt("slideshowHookResearch", {
-    automation_name: input.automationName,
-    hook: input.hook,
-  })
-  const requestBody = {
-    model: input.model,
-    stream: false,
-    max_tokens: 2_000,
-    plugins: [{ id: "web", engine: "exa", max_results: 5 }],
-    messages: managedPrompt.messages,
-  }
-  recordProviderRequest({
-    provider: "OpenRouter",
-    operation: "chat.completions with Exa web search",
-    model: input.model,
-    request: requestBody,
-  })
   const payload = await fetchJson<OpenRouterResponse>(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -1050,15 +987,27 @@ export async function researchSelectedHookAttempt(input: {
         Authorization: `Bearer ${input.apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        model: input.model,
+        stream: false,
+        max_tokens: 2_000,
+        plugins: [{ id: "web", engine: "exa", max_results: 5 }],
+        messages: [
+          {
+            role: "system",
+            content:
+              "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
+          },
+          {
+            role: "user",
+            content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
+          },
+        ],
+      }),
     },
     {
       fetchImpl: input.fetchImpl,
       timeoutMs: 90_000,
-      trace: {
-        feature: "slideshow-hook-research",
-        prompt: managedPrompt.prompt,
-      },
       errorMessage: providerErrorMessage("OpenRouter hook research failed"),
     }
   )

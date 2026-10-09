@@ -5,7 +5,7 @@ import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  deleteAssetFromAppwrite,
+  deleteStoredAsset,
   readAssetBytes,
 } from "@/lib/asset-storage"
 import {
@@ -147,6 +147,6 @@ describe("rendi ffmpeg client", () => {
     // The download is persisted to Appwrite Storage (not local disk).
     const bytes = await readAssetBytes(outputPath)
     expect(Buffer.from(bytes).toString("utf8")).toBe("rendered-video")
-    await deleteAssetFromAppwrite(outputPath)
+    await deleteStoredAsset(outputPath)
   })
 })

@@ -13,7 +13,14 @@ Object.assign(process.env, cloud, local)
 const ownerId = resolveOwnerId()
 
 const { createLumenClipMcpServer } = await import("../lib/mcp/lumenclip-server")
-const server = createLumenClipMcpServer(ownerId)
+const { getDisabledMcpToolNames } = await import("../lib/mcp/tool-access")
+const server = createLumenClipMcpServer(
+  ownerId,
+  {},
+  {
+    disabledToolNames: await getDisabledMcpToolNames(ownerId),
+  }
+)
 await server.connect(new StdioServerTransport())
 
 function readEnv(file: string) {
@@ -23,15 +30,6 @@ function readEnv(file: string) {
 function resolveOwnerId() {
   const explicit = process.env.LUMENCLIP_MCP_OWNER_ID?.trim()
   if (explicit) return explicit
-
-  const endpoint = process.env.APPWRITE_ENDPOINT?.trim() || ""
-  const localAppwrite =
-    /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(endpoint)
-  if (localAppwrite) {
-    throw new Error(
-      "LUMENCLIP_MCP_OWNER_ID is required for local Appwrite. Set it to the local user id that owns the automation rows; the cloud LUMENCLIP_SYSTEM_OWNER_ID is intentionally not used locally."
-    )
-  }
 
   const systemOwner = process.env.LUMENCLIP_SYSTEM_OWNER_ID?.trim()
   if (systemOwner) return systemOwner

@@ -30,11 +30,9 @@ export type AutomationRecord = {
   sourceAutomationId?: string
   sourceUrl?: string
   name: string
-  hidden: boolean
   status: AutomationRecordStatus
   favorite: boolean
   theme: string
-  createdAt: string
   importedAt?: string
   updatedAt: string
   schema: AutomationSchema
@@ -43,8 +41,8 @@ export type AutomationRecord = {
 
 export type AutomationKind = AutomationSchema["automationKind"]
 
-const defaultRootDir = path.join(process.cwd(), "data", "templates")
-const dbFileName = "templates.json"
+const defaultRootDir = path.join(process.cwd(), "data", "automations")
+const dbFileName = "automations.json"
 
 export async function listAutomationRecords(
   options: { rootDir?: string } = {}
@@ -91,7 +89,6 @@ export async function upsertAutomationRecords(input: {
 export function createLocalAutomationRecord(
   input: {
     name?: string
-    hidden?: boolean
     automationKind?: AutomationKind
     schema?: AutomationSchema
     template?: RuntimeAutomationTemplate
@@ -104,11 +101,11 @@ export function createLocalAutomationRecord(
 ): AutomationRecord {
   const now = new Date().toISOString()
   const id = `automation-local-${randomUUID()}`
-  const name = clean(input.name) || "Untitled template"
+  const name = clean(input.name) || "Untitled automation"
   const summary = automationSummary({
     id,
     name,
-    status: "live",
+    status: "paused",
     account: "No social account",
     handle: "",
     times: [],
@@ -137,16 +134,17 @@ export function createLocalAutomationRecord(
                 input.template?.automationKind === "ugc"
               ? input.template.automationKind
               : defaults.automationKind,
-        schedule: cloneSchedule(input.overrides?.schedule ?? defaults.schedule),
+        schedule: {
+          ...cloneSchedule(input.overrides?.schedule ?? defaults.schedule),
+          paused: true,
+        },
       }
   return {
     id,
     name,
-    hidden: input.hidden ?? false,
-    status: input.overrides?.status ?? "live",
+    status: "paused",
     favorite: summary.favorite,
     theme: summary.theme,
-    createdAt: now,
     updatedAt: now,
     schema,
   }
@@ -156,7 +154,6 @@ export async function patchAutomationRecord(input: {
   rootDir?: string
   id: string
   name?: string
-  hidden?: boolean
   status?: AutomationStatus
   favorite?: boolean
   schema?: AutomationSchema
@@ -185,7 +182,6 @@ export async function patchAutomationRecord(input: {
   const updated: AutomationRecord = {
     ...record,
     name: nextName,
-    hidden: typeof input.hidden === "boolean" ? input.hidden : record.hidden,
     status: nextStatus,
     favorite:
       typeof input.favorite === "boolean" ? input.favorite : record.favorite,
@@ -228,7 +224,7 @@ export function normalizeReelfarmAutomation(raw: unknown): AutomationRecord {
   const sourceAutomationId = clean(
     record.id ?? record._id ?? record.uuid ?? record.automationId
   )
-  const name = clean(record.name ?? record.title) || "Untitled template"
+  const name = clean(record.name ?? record.title) || "Untitled automation"
   const status = normalizeStatus(record.status)
   const account =
     clean(record.account ?? record.tiktokAccount ?? record.pageName) ||
@@ -261,11 +257,9 @@ export function normalizeReelfarmAutomation(raw: unknown): AutomationRecord {
     sourceAutomationId: sourceAutomationId || undefined,
     sourceUrl: clean(record.sourceUrl ?? record.url) || undefined,
     name,
-    hidden: false,
     status,
     favorite,
     theme,
-    createdAt: now,
     importedAt: now,
     updatedAt: now,
     schema,
@@ -283,7 +277,6 @@ export function automationRecordToSummary(
   return {
     id: record.id,
     name: record.name,
-    hidden: record.hidden,
     status: record.status,
     account: socialSummary.account,
     handle: socialSummary.handle,
@@ -305,7 +298,7 @@ function readAutomationRecords(
   return readJsonArrayStore({
     rootDir,
     fileName: dbFileName,
-    key: "templates",
+    key: "automations",
     normalize: normalizeAutomationRecord,
   })
 }
@@ -322,7 +315,7 @@ function automationStore(rootDir = defaultRootDir) {
   return {
     rootDir,
     fileName: dbFileName,
-    key: "templates",
+    key: "automations",
   }
 }
 
@@ -338,7 +331,7 @@ async function upsertAutomationRecord(
   })
 }
 
-export function normalizeAutomationRecord(
+function normalizeAutomationRecord(
   record: AutomationRecord
 ): AutomationRecord | null {
   if (!record?.id || !record.name) {
@@ -369,16 +362,9 @@ export function normalizeAutomationRecord(
   )
   return {
     ...recordWithoutSource,
-    hidden: record.hidden === true,
     status: normalizedStatus,
     favorite: Boolean(record.favorite),
     theme: clean(record.theme) || "ugc",
-    createdAt:
-      clean(record.createdAt) ||
-      clean(record.importedAt) ||
-      (record.schema?.created_at
-        ? new Date(record.schema.created_at).toISOString()
-        : new Date().toISOString()),
     updatedAt: clean(record.updatedAt) || new Date().toISOString(),
     schema,
   }

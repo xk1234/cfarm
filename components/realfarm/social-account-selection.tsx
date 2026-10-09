@@ -2,11 +2,11 @@
 
 import { useMemo } from "react"
 import { IconCheck, IconPlus } from "@tabler/icons-react"
-import useSWR from "swr"
 
 import { AccountGridSkeleton } from "@/components/ui/loading-skeleton"
 import { getApiErrorMessage } from "@/lib/client-api"
-import { clientSWRFetcher } from "@/lib/client-swr"
+import { clientQueryFetcher } from "@/lib/client-fetcher"
+import { useAppQuery } from "@/lib/client-query"
 import { normalizePostFastSocialIntegration } from "@/lib/social/postfast-adapter"
 import type {
   SocialIntegration,
@@ -30,9 +30,9 @@ export function usePostFastIntegrations({
   includeDisabled?: boolean
   acceptsProvider?: (provider: SocialPlatformKey) => boolean
 } = {}) {
-  const { data, error, isLoading } = useSWR<{ integrations?: unknown[] }>(
+  const { data, error, isLoading } = useAppQuery<{ integrations?: unknown[] }>(
     "/api/postfast/integrations",
-    clientSWRFetcher
+    clientQueryFetcher
   )
   const integrations = useMemo(
     () =>

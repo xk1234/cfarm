@@ -6,10 +6,10 @@ import {
   writeCanonicalPostWithLegacyProjection,
 } from "@/lib/output-publications"
 import {
-  appwritePostRepository,
+  railwayPostRepository,
   type PostPatch,
   type PostIdentityRecord,
-} from "@/lib/post-repository-appwrite"
+} from "@/lib/post-repository-store"
 import {
   postRepositoryReadMode,
   postRepositoryWriteMode,
@@ -112,7 +112,7 @@ export class ConfiguredPostRepository implements PostRepository {
     const mode = postRepositoryReadMode()
     const ownerId = await outputPublicationsOwnerId()
     if (mode === "canonical") {
-      return appwritePostRepository.listPosts(ownerId)
+      return railwayPostRepository.listPosts(ownerId)
     }
     const legacy = (await listPostFastPostRecords()).map((record) =>
       postFromPostFastRecord(record, ownerId)
@@ -120,7 +120,7 @@ export class ConfiguredPostRepository implements PostRepository {
     if (mode === "legacy") return legacy
 
     try {
-      const canonical = await appwritePostRepository.listPosts(ownerId)
+      const canonical = await railwayPostRepository.listPosts(ownerId)
       logPostRepositoryShadowDiff(ownerId, legacy, canonical)
     } catch (error) {
       console.warn(
@@ -138,7 +138,7 @@ export class ConfiguredPostRepository implements PostRepository {
     const normalizedId = clean(id)
     if (!normalizedId) return null
     if (postRepositoryReadMode() === "canonical") {
-      return appwritePostRepository.getPost(
+      return railwayPostRepository.getPost(
         await outputPublicationsOwnerId(),
         normalizedId
       )
@@ -158,7 +158,7 @@ export class ConfiguredPostRepository implements PostRepository {
     }
     const mode = postRepositoryWriteMode()
     if (mode === "canonical") {
-      return appwritePostRepository.upsertPost(normalized, {
+      return railwayPostRepository.upsertPost(normalized, {
         writeState: "reconciled",
       })
     }
@@ -169,7 +169,7 @@ export class ConfiguredPostRepository implements PostRepository {
         !normalized.integrationId ||
         !normalized.provider)
     ) {
-      return appwritePostRepository.upsertPost(normalized, {
+      return railwayPostRepository.upsertPost(normalized, {
         writeState: "reconciled",
       })
     }
@@ -193,7 +193,7 @@ export class ConfiguredPostRepository implements PostRepository {
     postId: string,
     claim: PostIdentityClaim
   ): Promise<PostIdentityRecord> {
-    return appwritePostRepository.claimPostIdentity(
+    return railwayPostRepository.claimPostIdentity(
       await outputPublicationsOwnerId(),
       postId,
       claim
@@ -219,14 +219,14 @@ export class ConfiguredPostRepository implements PostRepository {
     const current =
       (await this.getPost(id)) ??
       (mode !== "legacy"
-        ? await appwritePostRepository.getPost(
+        ? await railwayPostRepository.getPost(
             await outputPublicationsOwnerId(),
             id
           )
         : null)
     if (!current) return null
     if (mode !== "legacy") {
-      await appwritePostRepository.deletePost(current.ownerId, current.id)
+      await railwayPostRepository.deletePost(current.ownerId, current.id)
     }
     if (mode !== "canonical") {
       await deletePostFastPostRecordById(current.id)
@@ -253,7 +253,7 @@ export class ConfiguredPostRepository implements PostRepository {
     const canonical =
       postRepositoryWriteMode() === "legacy"
         ? []
-        : await appwritePostRepository.listPosts(ownerId)
+        : await railwayPostRepository.listPosts(ownerId)
     const posts = [
       ...new Map(
         [...visible, ...canonical].map((post) => [post.id, post])
@@ -454,14 +454,14 @@ export async function readPostProjection<T>(
 
   if (mode === "canonical") {
     const ownerId = await outputPublicationsOwnerId()
-    return input.canonical(await appwritePostRepository.listPosts(ownerId))
+    return input.canonical(await railwayPostRepository.listPosts(ownerId))
   }
 
   const legacy = await input.legacy()
   try {
     const ownerId = await outputPublicationsOwnerId()
     const canonical = await input.canonical(
-      await appwritePostRepository.listPosts(ownerId)
+      await railwayPostRepository.listPosts(ownerId)
     )
     logPostReadProjectionDiff({
       surface: input.surface,

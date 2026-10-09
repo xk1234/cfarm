@@ -2,12 +2,14 @@ import { clean } from "@/lib/guards"
 import { createHash, randomUUID } from "node:crypto"
 import path from "node:path"
 
-import { deleteAsset, persistAsset, readAssetBytes } from "@/lib/asset-storage"
+import {
+  deleteStoredAsset,
+  persistAsset,
+  readAssetBytes,
+} from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type StoredImageCollection = {
-  id?: string
-  externalId?: string
   ownerId?: string
   name: string
   created_at: string
@@ -15,8 +17,6 @@ export type StoredImageCollection = {
   mediaType?: "image" | "video"
   deletedAt?: string
   deletedUntil?: string
-  source?: "lumenclip" | "influlab"
-  readOnly?: boolean
   images: {
     image_link: string
     caption: string
@@ -365,7 +365,7 @@ async function deleteUnusedLocalCollectionFiles(
   }
 
   for (const filePath of filesToDelete.keys()) {
-    await deleteAsset(filePath)
+    await deleteStoredAsset(filePath)
   }
 
   return filesToDelete.size

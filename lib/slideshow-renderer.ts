@@ -1,8 +1,5 @@
 import { clean } from "@/lib/guards"
-import {
-  resolveSlideshowFont,
-  resolveSlideshowFontWeight,
-} from "@/lib/slideshow-font-family"
+import { resolveSlideshowFont } from "@/lib/slideshow-font-family"
 import {
   textStyleToEditorColor,
   textStyleUsesStroke,
@@ -21,10 +18,6 @@ export type SlideshowTextItem = {
   textAnchor?: string
   textVerticalAnchor?: string
   textPlacement?: "top" | "center" | "bottom"
-  font?: string
-  fontWeight?: number
-  backgroundMode?: "line" | "block"
-  backgroundRadius?: number
   textPosition: {
     x: number
     y: number
@@ -35,18 +28,6 @@ export type SlideshowOverlayImage = {
   image_url: string
   source_image_url?: string
   padding: number
-}
-
-export type SlideshowImageItem = {
-  id: string
-  image_url: string
-  source_image_url?: string
-  positionX: number
-  positionY: number
-  width: number
-  height: number
-  fit: "cover" | "contain"
-  opacity: number
 }
 
 export type SlideshowOvalIcon = {
@@ -70,7 +51,6 @@ export type SlideshowSlide = {
   image_url: string
   source_image_url?: string
   overlayImage?: SlideshowOverlayImage
-  imageItems?: SlideshowImageItem[]
   overlay?: boolean
   imageFit?: "cover" | "contain" | "fit"
   textItems: SlideshowTextItem[]
@@ -87,7 +67,84 @@ export type SlideshowTextBounds = {
   height: number
 }
 
-export type SlideshowImageBounds = SlideshowTextBounds
+export type SlideshowFabricRect = {
+  kind: "rect"
+  id?: string
+  left: number
+  top: number
+  width: number
+  height: number
+  fill: string
+  opacity?: number
+  rx?: number
+  ry?: number
+  stroke?: string
+  strokeWidth?: number
+  angle?: number
+  originX?: "left" | "center" | "right"
+  originY?: "top" | "center" | "bottom"
+}
+
+export type SlideshowFabricEllipse = {
+  kind: "ellipse"
+  left: number
+  top: number
+  rx: number
+  ry: number
+  fill: string
+  stroke?: string
+  strokeWidth?: number
+  originX?: "left" | "center" | "right"
+  originY?: "top" | "center" | "bottom"
+}
+
+export type SlideshowFabricImage = {
+  kind: "image"
+  src: string
+  left: number
+  top: number
+  width: number
+  height: number
+  fit: "cover" | "contain"
+  angle?: number
+  originX?: "left" | "center" | "right"
+  originY?: "top" | "center" | "bottom"
+  clip?: {
+    left: number
+    top: number
+    width: number
+    height: number
+  }
+}
+
+export type SlideshowFabricText = {
+  kind: "text"
+  id: string
+  text: string
+  left: number
+  top: number
+  originX: "left" | "center" | "right"
+  originY: "center"
+  fontFamily: string
+  fontSize: number
+  fontWeight: number
+  fill: string
+  stroke?: string
+  strokeWidth?: number
+}
+
+export type SlideshowFabricObject =
+  | SlideshowFabricRect
+  | SlideshowFabricEllipse
+  | SlideshowFabricImage
+  | SlideshowFabricText
+
+export type SlideshowFabricScene = {
+  width: number
+  height: number
+  backgroundColor: string
+  objects: SlideshowFabricObject[]
+}
 
 export function slideshowTextPositionX(
   textAlign: string | undefined,
@@ -102,16 +159,85 @@ export function slideshowTextPositionX(
 export const defaultSlideshowAspectRatio = "9:16"
 export const defaultSlideshowFont = "TikTok Display Medium"
 
+/**
+ * Builds the renderer-neutral scene consumed by Fabric.js in both the editor
+ * and the generation worker. Keeping geometry here makes preview and export
+ * use the exact same layer order, wrapping, cropping, and text placement.
+ */
+export function slideshowFabricScene(
+  slide: SlideshowSlide,
+  sourceUrl: string,
+  overlayUrl?: string,
+  opts?: { aspectRatio?: string; font?: string; iconUrls?: string[] }
+): SlideshowFabricScene {
+  const { width, height } = slideDimensions(
+    opts?.aspectRatio || defaultSlideshowAspectRatio
+  )
+  const font = resolveSlideshowFont(opts?.font)
+  const objects: SlideshowFabricObject[] = []
+
+  if (slide.iconLayout) {
+    objects.push(
+      ...fabricOvalIconLayers(
+        slide.iconLayout,
+        sourceUrl,
+        opts?.iconUrls,
+        width,
+        height
+      )
+    )
+  } else {
+    objects.push({
+      kind: "image",
+      src: sourceUrl,
+      left: 0,
+      top: 0,
+      width,
+      height,
+      fit: "cover",
+    })
+  }
+
+  if (slide.overlay) {
+    objects.push({
+      kind: "rect",
+      id: "overlay",
+      left: 0,
+      top: 0,
+      width,
+      height,
+      fill: "#000000",
+      opacity: slideshowOverlayOpacity,
+    })
+  }
+
+  if (slide.overlayImage && overlayUrl) {
+    const frame = overlayImageFrame(slide.overlayImage, width, height)
+    objects.push({
+      kind: "image",
+      src: overlayUrl,
+      ...frame,
+      fit: "cover",
+      clip: frame,
+    })
+  }
+
+  for (const rendered of layoutRenderedTextItems(
+    slide.textItems,
+    width,
+    height
+  )) {
+    objects.push(...fabricTextLayers(rendered, font))
+  }
+
+  return { width, height, backgroundColor: "#111111", objects }
+}
+
 export function renderedSlideSvg(
   slide: SlideshowSlide,
   sourceUrl: string,
   overlayUrl?: string,
-  opts?: {
-    aspectRatio?: string
-    font?: string
-    iconUrls?: string[]
-    imageItemUrls?: string[]
-  }
+  opts?: { aspectRatio?: string; font?: string; iconUrls?: string[] }
 ) {
   const { width, height } = slideDimensions(
     opts?.aspectRatio || defaultSlideshowAspectRatio
@@ -123,13 +249,6 @@ export function renderedSlideSvg(
       ? renderedOverlayImageSvg(slide.overlayImage, overlayUrl, width, height)
       : null
   const overlayAlpha = slide.overlay ? slideshowOverlayOpacity : 0
-  const imageItemsSvg = slide.imageItems?.map((item, index) =>
-    renderedImageItemSvg(
-      { ...item, image_url: opts?.imageItemUrls?.[index] || item.image_url },
-      width,
-      height
-    )
-  )
 
   const baseLayers = slide.iconLayout
     ? renderedOvalIconsSvg(
@@ -151,61 +270,11 @@ export function renderedSlideSvg(
       ? `<rect data-layer="overlay" width="${width}" height="${height}" fill="#000" opacity="${overlayAlpha}"/>`
       : null,
     overlayImageSvg,
-    ...(imageItemsSvg ?? []),
     ...renderedTextItemsSvg(textItems, width, height, font),
     `</svg>`,
   ]
     .filter(Boolean)
     .join("")
-}
-
-export function renderedImageItemEditorBounds(
-  items: SlideshowImageItem[],
-  width: number,
-  height: number
-): SlideshowImageBounds[] {
-  return items.map((item) => {
-    const itemWidth = (Math.max(2, Math.min(100, item.width)) / 100) * width
-    const itemHeight = (Math.max(2, Math.min(100, item.height)) / 100) * height
-    return {
-      id: item.id,
-      left: Math.max(
-        0,
-        Math.min(
-          width - itemWidth,
-          (item.positionX / 100) * width - itemWidth / 2
-        )
-      ),
-      top: Math.max(
-        0,
-        Math.min(
-          height - itemHeight,
-          (item.positionY / 100) * height - itemHeight / 2
-        )
-      ),
-      width: itemWidth,
-      height: itemHeight,
-    }
-  })
-}
-
-function renderedImageItemSvg(
-  item: SlideshowImageItem,
-  slideWidth: number,
-  slideHeight: number
-) {
-  const [bounds] = renderedImageItemEditorBounds(
-    [item],
-    slideWidth,
-    slideHeight
-  )
-  const clipId = `image-layer-${item.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`
-  const preserveAspectRatio =
-    item.fit === "contain" ? "xMidYMid meet" : "xMidYMid slice"
-  return [
-    `<defs><clipPath id="${clipId}"><rect x="${round(bounds.left)}" y="${round(bounds.top)}" width="${round(bounds.width)}" height="${round(bounds.height)}"/></clipPath></defs>`,
-    `<image data-image-layer="${escapeXml(item.id)}" href="${escapeXml(item.image_url)}" x="${round(bounds.left)}" y="${round(bounds.top)}" width="${round(bounds.width)}" height="${round(bounds.height)}" opacity="${Math.max(0, Math.min(1, item.opacity))}" preserveAspectRatio="${preserveAspectRatio}" clip-path="url(#${clipId})"/>`,
-  ].join("")
 }
 
 function renderedOvalIconsSvg(
@@ -243,6 +312,108 @@ function renderedOvalIconsSvg(
   ]
 }
 
+function fabricOvalIconLayers(
+  layout: SlideshowOvalIconLayout,
+  focalUrl: string,
+  iconUrls: string[] | undefined,
+  width: number,
+  height: number
+): SlideshowFabricObject[] {
+  const cx = width * 0.5
+  const cy = height * 0.5
+  const rx = width * 0.372
+  const ry = height * 0.318
+  const baseSize = width * 0.135
+  const objects: SlideshowFabricObject[] = [
+    {
+      kind: "rect",
+      left: 0,
+      top: 0,
+      width,
+      height,
+      fill: "#f6f1e8",
+    },
+    {
+      kind: "ellipse",
+      left: cx,
+      top: cy,
+      rx,
+      ry,
+      fill: "#fffdf9",
+      stroke: "#27231f",
+      strokeWidth: 7,
+      originX: "center",
+      originY: "center",
+    },
+  ]
+
+  layout.surrounding.forEach((icon, index) => {
+    const x = (icon.x / 100) * width
+    const y = (icon.y / 100) * height
+    const size = baseSize * Math.max(0.7, Math.min(1.3, icon.scale))
+    objects.push(
+      {
+        kind: "rect",
+        left: x,
+        top: y,
+        width: size,
+        height: size,
+        rx: size * 0.22,
+        ry: size * 0.22,
+        fill: "#fffdf8",
+        stroke: "#27231f",
+        strokeWidth: 5,
+        angle: icon.rotation,
+        originX: "center",
+        originY: "center",
+      },
+      {
+        kind: "image",
+        src: iconUrls?.[index] || icon.image_url,
+        left: x,
+        top: y,
+        width: size * 0.74,
+        height: size * 0.74,
+        fit: "contain",
+        angle: icon.rotation,
+        originX: "center",
+        originY: "center",
+      }
+    )
+  })
+
+  const focalSize = width * 0.16
+  const focalY = cy - ry * 0.5
+  objects.push(
+    {
+      kind: "rect",
+      left: cx,
+      top: focalY,
+      width: focalSize,
+      height: focalSize,
+      rx: focalSize * 0.22,
+      ry: focalSize * 0.22,
+      fill: "#eee6f7",
+      stroke: "#27231f",
+      strokeWidth: 5,
+      originX: "center",
+      originY: "center",
+    },
+    {
+      kind: "image",
+      src: focalUrl,
+      left: cx,
+      top: focalY,
+      width: focalSize * 0.74,
+      height: focalSize * 0.74,
+      fit: "contain",
+      originX: "center",
+      originY: "center",
+    }
+  )
+  return objects
+}
+
 function round(value: number) {
   return Math.round(value * 100) / 100
 }
@@ -267,20 +438,32 @@ function renderedOverlayImageSvg(
   slideWidth: number,
   slideHeight: number
 ) {
-  const padding = Math.max(0, Math.min(40, overlayImage.padding))
-  const overlayWidth = Math.round(
-    slideWidth * Math.max(20, 100 - padding * 2) * 0.01
-  )
-  const overlayHeight = Math.round(overlayWidth * (9 / 16))
-  const x = Math.round((slideWidth - overlayWidth) / 2)
-  const y = Math.round(
-    Math.min(
-      slideHeight - overlayHeight,
-      Math.max(0, slideHeight * 0.5 - overlayHeight * 0.42)
-    )
-  )
+  const {
+    left: x,
+    top: y,
+    width: overlayWidth,
+    height: overlayHeight,
+  } = overlayImageFrame(overlayImage, slideWidth, slideHeight)
 
   return `<image href="${escapeXml(overlayUrl)}" x="${x}" y="${y}" width="${overlayWidth}" height="${overlayHeight}" preserveAspectRatio="xMidYMid slice"/>`
+}
+
+function overlayImageFrame(
+  overlayImage: SlideshowOverlayImage,
+  slideWidth: number,
+  slideHeight: number
+) {
+  const padding = Math.max(0, Math.min(40, overlayImage.padding))
+  const width = Math.round(slideWidth * Math.max(20, 100 - padding * 2) * 0.01)
+  const height = Math.round(width * (9 / 16))
+  const left = Math.round((slideWidth - width) / 2)
+  const top = Math.round(
+    Math.min(
+      slideHeight - height,
+      Math.max(0, slideHeight * 0.5 - height * 0.42)
+    )
+  )
+  return { left, top, width, height }
 }
 
 type RenderedTextItem = {
@@ -481,11 +664,82 @@ function renderedTextItemSvg(rendered: RenderedTextItem, font: string) {
     })
     .join("")
 
-  const requestedFont = item.font || font
-  const fontFamily = escapeXml(resolveSlideshowFont(requestedFont))
+  const fontFamily = escapeXml(font || resolveSlideshowFont())
   const background = renderedTextBackgroundSvg(rendered)
-  const fontWeight = resolveSlideshowFontWeight(requestedFont, item.fontWeight)
-  return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}"${stroke}>${tspans}</text>`
+  return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`
+}
+
+function fabricTextLayers(
+  rendered: RenderedTextItem,
+  font: string
+): SlideshowFabricObject[] {
+  const { item, x, y, fontSize, lineHeight, lines } = rendered
+  const originX = fabricTextOrigin(item.textAlign)
+  const backgroundColor = textStyleToEditorColor(item.textStyle)
+  const objects: SlideshowFabricObject[] = []
+
+  if (backgroundColor.endsWith("Background")) {
+    const paddingX = fontSize * 0.28
+    const paddingY = fontSize * 0.1
+    const height = fontSize * 1.1 + paddingY * 2
+    const fill = backgroundColor.startsWith("White") ? "#ffffff" : "#111111"
+    const opacity =
+      backgroundColor === "White Background"
+        ? 1
+        : backgroundColor.includes("50%")
+          ? 0.56
+          : 0.9
+
+    lines.forEach((line, index) => {
+      const textWidth = Math.max(
+        fontSize * 0.55,
+        textDisplayUnits(line) * fontSize
+      )
+      const width = textWidth + paddingX * 2
+      const left =
+        item.textAlign === "left"
+          ? x - paddingX
+          : item.textAlign === "right"
+            ? x - textWidth - paddingX
+            : x - width / 2
+      const lineY = y + index * lineHeight
+      objects.push({
+        kind: "rect",
+        id: `${item.id}-background-${index}`,
+        left,
+        top: lineY - fontSize * 0.55 - paddingY,
+        width,
+        height,
+        rx: Math.max(3, fontSize * 0.06),
+        ry: Math.max(3, fontSize * 0.06),
+        fill,
+        opacity,
+      })
+    })
+  }
+
+  lines.forEach((line, index) => {
+    const strokeWidth = needsTextStroke(item.textStyle)
+      ? Math.max(6, fontSize * 0.13)
+      : undefined
+    objects.push({
+      kind: "text",
+      id: `${item.id}-${index}`,
+      text: line,
+      left: x,
+      top: y + index * lineHeight,
+      originX,
+      originY: "center",
+      fontFamily: font || resolveSlideshowFont(),
+      fontSize,
+      fontWeight: 800,
+      fill: textFill(item.textStyle),
+      stroke: strokeWidth ? "rgba(0,0,0,0.88)" : undefined,
+      strokeWidth,
+    })
+  })
+
+  return objects
 }
 
 function renderedTextBackgroundSvg(rendered: RenderedTextItem) {
@@ -498,79 +752,26 @@ function renderedTextBackgroundSvg(rendered: RenderedTextItem) {
   const fill = color.startsWith("White") ? "#ffffff" : "#111111"
   const opacity =
     color === "White Background" ? 1 : color.includes("50%") ? 0.56 : 0.9
-  const radius = Math.max(
-    0,
-    rendered.item.backgroundRadius ?? Math.max(3, rendered.fontSize * 0.06)
-  )
 
-  if (rendered.item.backgroundMode === "block") {
-    const textWidth = Math.max(
-      rendered.fontSize * 0.55,
-      ...rendered.lines.map(
-        (line) => textDisplayUnits(line) * rendered.fontSize
+  return rendered.lines
+    .map((line, index) => {
+      const textWidth = Math.max(
+        rendered.fontSize * 0.55,
+        textDisplayUnits(line) * rendered.fontSize
       )
-    )
-    const width = textWidth + paddingX * 2
-    const blockHeight =
-      rendered.fontSize * 1.1 +
-      Math.max(0, rendered.lines.length - 1) * rendered.lineHeight +
-      paddingY * 2
-    const left =
-      rendered.item.textAlign === "left"
-        ? rendered.x - paddingX
-        : rendered.item.textAlign === "right"
-          ? rendered.x - textWidth - paddingX
-          : rendered.x - width / 2
-    const top = rendered.y - rendered.fontSize * 0.55 - paddingY
-    return `<rect data-text-background="${escapeXml(rendered.item.id)}" x="${left}" y="${top}" width="${width}" height="${blockHeight}" rx="${radius}" fill="${fill}" fill-opacity="${opacity}"/>`
-  }
+      const width = textWidth + paddingX * 2
+      const left =
+        rendered.item.textAlign === "left"
+          ? rendered.x - paddingX
+          : rendered.item.textAlign === "right"
+            ? rendered.x - textWidth - paddingX
+            : rendered.x - width / 2
+      const lineY = rendered.y + index * rendered.lineHeight
+      const top = lineY - rendered.fontSize * 0.55 - paddingY
 
-  const lineBoxes = rendered.lines.map((line, index) => {
-    const textWidth = Math.max(
-      rendered.fontSize * 0.55,
-      textDisplayUnits(line) * rendered.fontSize
-    )
-    const width = textWidth + paddingX * 2
-    const left =
-      rendered.item.textAlign === "left"
-        ? rendered.x - paddingX
-        : rendered.item.textAlign === "right"
-          ? rendered.x - textWidth - paddingX
-          : rendered.x - width / 2
-    const lineY = rendered.y + index * rendered.lineHeight
-    const top = lineY - rendered.fontSize * 0.55 - paddingY
-
-    return { left, top, width, height }
-  })
-
-  const connectors = lineBoxes
-    .slice(1)
-    .map((box, index) => {
-      const previous = lineBoxes[index]
-      const left = Math.max(previous.left, box.left)
-      const right = Math.min(
-        previous.left + previous.width,
-        box.left + box.width
-      )
-      const top = box.top
-      const bottom = Math.min(
-        previous.top + previous.height,
-        box.top + box.height
-      )
-      if (right <= left || bottom <= top) return ""
-
-      return `<rect data-text-background-connector="${escapeXml(rendered.item.id)}" x="${left}" y="${top}" width="${right - left}" height="${bottom - top}" fill="${fill}" fill-opacity="${opacity}"/>`
+      return `<rect data-text-background="${escapeXml(rendered.item.id)}" data-text-background-line="${index}" x="${left}" y="${top}" width="${width}" height="${height}" rx="${Math.max(3, rendered.fontSize * 0.06)}" fill="${fill}" fill-opacity="${opacity}"/>`
     })
     .join("")
-
-  const lines = lineBoxes
-    .map(
-      (box, index) =>
-        `<rect data-text-background="${escapeXml(rendered.item.id)}" data-text-background-line="${index}" x="${box.left}" y="${box.top}" width="${box.width}" height="${box.height}" rx="${radius}" fill="${fill}" fill-opacity="${opacity}"/>`
-    )
-    .join("")
-
-  return `${connectors}${lines}`
 }
 
 function textItemY(
@@ -640,6 +841,12 @@ function svgTextAnchor(value: string | undefined) {
   if (value === "left") return "start"
   if (value === "right") return "end"
   return "middle"
+}
+
+function fabricTextOrigin(value: string | undefined) {
+  if (value === "left") return "left" as const
+  if (value === "right") return "right" as const
+  return "center" as const
 }
 
 function textFill(style: string) {

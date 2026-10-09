@@ -1,11 +1,11 @@
 import "server-only"
 
-import { createHash, randomBytes } from "node:crypto"
-
-import { clerkClient } from "@clerk/nextjs/server"
+import crypto from "node:crypto"
+import { and, eq } from "drizzle-orm"
 
 import type { AuthUser } from "@/lib/auth"
-import { RailwayTablesCompat } from "@/lib/railway/appwrite-compat"
+import { getRailwayOrm } from "@/lib/railway/database"
+import { domainRecords } from "@/lib/railway/schema"
 
 export type WorkspaceMember = {
   id: string
@@ -15,47 +15,51 @@ export type WorkspaceMember = {
   createdAt: string
 }
 
-type WorkspaceMemberRow = Record<string, unknown> & {
-  $id: string
-  email?: string
-  owner_id?: string
+const TABLE = "workspace_members"
+
+type MemberPayload = {
+  email: string
+  status: string
   member_user_id?: string | null
-  status?: string
-  membership_id?: string
-  created_at?: string
+  invite_token_hash: string
+  created_at: string
 }
 
-const DATABASE = "cfarm"
-const TABLE = "workspace_members"
-const tables = new RailwayTablesCompat()
+type MemberRow = typeof domainRecords.$inferSelect & {
+  payload: MemberPayload
+}
 
 function rowId(ownerId: string, email: string) {
-  return `m${createHash("sha256")
+  return `m${crypto
+    .createHash("sha256")
     .update(`${ownerId}:${email}`)
     .digest("hex")
     .slice(0, 35)}`
 }
 
-async function allRows() {
-  const response = await tables.listRows(DATABASE, TABLE, [])
-  return response.rows as WorkspaceMemberRow[]
+function hashToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex")
+}
+
+function mapMember(row: MemberRow): WorkspaceMember {
+  return {
+    id: row.rowId,
+    email: row.payload.email,
+    status: row.payload.status === "accepted" ? "accepted" : "pending",
+    memberUserId: row.payload.member_user_id || undefined,
+    createdAt: row.payload.created_at,
+  }
 }
 
 export async function listWorkspaceMembers(ownerId: string) {
-  return (await allRows())
-    .filter((row) => row.owner_id === ownerId)
-    .map(
-      (row) =>
-        ({
-          id: row.$id,
-          email: String(row.email ?? ""),
-          status: row.status === "accepted" ? "accepted" : "pending",
-          memberUserId: row.member_user_id
-            ? String(row.member_user_id)
-            : undefined,
-          createdAt: String(row.created_at ?? ""),
-        }) satisfies WorkspaceMember
+  const rows = await getRailwayOrm()
+    .select()
+    .from(domainRecords)
+    .where(
+      and(eq(domainRecords.tableName, TABLE), eq(domainRecords.ownerId, ownerId))
     )
+  return rows
+    .map((row) => mapMember(row as MemberRow))
     .toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
 }
 
@@ -64,67 +68,88 @@ export async function inviteWorkspaceMember(input: {
   email: string
   redirectUrl: string
 }) {
-  const email = input.email.toLowerCase()
-  const id = rowId(input.owner.$id, email)
-  const existing = (await allRows()).find((row) => row.$id === id)
-  if (existing) {
-    throw Object.assign(new Error("This person has already been invited."), {
-      code: 409,
-    })
-  }
-
-  const inviteToken = randomBytes(24).toString("base64url")
-  const redirect = new URL(input.redirectUrl)
-  redirect.searchParams.set("invite", inviteToken)
-  const client = await clerkClient()
-  const invitation = await client.invitations.createInvitation({
-    emailAddress: email,
-    redirectUrl: redirect.toString(),
-    publicMetadata: {
-      lumenclipOwnerId: input.owner.$id,
-      lumenclipInviteToken: inviteToken,
-    },
-  })
-
+  const email = input.email.trim().toLowerCase()
+  const token = crypto.randomBytes(24).toString("base64url")
   const now = new Date().toISOString()
-  await tables.createRow(DATABASE, TABLE, id, {
-    owner_id: input.owner.$id,
-    owner_name: input.owner.name || input.owner.email,
-    email,
-    member_user_id: null,
-    status: "pending",
-    team_id: "clerk",
-    membership_id: inviteToken,
-    clerk_invitation_id: invitation.id,
-    created_at: now,
-  })
-  return { id, email, status: "pending" as const }
+  await getRailwayOrm()
+    .insert(domainRecords)
+    .values({
+      tableName: TABLE,
+      rowId: rowId(input.owner.$id, email),
+      ownerId: input.owner.$id,
+      rid: email,
+      name: email,
+      status: "pending",
+      payload: {
+        email,
+        status: "pending",
+        member_user_id: null,
+        invite_token_hash: hashToken(token),
+        created_at: now,
+      },
+      sourceRow: {},
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    })
+    .onConflictDoUpdate({
+      target: [domainRecords.tableName, domainRecords.rowId],
+      set: {
+        payload: {
+          email,
+          status: "pending",
+          member_user_id: null,
+          invite_token_hash: hashToken(token),
+          created_at: now,
+        },
+        updatedAt: new Date(now),
+      },
+    })
+  const url = new URL(input.redirectUrl)
+  url.searchParams.set("token", token)
+  url.searchParams.set("email", email)
+  return { id: rowId(input.owner.$id, email), email, inviteUrl: url.toString() }
 }
 
 export async function acceptWorkspaceInvitation(input: {
-  inviteToken: string
+  token: string
   user: AuthUser
 }) {
-  const row = (await allRows()).find(
-    (candidate) =>
-      candidate.membership_id === input.inviteToken &&
-      candidate.status === "pending"
+  const tokenHash = hashToken(input.token)
+  const orm = getRailwayOrm()
+  const rows = (await orm
+    .select()
+    .from(domainRecords)
+    .where(eq(domainRecords.tableName, TABLE))) as MemberRow[]
+  const invitation = rows.find(
+    (row) =>
+      row.payload.invite_token_hash === tokenHash &&
+      row.payload.email.toLowerCase() === input.user.email.toLowerCase()
   )
-  if (!row) throw new Error("Invitation record not found")
-  if (String(row.email).toLowerCase() !== input.user.email.toLowerCase()) {
-    throw new Error("Sign in with the invited email address")
-  }
-  await tables.updateRow(DATABASE, TABLE, row.$id, {
-    status: "accepted",
-    member_user_id: input.user.$id,
-    email: input.user.email.toLowerCase(),
-  })
+  if (!invitation) throw new Error("Invitation record not found")
+  const now = new Date().toISOString()
+  await orm
+    .update(domainRecords)
+    .set({
+      status: "accepted",
+      updatedAt: new Date(now),
+      payload: {
+        ...invitation.payload,
+        status: "accepted",
+        member_user_id: input.user.$id,
+      },
+    })
+    .where(eq(domainRecords.rowId, invitation.rowId))
 }
 
-export async function sharedOwnerIdsFor(user: AuthUser) {
-  return (await allRows())
-    .filter(
-      (row) => row.status === "accepted" && row.member_user_id === user.$id
-    )
-    .map((row) => String(row.owner_id))
+export async function sharedOwnerIdsFor(_user: AuthUser): Promise<string[]> {
+  const rows = (await getRailwayOrm()
+    .select({ ownerId: domainRecords.ownerId })
+    .from(domainRecords)
+    .where(
+      and(
+        eq(domainRecords.tableName, TABLE),
+        eq(domainRecords.status, "accepted")
+      )
+    )) as Array<{ ownerId: string | null }>
+  return rows.flatMap((row) => (row.ownerId ? [row.ownerId] : []))
 }

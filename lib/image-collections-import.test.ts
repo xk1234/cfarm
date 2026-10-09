@@ -3,7 +3,6 @@ import { createHash } from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import {
   afterAll,
   afterEach,
@@ -14,32 +13,16 @@ import {
   vi,
 } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
-import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
+import { deleteStoredAsset } from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import { clearTestTables } from "@/lib/test-helpers"
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts):
 //   data/image-collections.json -> image_collections; downloaded media -> Storage.
 let tempRoot: string
 
 async function clearCollections() {
-  const aw = getAppwrite()
-  if (!aw) throw new Error("Appwrite is not configured for tests.")
-  for (;;) {
-    const res = await aw.tables.listRows(
-      APPWRITE_DATABASE_ID,
-      "permanent_assets",
-      [Query.equal("source_key", ["image_collection"]), Query.limit(100)]
-    )
-    for (const row of res.rows) {
-      await aw.tables.deleteRow(
-        APPWRITE_DATABASE_ID,
-        "permanent_assets",
-        String(row.$id)
-      )
-    }
-    if (res.rows.length < 100) break
-  }
+  await clearTestTables("image_collections")
 }
 
 beforeEach(async () => {
@@ -150,7 +133,7 @@ describe("importRemoteImagesToCollection", () => {
     const fileName = decodeURIComponent(
       result.collection.images[0].image_link.split("/").at(-1) ?? ""
     )
-    await deleteAssetFromAppwrite(
+    await deleteStoredAsset(
       path.join(tempRoot, "data", "image-collections", "files", fileName)
     )
   })
@@ -203,7 +186,7 @@ describe("importRemoteImagesToCollection", () => {
     const fileName = decodeURIComponent(
       result.collection.images[0].image_link.split("/").at(-1) ?? ""
     )
-    await deleteAssetFromAppwrite(
+    await deleteStoredAsset(
       path.join(tempRoot, "data", "image-collections", "files", fileName)
     )
   })

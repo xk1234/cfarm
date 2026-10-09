@@ -2,8 +2,8 @@ import "server-only"
 
 import crypto from "node:crypto"
 
-import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 import { getCurrentUser } from "@/lib/auth"
+import { getDomainRecord } from "@/lib/railway/domain-record-store"
 import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 import type { AutomationUgcConfig } from "@/lib/realfarm-automation"
 
@@ -93,7 +93,7 @@ export function estimateUgcCost(
       1,
       UGC_PRICING_USD.openrouter.ugcScript
     ),
-    ...(ugc.actorSource !== "collection" || !ugc.actorCollectionId
+    ...(ugc.actorSource === "generate" || !ugc.actorAssetUrl
       ? [
           item(
             "actor",
@@ -151,9 +151,9 @@ type LedgerRecord = Record<string, unknown>
 export async function actualUgcCostFromLedger(
   runId: string
 ): Promise<UgcCostBreakdown> {
-  const aw = getRuntimeStore()
   const user = await getCurrentUser()
-  if (!user) return { currency: "USD", tier: "lowcost", items: [], totalUsd: 0 }
+  if (!user)
+    return { currency: "USD", tier: "lowcost", items: [], totalUsd: 0 }
   const stageKeys = [
     "analysis",
     "script",
@@ -168,21 +168,13 @@ export async function actualUgcCostFromLedger(
     stageKeys.map(async (stage) => {
       const usageId = `usage-${crypto.createHash("sha256").update(`${runId}:${stage}`).digest("hex").slice(0, 24)}`
       const rowId = `u${crypto.createHash("sha256").update(`usage_ledger:${user.$id}:${usageId}`).digest("hex").slice(0, 35)}`
-      try {
-        return (await aw.records.getRow(
-          RUNTIME_DATABASE_ID,
-          "usage_ledger",
-          rowId
-        )) as LedgerRecord
-      } catch (error) {
-        if ((error as { code?: number }).code === 404) return null
-        throw error
-      }
+      const row = await getDomainRecord("usage_ledger", rowId)
+      return row?.payload ?? null
     })
   )
   const records = rows
     .filter((row): row is LedgerRecord => Boolean(row))
-    .map((row) => parseRecord(row.data))
+    .map((row) => parseRecord(row))
     .filter(
       (record): record is LedgerRecord =>
         record?.run_id === runId && record.kind === "ugc_provider"

@@ -10,13 +10,14 @@ import path from "node:path"
 const root = process.cwd()
 const verbose = process.argv.includes("--verbose")
 const pruneUnused = process.argv.includes("--prune-unused")
-const requiredLocal = new Set(["OPENROUTER_API_KEY"])
+const requiredLocal = new Set([
+  "DATABASE_URL",
+  "OPENROUTER_API_KEY",
+])
 const runtimeProvided = new Set([
   "NODE_ENV",
   "NEXT_PHASE",
   "NEXT_RUNTIME",
-  "APPWRITE_FUNCTION_API_ENDPOINT",
-  "APPWRITE_FUNCTION_PROJECT_ID",
   "BATCH",
   "LEASE_MS",
   "LOOKBACK_MINUTES",
@@ -24,7 +25,6 @@ const runtimeProvided = new Set([
   "TELEGRAM_CHAT_ID",
   "BASE_URL",
   "SLIDESHOW_SHARE_SECRET",
-  "LUMENCLIP_SESSION_COOKIE",
   "X_EVAL_GENERATIONS",
   "UGC_COLLECTION_OWNER_EMAIL",
   "UGC_VIDEO_ANALYSIS_MODEL",
@@ -34,7 +34,6 @@ const scanTargets = [
   "app",
   "lib",
   "scripts",
-  "appwrite",
   "proxy.ts",
   "vitest.setup.ts",
 ]

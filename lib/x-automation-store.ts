@@ -14,13 +14,13 @@ import {
   type XAutomationRun,
 } from "@/lib/x-automation"
 
-const rootDir = path.join(process.cwd(), "data", "social-templates")
+const rootDir = path.join(process.cwd(), "data", "x-automations")
 
 export async function listXAutomations() {
   return readJsonArrayStore<XAutomationRecord>({
     rootDir,
-    fileName: "templates.json",
-    key: "templates",
+    fileName: "automations.json",
+    key: "automations",
     normalize: normalizeXAutomation,
   })
 }
@@ -28,8 +28,8 @@ export async function listXAutomations() {
 export async function getXAutomation(id: string) {
   return readJsonArrayRecord<XAutomationRecord>({
     rootDir,
-    fileName: "templates.json",
-    key: "templates",
+    fileName: "automations.json",
+    key: "automations",
     id,
     normalize: normalizeXAutomation,
   })
@@ -47,8 +47,8 @@ export async function createXAutomation(
   })
   await upsertJsonArrayRecord({
     rootDir,
-    fileName: "templates.json",
-    key: "templates",
+    fileName: "automations.json",
+    key: "automations",
     record,
   })
   return record
@@ -60,8 +60,8 @@ export async function upsertXAutomation(record: XAutomationRecord) {
   normalized.updatedAt = new Date().toISOString()
   await upsertJsonArrayRecord({
     rootDir,
-    fileName: "templates.json",
-    key: "templates",
+    fileName: "automations.json",
+    key: "automations",
     record: normalized,
   })
   return normalized
@@ -72,8 +72,8 @@ export async function deleteXAutomation(id: string) {
   if (!existing) return null
   await deleteJsonArrayRecord({
     rootDir,
-    fileName: "templates.json",
-    key: "templates",
+    fileName: "automations.json",
+    key: "automations",
     id,
   })
   return existing

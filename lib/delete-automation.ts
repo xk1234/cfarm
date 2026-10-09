@@ -7,15 +7,19 @@ import {
   listAutomationRuns,
 } from "@/lib/automation-runner"
 import { deletePosts } from "@/lib/post-repository"
+import { deleteAutomationJobs } from "@/lib/queue"
 import { deleteSlideshowRecordsForAutomation } from "@/lib/slideshows"
 
 export async function deleteAutomationCascade(input: { id: string }) {
   const record = await deleteAutomationRecord(input)
 
-  const automationRuns = await listAutomationRuns({
-    automationId: input.id,
-    limit: Number.MAX_SAFE_INTEGER,
-  })
+  const [automationRuns, deletedJobs] = await Promise.all([
+    listAutomationRuns({
+      automationId: input.id,
+      limit: Number.MAX_SAFE_INTEGER,
+    }),
+    deleteAutomationJobs(input.id),
+  ])
   const deletedSlideshows = await deleteSlideshowRecordsForAutomation({
     automationId: input.id,
     slideshowIds: automationRuns
@@ -59,6 +63,8 @@ export async function deleteAutomationCascade(input: { id: string }) {
     deletedResultsCount: deletedSlideshows.length,
     deletedRuns,
     deletedRunsCount: deletedRuns.length,
+    deletedJobs,
+    deletedJobsCount: deletedJobs.length,
     deletedPostFastPosts,
     deletedPostFastPostsCount: deletedPostFastPosts.length,
   }

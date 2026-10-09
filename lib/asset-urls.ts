@@ -2,6 +2,12 @@ import "server-only"
 
 import { clean } from "@/lib/guards"
 import {
+  generatedVideoDeliveryPaths,
+  generatedVideoDeliveryUrls,
+  generatedVideoShareConfigured,
+} from "@/lib/generated-video-share"
+import { generatedVideoAssetPath } from "@/lib/public-generated-video-assets"
+import {
   slideshowDeliveryPaths,
   slideshowDeliveryUrls,
 } from "@/lib/slideshow-share"
@@ -30,12 +36,29 @@ export function absoluteAssetUrl(path: string): string {
 export function slideshowDeliveryLinks(input: {
   ownerId: string
   outputId: string
-}): { previewUrl: string; workflowUrl: string; downloadUrl: string } | null {
+}): { previewUrl: string; downloadUrl: string } | null {
   if (!slideshowShareConfigured()) return null
   const base = configuredBaseUrl()
   return base
     ? slideshowDeliveryUrls({ baseUrl: base, ...input })
     : slideshowDeliveryPaths(input)
+}
+
+export function generatedVideoDeliveryLinks(input: {
+  ownerId: string
+  outputId: string
+  videoUrl: string
+}): { publicViewUrl: string; downloadUrl: string } | null {
+  if (
+    !generatedVideoShareConfigured() ||
+    !generatedVideoAssetPath(input.videoUrl)
+  ) {
+    return null
+  }
+  const base = configuredBaseUrl()
+  return base
+    ? generatedVideoDeliveryUrls({ baseUrl: base, ...input })
+    : generatedVideoDeliveryPaths(input)
 }
 
 function slideshowShareConfigured(): boolean {

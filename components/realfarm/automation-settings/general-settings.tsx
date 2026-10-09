@@ -1,18 +1,9 @@
-import { IconCopy, IconLanguage, IconTrash } from "@tabler/icons-react"
+import { IconLanguage } from "@tabler/icons-react"
 
 import { SoundSelector } from "@/components/realfarm/creator-ui"
-import { Button } from "@/components/ui/button"
 import { SelectControl, SwitchPillButton } from "@/components/ui/form-controls"
 import {
-  aspectRatioLabel,
-  automationAspectRatios,
-  automationImageGrids,
   automationPublishType,
-  automationSharedSlideStyle,
-  imageGridLabel,
-  labelToAspectRatio,
-  labelToImageGrid,
-  schemaWithAutomationSharedSlideStyle,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
 import type { LocalAsset } from "@/lib/realfarm-data"
@@ -28,29 +19,25 @@ import {
 } from "@/lib/slideshow-publishing-config"
 import { cn } from "@/lib/utils"
 
-import { SettingsPage, SettingsRow } from "./settings-layout"
+import { SettingsFooter, SettingsPage, SettingsRow } from "./settings-layout"
 
 export function AutomationGeneralSettingsPanel({
   config,
   selectedSound,
   music,
   onConfigChange,
-  onDuplicate,
-  onDelete,
-  duplicating = false,
+  onCancel,
+  onSave,
 }: {
   config: AutomationSchema
   selectedSound: LocalAsset | null
   music: LocalAsset[]
   onConfigChange: (config: AutomationSchema) => void
-  onDuplicate?: () => void
-  onDelete?: () => void
-  duplicating?: boolean
+  onCancel: () => void
+  onSave: () => void
 }) {
   const language = config.language || defaultAutomationLanguage
   const isVideoAutomation = config.automationKind === "video"
-  const isSlideshowAutomation = config.automationKind === "slideshow"
-  const sharedSlideStyle = automationSharedSlideStyle(config)
   const exportAsVideo = automationPublishType(config) === "video"
   const slideDuration = slideshowDurationValue(
     config.tiktok_post_settings.slideshow_slide_duration
@@ -139,56 +126,6 @@ export function AutomationGeneralSettingsPanel({
           </div>
         }
       />
-      {isSlideshowAutomation ? (
-        <SettingsRow
-          title="Aspect ratio"
-          description="Applied to every slide in this template"
-          control={
-            <SelectControl
-              aria-label="Slideshow aspect ratio"
-              value={aspectRatioLabel(sharedSlideStyle.aspectRatio)}
-              onChange={(event) =>
-                onConfigChange(
-                  schemaWithAutomationSharedSlideStyle(config, {
-                    aspectRatio: labelToAspectRatio(event.target.value),
-                  })
-                )
-              }
-            >
-              {automationAspectRatios.map((ratio) => (
-                <option key={ratio} value={aspectRatioLabel(ratio)}>
-                  {aspectRatioLabel(ratio)}
-                </option>
-              ))}
-            </SelectControl>
-          }
-        />
-      ) : null}
-      {isSlideshowAutomation ? (
-        <SettingsRow
-          title="Image grid"
-          description="Applied to every slide in this template"
-          control={
-            <SelectControl
-              aria-label="Slideshow image grid"
-              value={imageGridLabel(sharedSlideStyle.imageGrid)}
-              onChange={(event) =>
-                onConfigChange(
-                  schemaWithAutomationSharedSlideStyle(config, {
-                    imageGrid: labelToImageGrid(event.target.value),
-                  })
-                )
-              }
-            >
-              {automationImageGrids.map((grid) => (
-                <option key={grid} value={imageGridLabel(grid)}>
-                  {imageGridLabel(grid)}
-                </option>
-              ))}
-            </SelectControl>
-          }
-        />
-      ) : null}
       {!isVideoAutomation ? (
         <SettingsRow
           title="Export as video"
@@ -271,38 +208,7 @@ export function AutomationGeneralSettingsPanel({
           />
         }
       />
-      {onDuplicate ? (
-        <SettingsRow
-          title="Duplicate template"
-          control={
-            <Button
-              type="button"
-              variant="softControl"
-              disabled={duplicating}
-              onClick={onDuplicate}
-            >
-              <IconCopy className="size-4" />
-              {duplicating ? "Duplicating…" : "Duplicate"}
-            </Button>
-          }
-        />
-      ) : null}
-      {onDelete ? (
-        <SettingsRow
-          title="Delete template"
-          control={
-            <Button
-              type="button"
-              variant="softControl"
-              className="border-[#efb6b3] text-[#a1322c] hover:bg-[#fff1f0]"
-              onClick={onDelete}
-            >
-              <IconTrash className="size-4" />
-              Delete
-            </Button>
-          }
-        />
-      ) : null}
+      <SettingsFooter onCancel={onCancel} onSave={onSave} />
     </SettingsPage>
   )
 }

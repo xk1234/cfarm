@@ -7,8 +7,8 @@ import type {
   PostFastPostStatus,
   PostFastSourceType,
   PostFastStatsSource,
-  PublicationLinkState,
-} from "@/lib/publication-contract"
+} from "@/lib/postfast-posts"
+import type { PublicationLinkState } from "@/lib/publication-link-state"
 
 const STATUSES = [
   "awaiting_manual_post",
@@ -54,6 +54,7 @@ const ALLOWED_KEYS = new Set([
   "scheduledAt",
   "publishedAt",
   "releaseUrl",
+  "thumbnailUrl",
   "linkState",
   "statsSources",
   "externalPostId",
@@ -83,6 +84,7 @@ export type PublicationRecordInput = {
   scheduledAt?: string
   publishedAt?: string
   releaseUrl?: string
+  thumbnailUrl?: string
   linkState?: PublicationLinkState
   statsSources?: readonly PostFastStatsSource[]
   externalPostId?: string
@@ -112,7 +114,7 @@ export function buildPublicationRecord(
 
 /**
  * Normalizes records from old embedded-output writers without using an
- * Appwrite client, repository, clock, or runtime-specific APIs.
+ * Railway client, repository, clock, or runtime-specific APIs.
  */
 export function normalizePublicationRecord(
   value: unknown
@@ -148,6 +150,7 @@ export function normalizePublicationRecord(
     scheduledAt: optionalString(value.scheduledAt),
     publishedAt: optionalString(value.publishedAt),
     releaseUrl: optionalString(value.releaseUrl),
+    thumbnailUrl: optionalString(value.thumbnailUrl),
     linkState: isLinkState(value.linkState) ? value.linkState : "unlinked",
     statsSources: normalizeStatsSources(value.statsSources),
     externalPostId: optionalString(value.externalPostId),

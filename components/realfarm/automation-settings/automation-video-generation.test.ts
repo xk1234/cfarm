@@ -4,9 +4,9 @@ import {
   defaultAutomationSchema,
   schemaWithAutomationCollectionId,
 } from "@/lib/realfarm-automation"
-import type { CreatedImageCollection } from "@/features/collections/domain/collections"
+import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation } from "@/lib/realfarm-data"
-import { videoAutomationTemplatePreset } from "@/lib/video-automation-templates"
+import { builtInVideoTemplate } from "@/lib/video-automation-templates"
 
 import {
   automationVideoGenerationIssue,
@@ -34,7 +34,7 @@ describe("automation video media resolution", () => {
     const config = schemaWithAutomationCollectionId(
       {
         ...defaultAutomationSchema(automation),
-        video_format: videoAutomationTemplatePreset("ugc_ad").buildFormat(),
+        video_format: builtInVideoTemplate("ugc_ad").buildFormat(),
       },
       "content",
       ""
@@ -67,7 +67,7 @@ describe("automation video media resolution", () => {
   it("does not treat an image collection as valid video media", () => {
     const config = {
       ...defaultAutomationSchema(automation),
-      video_format: videoAutomationTemplatePreset("ugc_ad").buildFormat(),
+      video_format: builtInVideoTemplate("ugc_ad").buildFormat(),
     }
 
     expect(resolveMediaCollection([imageCollection], "photos", "video")).toBe(
@@ -79,8 +79,7 @@ describe("automation video media resolution", () => {
   })
 
   it("requires both greenscreen meme videos and background images", () => {
-    const format =
-      videoAutomationTemplatePreset("greenscreen_meme").buildFormat()
+    const format = builtInVideoTemplate("greenscreen_meme").buildFormat()
     format.segments = format.segments.map((segment) =>
       segment.id === "greenscreen-background"
         ? { ...segment, collectionId: imageCollection.id }

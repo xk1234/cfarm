@@ -1,20 +1,21 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ComponentType } from "react"
-import dynamic from "next/dynamic"
 import {
   IconAlertCircle,
   IconChevronLeft,
   IconChevronRight,
-  IconClock,
+  IconPhoto,
   IconPlayerPlay,
+  IconPlus,
+  IconSlideshow,
   IconTrash,
-  IconTemplate,
+  IconVideo,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
-import useSWR from "swr"
 
 import {
+  TemplateGeneratedPreview,
   generatedExampleSlideshows,
   type GeneratedShowcaseRun,
   type TemplateExampleSlideshow,
@@ -25,13 +26,17 @@ import {
   MediaFrame,
   MediaPendingState,
 } from "@/components/realfarm/shared-media"
-import { AutomationRecentRunCard } from "@/components/realfarm/automation-settings/automation-recent-run-card"
+import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-modal"
+import {
+  GeneratedSlideshowViewerModal,
+  automationRunViewerImageUrls,
+} from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
-import { clientSWRFetcher } from "@/lib/client-swr"
-import { nextUpcomingAutomationPost } from "@/lib/automation-upcoming-posts"
+import { clientQueryFetcher } from "@/lib/client-fetcher"
+import { useAppQuery } from "@/lib/client-query"
 import type { CalendarAlertSummary } from "@/lib/calendar-summary"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation } from "@/lib/realfarm-data"
@@ -41,27 +46,21 @@ import { cn } from "@/lib/utils"
 import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
 
 const ITEMS_PER_PAGE = 5
-
-const loadGeneratedSlideshowViewer = () =>
-  import("@/components/realfarm/automation-settings/generated-slideshow-viewer")
-
-const GeneratedSlideshowViewerModal = dynamic(
-  () =>
-    loadGeneratedSlideshowViewer().then(
-      (module) => module.GeneratedSlideshowViewerModal
-    ),
-  { loading: () => <ViewerLoadingModal /> }
-)
+const QUICK_START_ITEMS_PER_PAGE = 6
 
 export function HomeView({
   currentUserId,
   automations,
   automationsLoading,
   publishedPostDates,
+  templates,
+  recentRunsByAutomationId,
   generatedRunsByAutomationId,
   generatedRunsLoading,
   generatedRunsError,
   onRetryGeneratedRuns,
+  onCreate,
+  onUseTemplate,
   onAutomations,
   onGenerationRunRemove,
 }: {
@@ -70,10 +69,14 @@ export function HomeView({
   automationsLoading?: boolean
   /** When each LINKED post went out. Generated drafts are not posts. */
   publishedPostDates: string[]
+  templates: Automation[]
+  recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   generatedRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   generatedRunsLoading?: boolean
   generatedRunsError?: string
   onRetryGeneratedRuns: () => void
+  onCreate: () => void
+  onUseTemplate: (automation: Automation) => void
   onAutomations: () => void
   onGenerationRunRemove: (runId: string) => void
 }) {
@@ -85,26 +88,23 @@ export function HomeView({
   const [videosLoaded, setVideosLoaded] = useState(false)
   const [videosError, setVideosError] = useState("")
   const [page, setPage] = useState(1)
-  const { data: calendarStatus } = useSWR<{
+  const [quickStartPage, setQuickStartPage] = useState(1)
+  const { data: calendarStatus } = useAppQuery<{
     summary: CalendarAlertSummary
-  }>("/api/calendar/summary", clientSWRFetcher, {
+  }>("/api/calendar/summary", clientQueryFetcher, {
     refreshInterval: 10 * 60_000,
     refreshWhenHidden: false,
     refreshWhenOffline: false,
   })
+  const [selectedExample, setSelectedExample] = useState<{
+    automation: Automation
+    slideshowId?: string
+  } | null>(null)
   const [selectedGeneratedSlideshow, setSelectedGeneratedSlideshow] = useState<{
-    runs: AutomationRunApiRecord[]
+    runs: GeneratedShowcaseRun[]
     runId: string
   } | null>(null)
-  const [viewerLoading, setViewerLoading] = useState(false)
-  const activeAutomationCount = automations.filter(
-    (automation) =>
-      automation.status === "live" && automation.schedule?.paused !== true
-  ).length
-  const nextPost = useMemo(
-    () => nextUpcomingAutomationPost(automations),
-    [automations]
-  )
+  const quickStartTemplates = templates
   const outstandingActionCount = calendarStatus
     ? calendarStatus.summary.needsAction + calendarStatus.summary.failed
     : null
@@ -132,6 +132,34 @@ export function HomeView({
     (safePage - 1) * ITEMS_PER_PAGE,
     safePage * ITEMS_PER_PAGE
   )
+  const quickStartTotalPages = Math.max(
+    1,
+    Math.ceil(quickStartTemplates.length / QUICK_START_ITEMS_PER_PAGE)
+  )
+  const safeQuickStartPage = Math.min(quickStartPage, quickStartTotalPages)
+  const quickStartOffset = (safeQuickStartPage - 1) * QUICK_START_ITEMS_PER_PAGE
+  const pagedQuickStartTemplates = quickStartTemplates.slice(
+    quickStartOffset,
+    quickStartOffset + QUICK_START_ITEMS_PER_PAGE
+  )
+
+  useEffect(() => {
+    if (activeTab !== "slideshows") return
+    const preloaded: HTMLImageElement[] = []
+    for (const src of automationRunViewerImageUrls(
+      pagedGeneratedSlideshows.flatMap((item) =>
+        item.runs.filter((run) => run.id === item.slideshow.id)
+      ) as AutomationRunApiRecord[]
+    )) {
+      const image = new window.Image()
+      image.decoding = "async"
+      image.src = src
+      preloaded.push(image)
+    }
+    return () => {
+      for (const image of preloaded) image.src = ""
+    }
+  }, [activeTab, pagedGeneratedSlideshows])
 
   useEffect(() => {
     if (activeTab !== "videos" || videosLoaded) return
@@ -175,63 +203,35 @@ export function HomeView({
     setPage(1)
   }
 
-  async function openGeneratedSlideshow(item: GeneratedHomeSlideshowCard) {
-    if (viewerLoading) return
-    setViewerLoading(true)
-    try {
-      const [payload] = await Promise.all([
-        fetchJsonWithTimeout<{ runs?: AutomationRunApiRecord[] }>(
-          `/api/templates/runs?templateId=${encodeURIComponent(item.automationId)}&limit=100`,
-          { timeoutMs: 12_000, toastOnError: false }
-        ),
-        loadGeneratedSlideshowViewer(),
-      ])
-      const runs = payload.runs ?? []
-      const selectedRun = runs.find(
-        (run) =>
-          run.id === item.run.id || run.slideshowId === item.run.slideshowId
-      )
-      if (!selectedRun) {
-        throw new Error("This slideshow is no longer available.")
-      }
-      setSelectedGeneratedSlideshow({ runs, runId: selectedRun.id })
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Failed to open slideshow"))
-    } finally {
-      setViewerLoading(false)
-    }
-  }
-
   return (
     <div className="mx-auto max-w-[1280px] pb-16">
       <h1 className="pt-5 text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text sm:pt-7">
         Home
       </h1>
-      <section className="py-7 text-center sm:py-10 lg:py-14">
-        <div className="mx-auto max-w-[1100px]">
-          <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
-          <div className="grid items-stretch gap-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-10">
+      <section className="py-5 text-center sm:py-6 lg:py-7">
+        <div className="mx-auto max-w-[960px]">
+          <div className="lc-spectrum mx-auto mb-4 h-1 w-14 rounded-full" />
+          <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:grid-rows-[auto_auto] lg:gap-x-8 lg:gap-y-5">
             {/* Cadence, not a tagline: the gaps are the useful signal here. */}
             <PostFrequencyGraph
               dates={publishedPostDates}
-              className="min-w-0 lg:mx-0"
+              className="min-w-0 lg:col-start-1 lg:row-start-1 lg:mx-0"
             />
-            <div className="grid grid-cols-2 gap-2 text-left sm:grid-cols-3 lg:grid-cols-1">
+            <div className="grid gap-2 text-left min-[420px]:grid-cols-2 sm:grid-cols-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:grid-cols-1">
               <DashboardMetric
-                className="col-span-2 sm:col-span-1"
-                icon={IconClock}
-                label="Next expected post"
+                className="min-[420px]:col-span-2 sm:col-span-1"
+                icon={IconSlideshow}
+                label="Draft outputs"
                 value={
-                  automationsLoading
+                  generatedRunsLoading
                     ? null
-                    : (nextPost?.label ?? "Nothing scheduled")
+                    : generatedSlideshowCards.length + videos.length
                 }
-                title={nextPost?.scheduledAt}
               />
               <DashboardMetric
-                icon={IconTemplate}
-                label="Scheduled templates"
-                value={automationsLoading ? null : activeAutomationCount}
+                icon={IconPhoto}
+                label="Templates"
+                value={automationsLoading ? null : automations.length}
               />
               <DashboardMetric
                 icon={IconAlertCircle}
@@ -239,17 +239,28 @@ export function HomeView({
                 value={outstandingActionCount}
               />
             </div>
-          </div>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Button variant="action" size="appDefault" onClick={onAutomations}>
-              <IconPlayerPlay className="size-5" />
-              View templates
-            </Button>
+            <div className="flex flex-wrap justify-center gap-3 lg:col-start-1 lg:row-start-2">
+              <Button variant="action" size="appDefault" onClick={onCreate}>
+                <IconPlus className="size-5" />
+                New template
+              </Button>
+              <Button
+                variant="softControl"
+                size="appDefault"
+                onClick={onAutomations}
+              >
+                <IconPlayerPlay className="size-5" />
+                View templates
+              </Button>
+            </div>
           </div>
         </div>
       </section>
 
       <section className="mx-auto mt-8 max-w-[1210px] sm:mt-12">
+        <h2 className="mb-4 text-[20px] font-semibold tracking-[-0.025em] text-app-text">
+          Outputs
+        </h2>
         {/* The tabs and the pager together overflow a phone on one row. */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-y-2">
           <div className="flex min-w-0 items-center gap-1">
@@ -304,12 +315,16 @@ export function HomeView({
         {activeTab === "slideshows" && pagedGeneratedSlideshows.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
             {pagedGeneratedSlideshows.map((item) => (
-              <AutomationRecentRunCard
+              <GeneratedSlideshowCard
                 key={item.slideshow.id}
-                run={item.run as unknown as AutomationRunApiRecord}
-                mediaKind="slideshow"
+                item={item}
                 shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
-                onOpen={() => void openGeneratedSlideshow(item)}
+                onOpen={() =>
+                  setSelectedGeneratedSlideshow({
+                    runs: item.runs,
+                    runId: item.slideshow.id,
+                  })
+                }
               />
             ))}
           </div>
@@ -322,7 +337,8 @@ export function HomeView({
           />
         ) : activeTab === "slideshows" ? (
           <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-app-muted-text">
-            No generated slideshows yet. Generate one from a slideshow template.
+            No slideshow outputs yet. Generate a slideshow template to create
+            one.
           </div>
         ) : pagedVideos.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
@@ -357,10 +373,75 @@ export function HomeView({
         )}
       </section>
 
+      <section className="mx-auto mt-14 max-w-[1210px] sm:mt-24">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-y-2">
+          <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text sm:text-[20px]">
+            Start from a proven workflow
+          </h2>
+          {quickStartTotalPages > 1 ? (
+            <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Previous quick start page"
+                disabled={safeQuickStartPage <= 1}
+                onClick={() => setQuickStartPage((p) => Math.max(1, p - 1))}
+              >
+                <IconChevronLeft className="size-4" />
+              </Button>
+              Page {safeQuickStartPage} of {quickStartTotalPages}
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Next quick start page"
+                disabled={safeQuickStartPage >= quickStartTotalPages}
+                onClick={() =>
+                  setQuickStartPage((p) =>
+                    Math.min(quickStartTotalPages, p + 1)
+                  )
+                }
+              >
+                <IconChevronRight className="size-4" />
+              </Button>
+            </div>
+          ) : null}
+        </div>
+        {quickStartTemplates.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pagedQuickStartTemplates.map((automation, index) => (
+              <QuickStartTemplateCard
+                key={automation.id}
+                automation={automation}
+                index={quickStartOffset + index}
+                slideshows={generatedExampleSlideshows(
+                  recentRunsByAutomationId[automation.id]
+                ).slice(0, 3)}
+                onOpenSlideshow={(slideshowId) =>
+                  setSelectedExample({ automation, slideshowId })
+                }
+                onUse={() => onUseTemplate(automation)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid min-h-[120px] place-items-center rounded-[7px] border border-dashed border-[#d7d6cf] bg-white/55 px-6 text-center text-[16px] font-medium text-app-muted-text">
+            No templates available.
+          </div>
+        )}
+      </section>
+      {selectedExample ? (
+        <ExampleSlideshowModal
+          title={selectedExample.automation.name}
+          runs={recentRunsByAutomationId[selectedExample.automation.id]}
+          initialSlideshowId={selectedExample.slideshowId}
+          onDeleted={onGenerationRunRemove}
+          onClose={() => setSelectedExample(null)}
+        />
+      ) : null}
       {selectedGeneratedSlideshow && selectedGeneratedRun ? (
         <GeneratedSlideshowViewerModal
-          run={selectedGeneratedRun}
-          runs={selectedGeneratedSlideshow.runs}
+          run={selectedGeneratedRun as AutomationRunApiRecord}
+          runs={selectedGeneratedSlideshow.runs as AutomationRunApiRecord[]}
           allowDelete={
             !selectedGeneratedRun.ownerId ||
             selectedGeneratedRun.ownerId === currentUserId
@@ -372,7 +453,6 @@ export function HomeView({
           onClose={() => setSelectedGeneratedSlideshow(null)}
         />
       ) : null}
-      {viewerLoading ? <ViewerLoadingModal /> : null}
     </div>
   )
 }
@@ -401,22 +481,9 @@ function HomeLoadError({
   )
 }
 
-function ViewerLoadingModal() {
-  return (
-    <div
-      className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4"
-      role="status"
-      aria-label="Loading slideshow"
-    >
-      <div className="aspect-[9/16] h-[min(78vh,720px)] animate-pulse rounded-[10px] bg-[#242424] shadow-2xl" />
-    </div>
-  )
-}
-
 type GeneratedHomeSlideshowCard = {
-  automationId: string
   ownerId?: string
-  run: GeneratedShowcaseRun
+  title: string
   runs: GeneratedShowcaseRun[]
   slideshow: TemplateExampleSlideshow
 }
@@ -431,6 +498,78 @@ function HomeCardSkeletonRow() {
           aria-hidden="true"
         />
       ))}
+    </div>
+  )
+}
+
+function GeneratedSlideshowCard({
+  item,
+  shared,
+  onOpen,
+}: {
+  item: GeneratedHomeSlideshowCard
+  shared: boolean
+  onOpen: () => void
+}) {
+  const firstSlide = item.slideshow.slides[0]
+  const failed = item.slideshow.status === "failed"
+
+  return (
+    <div
+      className={cn(
+        "relative rounded-[10px]",
+        shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
+      )}
+    >
+      {shared ? (
+        <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
+          Shared
+        </span>
+      ) : null}
+      <span
+        className={cn(
+          "absolute top-2 right-2 z-20 rounded-full px-2 py-1 text-[10px] font-semibold text-white",
+          failed ? "bg-app-danger" : "bg-black/75"
+        )}
+      >
+        {failed
+          ? "Generation failed"
+          : item.slideshow.status === "generating"
+            ? "Generating"
+            : "Not published"}
+      </span>
+      <MediaCardShell danger={failed}>
+        {failed ? (
+          <MediaFrame>
+            <GenerationFailurePlaceholder
+              message={
+                item.slideshow.error || "This slideshow could not be generated."
+              }
+            />
+          </MediaFrame>
+        ) : (
+          <button
+            type="button"
+            className="block w-full text-left"
+            onClick={onOpen}
+            aria-label={`Open ${item.title} generated slideshow`}
+          >
+            <MediaFrame>
+              {firstSlide ? (
+                /* eslint-disable-next-line @next/next/no-img-element -- Generated slides are already rendered image artifacts. */
+                <img
+                  src={firstSlide.imageUrl}
+                  alt={firstSlide.text || `${item.title} first slide`}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  draggable={false}
+                />
+              ) : (
+                <div className="app-media-poster-fallback absolute inset-0" />
+              )}
+            </MediaFrame>
+          </button>
+        )}
+      </MediaCardShell>
     </div>
   )
 }
@@ -482,23 +621,19 @@ function generatedHomeSlideshowCards(
   runsByAutomationId: Record<string, GeneratedShowcaseRun[]>
 ) {
   return Object.entries(runsByAutomationId)
-    .flatMap<GeneratedHomeSlideshowCard>(([automationId, runs]) => {
+    .flatMap<GeneratedHomeSlideshowCard>(([, runs]) => {
       const slideshows = generatedExampleSlideshows(runs, {
         includeFailed: true,
       })
-      return slideshows.flatMap<GeneratedHomeSlideshowCard>((slideshow) => {
-        const run = runs.find((candidate) => candidate.id === slideshow.id)
-        if (!run) return []
-        return [
-          {
-            automationId,
-            ownerId: run.ownerId,
-            run,
-            runs,
-            slideshow,
-          },
-        ]
-      })
+      return slideshows.map((slideshow) => ({
+        ownerId: runs.find((run) => run.id === slideshow.id)?.ownerId,
+        title:
+          runs
+            .find((run) => run.id === slideshow.id)
+            ?.automationTitle?.trim() || slideshow.title,
+        runs,
+        slideshow,
+      }))
     })
     .sort(
       (first, second) =>
@@ -511,6 +646,68 @@ function slideshowTimestamp(slideshow: TemplateExampleSlideshow) {
   const value = slideshow.createdAt || slideshow.scheduledFor
   const time = value ? new Date(value).getTime() : 0
   return Number.isFinite(time) ? time : 0
+}
+
+function QuickStartTemplateCard({
+  automation,
+  slideshows,
+  index,
+  onOpenSlideshow,
+  onUse,
+}: {
+  automation: Automation
+  slideshows: TemplateExampleSlideshow[]
+  index: number
+  onOpenSlideshow: (slideshowId: string) => void
+  onUse: () => void
+}) {
+  const coverSlides = slideshows.map((slideshow) => slideshow.slides[0])
+
+  return (
+    <article className="overflow-hidden rounded-[7px] border border-app-panel-border bg-app-surface shadow-sm">
+      <div className="h-[128px] w-full">
+        <TemplateGeneratedPreview
+          exampleSlides={coverSlides}
+          className="h-full"
+          index={index}
+          onSelectSlide={(tileIndex) => {
+            const slideshow = slideshows[tileIndex]
+            if (slideshow) {
+              onOpenSlideshow(slideshow.id)
+            }
+          }}
+          selectLabel={`Open ${automation.name} slideshow`}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-3 px-3 py-3">
+        <div className="min-w-0">
+          <div className="truncate text-[15px] font-bold text-[#30302e]">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              {automation.automationKind === "video" ? (
+                <IconVideo className="size-4 shrink-0 text-[#67665f]" />
+              ) : (
+                <IconSlideshow className="size-4 shrink-0 text-[#67665f]" />
+              )}
+              <span className="truncate">{automation.name}</span>
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-[#8a8a83]">
+            {automation.automationKind === "video" ? (
+              <IconPlayerPlay className="size-3.5" />
+            ) : (
+              <IconPhoto className="size-3.5" />
+            )}
+            {automation.automationKind === "video"
+              ? "Video template"
+              : "Slideshow template"}
+          </div>
+        </div>
+        <Button variant="softControl" size="sm" onClick={onUse}>
+          Use
+        </Button>
+      </div>
+    </article>
+  )
 }
 
 function VideoCard({

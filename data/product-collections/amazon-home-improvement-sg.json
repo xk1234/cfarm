@@ -1,0 +1,247 @@
+{
+  "sourceDatasetId": "OVRZLMy9hIX6zUFeW",
+  "replaceCollectionIds": [
+    "amazon-sg-diy-tool-kits",
+    "amazon-sg-wall-paint-tools",
+    "amazon-sg-leak-seal-repairs",
+    "amazon-sg-home-fire-safety",
+    "amazon-sg-deep-cleaning-tools"
+  ],
+  "collections": [
+    {
+      "id": "amazon-sg-power-cleaning",
+      "name": "Satisfying Power Cleaning",
+      "description": "Motorized scrubbers and drill brushes with an immediate dirty-to-clean payoff on grout, tiles, tubs, and sinks.",
+      "items": [
+        {
+          "asin": "B081VQTG2Q",
+          "name": "Rubbermaid Reveal Cordless Power Scrubber",
+          "price": 40.35,
+          "imageUrl": "https://m.media-amazon.com/images/I/71u-mWnnA+L._AC_SX679_.jpg",
+          "useCase": "Film a tight split-screen pass across stained grout so the clean line appears immediately behind the spinning head.",
+          "commissionRate": 0.085,
+          "rating": 4.5,
+          "reviewCount": 6525
+        },
+        {
+          "asin": "B0BNLT3X59",
+          "name": "Cordless Electric Spin Scrubber with Eight Heads",
+          "price": 52.46,
+          "imageUrl": "https://m.media-amazon.com/images/I/71zdX5r6DCL._AC_SX679_.jpg",
+          "useCase": "Show the long handle cutting through shower grime without kneeling, then snap to the finished tile reflection.",
+          "commissionRate": 0.085,
+          "rating": 4.2,
+          "reviewCount": 3488
+        },
+        {
+          "asin": "B07J1RPL4D",
+          "name": "RotoScrub Seven-Piece Drill Brush Set",
+          "price": 27.4,
+          "imageUrl": "https://m.media-amazon.com/images/I/61z0HRqr-zL._AC_SX679_.jpg",
+          "useCase": "Attach a brush to a drill on camera and clear one dramatic stripe through soap scum or oven residue.",
+          "commissionRate": 0.085,
+          "rating": 4.2,
+          "reviewCount": 5375
+        },
+        {
+          "asin": "B0967C18JP",
+          "name": "Forty-Five-Piece Drill Brush and Polishing Set",
+          "price": 55.1,
+          "imageUrl": "https://m.media-amazon.com/images/I/81CSq9nflKL._AC_SX679_.jpg",
+          "useCase": "Rapidly swap heads while cleaning a sink, tile corner, hob, and car panel to make the versatility self-evident.",
+          "commissionRate": 0.085,
+          "rating": 4.6,
+          "reviewCount": 1207
+        }
+      ]
+    },
+    {
+      "id": "amazon-sg-peel-stick-makeovers",
+      "name": "Peel-and-Stick Makeovers",
+      "description": "Rental-friendly wall and backsplash finishes designed for fast, highly visual room transformations.",
+      "items": [
+        {
+          "asin": "B082YW95XK",
+          "name": "Cohoo Faux Brick Peel-and-Stick Wallpaper",
+          "price": 20.35,
+          "imageUrl": "https://m.media-amazon.com/images/I/6157fUFJJtL._AC_SX522_.jpg",
+          "useCase": "Use a wipe transition from a plain wall to a textured brick feature wall as the sheet is smoothed into place.",
+          "commissionRate": 0.05,
+          "rating": 4.2,
+          "reviewCount": 5854
+        },
+        {
+          "asin": "B07Q98WXDR",
+          "name": "Yancorp Stone Peel-and-Stick Counter and Wall Liner",
+          "price": 42.78,
+          "imageUrl": "https://m.media-amazon.com/images/I/81vciQdZfjL._AC_SX522_.jpg",
+          "useCase": "Cover half a tired counter or backsplash, pause on the before-and-after divide, then finish the reveal.",
+          "commissionRate": 0.05,
+          "rating": 4.1,
+          "reviewCount": 4582
+        },
+        {
+          "asin": "B08FCF7BN3",
+          "name": "LaCheery Checkered Peel-and-Stick Contact Paper",
+          "price": 24.07,
+          "imageUrl": "https://m.media-amazon.com/images/I/71GuPQ68OAL._AC_SY300_SX300_QL70_ML2_.jpg",
+          "useCase": "Transform a drawer, shelf, or small backsplash with a graphic checkerboard pattern in one continuous overhead shot.",
+          "commissionRate": 0.05,
+          "rating": 4.6,
+          "reviewCount": 212
+        },
+        {
+          "asin": "B0D57TSX8Q",
+          "name": "Ivory Slate Peel-and-Stick Backsplash Tiles",
+          "price": 66.95,
+          "imageUrl": "https://m.media-amazon.com/images/I/71Hf-8Sd7oL._AC_SX522_.jpg",
+          "useCase": "Show individual tiles clicking into a neat running bond before pulling back to a polished kitchen reveal.",
+          "commissionRate": 0.05,
+          "rating": 4.4,
+          "reviewCount": 54
+        }
+      ]
+    },
+    {
+      "id": "amazon-sg-motion-lighting",
+      "name": "No-Wire Lighting Reveals",
+      "description": "Rechargeable motion lighting that turns dark cabinets, corridors, and closets into an instant visual reveal without wiring.",
+      "items": [
+        {
+          "asin": "B0CKKW7KZG",
+          "name": "WhitePoplar Rechargeable Motion Sensor Ceiling Light",
+          "price": 45.37,
+          "imageUrl": "https://m.media-amazon.com/images/I/61bHCoG+SAL._AC_SX679_.jpg",
+          "useCase": "Walk into a dark closet and let the ceiling light trigger on cue, then detach it magnetically for the charging reveal.",
+          "commissionRate": 0.05,
+          "rating": 4.5,
+          "reviewCount": 2182
+        },
+        {
+          "asin": "B0FBRPPT5L",
+          "name": "Three-Pack Rechargeable Motion Under-Cabinet Lights",
+          "price": 49.88,
+          "imageUrl": "https://m.media-amazon.com/images/I/7103JnbncKL._AC_SY500_.jpg",
+          "useCase": "Open a dark cabinet and capture the lights activating in sequence, followed by the three color-temperature modes.",
+          "commissionRate": 0.05,
+          "rating": 4.6,
+          "reviewCount": 2106
+        },
+        {
+          "asin": "B0C4GXSL33",
+          "name": "WILLED Four-Pack Motion Sensor Light Bars",
+          "price": 81.59,
+          "imageUrl": "https://m.media-amazon.com/images/I/61mUhEXz56L._AC_SX522_.jpg",
+          "useCase": "Turn an unlit pantry into a premium display by sticking each magnetic bar in place and walking past the sensor.",
+          "commissionRate": 0.05,
+          "rating": 4.4,
+          "reviewCount": 2647
+        },
+        {
+          "asin": "B0DZ2734F6",
+          "name": "FULEN Rechargeable Motion Sensor Ceiling Light",
+          "price": 41.19,
+          "imageUrl": "https://m.media-amazon.com/images/I/514oxj7pK1L._AC_SX679_.jpg",
+          "useCase": "Contrast a dim hallway with the bright motion-triggered result, emphasizing the no-electrician magnetic installation.",
+          "commissionRate": 0.05,
+          "rating": 4.5,
+          "reviewCount": 1466
+        }
+      ]
+    },
+    {
+      "id": "amazon-sg-surface-restoration",
+      "name": "Satisfying Surface Restorations",
+      "description": "Pens and hand tools that visibly erase stained grout, rough caulk, wall chips, and furniture scratches.",
+      "items": [
+        {
+          "asin": "B08CVKDLWQ",
+          "name": "White Tile Grout Revival Pens, Two-Pack",
+          "price": 23.2,
+          "imageUrl": "https://m.media-amazon.com/images/I/61XIUaS6lHL._SX522_.jpg",
+          "useCase": "Draw one bright white line through discolored grout and hold on the sharp old-versus-new contrast.",
+          "commissionRate": 0.05,
+          "rating": 4,
+          "reviewCount": 6573
+        },
+        {
+          "asin": "B09VGVRGZD",
+          "name": "Five-in-One Caulk Removal and Finishing Tool",
+          "price": 30.89,
+          "imageUrl": "https://m.media-amazon.com/images/I/71t7PtETPiL._AC_SX522_.jpg",
+          "useCase": "Peel away a ragged seal and smooth a crisp replacement bead in a close-up, single-seam transformation.",
+          "commissionRate": 0.05,
+          "rating": 4.2,
+          "reviewCount": 4349
+        },
+        {
+          "asin": "B0C5SN4X3K",
+          "name": "Refillable Wall and Furniture Touch-Up Paint Pens",
+          "price": 24.83,
+          "imageUrl": "https://m.media-amazon.com/images/I/71KaGr1pdaL._AC_SX522_.jpg",
+          "useCase": "Fill the pen with matching paint and erase a wall scuff in seconds without opening a tray or brush set.",
+          "commissionRate": 0.05,
+          "rating": 4.4,
+          "reviewCount": 856
+        },
+        {
+          "asin": "B0DHS1Z5WT",
+          "name": "Dual-Tip Furniture Marker and Wax Repair Kit",
+          "price": 18.13,
+          "imageUrl": "https://m.media-amazon.com/images/I/7170e1rjd0L._AC_SX522_.jpg",
+          "useCase": "Match a wood tone and make a pale scratch disappear under the marker in a tight macro shot.",
+          "commissionRate": 0.05,
+          "rating": 4.2,
+          "reviewCount": 458
+        }
+      ]
+    },
+    {
+      "id": "amazon-sg-clever-diy-tools",
+      "name": "Clever DIY Tools in Action",
+      "description": "Measurement and layout tools whose precision becomes obvious the moment a laser line or copied contour appears.",
+      "items": [
+        {
+          "asin": "B07WP4165D",
+          "name": "AikTryee Multipurpose Cross-Line Laser Level",
+          "price": 22.58,
+          "imageUrl": "https://m.media-amazon.com/images/I/71HOVTfoB4L._AC_SX522_.jpg",
+          "useCase": "Project an instant straight line across a crooked picture wall and align every frame to it in a fast montage.",
+          "commissionRate": 0.05,
+          "rating": 4.2,
+          "reviewCount": 15346
+        },
+        {
+          "asin": "B088T5PPSK",
+          "name": "Locking Contour Gauge Set",
+          "price": 32.14,
+          "imageUrl": "https://m.media-amazon.com/images/I/61MAlHkjxdL._AC_SX522_.jpg",
+          "useCase": "Press the gauge around an awkward pipe, transfer the exact outline, and reveal a clean first-fit cut.",
+          "commissionRate": 0.05,
+          "rating": 4.5,
+          "reviewCount": 4112
+        },
+        {
+          "asin": "B0CY3VP6GW",
+          "name": "DEGLASERS Self-Leveling Green Cross-Line Laser",
+          "price": 63.4,
+          "imageUrl": "https://m.media-amazon.com/images/I/616j90H-yuL._AC_SX425_.jpg",
+          "useCase": "Set the tool down and show the green cross snapping level by itself across a tile or shelving layout.",
+          "commissionRate": 0.05,
+          "rating": 4.3,
+          "reviewCount": 254
+        },
+        {
+          "asin": "B0FGD3D7N1",
+          "name": "XUNTOP Digital Laser Inclinometer",
+          "price": 48.34,
+          "imageUrl": "https://m.media-amazon.com/images/I/61hQzAiqqeL._AC_SX679_.jpg",
+          "useCase": "Rotate the magnetic digital level on a shelf or saw and let the live angle display prove the adjustment visually.",
+          "commissionRate": 0.05,
+          "rating": 4.4,
+          "reviewCount": 126
+        }
+      ]
+    }
+  ]
+}

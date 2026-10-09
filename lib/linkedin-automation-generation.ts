@@ -1,14 +1,13 @@
 import { clean } from "@/lib/guards"
+import type { BrandProfile } from "@/lib/brand-profile"
+import { runGenerationChain } from "@/lib/generation-chain"
 import { llmSlopMatches } from "@/lib/llm-slop"
-import {
-  compileLumenclipPromptFallback,
-  getLumenclipChatPrompt,
-} from "@/lib/langfuse-prompts"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
+import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 import {
   archetypeById,
-  buildLinkedInSystemPromptVariables,
-  buildLinkedInUserPromptVariables,
+  buildLinkedInSystemPrompt,
+  buildLinkedInUserPrompt,
   hookStyleById,
   linkedInArchetypes,
   linkedInFormatRules,
@@ -27,11 +26,22 @@ export type LinkedInBrief = {
   derivedAt: string
 }
 
+export type LinkedInGeneratedPost = {
+  post: string
+  archetypeId: string
+  archetypeLabel: string
+  hookStyleId: string
+  pillar: string
+  violations: string[]
+  needsReview: boolean
+  attempts: number
+  characterCount: number
+}
+
 export type LinkedInGenerationRequest = {
   model: string
   system: string
   user: string
-  promptVariables: Record<string, string>
   schema: ReturnType<typeof buildPostSchema>
 }
 
@@ -71,9 +81,6 @@ export async function deriveLinkedInBrief(input: {
   if (!niche) throw new Error("A niche is required")
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const managedPrompt = await getLumenclipChatPrompt("linkedinStrategyBrief", {
-    niche,
-  })
   const result = await openRouterJson({
     apiKey,
     fetchImpl: input.fetchImpl,
@@ -82,7 +89,9 @@ export async function deriveLinkedInBrief(input: {
     maxTokens: 4096,
     temperature: 0.8,
     plugins: [{ id: "response-healing" }],
-    messages: managedPrompt.messages,
+    system:
+      "You derive a focused LinkedIn content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
+    user: `Niche: ${niche}\nReturn exactly 3-5 pillars.`,
     schema: {
       name: "linkedin_brief",
       strict: true,
@@ -108,10 +117,6 @@ export async function deriveLinkedInBrief(input: {
           },
         },
       },
-    },
-    trace: {
-      feature: "linkedin-strategy-brief",
-      prompt: managedPrompt.prompt,
     },
   })
   const pillarLabels = Array.isArray(result.pillars)
@@ -368,27 +373,34 @@ export function buildLinkedInGenerationRequest(input: {
   proof?: string[]
 }): LinkedInGenerationRequest {
   const voice = voicePresetById(input.personaVoiceId)
-  const promptVariables = {
-    ...buildLinkedInSystemPromptVariables({
+  return {
+    model: input.model,
+    system: buildLinkedInSystemPrompt({
       voice,
       niche: input.niche,
       brief: input.brief,
       excludedTopics: input.excludedTopics,
       proof: input.proof,
     }),
-    ...buildLinkedInUserPromptVariables({ plan: input.plan }),
-  }
-  const fallback = compileLumenclipPromptFallback("linkedinStructuredPost", {
-    ...promptVariables,
-    repair_feedback: "",
-  })
-  const [systemMessage, userMessage] = fallback.messages
-  return {
-    model: input.model,
-    system: systemMessage.content,
-    user: userMessage.content,
-    promptVariables,
+    user: buildLinkedInUserPrompt({ plan: input.plan }),
     schema: buildPostSchema(input.plan.archetype),
+  }
+}
+
+export async function generateLinkedInDraft(input: {
+  request: LinkedInGenerationRequest
+  plan: LinkedInPostPlan
+  repairViolations?: string[]
+  attempt?: number
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}): Promise<LinkedInDraft> {
+  const attempt = await generateLinkedInSlotsAttempt(input)
+  return {
+    ...attempt,
+    post: attempt.providerError
+      ? ""
+      : composePost(input.plan.archetype, attempt.slots),
   }
 }
 
@@ -401,13 +413,6 @@ export async function generateLinkedInSlotsAttempt(input: {
 }): Promise<LinkedInSlotsAttempt> {
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const repairFeedback = input.repairViolations?.length
-    ? `\n\nYour previous attempt failed validation. Repair these exact errors:\n- ${input.repairViolations.join("\n- ")}`
-    : ""
-  const managedPrompt = await getLumenclipChatPrompt("linkedinStructuredPost", {
-    ...input.request.promptVariables,
-    repair_feedback: repairFeedback,
-  })
   let output: Record<string, unknown>
   try {
     output = await openRouterJson({
@@ -418,12 +423,9 @@ export async function generateLinkedInSlotsAttempt(input: {
       maxTokens: 4096,
       temperature: 0.8,
       plugins: [{ id: "response-healing" }],
-      messages: managedPrompt.messages,
+      system: input.request.system,
+      user: `${input.request.user}${input.repairViolations?.length ? `\n\nYour previous attempt failed validation. Repair these exact errors:\n- ${input.repairViolations.join("\n- ")}` : ""}`,
       schema: input.request.schema,
-      trace: {
-        feature: "linkedin-structured-post",
-        prompt: managedPrompt.prompt,
-      },
     })
   } catch (error) {
     return {
@@ -462,6 +464,147 @@ export function validateLinkedInDraft(input: {
     violations,
     characterCount: input.draft.post.length,
     needsRepair: violations.length > 0,
+  }
+}
+
+export async function repairLinkedInDraft(input: {
+  request: LinkedInGenerationRequest
+  plan: LinkedInPostPlan
+  draft: LinkedInDraft
+  validation: LinkedInDraftValidation
+  proof?: string[]
+  maximumAttempts?: number
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}) {
+  const maximumAttempts = Math.max(1, Math.min(3, input.maximumAttempts ?? 3))
+  let draft = input.draft
+  let validation = input.validation
+  while (validation.needsRepair && draft.attempts < maximumAttempts) {
+    try {
+      draft = await generateLinkedInDraft({
+        request: input.request,
+        plan: input.plan,
+        repairViolations: validation.violations,
+        attempt: draft.attempts + 1,
+        apiKey: input.apiKey,
+        fetchImpl: input.fetchImpl,
+      })
+      validation = validateLinkedInDraft({
+        plan: input.plan,
+        draft,
+        proof: input.proof,
+      })
+    } catch (error) {
+      if (draft.attempts + 1 >= maximumAttempts) throw error
+      validation = {
+        violations: [
+          error instanceof Error
+            ? error.message
+            : "Return compact, complete JSON matching the schema exactly",
+        ],
+        characterCount: draft.post.length,
+        needsRepair: true,
+      }
+      draft = { ...draft, attempts: draft.attempts + 1 }
+    }
+  }
+  if (
+    validation.needsRepair &&
+    draft.providerError &&
+    draft.attempts >= maximumAttempts
+  ) {
+    throw new Error(draft.providerError)
+  }
+  return { draft, validation }
+}
+
+export async function generateLinkedInPost(input: {
+  niche: string
+  brief: LinkedInBrief
+  plan: LinkedInPostPlan
+  personaVoiceId: "educator" | "practitioner"
+  model: string
+  excludedTopics?: string[]
+  proof?: string[]
+  apiKey?: string
+  fetchImpl?: typeof fetch
+  brandProfile?: BrandProfile | null
+  enableGenerationChain?: boolean
+}): Promise<LinkedInGeneratedPost> {
+  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const { plan } = input
+  const request = buildLinkedInGenerationRequest(input)
+
+  const chainEnabled =
+    (input.enableGenerationChain ??
+      process.env.ENABLE_GENERATION_CHAIN === "true") &&
+    Boolean(input.brandProfile)
+  if (chainEnabled && input.brandProfile) {
+    const chained = await runGenerationChain({
+      generate: { model: input.model, system: request.system },
+      humanize: {
+        model: generationModelRegistry.openRouter.contentHumanize.model,
+      },
+      review: { model: generationModelRegistry.openRouter.contentReview.model },
+      input: {
+        apiKey,
+        fetchImpl: input.fetchImpl,
+        brandProfile: input.brandProfile,
+        prompt: `${request.user}\n\nReturn only the complete publishable LinkedIn post text in content.`,
+      },
+    })
+    const violations = [
+      ...deterministicChecks(chained.content, {
+        proof: input.proof,
+        archetypeMinCharacters: plan.archetype.minCharacters,
+      }),
+      ...chained.issues,
+    ]
+    return {
+      post: chained.content,
+      archetypeId: plan.archetype.id,
+      archetypeLabel: plan.archetype.label,
+      hookStyleId: plan.hookStyle.id,
+      pillar: plan.pillar,
+      violations: [...new Set(violations)],
+      needsReview: violations.length > 0,
+      attempts: chained.trace.length,
+      characterCount: chained.content.length,
+    }
+  }
+
+  const firstDraft = await generateLinkedInDraft({
+    request,
+    plan,
+    apiKey,
+    fetchImpl: input.fetchImpl,
+  })
+  const repaired = await repairLinkedInDraft({
+    request,
+    plan,
+    draft: firstDraft,
+    validation: validateLinkedInDraft({
+      plan,
+      draft: firstDraft,
+      proof: input.proof,
+    }),
+    proof: input.proof,
+    apiKey,
+    fetchImpl: input.fetchImpl,
+  })
+
+  return {
+    post: repaired.draft.post,
+    archetypeId: plan.archetype.id,
+    archetypeLabel: plan.archetype.label,
+    hookStyleId: plan.hookStyle.id,
+    pillar: plan.pillar,
+    violations: repaired.validation.violations,
+    needsReview: repaired.validation.needsRepair,
+    attempts: repaired.draft.attempts,
+    characterCount: repaired.validation.characterCount,
   }
 }
 

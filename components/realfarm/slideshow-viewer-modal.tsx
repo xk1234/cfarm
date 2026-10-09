@@ -11,12 +11,12 @@ import {
 } from "react"
 import { toast } from "sonner"
 import {
-  IconBug,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconCopy,
   IconDownload,
+  IconDots,
   IconFocusCentered,
   IconLoader2,
   IconPhotoEdit,
@@ -25,6 +25,7 @@ import {
   IconZoomIn,
   IconZoomOut,
 } from "@tabler/icons-react"
+import { DropdownMenu } from "radix-ui"
 
 import { DeleteSlideshowDialog } from "@/components/realfarm/delete-slideshow-dialog"
 import { TemplateGeneratedPreview } from "@/components/realfarm/template-showcase-preview"
@@ -36,8 +37,6 @@ import {
   clampSlideTransform,
   clampSlideZoom,
   fitSlideToViewport,
-  MAX_SLIDE_ZOOM,
-  MIN_SLIDE_ZOOM,
   zoomSlideAroundPoint,
   type SlideViewportPoint,
   type SlideViewportTransform,
@@ -81,105 +80,11 @@ export type SlideshowViewerMetadata = {
   hashtags: string
 }
 
-export function SlideshowViewer({
-  title,
-  slides,
-  fallbackSlides = [],
-  activeSlide,
-  onActiveSlideChange,
-  onDeleteSlide,
-  onReplaceSlide,
-  className,
-}: {
-  title: string
-  slides: SlideshowViewerSlide[]
-  fallbackSlides?: SlideshowViewerSlide[]
-  activeSlide: number
-  onActiveSlideChange: (slideIndex: number) => void
-  onDeleteSlide?: () => void
-  onReplaceSlide?: () => void
-  className?: string
-}) {
-  const boundedActiveSlide =
-    slides.length > 0
-      ? Math.min(Math.max(activeSlide, 0), slides.length - 1)
-      : 0
-  const visibleSlide = slides[boundedActiveSlide]
-
-  return (
-    <div
-      className={cn(
-        "relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3 py-4 sm:gap-4 sm:px-10 sm:py-7",
-        className
-      )}
-      data-slideshow-viewer
-    >
-      {slides.length === 0 ? (
-        <TemplateGeneratedPreview
-          exampleSlides={fallbackSlides}
-          tileCount={3}
-          className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
-        />
-      ) : (
-        // The arrows overlay the slide below sm: side-by-side they leave too
-        // little room for the portrait slide itself.
-        <div className="relative flex min-h-0 w-full max-w-full flex-1 items-center justify-center gap-3">
-          <button
-            type="button"
-            className="absolute left-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
-            onClick={() => onActiveSlideChange(boundedActiveSlide - 1)}
-            disabled={boundedActiveSlide === 0}
-            aria-label="Previous slide"
-          >
-            <IconChevronLeft className="size-5" />
-          </button>
-          <InteractiveSlideStage
-            key={visibleSlide.id}
-            slide={visibleSlide}
-            alt={
-              visibleSlide.text || `${title} slide ${boundedActiveSlide + 1}`
-            }
-            label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
-            slideNumber={boundedActiveSlide + 1}
-            canDelete={Boolean(onDeleteSlide && slides.length > 1)}
-            canReplace={Boolean(onReplaceSlide)}
-            onDelete={() => onDeleteSlide?.()}
-            onReplace={() => onReplaceSlide?.()}
-          />
-          <button
-            type="button"
-            className="absolute right-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
-            onClick={() => onActiveSlideChange(boundedActiveSlide + 1)}
-            disabled={boundedActiveSlide === slides.length - 1}
-            aria-label="Next slide"
-          >
-            <IconChevronRight className="size-5" />
-          </button>
-        </div>
-      )}
-      {slides.length > 0 ? (
-        <nav
-          className="flex min-h-8 shrink-0 items-center gap-2 rounded-full bg-app-surface/88 px-3 py-2 shadow-sm ring-1 ring-black/6 backdrop-blur"
-          aria-label="Choose slideshow slide"
-        >
-          {slides.map((slide, dot) => (
-            <button
-              key={slide.id}
-              type="button"
-              className={cn(
-                "size-2 rounded-full transition-transform hover:scale-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action",
-                dot === boundedActiveSlide
-                  ? "scale-125 bg-app-action"
-                  : "bg-[#9b9a94] hover:bg-[#6f6e68]"
-              )}
-              onClick={() => onActiveSlideChange(dot)}
-              aria-label={`Show slide ${dot + 1}`}
-            />
-          ))}
-        </nav>
-      ) : null}
-    </div>
-  )
+export type SlideshowViewerAction = {
+  label: string
+  icon: ReactNode
+  onSelect: () => void
+  disabled?: boolean
 }
 
 export function SlideshowViewerModal({
@@ -189,8 +94,7 @@ export function SlideshowViewerModal({
   fallbackSlides = [],
   details,
   publicationStatusControl,
-  publicationActions,
-  onDebug,
+  actions = [],
   onDelete,
   onDeleteSlide,
   onLoadSlideImages,
@@ -204,8 +108,7 @@ export function SlideshowViewerModal({
   fallbackSlides?: SlideshowViewerSlide[]
   details?: SlideshowViewerDetails
   publicationStatusControl?: ReactNode
-  publicationActions?: ReactNode
-  onDebug?: () => void
+  actions?: SlideshowViewerAction[]
   onDelete?: () => Promise<void>
   onDeleteSlide?: (slideshowItemId: string, slideIndex: number) => Promise<void>
   onLoadSlideImages?: (
@@ -254,8 +157,7 @@ export function SlideshowViewerModal({
             fallbackSlides={fallbackSlides}
             details={details}
             publicationStatusControl={publicationStatusControl}
-            publicationActions={publicationActions}
-            onDebug={onDebug}
+            actions={actions}
             onDelete={onDelete}
             onDeleteSlide={
               onDeleteSlide && selectedSlideshow
@@ -303,8 +205,7 @@ function SlideshowViewerContent({
   fallbackSlides,
   details,
   publicationStatusControl,
-  publicationActions,
-  onDebug,
+  actions,
   onDelete,
   onDeleteSlide,
   onLoadSlideImages,
@@ -322,8 +223,7 @@ function SlideshowViewerContent({
   fallbackSlides: SlideshowViewerSlide[]
   details?: SlideshowViewerDetails
   publicationStatusControl?: ReactNode
-  publicationActions?: ReactNode
-  onDebug?: () => void
+  actions: SlideshowViewerAction[]
   onDelete?: () => Promise<void>
   onDeleteSlide?: (slideIndex: number) => Promise<void>
   onLoadSlideImages?: () => Promise<SlideshowViewerImageOption[]>
@@ -359,6 +259,7 @@ function SlideshowViewerContent({
   const [savingMetadata, setSavingMetadata] = useState(false)
   const boundedActiveSlide =
     slides.length > 0 ? Math.min(activeSlide, slides.length - 1) : 0
+  const visibleSlide = slides[boundedActiveSlide]
   const descriptionAndHashtags = [
     metadata.caption.trim(),
     metadata.hashtags.trim(),
@@ -499,43 +400,13 @@ function SlideshowViewerContent({
         </div>
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <div className="hidden sm:block">{publicationStatusControl}</div>
-          {publicationActions}
-          <button
-            type="button"
-            className="grid size-10 place-items-center rounded-[7px] bg-app-action text-white shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-action active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55 sm:size-9 sm:focus-visible:outline-offset-2"
-            aria-label="Export PNGs"
-            title={exporting ? "Exporting PNGs" : "Export PNGs"}
-            disabled={exporting || slides.length === 0}
-            onClick={() => void exportSlides()}
-          >
-            {exporting ? (
-              <IconLoader2 className="size-4 animate-spin" />
-            ) : (
-              <IconDownload className="size-4" />
-            )}
-          </button>
-          {onDebug ? (
-            <button
-              type="button"
-              className="grid size-10 place-items-center rounded-[7px] border border-app-panel-border bg-app-surface text-[#56554f] shadow-sm transition hover:bg-[#f4f3ee] hover:text-app-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-action active:translate-y-px sm:size-9 sm:focus-visible:outline-offset-2"
-              onClick={onDebug}
-              aria-label="Generation debug"
-              title="Generation debug"
-            >
-              <IconBug className="size-4" />
-            </button>
-          ) : null}
-          {onDelete ? (
-            <button
-              type="button"
-              className="grid size-10 place-items-center rounded-[7px] border border-red-200 bg-app-surface text-red-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-500 active:translate-y-px sm:size-9 sm:focus-visible:outline-offset-2"
-              onClick={() => setDeleteOpen(true)}
-              aria-label="Delete slideshow"
-              title="Delete slideshow"
-            >
-              <IconTrash className="size-4" />
-            </button>
-          ) : null}
+          <SlideshowActionsMenu
+            actions={actions}
+            exporting={exporting}
+            exportDisabled={slides.length === 0}
+            onExport={() => void exportSlides()}
+            onDelete={onDelete ? () => setDeleteOpen(true) : undefined}
+          />
         </div>
       </header>
       <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#efefec]">
@@ -545,19 +416,70 @@ function SlideshowViewerContent({
           </div>
         ) : null}
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <SlideshowViewer
-            title={title}
-            slides={slides}
-            fallbackSlides={fallbackSlides}
-            activeSlide={activeSlide}
-            onActiveSlideChange={setActiveSlide}
-            onDeleteSlide={
-              onDeleteSlide ? () => setDeleteSlideOpen(true) : undefined
-            }
-            onReplaceSlide={
-              onReplaceSlideImage ? () => void openImagePicker() : undefined
-            }
-          />
+          <div className="relative flex min-h-0 flex-1 items-center justify-center px-3 pt-4 pb-16 sm:px-10 sm:pt-7 sm:pb-20">
+            {slides.length === 0 ? (
+              <TemplateGeneratedPreview
+                exampleSlides={fallbackSlides}
+                tileCount={3}
+                className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
+              />
+            ) : (
+              // The arrows overlay the slide below sm: side-by-side they left
+              // a phone barely 200px for the slide itself.
+              <div className="flex h-full min-h-0 w-full max-w-full items-center justify-center gap-3">
+                <button
+                  type="button"
+                  className="absolute left-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
+                  onClick={() => setActiveSlide(boundedActiveSlide - 1)}
+                  disabled={boundedActiveSlide === 0}
+                  aria-label="Previous slide"
+                >
+                  <IconChevronLeft className="size-5" />
+                </button>
+                <InteractiveSlideStage
+                  key={visibleSlide.id}
+                  slide={visibleSlide}
+                  alt={
+                    visibleSlide.text ||
+                    `${title} slide ${boundedActiveSlide + 1}`
+                  }
+                  label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
+                  slideNumber={boundedActiveSlide + 1}
+                  canDelete={Boolean(onDeleteSlide && slides.length > 1)}
+                  canReplace={Boolean(onReplaceSlideImage)}
+                  onDelete={() => setDeleteSlideOpen(true)}
+                  onReplace={() => void openImagePicker()}
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
+                  onClick={() => setActiveSlide(boundedActiveSlide + 1)}
+                  disabled={boundedActiveSlide === slides.length - 1}
+                  aria-label="Next slide"
+                >
+                  <IconChevronRight className="size-5" />
+                </button>
+              </div>
+            )}
+            {slides.length > 0 ? (
+              <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 gap-2 sm:bottom-6">
+                {slides.map((_, dot) => (
+                  <button
+                    key={dot}
+                    type="button"
+                    className={cn(
+                      "size-2 rounded-full",
+                      dot === boundedActiveSlide
+                        ? "bg-app-surface"
+                        : "bg-white/55"
+                    )}
+                    onClick={() => setActiveSlide(dot)}
+                    aria-label={`Show slide ${dot + 1}`}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
         </section>
         <button
           type="button"
@@ -638,9 +560,89 @@ function SlideshowViewerContent({
   )
 }
 
+const slideshowMenuItemClass =
+  "flex h-9 cursor-default items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-semibold text-app-text outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-app-control-hover"
+
+function SlideshowActionsMenu({
+  actions,
+  exporting,
+  exportDisabled,
+  onExport,
+  onDelete,
+}: {
+  actions: SlideshowViewerAction[]
+  exporting: boolean
+  exportDisabled: boolean
+  onExport: () => void
+  onDelete?: () => void
+}) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className="grid size-10 place-items-center rounded-[7px] border border-app-panel-border bg-app-surface text-app-text shadow-sm transition hover:bg-app-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-action active:translate-y-px sm:size-9 sm:focus-visible:outline-offset-2"
+          aria-label="More slideshow actions"
+          title="More actions"
+        >
+          <IconDots className="size-5" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={8}
+          className="app-popover z-[120] min-w-[210px] p-1"
+        >
+          {actions.map((action) => (
+            <DropdownMenu.Item
+              key={action.label}
+              disabled={action.disabled}
+              className={slideshowMenuItemClass}
+              onSelect={action.onSelect}
+            >
+              <span className="grid size-4 shrink-0 place-items-center text-app-muted-text">
+                {action.icon}
+              </span>
+              {action.label}
+            </DropdownMenu.Item>
+          ))}
+          {actions.length ? (
+            <DropdownMenu.Separator className="my-1 h-px bg-app-panel-border" />
+          ) : null}
+          <DropdownMenu.Item
+            disabled={exportDisabled || exporting}
+            className={slideshowMenuItemClass}
+            onSelect={onExport}
+          >
+            {exporting ? (
+              <IconLoader2 className="size-4 animate-spin text-app-muted-text" />
+            ) : (
+              <IconDownload className="size-4 text-app-muted-text" />
+            )}
+            {exporting ? "Exporting PNGs" : "Export PNGs"}
+          </DropdownMenu.Item>
+          {onDelete ? (
+            <>
+              <DropdownMenu.Separator className="my-1 h-px bg-app-panel-border" />
+              <DropdownMenu.Item
+                className={`${slideshowMenuItemClass} text-red-600 data-[highlighted]:bg-red-50 data-[highlighted]:text-red-700`}
+                onSelect={onDelete}
+              >
+                <IconTrash className="size-4" />
+                Delete slideshow
+              </DropdownMenu.Item>
+            </>
+          ) : null}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
 type SlidePointer = SlideViewportPoint & { id: number }
 
-function InteractiveSlideStage({
+export function InteractiveSlideStage({
   slide,
   alt,
   label,
@@ -660,6 +662,7 @@ function InteractiveSlideStage({
   onReplace: () => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
   const pointersRef = useRef(new Map<number, SlidePointer>())
   const dragStartRef = useRef<{
     pointer: SlidePointer
@@ -706,7 +709,7 @@ function InteractiveSlideStage({
     point: SlideViewportPoint = { x: 0, y: 0 }
   ) {
     updateTransform((current) =>
-      zoomSlideAroundPoint(current, nextZoom, point, stage)
+      zoomSlideAroundPoint(current, nextZoom, point, stage, viewport)
     )
   }
 
@@ -733,10 +736,10 @@ function InteractiveSlideStage({
   }, [])
 
   useEffect(() => {
-    updateTransform((current) => clampSlideTransform(current, stage))
+    updateTransform((current) => clampSlideTransform(current, stage, viewport))
     // The separate numeric dependencies keep the effect stable between renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage.width, stage.height])
+  }, [stage.width, stage.height, viewport.width, viewport.height])
 
   function pointFor(clientX: number, clientY: number): SlideViewportPoint {
     const rect = viewportRef.current?.getBoundingClientRect()
@@ -775,7 +778,7 @@ function InteractiveSlideStage({
         pointer,
         transform: transformRef.current,
       }
-      setPanning(transformRef.current.zoom > 1)
+      setPanning(true)
     } else if (pointersRef.current.size === 2) {
       startPinch()
     }
@@ -807,7 +810,8 @@ function InteractiveSlideStage({
             x: midpoint.x - (start.midpoint.x - start.transform.x) * ratio,
             y: midpoint.y - (start.midpoint.y - start.transform.y) * ratio,
           },
-          stage
+          stage,
+          viewport
         )
       )
       return
@@ -822,7 +826,8 @@ function InteractiveSlideStage({
           x: start.transform.x + pointer.x - start.pointer.x,
           y: start.transform.y + pointer.y - start.pointer.y,
         },
-        stage
+        stage,
+        viewport
       )
     )
   }
@@ -835,7 +840,7 @@ function InteractiveSlideStage({
     dragStartRef.current = remaining
       ? { pointer: remaining, transform: transformRef.current }
       : null
-    setPanning(Boolean(remaining && transformRef.current.zoom > 1))
+    setPanning(Boolean(remaining))
   }
 
   function onWheel(event: ReactWheelEvent<HTMLDivElement>) {
@@ -894,7 +899,8 @@ function InteractiveSlideStage({
           x: current.x + movement.x,
           y: current.y + movement.y,
         },
-        stage
+        stage,
+        viewport
       )
     )
   }
@@ -902,138 +908,141 @@ function InteractiveSlideStage({
   return (
     <div
       ref={viewportRef}
-      className={cn(
-        "group relative isolate h-full min-h-0 w-full max-w-[760px] min-w-0 overflow-hidden rounded-[12px] select-none focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-app-action sm:max-w-[min(72vw,760px)] sm:shrink-0",
-        transform.zoom > 1
-          ? panning
-            ? "cursor-grabbing"
-            : "cursor-grab"
-          : "cursor-zoom-in"
-      )}
-      role="group"
-      aria-label={`${label}. The complete slide frame zooms from 50 to 500 percent. Use the mouse wheel or plus and minus keys to zoom. Drag or use arrow keys to pan when enlarged.`}
-      tabIndex={0}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={finishPointer}
-      onPointerCancel={finishPointer}
-      onLostPointerCapture={finishPointer}
-      onWheel={onWheel}
-      onDoubleClick={onDoubleClick}
-      onKeyDown={onKeyDown}
-      style={{ touchAction: "none" }}
+      className="relative flex h-full min-h-0 w-full max-w-[760px] min-w-0 items-center justify-center sm:max-w-[min(72vw,760px)] sm:shrink-0"
     >
       <div
-        className="pointer-events-none absolute top-1/2 left-1/2 overflow-hidden rounded-[9px] bg-app-surface text-left shadow-xl ring-2 ring-white will-change-transform"
+        className="min-h-0 max-w-full shrink-0"
         style={
           stageReady
-            ? {
-                width: stage.width,
-                height: stage.height,
-                transform: `translate3d(calc(-50% + ${transform.x}px), calc(-50% + ${transform.y}px), 0) scale(${transform.zoom})`,
-              }
+            ? { width: stage.width, height: stage.height, touchAction: "none" }
             : {
                 width: "min(100%, 400px)",
                 maxHeight: "100%",
                 aspectRatio: "4 / 5",
-                transform: "translate3d(-50%, -50%, 0)",
+                touchAction: "none",
               }
         }
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- Generated slides may be authenticated local or remote assets and expose their dimensions only after loading. */}
-        <img
-          src={slide.imageUrl}
-          alt={alt}
-          className="block size-full object-contain"
-          draggable={false}
-          onLoad={(event) => {
-            const image = event.currentTarget
-            if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-              setImageSize({
-                width: image.naturalWidth,
-                height: image.naturalHeight,
-              })
-            }
+        <div
+          ref={stageRef}
+          data-slide-media-frame
+          className={cn(
+            "group relative isolate size-full overflow-hidden rounded-[9px] bg-app-surface text-left shadow-xl ring-2 ring-white select-none focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-app-action",
+            panning ? "cursor-grabbing" : "cursor-grab"
+          )}
+          role="group"
+          aria-label={`${label}. Use the mouse wheel or plus and minus keys to zoom the slide canvas. Drag or use arrow keys to move it.`}
+          tabIndex={0}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={finishPointer}
+          onPointerCancel={finishPointer}
+          onLostPointerCapture={finishPointer}
+          onWheel={onWheel}
+          onDoubleClick={onDoubleClick}
+          onKeyDown={onKeyDown}
+          style={{
+            transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.zoom})`,
+            transformOrigin: "center",
+            willChange: "transform",
           }}
-        />
-      </div>
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- Generated slides may be authenticated local or remote assets and expose their dimensions only after loading. */}
+          <img
+            src={slide.imageUrl}
+            alt={alt}
+            className="absolute inset-0 block size-full object-cover"
+            draggable={false}
+            onLoad={(event) => {
+              const image = event.currentTarget
+              if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                setImageSize({
+                  width: image.naturalWidth,
+                  height: image.naturalHeight,
+                })
+              }
+            }}
+          />
 
-      <div className="pointer-events-none absolute top-3 left-1/2 z-10 hidden -translate-x-1/2 rounded-full bg-black/68 px-3 py-1.5 text-[10px] font-semibold whitespace-nowrap text-white opacity-0 shadow-md backdrop-blur transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 sm:block">
-        Scroll to resize slide · drag enlarged slides to pan
-      </div>
+          <div className="pointer-events-none absolute top-2 left-2 z-10 hidden rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-app-text opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 sm:block">
+            Scroll to zoom · drag to pan
+          </div>
 
-      {canReplace || canDelete ? (
-        <div className="absolute top-3 right-3 z-20 flex gap-2">
-          {canReplace ? (
+          {canReplace || canDelete ? (
+            <div
+              data-slide-media-actions
+              className="absolute top-2 right-2 z-20 flex gap-1.5"
+            >
+              {canReplace ? (
+                <button
+                  type="button"
+                  className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-app-action disabled:opacity-50"
+                  aria-label={`Edit picture for slide ${slideNumber}`}
+                  title="Edit picture"
+                  onClick={onReplace}
+                >
+                  <IconPhotoEdit className="size-4" />
+                </button>
+              ) : null}
+              {canDelete ? (
+                <button
+                  type="button"
+                  className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-600 disabled:opacity-50"
+                  aria-label={`Delete slide ${slideNumber}`}
+                  title="Delete this slide"
+                  onClick={onDelete}
+                >
+                  <IconTrash className="size-4" />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div
+            className="absolute bottom-2 left-2 z-20 flex items-center gap-0.5 rounded-full bg-white/92 p-1 text-app-text shadow-md backdrop-blur"
+            role="toolbar"
+            aria-label="Slide zoom controls"
+          >
             <button
               type="button"
-              className="flex h-11 cursor-pointer items-center gap-2 rounded-full bg-app-action px-3 text-white shadow-lg ring-2 ring-white/85 transition hover:brightness-95 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-app-action active:translate-y-px disabled:opacity-50 sm:size-10 sm:justify-center sm:px-0"
-              aria-label={`Edit picture for slide ${slideNumber}`}
-              title="Edit picture"
-              onClick={onReplace}
+              className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+              aria-label="Zoom out"
+              title="Zoom out"
+              disabled={transform.zoom <= 1}
+              onClick={() => zoomTo(transformRef.current.zoom - 0.25)}
             >
-              <IconPhotoEdit className="size-[18px]" />
-              <span className="text-xs font-bold sm:sr-only">Edit</span>
+              <IconZoomOut className="size-4" />
             </button>
-          ) : null}
-          {canDelete ? (
+            <output
+              className="min-w-11 text-center text-[11px] font-bold tabular-nums"
+              aria-live="polite"
+            >
+              {Math.round(transform.zoom * 100)}%
+            </output>
             <button
               type="button"
-              className="flex h-11 cursor-pointer items-center gap-2 rounded-full bg-red-600 px-3 text-white shadow-lg ring-2 ring-white/85 transition hover:bg-red-700 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-red-500 active:translate-y-px disabled:opacity-50 sm:size-10 sm:justify-center sm:px-0"
-              aria-label={`Delete slide ${slideNumber}`}
-              title="Delete this slide"
-              onClick={onDelete}
+              className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+              aria-label="Zoom in"
+              title="Zoom in"
+              disabled={transform.zoom >= 5}
+              onClick={() => zoomTo(transformRef.current.zoom + 0.25)}
             >
-              <IconTrash className="size-[18px]" />
-              <span className="text-xs font-bold sm:sr-only">Delete</span>
+              <IconZoomIn className="size-4" />
             </button>
-          ) : null}
+            <button
+              type="button"
+              className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+              aria-label="Reset zoom and position"
+              title="Reset zoom and position"
+              disabled={
+                transform.zoom === 1 && transform.x === 0 && transform.y === 0
+              }
+              onClick={resetView}
+            >
+              <IconFocusCentered className="size-4" />
+            </button>
+          </div>
         </div>
-      ) : null}
-
-      <div
-        className="pointer-events-auto absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-white/94 p-1 text-app-text opacity-100 shadow-lg ring-1 ring-black/7 backdrop-blur transition-all sm:pointer-events-none sm:translate-y-1 sm:opacity-0 sm:group-focus-within:pointer-events-auto sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:translate-y-0 sm:group-hover:opacity-100"
-        role="toolbar"
-        aria-label="Slide zoom controls"
-      >
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label="Zoom out"
-          title="Zoom out"
-          disabled={transform.zoom <= MIN_SLIDE_ZOOM}
-          onClick={() => zoomTo(transformRef.current.zoom - 0.25)}
-        >
-          <IconZoomOut className="size-4" />
-        </button>
-        <output
-          className="min-w-11 text-center text-[11px] font-bold tabular-nums"
-          aria-live="polite"
-        >
-          {Math.round(transform.zoom * 100)}%
-        </output>
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label="Zoom in"
-          title="Zoom in"
-          disabled={transform.zoom >= MAX_SLIDE_ZOOM}
-          onClick={() => zoomTo(transformRef.current.zoom + 0.25)}
-        >
-          <IconZoomIn className="size-4" />
-        </button>
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label="Reset zoom and position"
-          title="Reset zoom and position"
-          disabled={
-            transform.zoom === 1 && transform.x === 0 && transform.y === 0
-          }
-          onClick={resetView}
-        >
-          <IconFocusCentered className="size-4" />
-        </button>
       </div>
     </div>
   )
@@ -1080,7 +1089,7 @@ function SlideImagePickerModal({
     <AppModal className="z-[90] p-0 sm:p-4" onClose={onClose}>
       <AppModalPanel
         accessibleTitle="Choose a replacement image"
-        className="flex h-dvh max-w-none flex-col rounded-none bg-app-surface-subtle sm:h-[min(680px,90dvh)] sm:max-w-[900px] sm:rounded-[10px]"
+        className="flex h-dvh max-w-none flex-col rounded-none bg-app-surface-subtle sm:h-[min(680px,90vh)] sm:max-w-[900px] sm:rounded-[10px]"
       >
         <header className="flex items-start justify-between gap-4 border-b border-app-panel-border bg-app-surface px-4 py-4 sm:px-5">
           <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-app-text sm:text-[18px]">
@@ -1151,7 +1160,7 @@ function SlideImagePickerModal({
                   No replacement images available
                 </div>
                 <p className="mt-1 text-[12px] text-app-muted-text">
-                  Add images to this template’s selected photo collections
+                  Add images to this automation’s selected photo collections
                   first.
                 </p>
               </div>

@@ -29,12 +29,15 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   try {
-    const member = await inviteWorkspaceMember({
+    const invitation = await inviteWorkspaceMember({
       owner: user,
       email: parsed.data.email,
       redirectUrl: new URL("/team-invite", request.url).toString(),
     })
-    return NextResponse.json({ member }, { status: 201 })
+    return NextResponse.json(
+      { member: { id: invitation.id, email: invitation.email, status: "pending" }, inviteUrl: invitation.inviteUrl },
+      { status: 201 }
+    )
   } catch (error) {
     const code = (error as { code?: number }).code
     return NextResponse.json(

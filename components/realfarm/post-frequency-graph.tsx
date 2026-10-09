@@ -73,6 +73,13 @@ export function PostFrequencyGraph({
     ).getMonth()
     return month === previous ? "" : monthLabels[month]
   })
+  const visibleMonthLabels = columnMonths.flatMap((label, index) =>
+    label ? [{ index, label }] : []
+  )
+  const activeDays = grid.weeks.flat().filter((day) => day.count > 0)
+  const weekColumns = {
+    gridTemplateColumns: `23px repeat(${grid.weeks.length}, minmax(0, 1fr))`,
+  }
 
   return (
     <section className={cn("mx-auto max-w-[980px]", className)}>
@@ -90,41 +97,57 @@ export function PostFrequencyGraph({
         ) : null}
       </div>
 
-      <div className="mt-5 overflow-x-auto pb-1">
-        <div className="mx-auto w-fit">
-          <div className="flex gap-[2px] pl-[21px] sm:gap-[4px] sm:pl-[29px]">
-            {columnMonths.map((label, index) => (
+      <div className="mx-auto mt-5 w-[283px] max-w-full min-[420px]:w-[387px]">
+        <div
+          className="grid gap-x-[2px] min-[420px]:gap-x-[3px]"
+          style={weekColumns}
+          aria-hidden="true"
+        >
+          {visibleMonthLabels.map(({ index, label }, labelIndex) => (
+            <span
+              key={`${label}-${index}`}
+              className={cn(
+                "row-start-1 min-w-max text-[9px] leading-4 font-medium text-app-muted-text",
+                labelIndex === visibleMonthLabels.length - 1 &&
+                  "justify-self-end"
+              )}
+              style={{ gridColumnStart: index + 2 }}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+        <div className="mt-0.5 flex gap-[2px] min-[420px]:gap-[3px]">
+          <div className="grid w-[23px] shrink-0 grid-rows-7 gap-[2px] pr-1 text-right min-[420px]:gap-[3px]">
+            {["", "Mon", "", "Wed", "", "Fri", ""].map((label, index) => (
               <span
-                key={`${label}-${index}`}
-                className="w-2 text-[8px] leading-3 font-medium text-app-muted-text sm:w-[13px] sm:text-[10px] sm:leading-4"
+                key={index}
+                className="h-[8px] self-center text-[9px] leading-[8px] font-medium text-app-muted-text min-[420px]:h-[11px] min-[420px]:leading-[11px]"
               >
                 {label}
               </span>
             ))}
           </div>
-          <div className="flex gap-[2px] sm:gap-[4px]">
-            <div className="flex w-[19px] shrink-0 flex-col gap-[2px] pr-1 text-right sm:w-[25px] sm:gap-[4px]">
-              {["", "Mon", "", "Wed", "", "Fri", ""].map((label, index) => (
-                <span
-                  key={index}
-                  className="h-2 text-[7px] leading-2 font-medium text-app-muted-text sm:h-[13px] sm:text-[9px] sm:leading-[13px]"
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
+          <div
+            className="grid min-w-0 flex-1 gap-[2px] min-[420px]:gap-[3px]"
+            style={{
+              gridTemplateColumns: `repeat(${grid.weeks.length}, minmax(0, 1fr))`,
+            }}
+            role="img"
+            aria-label={`${grid.total} posts across ${activeDays.length} active days in the last ${weeks} weeks`}
+          >
             {grid.weeks.map((week, weekIndex) => (
               <div
                 key={weekIndex}
-                className="flex flex-col gap-[2px] sm:gap-[4px]"
+                className="flex min-w-0 flex-col items-center gap-[2px] min-[420px]:gap-[3px]"
               >
                 {week.map((day) => (
                   <span
                     key={day.date}
                     title={describe(day)}
-                    aria-label={describe(day)}
+                    aria-hidden="true"
                     className={cn(
-                      "size-2 rounded-[2px] sm:size-[13px] sm:rounded-[3px]",
+                      "size-[8px] rounded-[2px] min-[420px]:size-[11px]",
                       levelClass[day.level]
                     )}
                   />
@@ -138,13 +161,15 @@ export function PostFrequencyGraph({
       <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-medium text-app-muted-text">
         <span>Less</span>
         {levelClass.map((cls, index) => (
-          <span
-            key={index}
-            className={cn("size-2 rounded-[2px] sm:size-[11px]", cls)}
-          />
+          <span key={index} className={cn("size-[11px] rounded-[2px]", cls)} />
         ))}
         <span>More</span>
       </div>
+      <p className="sr-only">
+        {activeDays.length
+          ? activeDays.map(describe).join("; ")
+          : `No posts in the last ${weeks} weeks.`}
+      </p>
     </section>
   )
 }

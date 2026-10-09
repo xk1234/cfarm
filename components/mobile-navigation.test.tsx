@@ -1,5 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+vi.mock("@clerk/nextjs", () => ({
+  Show: ({ children }: { children: React.ReactNode }) => children,
+  SignInButton: ({ children }: { children: React.ReactNode }) => children,
+  SignUpButton: ({ children }: { children: React.ReactNode }) => children,
+  UserButton: () => null,
+}))
 
 import { MarketingNav } from "@/components/marketing/marketing-shell"
 import { MobileNavigation } from "@/components/realfarm/navigation"
@@ -10,7 +17,8 @@ describe("mobile navigation", () => {
 
     expect(markup.match(/>LumenClip</g)).toHaveLength(1)
     expect(markup).toContain('aria-label="Open menu"')
-    expect(markup).toContain('aria-controls="mobile-nav-menu"')
+    expect(markup).toContain('aria-haspopup="dialog"')
+    expect(markup).toContain('aria-expanded="false"')
     expect(markup).not.toContain(">Analytics<")
   })
 
@@ -19,6 +27,7 @@ describe("mobile navigation", () => {
 
     expect(markup.match(/>LumenClip</g)).toHaveLength(1)
     expect(markup).toContain('aria-label="Open menu"')
-    expect(markup).toContain('aria-controls="marketing-mobile-menu"')
+    expect(markup).toContain('aria-haspopup="dialog"')
+    expect(markup).toContain('aria-expanded="false"')
   })
 })

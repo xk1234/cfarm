@@ -13,7 +13,7 @@ import {
 } from "vitest"
 
 import { clearTestTables } from "@/lib/test-helpers"
-import { mirrorAssetToAppwrite } from "@/lib/asset-storage"
+import { persistStoredAsset } from "@/lib/asset-storage"
 import { readJsonArrayStore } from "@/lib/json-store"
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts):
@@ -262,5 +262,5 @@ async function writeLocalAsset(fileName: string, value: string) {
     "files",
     fileName
   )
-  await mirrorAssetToAppwrite(abs, new TextEncoder().encode(value))
+  await persistStoredAsset(abs, new TextEncoder().encode(value))
 }

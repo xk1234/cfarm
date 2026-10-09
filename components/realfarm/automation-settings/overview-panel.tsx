@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react"
 import { LuPencil } from "react-icons/lu"
 
-import { AvatarDot } from "@/components/realfarm/shared-media"
+import {
+  AvatarDot,
+  GenerationFailurePlaceholder,
+} from "@/components/realfarm/shared-media"
+import { SocialAccountIconList } from "@/components/realfarm/social-account-status"
+import { GeneratedVideoThumbnail } from "@/components/realfarm/generated-video-thumbnail"
 import { GeneratedVideoExports } from "@/components/realfarm/generated-video-exports"
 import {
   AutomationGenerationEmptyState,
   AutomationGenerationGrid,
 } from "./automation-generation-grid"
 import { GeneratedSlideshowViewerModal } from "./generated-slideshow-viewer"
-import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import { CheckedDropdownButton } from "@/components/ui/form-controls"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
 import type { Automation } from "@/lib/realfarm-data"
@@ -21,16 +24,23 @@ import {
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 
 import {
+  automationRunSlides,
   automationOverviewRunState,
+  formatRunDate,
+  formatRunDuration,
+  runDurationSeconds,
+  runPublishedAt,
+  runScheduledAt,
   isSlideshowLifecycleRun,
+  isGeneratingSlideshowRun,
   sortAutomationRuns,
+  slideshowTitle,
 } from "./run-helpers"
 import type { AutomationRunApiRecord } from "./types"
 import type { AutomationRunSort } from "./run-helpers"
-import { AutomationRecentRunCard } from "./automation-recent-run-card"
+import { RunPublicationStatusBadge } from "./run-publication-status-badge"
 
 const automationRunSortOptions: AutomationRunSort[] = ["Recent", "Most viewed"]
-const generatedPostsPageSize = 6
 
 export function AutomationOverviewPanel({
   automation,
@@ -75,9 +85,7 @@ export function AutomationOverviewPanel({
     null
   )
   const [openedInitialRun, setOpenedInitialRun] = useState(false)
-  const [debugRun, setDebugRun] = useState<AutomationRunApiRecord | null>(null)
   const [runSort, setRunSort] = useState<AutomationRunSort>("Recent")
-  const [runPage, setRunPage] = useState(0)
   const isVideoAutomation = automation.automationKind === "video"
   const isUgcAutomation = automation.automationKind === "ugc"
   const slideshowRuns = useMemo(
@@ -87,15 +95,6 @@ export function AutomationOverviewPanel({
   const sortedRuns = useMemo(
     () => sortAutomationRuns(slideshowRuns, runSort),
     [slideshowRuns, runSort]
-  )
-  const runPageCount = Math.max(
-    1,
-    Math.ceil(sortedRuns.length / generatedPostsPageSize)
-  )
-  const activeRunPage = Math.min(runPage, runPageCount - 1)
-  const visibleRuns = sortedRuns.slice(
-    activeRunPage * generatedPostsPageSize,
-    (activeRunPage + 1) * generatedPostsPageSize
   )
   const recentRunState = automationOverviewRunState(
     slideshowRuns,
@@ -264,7 +263,6 @@ export function AutomationOverviewPanel({
                 onChange={(value) => {
                   if (value === "Recent" || value === "Most viewed") {
                     setRunSort(value)
-                    setRunPage(0)
                   }
                 }}
                 className="w-full"
@@ -282,54 +280,16 @@ export function AutomationOverviewPanel({
                 </button>
               </AutomationGenerationEmptyState>
             ) : recentRunState === "runs" ? (
-              <>
-                <AutomationGenerationGrid>
-                  {visibleRuns.map((run) => (
-                    <AutomationRecentRunCard
-                      key={run.id}
-                      run={run}
-                      mediaKind="slideshow"
-                      onOpen={() => setViewerRun(run)}
-                    />
-                  ))}
-                </AutomationGenerationGrid>
-                {runPageCount > 1 ? (
-                  <nav
-                    className="mt-4 flex items-center justify-between gap-3"
-                    aria-label="Generated posts pagination"
-                  >
-                    <span className="text-xs font-semibold text-app-muted-text">
-                      Page {activeRunPage + 1} of {runPageCount}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="grid size-9 place-items-center rounded-lg border border-app-panel-border bg-app-surface text-app-text transition hover:bg-app-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
-                        disabled={activeRunPage === 0}
-                        onClick={() =>
-                          setRunPage(Math.max(0, activeRunPage - 1))
-                        }
-                        aria-label="Previous generated posts page"
-                      >
-                        <IconChevronLeft className="size-4" />
-                      </button>
-                      <button
-                        type="button"
-                        className="grid size-9 place-items-center rounded-lg border border-app-panel-border bg-app-surface text-app-text transition hover:bg-app-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
-                        disabled={activeRunPage === runPageCount - 1}
-                        onClick={() =>
-                          setRunPage(
-                            Math.min(runPageCount - 1, activeRunPage + 1)
-                          )
-                        }
-                        aria-label="Next generated posts page"
-                      >
-                        <IconChevronRight className="size-4" />
-                      </button>
-                    </div>
-                  </nav>
-                ) : null}
-              </>
+              <AutomationGenerationGrid>
+                {sortedRuns.slice(0, 3).map((run) => (
+                  <AutomationRecentRunCard
+                    key={run.id}
+                    run={run}
+                    mediaKind="slideshow"
+                    onOpen={() => setViewerRun(run)}
+                  />
+                ))}
+              </AutomationGenerationGrid>
             ) : recentRunState === "loading" ? (
               <AutomationGenerationGrid
                 role="status"
@@ -354,7 +314,6 @@ export function AutomationOverviewPanel({
         <GeneratedSlideshowViewerModal
           run={viewerRun}
           onClose={() => setViewerRun(null)}
-          onDebug={() => setDebugRun(viewerRun)}
           onDelete={async () => {
             await onDeleteRun(viewerRun)
             setViewerRun(null)
@@ -362,61 +321,105 @@ export function AutomationOverviewPanel({
           onRunChanged={onRunChanged}
         />
       ) : null}
-      {debugRun && (
-        <AutomationRunDebugModal
-          run={debugRun}
-          onClose={() => setDebugRun(null)}
-        />
-      )}
     </div>
   )
 }
 
-function AutomationRunDebugModal({
+function AutomationRecentRunCard({
   run,
-  onClose,
+  mediaKind,
+  onOpen,
 }: {
   run: AutomationRunApiRecord
-  onClose: () => void
+  mediaKind: "slideshow" | "video"
+  onOpen: () => void
 }) {
-  const promptDebug = run.plan?.debug?.textModelPrompt
-  const promptDebugText = promptDebug
-    ? JSON.stringify(promptDebug, null, 2)
-    : "No text model prompt was sent."
+  const slides = automationRunSlides(run)
+  const firstSlide = slides[0]
+  const title = slideshowTitle(run)
+  const thumbnailUrl = run.thumbnailUrl?.trim() || firstSlide?.imageUrl
+  const inFlight = isGeneratingSlideshowRun(run)
+  const failed = run.status === "failed"
+  const publishedAt = runPublishedAt(run)
+  const scheduledAt = runScheduledAt(run)
 
   return (
-    <AppModal onClose={onClose}>
-      <AppModalPanel
-        accessibleTitle="Generation debug"
-        className="max-w-[720px] rounded-[8px] bg-app-surface p-4"
-      >
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[18px] font-bold text-app-text">
-              Generation debug
-            </h2>
-            <div className="text-[12px] font-medium text-app-muted-text">
-              Model: {run.plan?.textModel || "not run"} · Source hook #
-              {(run.plan?.debug?.selectedHookIndex ?? 0) + 1}
-            </div>
-          </div>
-          <button
-            className="grid size-8 place-items-center rounded-[5px] text-app-muted-text hover:bg-app-surface-subtle"
-            onClick={onClose}
-            aria-label="Close generation debug"
-          >
-            <IconX className="size-5" />
-          </button>
+    <article className="min-w-0">
+      <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[6px] bg-app-strong shadow-sm">
+        <button
+          type="button"
+          className="absolute inset-0 text-left"
+          disabled={failed}
+          onClick={onOpen}
+          aria-label={
+            failed
+              ? `${title} generation failed`
+              : `Open generated ${mediaKind} ${title}`
+          }
+        >
+          {failed ? (
+            <GenerationFailurePlaceholder
+              compact
+              message={run.error || "This slideshow could not be generated."}
+            />
+          ) : inFlight ? (
+            <span className="absolute inset-0 grid animate-pulse place-items-center bg-[#202020] px-3 text-center text-[11px] font-semibold text-white/80">
+              <span>
+                {run.progress?.stage ?? "Generating…"}
+                {run.progress?.detail ? (
+                  <span className="mt-1 block text-[10px] font-medium text-white/55">
+                    {run.progress.detail}
+                  </span>
+                ) : null}
+              </span>
+            </span>
+          ) : mediaKind === "video" && run.videoUrl ? (
+            <GeneratedVideoThumbnail
+              videoUrl={run.videoUrl}
+              className="bg-black object-contain"
+            />
+          ) : thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Automation previews render generated/local asset URLs directly.
+            <img
+              src={thumbnailUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <span className="absolute inset-0 grid place-items-center bg-[#202020] px-3 text-center text-[11px] font-semibold text-white/65">
+              No rendered image
+            </span>
+          )}
+          {run.videoUrl ? (
+            <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white shadow-sm">
+              Video
+            </span>
+          ) : null}
+        </button>
+        <RunPublicationStatusBadge
+          run={run}
+          className="absolute top-2 right-2 z-20 max-w-[calc(100%-1rem)]"
+        />
+        <SocialAccountIconList
+          items={run.socialStatuses ?? []}
+          className="absolute right-2 bottom-2 z-20"
+          onClick={onOpen}
+        />
+      </div>
+      <div className="mt-2 space-y-0.5 text-[10px] font-semibold text-app-muted-text">
+        <div className="truncate">Created {formatRunDate(run.createdAt)}</div>
+        <div className="truncate">
+          Published {publishedAt ? formatRunDate(publishedAt) : "None"}
         </div>
-        {run.plan?.hookCandidates?.length ? (
-          <div className="mb-3 rounded-[6px] bg-app-surface-subtle p-3 text-[12px] font-medium text-app-text-soft">
-            {run.plan.hookCandidates.join(" | ")}
+        {scheduledAt ? (
+          <div className="truncate">Scheduled {formatRunDate(scheduledAt)}</div>
+        ) : null}
+        {run.plan?.publishType === "video" || run.videoUrl ? (
+          <div className="truncate">
+            Duration {formatRunDuration(runDurationSeconds(run))}
           </div>
         ) : null}
-        <pre className="max-h-[420px] overflow-auto rounded-[6px] bg-[#1f201d] p-3 text-[11px] leading-4 whitespace-pre-wrap text-white">
-          {promptDebugText}
-        </pre>
-      </AppModalPanel>
-    </AppModal>
+      </div>
+    </article>
   )
 }

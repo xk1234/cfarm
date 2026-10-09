@@ -4,7 +4,7 @@ import {
   companionConnectUrl,
 } from "./popup-context.js"
 
-const APP_ORIGIN = "https://web-production-bd480.up.railway.app"
+const APP_ORIGIN = "https://cfarm-eight.vercel.app"
 
 // The active tab is the source of truth: Studio content/analytics pages expose
 // analytics import, while one exact TikTok video exposes comment collection.
@@ -51,13 +51,7 @@ let currentReview = null
 
 void init()
 
-connectButton.addEventListener("click", () => {
-  if (feature === "comments") {
-    void loadCurrentPostComments()
-    return
-  }
-  void openLumenClip()
-})
+connectButton.addEventListener("click", openLumenClip)
 reconnectButton.addEventListener("click", async () => {
   // Reconnecting must drop the stored pairing first, otherwise LumenClip hands
   // back a config that gets merged onto a dead token.
@@ -169,31 +163,10 @@ function renderContext() {
 
 async function openLumenClip() {
   await chrome.tabs.create({
-    url: companionConnectUrl(APP_ORIGIN),
+    url: companionConnectUrl(APP_ORIGIN, pageContext),
     active: true,
   })
   window.close()
-}
-
-async function loadCurrentPostComments() {
-  setBusy(true, "Loading comments…")
-  try {
-    const result = await chrome.runtime.sendMessage({
-      type: "START_COMMENTS_FOR_POST",
-      platformPostId: pageContext.platformPostId,
-    })
-    if (!result?.ok) {
-      throw new Error(result?.error || "Comments could not be loaded")
-    }
-    await refresh()
-  } catch (error) {
-    showStatus(
-      error instanceof Error ? error.message : "Comments could not be loaded",
-      "error"
-    )
-  } finally {
-    setBusy(false)
-  }
 }
 
 async function refresh(overrideMessage) {

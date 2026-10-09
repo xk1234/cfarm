@@ -1,15 +1,16 @@
+import "server-only"
+
 import crypto from "node:crypto"
+
 import { getCurrentUser } from "@/lib/auth"
 import {
-  appwritePostRepository,
-  postRepairEvent,
-  type PostRepairEvent,
-} from "@/lib/post-repository-appwrite"
-import { postRepositoryWriteMode } from "@/lib/post-repository-config"
-import type { PostFastPostRecord } from "@/lib/publication-contract"
+  listDomainRecords,
+  putDomainRecords,
+  type DomainRecord,
+} from "@/lib/railway/domain-record-store"
+import { railwayPostRepository } from "@/lib/post-repository-store"
+import type { PostFastPostRecord } from "@/lib/postfast-posts"
 import { publicationRecordSummary } from "@/lib/publication-record"
-import { RecordQuery as Query } from "@/lib/record-query"
-import { getRuntimeStore, RUNTIME_DATABASE_ID } from "@/lib/runtime-store"
 import {
   postFromPostFastRecord,
   postToPostFastRecord,
@@ -17,21 +18,14 @@ import {
 } from "@/lib/posts"
 import { systemOwnerId } from "@/lib/system-owner-context"
 
-const PAGE = 100
-
-type OutputRow = Record<string, unknown> & {
-  $id: string
-  rid?: string
-  source_key?: string
-  source_run_id?: string
-  source_entity_id?: string
-  publications?: string
+type OutputPayload = Record<string, unknown> & {
+  publications?: unknown
 }
 
 export async function listOutputPublications(): Promise<PostFastPostRecord[]> {
   const ownerId = await publicationOwnerId()
-  const rows = await listOutputRows(ownerId)
-  return rows.flatMap((row) => parsePublications(row.publications))
+  const rows = await outputRows(ownerId)
+  return rows.flatMap((row) => parsePublications(publicationValue(row)))
 }
 
 export function outputPublicationsOwnerId(): Promise<string> {
@@ -44,82 +38,47 @@ export async function listOutputPublicationsForSources(input: {
 }): Promise<PostFastPostRecord[]> {
   const entityIds = cleanIds(input.entityIds)
   const runIds = cleanIds(input.runIds)
-  if (entityIds.length === 0 && runIds.length === 0) return []
-
-  const ownerId = await publicationOwnerId()
-  const groups = await Promise.all([
-    ...(entityIds.length
-      ? [listOutputRows(ownerId, [Query.equal("source_entity_id", entityIds)])]
-      : []),
-    ...(runIds.length
-      ? [listOutputRows(ownerId, [Query.equal("source_run_id", runIds)])]
-      : []),
-  ])
-  const rows = new Map(groups.flat().map((row) => [row.$id, row]))
-  return [...rows.values()].flatMap((row) =>
-    parsePublications(row.publications)
-  )
+  if (!entityIds.length && !runIds.length) return []
+  const rows = await outputRows(await publicationOwnerId())
+  const selected = rows.filter((row) => {
+    if (runIds.includes(payloadString(row.payload, "runId"))) return true
+    if (entityIds.includes(payloadString(row.payload, "sourceId"))) return true
+    if (entityIds.includes(row.rid ?? "")) return true
+    return false
+  })
+  return selected.flatMap((row) => parsePublications(publicationValue(row)))
 }
 
 export async function writeOutputPublications(
   records: PostFastPostRecord[]
 ): Promise<void> {
-  const mode = postRepositoryWriteMode()
-  if (mode === "legacy") {
-    await writeLegacyOutputPublications(records)
-    return
-  }
-
+  if (!records.length) return
   const ownerId = await publicationOwnerId()
-  const posts = records.map((record) => postFromPostFastRecord(record, ownerId))
-  if (mode === "canonical") {
-    for (const post of posts) {
-      await appwritePostRepository.upsertPost(post, {
-        writeState: "reconciled",
-      })
-    }
-    return
+  for (const record of records) {
+    const post = postFromPostFastRecord(record, ownerId)
+    await railwayPostRepository.upsertPost(post, {
+      writeState: "reconciled",
+    })
+    await upsertPublicationWrapper(ownerId, record)
   }
-
-  await dualWriteOutputPublications(ownerId, records, posts)
 }
 
-/** Dual-writes an already canonical post without round-tripping its identity
- * fields through the lossy legacy publication projection. */
 export async function writeCanonicalPostWithLegacyProjection(
   post: Post,
   record: PostFastPostRecord
 ) {
-  const ownerId = await publicationOwnerId()
-  let resolved: Post
-  try {
-    resolved = await appwritePostRepository.upsertPost(post, {
-      writeState: "pending",
-      reconciledAt: null,
-      repairEvent: null,
-    })
-  } catch (error) {
-    throw new PostDualWriteError(
-      "Canonical post persistence failed before the legacy publication write.",
-      { cause: error }
-    )
-  }
-  const projected = postToPostFastRecord(resolved)
-  const records = await listOutputPublications()
-  await completePendingDualWrite(
-    ownerId,
-    [resolved],
-    [
-      {
-        ...projected,
-        content: record.content,
-        analytics: record.analytics,
-        lastAnalyticsSyncedAt: record.lastAnalyticsSyncedAt,
-      },
-      ...records.filter(
-        (item) => item.id !== record.id && item.id !== resolved.id
-      ),
-    ]
+  const resolved = await railwayPostRepository.upsertPost(post, {
+    writeState: "reconciled",
+  })
+  await upsertPublicationWrapper(
+    resolved.ownerId,
+    {
+      ...postToPostFastRecord(resolved),
+      content: record.content,
+      analytics: record.analytics,
+      lastAnalyticsSyncedAt: record.lastAnalyticsSyncedAt,
+    },
+    record
   )
   return resolved
 }
@@ -134,279 +93,155 @@ export class PostDualWriteError extends Error {
   }
 }
 
-async function dualWriteOutputPublications(
-  ownerId: string,
-  records: PostFastPostRecord[],
-  posts: ReturnType<typeof postFromPostFastRecord>[]
-) {
-  const pending: ReturnType<typeof postFromPostFastRecord>[] = []
-  try {
-    for (const post of posts) {
-      pending.push(
-        await appwritePostRepository.upsertPost(post, {
-          writeState: "pending",
-          reconciledAt: null,
-          repairEvent: null,
-        })
-      )
-    }
-  } catch (error) {
-    await markRepairs(ownerId, pending, "canonical_posts", errorMessage(error))
-    throw new PostDualWriteError(
-      "Canonical post persistence failed before the legacy publication write.",
-      { cause: error }
-    )
-  }
-
-  await completePendingDualWrite(ownerId, pending, records)
-}
-
-async function completePendingDualWrite(
-  ownerId: string,
-  pending: Post[],
-  records: PostFastPostRecord[]
-) {
-  try {
-    await writeLegacyOutputPublications(records, ownerId)
-  } catch (error) {
-    await markRepairs(
-      ownerId,
-      pending,
-      "legacy_output_publications",
-      errorMessage(error)
-    )
-    throw new PostDualWriteError(
-      "Legacy publication persistence failed after the canonical post write.",
-      { cause: error }
-    )
-  }
-
-  try {
-    for (const post of pending) {
-      await appwritePostRepository.setPostWriteState(
-        ownerId,
-        post.id,
-        "reconciled",
-        { repairEvent: null }
-      )
-    }
-  } catch (error) {
-    await markRepairs(ownerId, pending, "canonical_posts", errorMessage(error))
-    throw new PostDualWriteError(
-      "Post dual-write completed but reconciliation could not be recorded.",
-      { cause: error }
-    )
-  }
-}
-
-async function markRepairs(
-  ownerId: string,
-  posts: ReturnType<typeof postFromPostFastRecord>[],
-  target: PostRepairEvent["target"],
-  message: string
-) {
-  await Promise.allSettled(
-    posts.map((post) =>
-      appwritePostRepository.setPostWriteState(
-        ownerId,
-        post.id,
-        "repair_required",
-        {
-          reconciledAt: null,
-          repairEvent: postRepairEvent({
-            ownerId,
-            postId: post.id,
-            target,
-            message,
-          }),
-        }
-      )
-    )
-  )
-}
-
-async function writeLegacyOutputPublications(
-  records: PostFastPostRecord[],
-  resolvedOwnerId?: string
-): Promise<void> {
-  const aw = getRuntimeStore()
-  const ownerId = resolvedOwnerId ?? (await publicationOwnerId())
-  const rows = await listOutputRows(ownerId)
-  const desiredById = new Map(records.map((record) => [record.id, record]))
-  const assigned = new Set<string>()
-
-  for (const row of rows) {
-    const current = parsePublications(row.publications)
-    const next = current.flatMap((record) => {
-      const desired = desiredById.get(record.id)
-      if (!desired) return []
-      assigned.add(desired.id)
-      return [desired]
-    })
-    if (samePublications(current, next)) continue
-    await updateOutputPublications(row, next)
-  }
-
-  for (const record of records) {
-    if (assigned.has(record.id)) continue
-    const target =
-      rows.find((row) => outputMatchesPublication(row, record)) ??
-      (await createPublicationOutput(ownerId, record))
-    const current = parsePublications(target.publications)
-    const next = [record, ...current.filter((item) => item.id !== record.id)]
-    await updateOutputPublications(target, next)
-    target.publications = JSON.stringify(next)
-  }
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
-
-async function listOutputRows(
-  ownerId: string,
-  filters: string[] = []
-): Promise<OutputRow[]> {
-  const aw = getRuntimeStore()
-  const rows: OutputRow[] = []
-  let cursor: string | null = null
-  for (;;) {
-    const queries = [
-      Query.equal("owner_id", [ownerId]),
-      ...filters,
-      Query.limit(PAGE),
-    ]
-    if (cursor) queries.push(Query.cursorAfter(cursor))
-    const response = await aw.records.listRows(
-      RUNTIME_DATABASE_ID,
-      "outputs",
-      queries
-    )
-    rows.push(...(response.rows as OutputRow[]))
-    if (response.rows.length < PAGE) break
-    cursor = response.rows.at(-1)?.$id ?? null
-  }
-  return rows
-}
-
-function cleanIds(values: string[] | undefined) {
-  return [...new Set((values ?? []).map((value) => value.trim()))]
-    .filter(Boolean)
-    .slice(0, 100)
-}
-
-async function updateOutputPublications(
-  row: OutputRow,
-  publications: PostFastPostRecord[]
-) {
-  const aw = getRuntimeStore()
-  const summary = publicationRecordSummary(publications)
-  await aw.records.updateRow(RUNTIME_DATABASE_ID, "outputs", row.$id, {
-    publications: JSON.stringify(publications),
-    publication_status: summary.status,
-    scheduled_at: summary.scheduledAt,
-    published_at: summary.publishedAt,
-    primary_post_id: summary.postId,
-    primary_release_url: summary.releaseUrl,
-    updated_at: new Date().toISOString(),
+async function outputRows(ownerId: string): Promise<DomainRecord[]> {
+  return listDomainRecords({
+    table: "outputs",
+    ownerIds: [ownerId],
+    limit: 1000,
+    order: "none",
   })
 }
 
-async function createPublicationOutput(
+function publicationValue(row: DomainRecord): unknown {
+  if (row.payload && typeof row.payload === "object") {
+    return (row.payload as OutputPayload).publications
+  }
+  return row.sourceRow.publications
+}
+
+async function upsertPublicationWrapper(
   ownerId: string,
-  record: PostFastPostRecord
-): Promise<OutputRow> {
-  const aw = getRuntimeStore()
+  record: PostFastPostRecord,
+  analyticsOverride?: Partial<PostFastPostRecord>
+) {
+  const rows = await outputRows(ownerId)
+  const existing =
+    rows.find((row) =>
+      parsePublications(publicationValue(row)).some(
+        (publication) => publication.id === record.id
+      )
+    ) ??
+    rows.find((row) => outputMatchesPublication(row, record)) ??
+    null
+  const currentPublications = existing
+    ? parsePublications(publicationValue(existing))
+    : []
+  const projected = analyticsOverride
+    ? {
+        ...record,
+        analytics: analyticsOverride.analytics ?? record.analytics,
+        lastAnalyticsSyncedAt:
+          analyticsOverride.lastAnalyticsSyncedAt ??
+          record.lastAnalyticsSyncedAt,
+      }
+    : record
+  const publications = [
+    projected,
+    ...currentPublications.filter((publication) => publication.id !== record.id),
+  ]
+  const summary = publicationRecordSummary(publications)
+
+  if (existing) {
+    const payload = isRecord(existing.payload)
+      ? ({ ...existing.payload, publications } as OutputPayload)
+      : ({ id: existing.rid ?? record.id, publications } as OutputPayload)
+    await putDomainRecords([
+      {
+        table: "outputs",
+        rowId: existing.rowId,
+        ownerId,
+        sourceKey: existing.sourceKey,
+        rid: existing.rid,
+        name: existing.name,
+        status: summary.status,
+        ord: existing.ord,
+        payload,
+        sourceRow: {
+          ...existing.sourceRow,
+          publication_status: summary.status,
+          scheduled_at: summary.scheduledAt,
+          published_at: summary.publishedAt,
+          primary_post_id: summary.postId,
+          primary_release_url: summary.releaseUrl,
+          updated_at: new Date().toISOString(),
+        },
+      },
+    ])
+    return existing
+  }
+
   const now = new Date().toISOString()
-  const rid = `published-${record.sourceType}-${crypto
-    .createHash("sha256")
-    .update(record.sourceId)
-    .digest("hex")
-    .slice(0, 18)}`
-  const rowId = `o${crypto
-    .createHash("sha256")
-    .update(`outputs:publication_wrapper:${ownerId}:${rid}`)
-    .digest("hex")
-    .slice(0, 35)}`
-  const data = {
+  const rid = `published-${record.sourceType}-${crypto.createHash("sha256").update(record.sourceId).digest("hex").slice(0, 18)}`
+  const rowId = `o${crypto.createHash("sha256").update(`outputs:publication_wrapper:${ownerId}:${rid}`).digest("hex").slice(0, 35)}`
+  const payload: OutputPayload = {
     id: rid,
     sourceType: record.sourceType,
     sourceId: record.sourceId,
     createdAt: now,
     updatedAt: now,
+    publications,
   }
-  const created = await aw.records.upsertRow(
-    RUNTIME_DATABASE_ID,
-    "outputs",
-    rowId,
+  const sourceRow = {
+    owner_id: ownerId,
+    rid,
+    source_key: "publication_wrapper",
+    kind:
+      record.sourceType === "generated_video" || record.sourceType === "greenscreen"
+        ? "video"
+        : record.sourceType === "image"
+          ? "image"
+          : record.sourceType === "slideshow"
+            ? "slideshow"
+            : "social_post",
+    subtype: record.provider,
+    status: "ready",
+    title: record.content.slice(0, 2048),
+    caption: record.content,
+    text: record.content,
+    source_run_id:
+      record.sourceType === "automation" || record.sourceType === "x_automation"
+        ? record.sourceId
+        : null,
+    source_entity_id: record.sourceId,
+    publication_status: summary.status,
+    scheduled_at: summary.scheduledAt,
+    published_at: summary.publishedAt,
+    primary_post_id: summary.postId,
+    primary_release_url: summary.releaseUrl,
+    created_at: now,
+    updated_at: now,
+  }
+  await putDomainRecords([
     {
+      table: "outputs",
+      rowId,
+      ownerId,
+      sourceKey: "publication_wrapper",
       rid,
-      owner_id: ownerId,
-      source_key: "publication_wrapper",
-      name: record.content.slice(0, 120) || "Published output",
-      kind: outputKind(record.sourceType),
-      subtype: record.provider || null,
+      name: record.content.slice(0, 2048) || "Published output",
       status: "ready",
-      storage_class: "permanent",
-      origin: "deployed_app",
-      title: record.content.slice(0, 2048) || "Published output",
-      hook: null,
-      caption: record.content,
-      hashtags: "[]",
-      text: record.content,
-      text_data: "null",
-      source_automation_id: null,
-      source_run_id:
-        record.sourceType === "automation" ||
-        record.sourceType === "x_automation"
-          ? record.sourceId
-          : null,
-      source_entity_id: record.sourceId,
-      publication_status: null,
-      scheduled_at: null,
-      published_at: null,
-      primary_post_id: null,
-      primary_release_url: null,
-      publications: "[]",
-      evaluation: "null",
-      error: null,
-      created_raw: now,
-      updated_at: now,
-      migration_source: null,
       ord: -Date.now(),
-      data: JSON.stringify(data),
-    }
-  )
-  return created as OutputRow
+      payload,
+      sourceRow,
+    },
+  ])
+  return null
 }
 
 function outputMatchesPublication(
-  row: OutputRow,
+  row: DomainRecord,
   record: PostFastPostRecord
-): boolean {
-  if (
-    parsePublications(row.publications).some(
-      (publication) =>
-        publication.sourceType === record.sourceType &&
-        publication.sourceId === record.sourceId
-    )
-  ) {
-    return true
-  }
+) {
   if (
     record.sourceType === "automation" ||
     record.sourceType === "x_automation"
   ) {
-    return row.source_run_id === record.sourceId
+    return row.sourceRow.source_run_id === record.sourceId
   }
-  if (row.source_entity_id === record.sourceId || row.rid === record.sourceId) {
-    if (record.sourceType === "generated_video") {
-      return row.source_key === "generated_video"
-    }
-    if (record.sourceType === "slideshow") return row.source_key === "result"
-    return true
-  }
-  return false
+  return (
+    row.sourceRow.source_entity_id === record.sourceId ||
+    row.rid === record.sourceId
+  )
 }
 
 function parsePublications(value: unknown): PostFastPostRecord[] {
@@ -420,20 +255,20 @@ function parsePublications(value: unknown): PostFastPostRecord[] {
   }
 }
 
-function samePublications(
-  left: PostFastPostRecord[],
-  right: PostFastPostRecord[]
-): boolean {
-  return JSON.stringify(left) === JSON.stringify(right)
+function cleanIds(values: string[] | undefined) {
+  return [...new Set((values ?? []).map((value) => value.trim()))]
+    .filter(Boolean)
+    .slice(0, 100)
 }
 
-function outputKind(sourceType: PostFastPostRecord["sourceType"]): string {
-  if (sourceType === "generated_video" || sourceType === "greenscreen") {
-    return "video"
-  }
-  if (sourceType === "image") return "image"
-  if (sourceType === "slideshow") return "slideshow"
-  return "social_post"
+function payloadString(payload: unknown, key: string) {
+  return isRecord(payload) && typeof payload[key] === "string"
+    ? (payload[key] as string)
+    : ""
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
 
 async function publicationOwnerId(): Promise<string> {
@@ -443,7 +278,7 @@ async function publicationOwnerId(): Promise<string> {
     const user = await getCurrentUser()
     if (user) return user.$id
   } catch {
-    // Scripts and isolated tests do not have a request context.
+    // Maintenance scripts can set the system owner explicitly.
   }
   const configured = process.env.LUMENCLIP_SYSTEM_OWNER_ID?.trim()
   if (configured) return configured

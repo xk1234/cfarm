@@ -10,8 +10,8 @@ export const dynamic = "force-dynamic"
 const ugcSchema = z
   .object({
     enabled: z.boolean().optional(),
-    actorSource: z.enum(["generate", "collection"]).optional(),
-    actorCollectionId: z.string().optional(),
+    actorSource: z.enum(["generate", "gallery", "upload"]).optional(),
+    actorAssetUrl: z.string().optional(),
     voiceModel: z.string().optional(),
     lipSyncTier: z.enum(["standard", "premium"]).optional(),
     targetDurationSeconds: z.number().min(15).max(180).optional(),
@@ -30,5 +30,5 @@ export const POST = withHandler(async (request: Request) => {
 
 function assertUgcEnabled() {
   if (process.env.ENABLE_UGC_AUTOMATION !== "true")
-    throw new ApiError(404, "UGC template is not enabled.")
+    throw new ApiError(404, "UGC automation is not enabled.")
 }

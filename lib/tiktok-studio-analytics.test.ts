@@ -8,6 +8,7 @@ import {
   parseTikTokPostReference,
   parseTikTokPostReferences,
   parseTikTokStudioInsightPayload,
+  normalizeDiscoveredTikTokPosts,
   selectTikTokStudioBatchPublications,
 } from "@/lib/tiktok-studio-analytics"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
@@ -83,7 +84,18 @@ describe("TikTok Studio analytics parser", () => {
             desc: "The secrets a Cancer keeps",
             author: { unique_id: "horoiq" },
             image_post_info: {
-              images: [{}, {}, {}, {}],
+              images: [
+                {
+                  display_image: {
+                    url_list: [
+                      "https://p16-sign.tiktokcdn-us.com/first-slide.webp",
+                    ],
+                  },
+                },
+                {},
+                {},
+                {},
+              ],
             },
             statistics: {
               play_count: 29783,
@@ -123,11 +135,23 @@ describe("TikTok Studio analytics parser", () => {
             { search_term: "cancer venus", percent: 0.125 },
           ],
         },
+        video_vv_history_7d: [
+          { status: 0, value: 9_100 },
+          { status: 0, value: 7_300 },
+          { status: 2 },
+        ],
+        video_vv_history_48_hours: [
+          { status: 0, value: 420 },
+          { status: 0, value: 380 },
+        ],
       },
     })
 
     expect(parsed.externalPostId).toBe("7662360324313517330")
     expect(parsed.sections).toContain("overview")
+    expect(parsed.overview?.thumbnailUrl).toBe(
+      "https://p16-sign.tiktokcdn-us.com/first-slide.webp"
+    )
     expect(parsed.overview).toMatchObject({
       authorUsername: "horoiq",
       views: 29783,
@@ -167,6 +191,32 @@ describe("TikTok Studio analytics parser", () => {
     expect(parsed.searchTerms).toEqual([
       { term: "cancer meaning", percent: 0.125 },
       { term: "cancer venus", percent: 0.125 },
+    ])
+    expect(parsed.viewHistory7d).toEqual([
+      { offset: 1, status: 0, value: 9_100 },
+      { offset: 2, status: 0, value: 7_300 },
+      { offset: 3, status: 2 },
+    ])
+    expect(parsed.viewHistory48h).toEqual([
+      { offset: 1, status: 0, value: 420 },
+      { offset: 2, status: 0, value: 380 },
+    ])
+  })
+
+  it("keeps safe thumbnails from companion-discovered posts", () => {
+    expect(
+      normalizeDiscoveredTikTokPosts([
+        {
+          externalPostId: "7662360324313517330",
+          releaseUrl:
+            "https://www.tiktok.com/@horoiq/photo/7662360324313517330",
+          thumbnailUrl: "https://p16-sign.tiktokcdn-us.com/first-slide.webp",
+        },
+      ])
+    ).toEqual([
+      expect.objectContaining({
+        thumbnailUrl: "https://p16-sign.tiktokcdn-us.com/first-slide.webp",
+      }),
     ])
   })
 

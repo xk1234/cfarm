@@ -3,13 +3,11 @@ import { createHash } from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import {
-  mirrorAssetToAppwrite,
+  persistStoredAsset,
   readAssetBytes,
 } from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
@@ -51,7 +49,7 @@ async function seedCollections(collections: unknown[]) {
 }
 
 async function seedFile(fileName: string) {
-  await mirrorAssetToAppwrite(filePath(fileName), new Uint8Array([1, 2, 3]))
+  await persistStoredAsset(filePath(fileName), new Uint8Array([1, 2, 3]))
 }
 
 async function storedCollectionNames() {

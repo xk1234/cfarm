@@ -4,7 +4,15 @@ import type {
   AutomationRunStatus,
 } from "@/lib/automation-run-contract"
 
-export type AutomationDrawerTab = "editor" | "text" | "settings"
+export type AutomationDrawerTab =
+  | "overview"
+  | "format"
+  | "hooks"
+  | "analytics"
+  | "schedule"
+  | "tiktok"
+  | "published-posts"
+  | "settings"
 
 export type AutomationRunApiPayload = {
   created?: AutomationRunApiRecord[]
@@ -22,7 +30,6 @@ export type AutomationRunApiPayload = {
 }
 
 export type AutomationRunApiRecord = {
-  ownerId?: string
   id: string
   automationId: string
   automationTitle: string
@@ -38,10 +45,8 @@ export type AutomationRunApiRecord = {
   slideshowId?: string
   videoUrl?: string
   thumbnailUrl?: string
-  durationSeconds?: number
   outputImages?: string[]
   outputDir?: string
-  workflowUrl?: string
   socialStatuses?: SocialAccountStatusItem[]
   manuallyPublishedAt?: string
   renderedSlides?: AutomationRunApiSlide[]
@@ -55,7 +60,10 @@ export type AutomationRunApiRecord = {
     hashtags?: string
     hook?: string
     hookId?: string
+    hookTemplate?: string
+    hookSubstitutions?: Record<string, string>
     hookCandidates?: string[]
+    imageCollectionIds?: string[]
     textModel?: string
     publishType?: string
     language?: string
@@ -69,6 +77,23 @@ export type AutomationRunApiRecord = {
     debug?: {
       selectedHookIndex?: number
       textModelPrompt?: unknown
+      textGenerationResult?: unknown
+      generatedCaption?: string
+      textTransformations?: unknown
+      webSearchSources?: unknown
+      imageTextCoherenceRepair?: boolean
+      workflowFork?: {
+        groupId: string
+        parentRunId: string
+        forkStageId: string
+        forkScope?: "input" | "selection"
+        inputPath: string
+        variationId: string
+        variationName: string
+        selectedText: string
+        replacement: string
+        createdAt: string
+      }
     }
     slides?: AutomationRunApiSlide[]
   }
