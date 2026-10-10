@@ -505,7 +505,7 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
       id: row.$id,
       workspaceId: String(row.workspace_id),
       name: String(row.name),
-      mediaKind: (row.media_kind === "video" ? "video" : "image") as MediaKind,
+      mediaKind: "image" as MediaKind,
       pinned: row.pinned === true,
       itemCount: numOrNull(row.item_count) ?? 0,
       coverMediaId: strOrNull(row.cover_media_id),
@@ -587,7 +587,7 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
       id: row.$id,
       workspaceId: String(row.workspace_id),
       collectionId: strOrNull(row.collection_id),
-      kind: (row.kind === "video" ? "video" : "image") as MediaKind,
+      kind: "image" as MediaKind,
       bucketId: "media",
       fileId: String(row.file_id),
       mimeType: String(row.mime_type),
@@ -1242,6 +1242,18 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
           failOptions?.retryAt ?? new Date(now().getTime() + Math.min(2 ** attempt * 1000, 15 * 60_000)).toISOString()
       }
       return toJob(await updateRow(J, jobId, data))
+    },
+    async listDead({ type, since, limit }) {
+      const n = Math.min(Math.max(1, limit), MAX_PAGE_SIZE)
+      // `status` leads the existing claimable/expired indexes; both dead paths set completed_at.
+      const { rows } = await listRows(J, [
+        Query.equal("status", "dead"),
+        ...(type ? [Query.equal("type", type)] : []),
+        ...(since ? [Query.greaterThanEqual("completed_at", since)] : []),
+        Query.orderDesc("completed_at"),
+        Query.limit(n),
+      ])
+      return limit > 0 ? rows.map(toJob) : []
     },
   }
 

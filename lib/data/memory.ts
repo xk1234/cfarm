@@ -786,6 +786,14 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
       }
       return clone(job)
     },
+    async listDead({ type, since, limit }) {
+      const finished = (j: Job) => j.completedAt ?? j.updatedAt
+      return [...jobs.values()]
+        .filter((j) => j.status === "dead" && (!type || j.type === type) && (!since || finished(j) >= since))
+        .sort((a, b) => (finished(a) < finished(b) ? 1 : finished(a) > finished(b) ? -1 : 0))
+        .slice(0, Math.max(0, limit))
+        .map((j) => clone(j))
+    },
   }
 
   // ─── blobs ───

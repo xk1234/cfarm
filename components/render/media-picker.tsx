@@ -196,7 +196,8 @@ function CollectionsPanel({ onSelect }: { onSelect: (picked: PickedImage) => voi
           onClick={() =>
             onSelect({
               source: randomCollectionSource(selected.id),
-              thumbnailUrl: images[0] ? mediaThumbnailUrl(images[0]) : null,
+              // The pick happens at render time, so no single image represents it.
+              thumbnailUrl: null,
               label: `Random from ${selected.name}`,
             })
           }

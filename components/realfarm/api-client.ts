@@ -76,7 +76,6 @@ export const apiRoutes = {
   imageCollectionsImport: "/api/image-collections/import",
   imageCollectionsDeletePreview: "/api/image-collections/delete-preview",
   collectionAssetUpload: "/api/assets/upload",
-  mediaLibrary: "/api/media-library",
 } as const
 
 // ─────────────────────────────── errors ───────────────────────────────

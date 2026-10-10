@@ -1,5 +1,4 @@
 import type { StoredImageCollection } from "@/lib/image-collections"
-import type { LocalAsset } from "@/lib/realfarm-data"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 
 // Canonical persisted collection shape lives in image-collections; re-export
@@ -8,19 +7,13 @@ export type { StoredImageCollection }
 
 export type CreatedImageCollection = {
   id: string
+  /** Server row id once saved; renames address the row by it. */
+  serverId?: string
   title: string
-  mediaType?: "image" | "video"
   images: PinterestSearchResult[]
   createdAt: string
   pinned?: boolean
-  source:
-    | "pinterest"
-    | "pexels"
-    | "upload"
-    | "virtual"
-    | "fallback"
-    | "pexels-fallback"
-    | "empty"
+  source: "pinterest" | "pexels" | "upload" | "empty" | "fallback" | "pexels-fallback"
   virtual?: boolean
   payload?: PinterestCollectionCreatePayload
 }
@@ -31,90 +24,14 @@ export type PinterestCollectionCreatePayload = {
   collection_name: string
 }
 
-export function defaultImageCollections(): CreatedImageCollection[] {
-  return [
-    {
-      id: "default-backgrounds",
-      title: "Backgrounds",
-      images: [],
-      createdAt: "default",
-      source: "fallback",
-    },
-  ]
-}
-
-export function ugcAvatarVideoCollectionFromAssets(
-  videos: LocalAsset[],
-  categorizedCollections: CreatedImageCollection[] = []
-): CreatedImageCollection {
-  const categorizedVideos = categorizedCollections
-    .filter(
-      (collection) =>
-        collection.mediaType === "video" &&
-        collection.title.startsWith("UGC Avatars — ")
-    )
-    .flatMap((collection) => collection.images)
-  const localVideos = videos
-    .filter((video) => video.kind === "video" && video.url)
-    .map((video) => ({
-      id: video.id,
-      title: video.name,
-      description: video.name,
-      imageUrl: video.url,
-      sourceUrl: video.url,
-      dominantColor: "#1f1f1f",
-    }))
-  const seen = new Set<string>()
-
-  return {
-    id: "collection-ugc-avatar-videos",
-    title: "AI UGC Avatar Videos",
-    mediaType: "video",
-    images: [...categorizedVideos, ...localVideos].filter((video) => {
-      const key = video.imageUrl || video.sourceUrl
-      if (!key || seen.has(key)) return false
-      seen.add(key)
-      return true
-    }),
-    createdAt: "virtual",
-    source: "virtual",
-    virtual: true,
-  }
-}
-
-export function greenscreenMemeCollectionFromAssets(
-  videos: LocalAsset[]
-): CreatedImageCollection {
-  return {
-    id: "collection-greenscreen-memes",
-    title: "Greenscreen Memes",
-    mediaType: "video",
-    images: videos
-      .filter((video) => video.kind === "video" && video.url)
-      .map((video) => ({
-        id: video.id,
-        title: video.name,
-        description: video.name,
-        imageUrl: video.url,
-        sourceUrl: video.url,
-        dominantColor: "#1f1f1f",
-      })),
-    createdAt: "virtual",
-    source: "virtual",
-    virtual: true,
-  }
-}
-
 export function collectionToStored(
   collection: CreatedImageCollection
 ): StoredImageCollection {
   return {
+    ...(collection.serverId ? { id: collection.serverId } : {}),
     name: collection.title,
     created_at: normalizedCollectionDate(collection.createdAt),
     pinned: collection.pinned === true,
-    ...(collection.mediaType === "video"
-      ? { mediaType: "video" as const }
-      : {}),
     images: collection.images
       .filter((image) => image.imageUrl)
       .map((image) => ({
@@ -130,8 +47,8 @@ export function storedToCollection(
 ): CreatedImageCollection {
   return {
     id: storedCollectionId(collection),
+    ...(collection.id ? { serverId: collection.id } : {}),
     title: collection.name,
-    mediaType: collection.mediaType === "video" ? "video" : "image",
     createdAt: normalizedCollectionDate(collection.created_at),
     pinned: collection.pinned === true,
     source: "pinterest",
@@ -145,6 +62,17 @@ export function storedToCollection(
       ...(image.last_used_at ? { lastUsedAt: image.last_used_at } : {}),
       dominantColor: "#d9d8d0",
     })),
+  }
+}
+
+/** "Untitled collection", then "Untitled collection 2", 3, … (names are unique per workspace). */
+export function nextUntitledCollectionName(existing: readonly { title: string }[]): string {
+  const base = "Untitled collection"
+  const taken = new Set(existing.map((collection) => collection.title.trim().toLowerCase()))
+  if (!taken.has(base.toLowerCase())) return base
+  for (let n = 2; ; n += 1) {
+    const name = `${base} ${n}`
+    if (!taken.has(name.toLowerCase())) return name
   }
 }
 

@@ -19,7 +19,7 @@ export async function WorkspaceRoute({
   const user = await getCurrentUser()
   if (!user) redirect("/login")
 
-  const data = await loadRealFarmData({ mediaAssets: [] })
+  const data = await loadRealFarmData()
 
   return (
     <RealFarmWorkspace

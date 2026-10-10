@@ -1,7 +1,7 @@
 /**
  * Isomorphic asset helpers: content sniffing, limits, and in-memory loaders.
- * Server loaders (repository blobs + SSRF-guarded fetch) live in
- * `./node/assets`; the browser preview supplies its own loader.
+ * The server loader (repository blobs + SSRF-guarded fetch) lives in
+ * `@/lib/renders/assets`; the browser preview supplies its own loader.
  */
 import { imageSourceKey } from "./display-list"
 import { AssetLoadError, type AssetLoader, type LoadedAsset } from "./engine"

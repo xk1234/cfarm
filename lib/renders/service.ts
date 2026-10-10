@@ -319,7 +319,6 @@ export async function enqueueRenderJob(
   return value
 }
 
-/** Records an in-app notification for a finished async render. */
 /** In-app "render finished" notification; honours the workspace's reminder channel. */
 export async function notifyRenderFinished(repos: Repositories, render: Render) {
   await notifyRender(render.workspaceId, render, { repos })
@@ -437,6 +436,8 @@ export async function submitRender(
   if (!created.created) return { mode: "replay", render: created.render, error: null, jobId: created.render.jobId }
   if (created.sync) {
     const { render, error } = await executeRender(deps, workspaceId, created.render.id, { quality: created.quality })
+    // Inline renders notify like worker renders do (best-effort).
+    await notifyRenderFinished(deps.repos, render).catch(() => undefined)
     return { mode: "sync", render, error, jobId: null }
   }
   const job = await enqueueRenderJob(deps.repos, workspaceId, created.render.id, { quality: created.quality })

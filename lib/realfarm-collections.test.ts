@@ -2,14 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import {
   collectionAliases,
-  defaultImageCollections,
   findCollectionByIdOrAlias,
   pinnedCollectionsFirst,
+  collectionToStored,
+  nextUntitledCollectionName,
   storedToCollection,
-  ugcAvatarVideoCollectionFromAssets,
   type CreatedImageCollection,
 } from "@/lib/realfarm-collections"
-import type { LocalAsset } from "@/lib/realfarm-data"
 
 describe("realfarm collection helpers", () => {
   it("uses a stable name slug while retaining the old timestamped id as an alias", () => {
@@ -41,16 +40,17 @@ describe("realfarm collection helpers", () => {
     ])
   })
 
-  it("uses provider-neutral static default collection names", () => {
-    const collections = defaultImageCollections()
+  it("keeps the server id so a rename addresses the saved row", () => {
+    const collection = storedToCollection({ id: "row_1", name: "Sunsets", created_at: "", images: [] })
+    expect(collection.serverId).toBe("row_1")
+    expect(collectionToStored({ ...collection, title: "Dusk" })).toMatchObject({ id: "row_1", name: "Dusk" })
+  })
 
-    expect(collections[0]).toEqual({
-      id: "default-backgrounds",
-      title: "Backgrounds",
-      images: [],
-      createdAt: "default",
-      source: "fallback",
-    })
+  it("names new collections uniquely", () => {
+    expect(nextUntitledCollectionName([])).toBe("Untitled collection")
+    expect(
+      nextUntitledCollectionName([{ title: "Untitled collection" }, { title: "untitled collection 2" }])
+    ).toBe("Untitled collection 3")
   })
 
   it("matches imported Reelfarm collection ids from local asset filenames", () => {
@@ -150,9 +150,8 @@ describe("realfarm collection helpers", () => {
       {
         id: "collection-ugc-avatar-videos",
         title: "UGC Avatar Videos",
-        mediaType: "video",
         createdAt: "virtual",
-        source: "virtual",
+        source: "upload",
         virtual: true,
         images: [soccerHookImage],
       },
@@ -198,86 +197,5 @@ describe("realfarm collection helpers", () => {
     expect(
       findCollectionByIdOrAlias(collections, "community_collection_11356")
     ).toBeUndefined()
-  })
-
-  it("creates a video collection from AI UGC avatar videos", () => {
-    const videos: LocalAsset[] = [
-      {
-        id: "avatar-one",
-        name: "Avatar One",
-        path: "ugc_avatar_videos/avatar-one.mp4",
-        url: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
-        kind: "video",
-      },
-    ]
-
-    const collection = ugcAvatarVideoCollectionFromAssets(videos)
-
-    expect(collection).toMatchObject({
-      id: "collection-ugc-avatar-videos",
-      title: "AI UGC Avatar Videos",
-      mediaType: "video",
-      source: "virtual",
-      virtual: true,
-    })
-    expect(collection.images[0]).toMatchObject({
-      id: "avatar-one",
-      title: "Avatar One",
-      imageUrl: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
-      sourceUrl: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
-    })
-  })
-
-  it("merges categorized Appwrite videos into AI UGC Avatar Videos", () => {
-    const videos: LocalAsset[] = [
-      {
-        id: "avatar-one",
-        name: "Avatar One",
-        path: "ugc_avatar_videos/avatar-one.mp4",
-        url: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
-        kind: "video",
-      },
-    ]
-    const categorizedCollections: CreatedImageCollection[] = [
-      {
-        id: "ugc-surprise",
-        title: "UGC Avatars — Surprise & Shock",
-        mediaType: "video",
-        createdAt: "2026-07-15T00:00:00.000Z",
-        source: "pinterest",
-        images: [
-          {
-            id: "categorized-avatar-one",
-            title: "Creator covers their mouth in surprise.",
-            description: "Creator covers their mouth in surprise.",
-            imageUrl: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
-            sourceUrl: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
-            dominantColor: "#d9d8d0",
-          },
-          {
-            id: "categorized-avatar-two",
-            title: "Creator points directly at the camera.",
-            description: "Creator points directly at the camera.",
-            imageUrl: "/api/local-assets/ugc_avatar_videos/avatar-two.mp4",
-            sourceUrl: "/api/local-assets/ugc_avatar_videos/avatar-two.mp4",
-            dominantColor: "#d9d8d0",
-          },
-        ],
-      },
-    ]
-
-    const collection = ugcAvatarVideoCollectionFromAssets(
-      videos,
-      categorizedCollections
-    )
-
-    expect(collection.images).toHaveLength(2)
-    expect(collection.images[0]).toMatchObject({
-      id: "categorized-avatar-one",
-      description: "Creator covers their mouth in surprise.",
-    })
-    expect(collection.images[1]).toMatchObject({
-      id: "categorized-avatar-two",
-    })
   })
 })

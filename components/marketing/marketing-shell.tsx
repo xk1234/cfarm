@@ -1,4 +1,5 @@
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, UserButton } from "@/components/auth/clerk-adapter";
+import { ServerShow as Show } from "@/components/auth/server-show";
 import Image from "next/image";
 import Link from "next/link";
 

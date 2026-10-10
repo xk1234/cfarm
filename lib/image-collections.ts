@@ -1,5 +1,5 @@
 /**
- * Image/video collections on the Appwrite data layer: a `collections` row per
+ * Image collections on the Appwrite data layer: a `collections` row per
  * collection and one `media` row per item, with bytes in the private `media`
  * bucket. Remote picks (Pinterest, Pexels, URL imports) are copied into
  * storage at pick time so renders stay reproducible.
@@ -25,7 +25,6 @@ export type StoredImageCollection = {
   name: string
   created_at: string
   pinned?: boolean
-  mediaType?: "image" | "video"
   deletedAt?: string
   deletedUntil?: string
   images: {
@@ -79,7 +78,6 @@ function toStored(collection: Collection, media: Media[]): StoredImageCollection
     name: collection.name,
     created_at: collection.createdAt,
     pinned: collection.pinned,
-    ...(collection.mediaKind === "video" ? { mediaType: "video" as const } : {}),
     ...(collection.deletedAt ? { deletedAt: collection.deletedAt } : {}),
     ...(collection.purgeAfter ? { deletedUntil: collection.purgeAfter } : {}),
     images: media.map((m) => ({
@@ -108,7 +106,6 @@ async function findOrCreateCollection(
   repos: Repositories,
   workspaceId: WorkspaceId,
   name: string,
-  mediaKind: "image" | "video",
   createdBy: string
 ): Promise<Collection> {
   const existing = await repos.collections.getByName(workspaceId, name)
@@ -116,7 +113,7 @@ async function findOrCreateCollection(
     return existing.deletedAt ? repos.collections.restore(workspaceId, existing.id) : existing
   }
   try {
-    return await repos.collections.create(workspaceId, { name, mediaKind, createdBy })
+    return await repos.collections.create(workspaceId, { name, createdBy })
   } catch (error) {
     // Lost a race with a concurrent create of the same name.
     if (error instanceof DataConflictError) {
@@ -133,7 +130,6 @@ async function ingestRemote(
   input: {
     url: string
     collectionId: string
-    mediaType: "image" | "video"
     caption?: string
     sourceUrl?: string
     createdBy: string
@@ -141,7 +137,6 @@ async function ingestRemote(
   options: CollectionWriteOptions
 ) {
   const remote = await fetchRemoteMedia(input.url, {
-    kind: input.mediaType,
     maxBytes: MAX_IMPORT_IMAGE_BYTES,
     referer: safeHttpUrl(input.sourceUrl ?? "") || undefined,
     fetchImpl: options.fetchImpl,
@@ -171,8 +166,15 @@ export async function upsertImageCollection(
   const repos = options.repos ?? getRepositories()
   const createdBy = options.createdBy ?? workspaceId
   const name = clean(collection.name) || "Untitled collection"
-  const mediaType = collection.mediaType === "video" ? "video" : "image"
-  let row = await findOrCreateCollection(repos, workspaceId, name, mediaType, createdBy)
+  // A saved collection is addressed by id, so a new name renames it instead of
+  // creating a second collection; unsaved ones are found or created by name.
+  const saved = collection.id ? await repos.collections.get(workspaceId, collection.id) : null
+  let row =
+    saved && !saved.deletedAt
+      ? saved.name === name
+        ? saved
+        : await repos.collections.rename(workspaceId, saved.id, name)
+      : await findOrCreateCollection(repos, workspaceId, name, createdBy)
   if (row.pinned !== (collection.pinned === true)) {
     row = await repos.collections.setPinned(workspaceId, row.id, collection.pinned === true)
   }
@@ -205,7 +207,7 @@ export async function upsertImageCollection(
         await ingestRemote(
           repos,
           workspaceId,
-          { url: link, collectionId: row.id, mediaType, caption: image.caption, createdBy },
+          { url: link, collectionId: row.id, caption: image.caption, createdBy },
           options
         )
       ).value
@@ -283,26 +285,24 @@ export async function importRemoteImagesToCollection(
   input: {
     collectionName?: string
     collectionCreatedAt?: string
-    mediaType?: "image" | "video"
     images?: { url?: string; caption?: string; sourceUrl?: string }[]
   },
   options: CollectionWriteOptions = {}
 ) {
   const repos = options.repos ?? getRepositories()
   const createdBy = options.createdBy ?? workspaceId
-  const mediaType = input.mediaType === "video" ? "video" : "image"
   const images = dedupeImportImages(Array.isArray(input.images) ? input.images : []).slice(0, MAX_IMPORT_IMAGES)
   if (images.length === 0) throw new Error("No images to import")
 
   const name = clean(input.collectionName) || "Imported images"
-  const row = await findOrCreateCollection(repos, workspaceId, name, mediaType, createdBy)
+  const row = await findOrCreateCollection(repos, workspaceId, name, createdBy)
   let imported = 0
   for (const [index, image] of images.entries()) {
     try {
       const { created } = await ingestRemote(
         repos,
         workspaceId,
-        { url: image.url, collectionId: row.id, mediaType, caption: image.caption, sourceUrl: image.sourceUrl, createdBy },
+        { url: image.url, collectionId: row.id, caption: image.caption, sourceUrl: image.sourceUrl, createdBy },
         options
       )
       if (created) imported += 1

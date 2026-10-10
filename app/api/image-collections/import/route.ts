@@ -13,7 +13,6 @@ export const POST = withHandler(async (request: Request) => {
     const result = await importRemoteImagesToCollection(workspaceId, {
       collectionName: payload?.collectionName,
       collectionCreatedAt: payload?.collectionCreatedAt,
-      mediaType: payload?.mediaType,
       images: payload?.images,
     })
     return NextResponse.json(result, { status: 201 })

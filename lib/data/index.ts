@@ -58,22 +58,40 @@ export function createAppwriteRepositories(options?: AppwriteRepositoryOptions):
   return createAppwriteBackend(options)
 }
 
-let cached: Repositories | null = null
+/**
+ * The process-wide repositories live on `globalThis`: Next dev bundles route
+ * handlers, server components and the proxy separately, so a module-level
+ * variable would give each bundle its own in-memory store.
+ */
+const CACHE_KEY = Symbol.for("lumenclip.repositories")
+type RepositoryCache = { [CACHE_KEY]?: Repositories | null }
+const store = globalThis as RepositoryCache
+
+function getCached(): Repositories | null {
+  return store[CACHE_KEY] ?? null
+}
+
+function setCached(repositories: Repositories | null): void {
+  store[CACHE_KEY] = repositories
+}
 
 /** Process-wide repositories for the configured backend. */
 export function getRepositories(): Repositories {
+  const cached = getCached()
   if (cached) return cached
-  cached = dataBackendFromEnv() === "memory" ? createMemoryRepositories() : createAppwriteRepositories()
-  return cached
+  const created = dataBackendFromEnv() === "memory" ? createMemoryRepositories() : createAppwriteRepositories()
+  setCached(created)
+  return created
 }
 
 /** Tests: install specific repositories (or `null` to re-read the env). */
 export function setRepositoriesForTesting(repositories: Repositories | null): void {
-  cached = repositories
+  setCached(repositories)
 }
 
 /** Tests: start from an empty in-memory store. */
 export function resetMemoryRepositories(): Repositories {
-  cached = createMemoryRepositories()
-  return cached
+  const created = createMemoryRepositories()
+  setCached(created)
+  return created
 }

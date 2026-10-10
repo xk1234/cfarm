@@ -214,6 +214,18 @@ export interface JobsRepository {
   complete(jobId: string, workerId: string, result?: unknown): Promise<Job>
   /** Requeues with backoff (`retryAt`) or marks `dead` once attempts are exhausted. */
   fail(jobId: string, workerId: string, error: string, options?: { retryAt?: IsoDateTime; permanent?: boolean }): Promise<Job>
+  /**
+   * System: `dead` jobs across workspaces, most recently finished first
+   * (whether `fail()` or an exhausted lease in `claim()` killed them).
+   * `since` keeps only jobs with completedAt ≥ since.
+   */
+  listDead(options: ListDeadJobsOptions): Promise<Job[]>
+}
+
+export type ListDeadJobsOptions = {
+  type?: JobType
+  since?: IsoDateTime
+  limit: number
 }
 
 export interface JobLeasesRepository {

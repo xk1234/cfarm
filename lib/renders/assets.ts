@@ -1,21 +1,36 @@
 /**
- * Server-side image loading for renders and URL imports.
+ * The one server-side image loader for renders and URL imports (API routes,
+ * worker, MCP). `lib/render/node` re-exports it.
  *
  * - `{media}` sources are read from the private `media` bucket after an
- *   ownership check (the media row must belong to the workspace).
+ *   ownership check (the media row must belong to the workspace and be an
+ *   image); the bytes are re-sniffed with `checkImageBytes`.
  * - `{url}` sources go through the SSRF guard (public http/https hosts only,
- *   re-checked on every redirect) and a streamed size cap. Requests use
- *   `guardedFetch`, which pins each connection to the address the policy
- *   approved, so DNS rebinding cannot redirect the socket after the check.
+ *   no credentials, re-checked on every redirect), a total timeout and a
+ *   streamed size cap, and the body must sniff as a supported image (the
+ *   declared Content-Type is never trusted). Requests use `guardedFetch`,
+ *   which pins each connection to the address the policy approved, so DNS
+ *   rebinding cannot redirect the socket after the check.
  */
+import dns from "node:dns"
+import net from "node:net"
+
+import type { Repositories, WorkspaceId } from "@/lib/data"
+import { cachedAssetLoader, checkImageBytes } from "@/lib/render/assets"
 import { AssetLoadError, type AssetLoader, type LoadedAsset } from "@/lib/render/engine"
 import type { ResolvedImageSource } from "@/lib/render/spec"
-import type { Repositories, WorkspaceId } from "@/lib/data"
-import { assertPublicHttpUrl, BlockedUrlError, guardedFetch } from "@/lib/url-guard"
+import {
+  assertPublicHttpUrl,
+  BlockedUrlError,
+  guardedFetch,
+  isBlockedAddress,
+  type LookupFn,
+} from "@/lib/url-guard"
 
 export const REMOTE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
 export const REMOTE_IMAGE_TIMEOUT_MS = 15_000
 const MAX_REDIRECTS = 3
+const USER_AGENT = "LumenClipRenderer/1.0"
 
 export const SUPPORTED_IMAGE_MIMES = [
   "image/png",
@@ -29,9 +44,16 @@ export type RemoteFetchOptions = {
   /** Single-hop fetch (redirects returned, not followed). Default: the DNS-pinned `guardedFetch`. */
   fetch?: (input: string, init?: RequestInit) => Promise<Response>
   maxBytes?: number
+  /** Total budget across every redirect hop and the body read. */
   timeoutMs?: number
-  /** Throws when the URL is not a public http(s) URL. Injectable for tests. */
+  maxRedirects?: number
+  userAgent?: string
+  /** Throws when the URL is not a public http(s) URL. Default: `lookup` + `isAllowedAddress`. */
   guard?: (url: string) => Promise<unknown>
+  /** DNS resolution for the guard and the pinned fetch (tests inject fakes). */
+  lookup?: LookupFn
+  /** Address policy for the guard and the pinned fetch. Default: reject `isBlockedAddress`. */
+  isAllowedAddress?: (ip: string) => boolean
 }
 
 export function isSupportedImageMime(mime: string): boolean {
@@ -108,7 +130,16 @@ async function readCapped(response: Response, maxBytes: number): Promise<Uint8Ar
   const chunks: Uint8Array[] = []
   let total = 0
   for (;;) {
-    const { done, value } = await reader.read()
+    let step: ReadableStreamReadResult<Uint8Array>
+    try {
+      step = await reader.read()
+    } catch (error) {
+      throw new AssetLoadError(
+        "asset.fetch_failed",
+        `Reading the image failed: ${error instanceof Error ? error.message : "stream error"}`
+      )
+    }
+    const { done, value } = step
     if (done) break
     total += value.byteLength
     if (total > maxBytes) {
@@ -126,13 +157,46 @@ async function readCapped(response: Response, maxBytes: number): Promise<Uint8Ar
   return out
 }
 
-/** Fetches a public image with the SSRF guard, redirect re-checks and a size cap. */
+const defaultLookup: LookupFn = (hostname) => dns.promises.lookup(hostname, { all: true, verbatim: true })
+
+/**
+ * Early URL check honouring injected `lookup`/`isAllowedAddress`: http(s), no
+ * credentials, and every resolved address allowed. Without injections this is
+ * `assertPublicHttpUrl`. `guardedFetch` re-checks at connect time either way.
+ */
+function defaultGuard(options: RemoteFetchOptions): (url: string) => Promise<unknown> {
+  if (!options.lookup && !options.isAllowedAddress) return assertPublicHttpUrl
+  const lookup = options.lookup ?? defaultLookup
+  const isAllowed = options.isAllowedAddress ?? ((ip: string) => !isBlockedAddress(ip))
+  return async (raw) => {
+    const url = new URL(raw)
+    if (url.protocol !== "http:" && url.protocol !== "https:") throw new BlockedUrlError("URL must use http or https")
+    if (url.username || url.password) throw new BlockedUrlError("URL may not contain credentials")
+    const host = url.hostname.replace(/^\[|\]$/g, "")
+    if (net.isIP(host)) {
+      if (!isAllowed(host)) throw new BlockedUrlError("URL points to a private or reserved address")
+      return
+    }
+    const addresses = await lookup(host)
+    if (addresses.length === 0) throw new BlockedUrlError("URL hostname could not be resolved")
+    if (addresses.some((a) => !isAllowed(a.address))) {
+      throw new BlockedUrlError("URL hostname resolves to a private or reserved address")
+    }
+  }
+}
+
+/** Fetches a public image with the SSRF guard, redirect re-checks, a total timeout and a size cap. */
 export async function fetchRemoteImage(url: string, options: RemoteFetchOptions = {}): Promise<LoadedAsset> {
-  const doFetch = options.fetch ?? ((input: string, init?: RequestInit) => guardedFetch(input, init))
-  const guard = options.guard ?? assertPublicHttpUrl
+  const doFetch =
+    options.fetch ??
+    ((input: string, init?: RequestInit) =>
+      guardedFetch(input, { ...init, lookup: options.lookup, isAllowedAddress: options.isAllowedAddress }))
+  const guard = options.guard ?? defaultGuard(options)
   const maxBytes = options.maxBytes ?? REMOTE_IMAGE_MAX_BYTES
+  const maxRedirects = options.maxRedirects ?? MAX_REDIRECTS
+  const signal = AbortSignal.timeout(options.timeoutMs ?? REMOTE_IMAGE_TIMEOUT_MS)
   let current = url
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+  for (let hop = 0; hop <= maxRedirects; hop++) {
     try {
       await guard(current)
     } catch (error) {
@@ -145,61 +209,74 @@ export async function fetchRemoteImage(url: string, options: RemoteFetchOptions 
     try {
       response = await doFetch(current, {
         redirect: "manual",
-        signal: AbortSignal.timeout(options.timeoutMs ?? REMOTE_IMAGE_TIMEOUT_MS),
-        headers: { accept: SUPPORTED_IMAGE_MIMES.join(",") },
+        signal,
+        headers: { accept: SUPPORTED_IMAGE_MIMES.join(","), "user-agent": options.userAgent ?? USER_AGENT },
       })
     } catch (error) {
-      const reason = error instanceof BlockedUrlError ? "blocked address" : error instanceof Error ? error.message : "network error"
+      const reason = error instanceof BlockedUrlError
+        ? "blocked address"
+        : signal.aborted
+          ? "timed out"
+          : error instanceof Error
+            ? error.message
+            : "network error"
       throw new AssetLoadError("asset.fetch_failed", `Could not fetch ${current}: ${reason}`)
     }
     if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel().catch(() => undefined)
       const location = response.headers.get("location")
       if (!location) throw new AssetLoadError("asset.fetch_failed", `Redirect without location from ${current}`)
       current = new URL(location, current).toString()
       continue
     }
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
       throw new AssetLoadError("asset.fetch_failed", `Fetching ${current} returned HTTP ${response.status}.`)
     }
     const bytes = await readCapped(response, maxBytes)
-    const declaredMime = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? ""
-    const mime = sniffImageMime(bytes) ?? declaredMime
-    if (!isSupportedImageMime(mime)) {
-      throw new AssetLoadError("asset.unsupported_type", `Unsupported image type "${mime || "unknown"}" at ${url}.`)
+    // Never trust Content-Type: the body itself must sniff as a supported image.
+    const mime = sniffImageMime(bytes)
+    if (!mime || !isSupportedImageMime(mime)) {
+      const declared = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase()
+      throw new AssetLoadError(
+        "asset.unsupported_type",
+        `Unsupported image at ${url} (content does not sniff as PNG, JPEG, WebP, GIF or AVIF${declared ? `; declared "${declared}"` : ""}).`
+      )
     }
     return { bytes, mime }
   }
   throw new AssetLoadError("asset.fetch_failed", `Too many redirects fetching ${url}.`)
 }
 
-export type ServerAssetLoaderOptions = RemoteFetchOptions
+export type ServerAssetLoaderOptions = RemoteFetchOptions & {
+  /** Override for `{url}` sources (tests). Default: `fetchRemoteImage` with these options. */
+  fetchUrl?: (url: string) => Promise<LoadedAsset>
+}
 
-/** AssetLoader for one workspace: ownership-checked media + guarded URLs, cached per render. */
+/**
+ * AssetLoader for one workspace: ownership-checked image media + guarded URLs,
+ * each distinct source loaded once per loader (one render).
+ */
 export function createServerAssetLoader(
-  repos: Repositories,
+  repos: Pick<Repositories, "media" | "blobs">,
   workspaceId: WorkspaceId,
   options: ServerAssetLoaderOptions = {}
 ): AssetLoader {
-  const cache = new Map<string, Promise<LoadedAsset>>()
-  const load = async (source: ResolvedImageSource): Promise<LoadedAsset> => {
-    if ("url" in source) return fetchRemoteImage(source.url, options)
-    const media = await repos.media.get(workspaceId, source.media)
-    if (!media || media.deletedAt) {
-      throw new AssetLoadError("asset.fetch_failed", `Media ${source.media} was not found in this workspace.`)
-    }
-    const blob = await repos.blobs.get(workspaceId, media.bucketId, media.fileId)
-    if (!blob) throw new AssetLoadError("asset.fetch_failed", `The file for media ${source.media} is missing.`)
-    return { bytes: blob.bytes, mime: media.mimeType || blob.mime }
-  }
-  return {
-    load(source) {
-      const key = "url" in source ? `url:${source.url}` : `media:${source.media}`
-      let pending = cache.get(key)
-      if (!pending) {
-        pending = load(source)
-        cache.set(key, pending)
+  const { fetchUrl = (url: string) => fetchRemoteImage(url, options) } = options
+  return cachedAssetLoader({
+    async load(source: ResolvedImageSource): Promise<LoadedAsset> {
+      if ("url" in source) return fetchUrl(source.url)
+      const media = await repos.media.get(workspaceId, source.media)
+      if (!media || media.deletedAt) {
+        throw new AssetLoadError("asset.fetch_failed", `Media ${source.media} was not found in this workspace.`)
       }
-      return pending
+      if (media.kind !== "image") {
+        throw new AssetLoadError("asset.unsupported_type", `Media ${source.media} is not an image.`)
+      }
+      const blob = await repos.blobs.get(workspaceId, media.bucketId, media.fileId)
+      if (!blob) throw new AssetLoadError("asset.fetch_failed", `The file for media ${source.media} is missing.`)
+      const mime = checkImageBytes(blob.bytes, `Media ${source.media}`)
+      return { bytes: blob.bytes, mime }
     },
-  }
+  })
 }

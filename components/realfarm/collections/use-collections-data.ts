@@ -1,41 +1,21 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import {
   collectionToStored,
-  defaultImageCollections,
-  greenscreenMemeCollectionFromAssets,
   storedToCollection,
-  ugcAvatarVideoCollectionFromAssets,
   type CreatedImageCollection,
   type StoredImageCollection,
 } from "@/lib/realfarm-collections"
-import type { RealFarmData } from "@/lib/realfarm-data"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { apiRoutes } from "@/components/realfarm/api-client"
 
-export function useCollectionsData({
-  assets,
-  enabled,
-}: {
-  assets: RealFarmData["assets"]
-  enabled: boolean
-}) {
-  const [collections, setCollections] = useState<CreatedImageCollection[]>(() =>
-    defaultImageCollections()
-  )
+export function useCollectionsData({ enabled }: { enabled: boolean }) {
+  const [collections, setCollections] = useState<CreatedImageCollection[]>([])
   const [collectionsLoaded, setCollectionsLoaded] = useState(false)
-
-  const visibleCollections = useMemo(
-    () => [
-      ugcAvatarVideoCollectionFromAssets(assets.ugcAvatarVideos, collections),
-      greenscreenMemeCollectionFromAssets(assets.greenscreenMemes),
-      ...collections,
-    ],
-    [assets.greenscreenMemes, assets.ugcAvatarVideos, collections]
-  )
+  const visibleCollections = collections
 
   useEffect(() => {
     if (!enabled || collectionsLoaded) return
@@ -44,7 +24,8 @@ export function useCollectionsData({
       apiRoutes.imageCollections
     )
       .then((payload) => {
-        if (active && payload.collections?.length) {
+        // An empty list is a real answer: never show placeholder collections.
+        if (active && payload.collections) {
           setCollections(payload.collections.map(storedToCollection))
         }
       })
@@ -59,11 +40,21 @@ export function useCollectionsData({
 
   async function persistCollection(collection: CreatedImageCollection) {
     if (collection.virtual) return
-    await fetchJsonWithTimeout(apiRoutes.imageCollections, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(collectionToStored(collection)),
-    })
+    const payload = await fetchJsonWithTimeout<{ collection?: StoredImageCollection }>(
+      apiRoutes.imageCollections,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(collectionToStored(collection)),
+      }
+    )
+    // Adopt the saved row id so later renames update this row.
+    const serverId = payload.collection?.id
+    if (serverId && serverId !== collection.serverId) {
+      setCollections((current) =>
+        current.map((item) => (item.id === collection.id ? { ...item, serverId } : item))
+      )
+    }
   }
 
   async function commitCollection(
@@ -73,7 +64,9 @@ export function useCollectionsData({
   ) {
     setCollections((current) => [
       next,
-      ...current.filter((collection) => collection.id !== next.id),
+      ...current.filter(
+        (collection) => collection.id !== next.id && collection.id !== previous?.id
+      ),
     ])
     try {
       await persistCollection(next)
