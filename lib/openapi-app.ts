@@ -85,6 +85,9 @@ import {
   type RenderEngine,
 } from "@/lib/renders/service"
 import { listStarterTemplates, templateShape } from "@/lib/renders/starters"
+import { BatchRequestError, batchPlanView } from "@/lib/batches/service"
+import { kickJobs } from "@/lib/jobs/inline"
+import { registerBatchRoutes } from "@/lib/openapi-batches"
 
 export type ApiAppDeps = {
   repositories: () => Repositories
@@ -95,6 +98,8 @@ export type ApiAppDeps = {
   assetLoader?: (repos: Repositories, workspaceId: string) => AssetLoader
   rateLimiter: TokenBucketRateLimiter
   now: () => Date
+  /** After a request enqueued jobs: wake the worker (and drain inline in local e2e). */
+  kickJobs: (repos: Repositories) => void
 }
 
 type ApiEnv = { Variables: { principal: ApiPrincipal } }
@@ -787,6 +792,10 @@ const ROUTE_SCOPES: { method: string; pattern: RegExp; scope: ApiKeyScope }[] =
     { method: "POST", pattern: /^\/(collections|media)/, scope: "media:write" },
     { method: "GET", pattern: /^\/(posts|accounts)/, scope: "posts:read" },
     { method: "POST", pattern: /^\/posts/, scope: "posts:write" },
+    // Preview writes nothing, so reading is enough.
+    { method: "POST", pattern: /^\/batches\/preview$/, scope: "batches:read" },
+    { method: "POST", pattern: /^\/batches/, scope: "batches:write" },
+    { method: "GET", pattern: /^\/batches/, scope: "batches:read" },
   ]
 
 /** Authenticated routes that need a principal but no particular scope. */
@@ -869,6 +878,7 @@ const defaultDeps = (): ApiAppDeps => ({
   sessionWorkspaceId: async () => (await getCurrentUser())?.$id ?? null,
   rateLimiter: createDefaultRateLimiter(),
   now: () => new Date(),
+  kickJobs: (repos) => kickJobs(repos),
 })
 
 export function createOpenApiApp(overrides: Partial<ApiAppDeps> = {}) {
@@ -946,6 +956,18 @@ export function createOpenApiApp(overrides: Partial<ApiAppDeps> = {}) {
   app.use("*", authenticate)
 
   app.onError((error, c) => {
+    if (error instanceof BatchRequestError) {
+      return c.json(
+        {
+          ok: false,
+          error: error.message,
+          errors: error.errors,
+          warnings: error.warnings,
+          ...(error.plan ? { preview: batchPlanView(error.plan) } : {}),
+        },
+        error.status as 422
+      )
+    }
     if (error instanceof RenderRequestError) {
       if (error.status === 404)
         return errorJson(c, 404, error.message, "not_found")
@@ -1417,13 +1439,21 @@ export function createOpenApiApp(overrides: Partial<ApiAppDeps> = {}) {
     return c.json({ posts: posts.map(postView) }, 200)
   })
 
+  registerBatchRoutes(app, {
+    repos,
+    publisher: () => deps.publisher(),
+    now: deps.now,
+    apiBaseUrl,
+    kickJobs: deps.kickJobs,
+  })
+
   app.doc31("/openapi.json", {
     openapi: "3.1.0",
     info: {
       title: "LumenClip Render API",
       version: "1.0.0",
       description:
-        "Render slideshow/carousel specs to PNG slides, manage image collections, and publish renders through SocialBu.",
+        "Render slideshow/carousel specs to PNG slides, manage image collections, publish renders through SocialBu, and mass-produce scheduled carousel batches.",
     },
     security: [{ bearerAuth: [] }],
   })

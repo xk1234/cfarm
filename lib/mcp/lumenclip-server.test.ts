@@ -8,6 +8,8 @@ import type { ApiKeyScope } from "@/lib/data/types"
 import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
 import { NotConfiguredPublisher } from "@/lib/publishing/publisher"
 import { TINY_PNG, createFakePublisher, createFakeRenderSpec } from "@/lib/renders/test-fakes"
+import { createWorker } from "@/lib/jobs/worker"
+import { storeMedia } from "@/lib/renders/media"
 
 const WS = "user_mcp"
 
@@ -99,6 +101,8 @@ describe("LumenClip MCP server", () => {
       "lumenclip_slideshow_render",
       "lumenclip_templates_list",
       "lumenclip_accounts_list",
+      "lumenclip_batch_create",
+      "lumenclip_batch_preview",
     ]) {
       expect(names, denied).not.toContain(denied)
     }
@@ -255,5 +259,51 @@ describe("LumenClip MCP server", () => {
     expect(marked.structuredContent?.post).toMatchObject({ status: "published", provider: "tiktok" })
     const output = await callTool(client, "lumenclip_output_get", { outputId })
     expect(output.structuredContent?.posts).toHaveLength(1)
+  })
+
+  it("previews, creates, reads, lists and cancels carousel batches", async () => {
+    const now = () => new Date("2026-10-09T08:00:00Z")
+    const fakePublisher = createFakePublisher()
+    const collection = await repos.collections.create(WS, { name: "Sunsets", createdBy: WS })
+    for (let i = 0; i < 2; i++) {
+      await storeMedia(repos, WS, { bytes: new Uint8Array([...TINY_PNG, i]), mime: "image/png", collectionId: collection.id, source: "upload", createdBy: WS })
+    }
+    let kicks = 0
+    const client = await connect({ publisher: () => fakePublisher.publisher, now, kickJobs: () => void kicks++ })
+    const input = {
+      templateId: "starter-photo-pill",
+      items: [
+        { slotValues: { slides: [{ image: { collection: "Sunsets", pick: "random" }, caption: "A" }] }, caption: "a" },
+        { slotValues: { slides: [{ image: { collection: "Sunsets", pick: "random" }, caption: "B" }] }, caption: "b" },
+      ],
+      schedule: { accountIds: ["101", "202"], timezone: "UTC", startDate: "2026-10-12", jitterMinutes: 0 },
+    }
+    const preview = await callTool(client, "lumenclip_batch_preview", input)
+    expect(preview.structuredContent?.preview.ok).toBe(true)
+    expect(preview.structuredContent?.preview.items.map((i: { accountId: string }) => i.accountId)).toEqual(["101", "202"])
+
+    const invalid = await callTool(client, "lumenclip_batch_create", { ...input, items: [{ slotValues: {} }] })
+    expect(invalid.isError).toBe(true)
+    expect(invalid.content[0]!.text).toContain("/items/0/slotValues")
+
+    const created = await callTool(client, "lumenclip_batch_create", { ...input, idempotencyKey: "mcp-1" })
+    expect(created.structuredContent?.created).toBe(true)
+    expect(kicks).toBe(1)
+    const batchId = created.structuredContent?.batch.id
+    const worker = createWorker({ repos, workerId: "t", log: { info() {}, warn() {}, error() {} }, publisher: fakePublisher.publisher, renderSpec: fake.renderSpec })
+    for (let i = 0; i < 30; i++) if ((await worker.tick()).claimed === 0) break
+
+    const got = await callTool(client, "lumenclip_batch_get", { batchId })
+    expect(got.structuredContent?.batch.status).toBe("completed")
+    expect(fakePublisher.posts.map((p) => p.publishAt)).toEqual(["2026-10-12T09:00:00.000Z", "2026-10-12T09:00:00.000Z"])
+    const list = await callTool(client, "lumenclip_batches_list")
+    expect(list.structuredContent?.batches).toHaveLength(1)
+
+    const canceled = await callTool(client, "lumenclip_batch_cancel", { batchId })
+    // The fake publisher cannot delete posts, so both are reported as failures.
+    expect(canceled.structuredContent?.failures).toHaveLength(2)
+    const retry = await callTool(client, "lumenclip_batch_retry", { batchId })
+    expect(retry.isError).toBe(true)
+    expect((await callTool(client, "lumenclip_batch_get", { batchId: "nope" })).isError).toBe(true)
   })
 })

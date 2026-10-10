@@ -23,6 +23,8 @@ test("every workspace view fits 360px without horizontal scroll", async ({ page 
   const views: [string, string][] = [
     ["/app", "Renders"],
     ["/app/new", "New render"],
+    ["/app/batches", "Batches"],
+    ["/app/batches/new", "New batch"],
     ["/app?view=schedule", "Schedule"],
     ["/app/collections", "Collections"],
     [`/app/collections/${seeded.collections[0].name.toLowerCase()}`, seeded.collections[0].name],
@@ -51,6 +53,7 @@ test("the mobile menu reaches every view and settings", async ({ page }) => {
   await expect(mainHeading(page, "Renders")).toBeVisible()
   const views: [string, string][] = [
     ["New render", "New render"],
+    ["Batches", "Batches"],
     ["Schedule", "Schedule"],
     ["Collections", "Collections"],
     ["Renders", "Renders"],

@@ -25,8 +25,8 @@ function job<T extends Job["type"]>(type: T, workspaceId: string | null, payload
 }
 
 describe("job handlers", () => {
-  it("registers render-slideshow, publish-post and notify", () => {
-    expect(registeredJobTypes().sort()).toEqual(["notify", "publish-post", "render-slideshow"])
+  it("registers render-slideshow, publish-post, notify and batch-start", () => {
+    expect(registeredJobTypes().sort()).toEqual(["batch-start", "notify", "publish-post", "render-slideshow"])
     for (const type of registeredJobTypes()) expect(getJobHandler(type)).toBeTypeOf("function")
   })
 

@@ -50,6 +50,20 @@ import {
 import { getStarterTemplate, listStarterTemplates, templateShape } from "@/lib/renders/starters"
 import type { ApiKeyScope } from "@/lib/data/types"
 
+import {
+  BatchRequestError,
+  batchDetailView,
+  batchPlanView,
+  batchSummaryView,
+  cancelBatch,
+  createBatch,
+  getBatchDetail,
+  planBatch,
+  retryBatch,
+} from "@/lib/batches/service"
+import { BATCH_STATUSES } from "@/lib/data/types"
+import { kickJobs } from "@/lib/jobs/inline"
+
 import { mcpToolNamesOutsideScopes } from "./tool-registry"
 
 export type LumenClipMcpServices = {
@@ -59,6 +73,8 @@ export type LumenClipMcpServices = {
   publisher: () => Publisher
   /** Absolute API base for slide/ZIP URLs, e.g. `https://app.example/api/v1`. */
   apiBaseUrl: () => string
+  /** After jobs were enqueued (wake the worker; drain inline in local e2e). */
+  kickJobs?: (repos: Repositories) => void
   assetLoader?: (repos: Repositories, workspaceId: WorkspaceId) => AssetLoader
   remoteFetch?: RemoteFetchOptions
 }
@@ -119,6 +135,7 @@ export function createLumenClipMcpServer(
   registerOutputTools(server, ctx)
   registerPublishingTools(server, ctx)
   registerScheduleTools(server, ctx)
+  registerBatchTools(server, ctx)
   return server
 }
 
@@ -764,6 +781,172 @@ function registerScheduleTools(server: McpServer, ctx: ToolContext) {
   )
 }
 
+// ─────────────────────────────── batches ───────────────────────────────
+
+const BATCH_SCHEDULE_INPUT = z
+  .object({
+    accountIds: z.array(z.string().min(1)).min(1).max(50).describe("SocialBu account ids from lumenclip_accounts_list; items are dealt round-robin."),
+    timezone: z.string().optional().describe('IANA zone, e.g. "America/New_York". Default: workspace timezone.'),
+    startDate: z.string().optional().describe('"YYYY-MM-DD" in timezone. Default: today.'),
+    timesOfDay: z.array(z.string()).optional().describe('Daily local "HH:MM" slots, default ["09:00","13:00","19:00"]. XOR postsPerDay.'),
+    postsPerDay: z.number().int().min(1).max(24).optional().describe("Evenly spaced slots inside window instead of timesOfDay."),
+    window: z.object({ start: z.string(), end: z.string() }).optional().describe('With postsPerDay, e.g. {"start":"09:00","end":"21:00"}.'),
+    maxPerAccountPerDay: z.number().int().min(1).max(24).optional().describe("Default 3 (existing posts count)."),
+    skipOccupied: z.boolean().optional().describe("Default true: avoid each account's existing scheduled posts."),
+    minGapMinutes: z.number().int().min(0).max(720).optional().describe("Default 30."),
+    jitterMinutes: z
+      .union([z.number().int().min(0).max(120), z.object({ min: z.number().int(), max: z.number().int() })])
+      .optional()
+      .describe("Deterministic offset per slot, default {min:0,max:10}."),
+    minLeadMinutes: z.number().int().min(0).max(1440).optional().describe("Default 15."),
+    mode: z.enum(["schedule", "draft"]).optional().describe('"draft" uploads to TikTok drafts at the slot (TikTok accounts only).'),
+    privacyStatus: z.string().optional().describe("TikTok privacy_status override; default public."),
+  })
+  .describe("When and where to post.")
+
+const BATCH_INPUT = {
+  name: z.string().max(255).optional(),
+  templateId: z.string().optional().describe("Template id from lumenclip_templates_list (XOR spec)."),
+  spec: z.record(z.string(), z.unknown()).optional().describe("Inline template spec (XOR templateId)."),
+  items: z
+    .array(
+      z.object({
+        slotValues: z.record(z.string(), z.unknown()).describe('Slot values, e.g. {"slides":[{"image":{"collection":"Sunsets","pick":"random"},"caption":"…"}]}.'),
+        caption: z.string().max(5000).optional().describe("Post caption."),
+        title: z.string().max(512).optional(),
+        seed: z.string().max(128).optional(),
+        platformOptions: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+      })
+    )
+    .max(200)
+    .optional()
+    .describe("One carousel per item (XOR csv). Random collection picks never repeat within a batch while unused images remain."),
+  csv: z.string().optional().describe("CSV text instead of items: header columns = slot paths (slides.0.caption), caption, title, seed, platformOptions."),
+  mapping: z.record(z.string(), z.string().nullable()).optional().describe("CSV column → target path."),
+  schedule: BATCH_SCHEDULE_INPUT,
+  output: z.object({ format: z.enum(["png", "jpeg", "webp"]).optional(), scale: z.number().min(0.5).max(2).optional() }).optional(),
+  seed: z.string().max(128).optional().describe("Seeds random picks and jitter (default derived from the request)."),
+}
+
+function registerBatchTools(server: McpServer, ctx: ToolContext) {
+  const { services, workspaceId } = ctx
+  const deps = () => ({ repos: services.repositories(), publisher: services.publisher(), now: services.now })
+
+  server.registerTool(
+    "lumenclip_batch_preview",
+    {
+      title: "Preview a carousel batch",
+      description:
+        "Validates every item against the template and computes each item's publish slot and account without creating anything. Call before lumenclip_batch_create and show the schedule to the user.",
+      inputSchema: BATCH_INPUT,
+      annotations: READ_ONLY,
+    },
+    async (input) =>
+      run(async () => ({ preview: batchPlanView(await planBatch(workspaceId, stripUndefined(input), deps())) }))
+  )
+
+  server.registerTool(
+    "lumenclip_batch_create",
+    {
+      title: "Create a carousel batch (render + schedule)",
+      description:
+        "All-or-nothing: if any item is invalid nothing is created and per-item errors are returned. Otherwise renders every item in the background and schedules each as a SocialBu photo post at its slot. Repeat-safe with idempotencyKey. Only call after the user confirmed the preview.",
+      inputSchema: { ...BATCH_INPUT, idempotencyKey: z.string().min(1).max(128).optional() },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async (input) =>
+      run(async () => {
+        const d = deps()
+        const result = await createBatch(
+          workspaceId,
+          stripUndefined(input),
+          { source: "mcp", createdBy: ctx.apiKeyId ? `api-key:${ctx.apiKeyId}` : workspaceId, apiKeyId: ctx.apiKeyId },
+          d
+        )
+        if (result.created) (services.kickJobs ?? kickJobs)(d.repos)
+        const detail = await getBatchDetail(workspaceId, result.batch.id, d)
+        return {
+          created: result.created,
+          warnings: result.plan.warnings,
+          batch: batchDetailView(detail, services.apiBaseUrl()),
+        }
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_batch_get",
+    {
+      title: "Get a batch",
+      description: "Returns a batch's status, counts and every item's render (slide URLs) and SocialBu post state.",
+      inputSchema: { batchId: z.string().min(1) },
+      annotations: READ_ONLY,
+    },
+    async (input) =>
+      run(async () => ({ batch: batchDetailView(await getBatchDetail(workspaceId, input.batchId, deps()), services.apiBaseUrl()) }))
+  )
+
+  server.registerTool(
+    "lumenclip_batches_list",
+    {
+      title: "List batches",
+      description: "Lists batches newest first with their counts (queued, rendered, scheduled, published, failed).",
+      inputSchema: { ...cursorInput, status: z.enum(BATCH_STATUSES).optional() },
+      annotations: READ_ONLY,
+    },
+    async (input) =>
+      run(async () => {
+        const page = await services.repositories().batches.list(workspaceId, {
+          cursor: input.cursor,
+          limit: input.limit,
+          status: input.status,
+        })
+        return { batches: page.items.map(batchSummaryView), nextCursor: page.nextCursor }
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_batch_retry",
+    {
+      title: "Retry a batch's failed items",
+      description: "Re-renders failed renders and resubmits failed SocialBu posts (moving past slots to the next free slot).",
+      inputSchema: { batchId: z.string().min(1) },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    async (input) =>
+      run(async () => {
+        const d = deps()
+        const result = await retryBatch(workspaceId, input.batchId, d)
+        if (result.retried.length) (services.kickJobs ?? kickJobs)(d.repos)
+        return {
+          retried: result.retried,
+          skipped: result.skipped,
+          batch: batchDetailView({ batch: result.batch, state: result.state }, services.apiBaseUrl()),
+        }
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_batch_cancel",
+    {
+      title: "Cancel a batch",
+      description:
+        "Stops queued renders and deletes the batch's not-yet-published SocialBu posts. Published items are kept. Only call when the user asks to cancel.",
+      inputSchema: { batchId: z.string().min(1) },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    },
+    async (input) =>
+      run(async () => {
+        const result = await cancelBatch(workspaceId, input.batchId, deps())
+        return {
+          canceled: result.canceled,
+          kept: result.kept,
+          failures: result.failures,
+          batch: batchDetailView({ batch: result.batch, state: result.state }, services.apiBaseUrl()),
+        }
+      })
+  )
+}
+
 // ─────────────────────────────── plumbing ───────────────────────────────
 
 class McpInputError extends Error {
@@ -794,6 +977,13 @@ async function run(task: () => Promise<Record<string, unknown>>) {
       structuredContent: value,
     }
   } catch (error) {
+    if (error instanceof BatchRequestError) {
+      return toolError(error.message, {
+        errors: error.errors,
+        warnings: error.warnings,
+        ...(error.plan ? { items: batchPlanView(error.plan).items.filter((item) => item.errors.length) } : {}),
+      })
+    }
     if (error instanceof RenderRequestError) {
       return toolError(error.status === 404 ? error.message : "The spec or slot values are invalid.", {
         errors: error.errors,

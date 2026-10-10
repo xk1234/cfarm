@@ -9,6 +9,7 @@ export type WorkspaceNavigation = {
   view: ViewKey
   collectionId?: string
   renderId?: string
+  batchId?: string
 }
 
 export async function WorkspaceRoute({

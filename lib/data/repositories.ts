@@ -10,6 +10,10 @@
  */
 import type {
   ApiKey,
+  Batch,
+  BatchPatch,
+  BatchQuery,
+  BatchSummary,
   BlobContent,
   BucketId,
   Collection,
@@ -21,6 +25,7 @@ import type {
   Media,
   MediaQuery,
   NewApiKey,
+  NewBatch,
   NewCollection,
   NewJob,
   NewMedia,
@@ -104,6 +109,8 @@ export interface RendersRepository {
   ): Promise<Render>
   markFailed(workspaceId: WorkspaceId, id: string, error: string): Promise<Render>
   softDelete(workspaceId: WorkspaceId, id: string): Promise<void>
+  /** Every live render of a batch (summaries, any order). */
+  listByBatch(workspaceId: WorkspaceId, batchId: string): Promise<RenderSummary[]>
 }
 
 export interface CollectionsRepository {
@@ -151,10 +158,26 @@ export interface PostsRepository {
   /** Calendar: posts whose publishAt (or publishedAt) falls in [from, to). */
   listRange(workspaceId: WorkspaceId, range: PostRangeQuery): Promise<Post[]>
   listByRender(workspaceId: WorkspaceId, renderId: string): Promise<Post[]>
+  /** Every post of a batch (any order). */
+  listByBatch(workspaceId: WorkspaceId, batchId: string): Promise<Post[]>
   update(workspaceId: WorkspaceId, id: string, patch: PostPatch): Promise<Post>
   cancel(workspaceId: WorkspaceId, id: string): Promise<Post>
   /** System: scheduled posts due at or before `before`, across workspaces. */
   listDue(before: IsoDateTime, limit: number): Promise<Post[]>
+}
+
+export interface BatchesRepository {
+  /** Honours `idempotencyKey` per workspace (`created: false` returns the existing batch). */
+  create(workspaceId: WorkspaceId, input: NewBatch): Promise<Upserted<Batch>>
+  get(workspaceId: WorkspaceId, id: string): Promise<Batch | null>
+  /** Newest first. */
+  list(workspaceId: WorkspaceId, query?: BatchQuery): Promise<Page<BatchSummary>>
+  update(workspaceId: WorkspaceId, id: string, patch: BatchPatch): Promise<Batch>
+  /**
+   * System: batches still making progress (`queued`/`running`) created after
+   * `createdAfter`, least recently updated first.
+   */
+  listActive(limit: number, options?: { createdAfter?: IsoDateTime }): Promise<BatchSummary[]>
 }
 
 export interface SettingsRepository {
@@ -215,6 +238,12 @@ export interface JobsRepository {
   /** Requeues with backoff (`retryAt`) or marks `dead` once attempts are exhausted. */
   fail(jobId: string, workerId: string, error: string, options?: { retryAt?: IsoDateTime; permanent?: boolean }): Promise<Job>
   /**
+   * Cancels a job that has not started: a `queued` job becomes `dead` with
+   * `error`. Returns null (and changes nothing) when the job is missing, owned
+   * by another workspace, or no longer queued.
+   */
+  cancel(workspaceId: WorkspaceId | null, id: string, error: string): Promise<Job | null>
+  /**
    * System: `dead` jobs across workspaces, most recently finished first
    * (whether `fail()` or an exhausted lease in `claim()` killed them).
    * `since` keeps only jobs with completedAt ≥ since.
@@ -273,6 +302,7 @@ export interface Repositories {
   collections: CollectionsRepository
   media: MediaRepository
   posts: PostsRepository
+  batches: BatchesRepository
   settings: SettingsRepository
   notifications: NotificationsRepository
   apiKeys: ApiKeysRepository

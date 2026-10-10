@@ -22,6 +22,7 @@ import {
   DataConflictError,
   DataNotFoundError,
   type ApiKeysRepository,
+  type BatchesRepository,
   type BlobStorage,
   type CollectionsRepository,
   type JobLeasesRepository,
@@ -43,8 +44,17 @@ import {
   JobPayloadSchemas,
   MAX_PAGE_SIZE,
   RenderOutputSchema,
+  emptyBatchCounts,
   type ApiKey,
   type ApiKeyScope,
+  type Batch,
+  type BatchCounts,
+  type BatchItem,
+  type BatchItemResult,
+  type BatchMode,
+  type BatchScheduleConfig,
+  type BatchStatus,
+  type BatchSummary,
   type BucketId,
   type Collection,
   type Job,
@@ -375,6 +385,8 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
     "created_by",
     "completed_at",
     "deleted_at",
+    "batch_id",
+    "batch_index",
   ]
   function toRenderSummary(row: Row): RenderSummary {
     const output = parseJson(R, row, "output")
@@ -403,6 +415,8 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
       error: strOrNull(row.error),
       jobId: strOrNull(row.job_id),
       renderHash: strOrNull(row.render_hash),
+      batchId: strOrNull(row.batch_id),
+      batchIndex: numOrNull(row.batch_index),
       createdBy: String(row.created_by),
       createdAt: iso(row.$createdAt),
       updatedAt: iso(row.$updatedAt),
@@ -446,6 +460,8 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
         error: null,
         job_id: null,
         render_hash: input.renderHash ?? null,
+        batch_id: input.batchId ?? null,
+        batch_index: input.batchIndex ?? null,
         created_by: input.createdBy,
         completed_at: null,
         deleted_at: null,
@@ -495,6 +511,15 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
     async softDelete(workspaceId, id) {
       await mustOwnRow(R, "render", workspaceId, id)
       await updateRow(R, id, { deleted_at: nowIso(), purge_after: purgeAfter() })
+    },
+    async listByBatch(workspaceId, batchId) {
+      const rows = await allRows(R, [
+        Query.equal("workspace_id", workspaceId),
+        Query.equal("batch_id", batchId),
+        Query.isNull("deleted_at"),
+        Query.select(RENDER_SUMMARY_COLUMNS),
+      ])
+      return rows.map(toRenderSummary)
     },
   }
 
@@ -761,6 +786,8 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
       permalink: strOrNull(row.permalink),
       error: strOrNull(row.error),
       intentKey: String(row.intent_key),
+      batchId: strOrNull(row.batch_id),
+      batchIndex: numOrNull(row.batch_index),
       createdBy: String(row.created_by),
       createdAt: iso(row.$createdAt),
       updatedAt: iso(row.$updatedAt),
@@ -769,6 +796,7 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
   function postPatchColumns(patch: PostPatch): Record<string, unknown> {
     const data: Record<string, unknown> = {}
     if (patch.status !== undefined) data.status = patch.status
+    if (patch.provider !== undefined) data.provider = patch.provider
     if (patch.publishAt !== undefined) data.publish_at = patch.publishAt
     if (patch.publishedAt !== undefined) data.published_at = patch.publishedAt
     if (patch.caption !== undefined) data.caption = patch.caption
@@ -798,6 +826,8 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
         permalink: null,
         error: null,
         intent_key: input.intentKey,
+        batch_id: input.batchId ?? null,
+        batch_index: input.batchIndex ?? null,
         created_by: input.createdBy,
       })
       return { value: toPost(row), created }
@@ -828,6 +858,10 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
       ])
       return rows.map(toPost)
     },
+    async listByBatch(workspaceId, batchId) {
+      const rows = await allRows(P, [Query.equal("workspace_id", workspaceId), Query.equal("batch_id", batchId)])
+      return rows.map(toPost)
+    },
     async update(workspaceId, id, patch) {
       await mustOwnRow(P, "post", workspaceId, id)
       return toPost(await updateRow(P, id, postPatchColumns(patch)))
@@ -845,6 +879,130 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
         Query.limit(clampLimit(limit)),
       ])
       return rows.map(toPost)
+    },
+  }
+
+  // ─── batches ───
+  const B = TABLES.batches
+  const BATCH_SUMMARY_COLUMNS = [
+    "workspace_id",
+    "name",
+    "status",
+    "mode",
+    "template_id",
+    "item_count",
+    "schedule",
+    "output",
+    "counts",
+    "retry_count",
+    "source",
+    "api_key_id",
+    "idempotency_key",
+    "created_by",
+    "completed_at",
+    "canceled_at",
+  ]
+  function toBatchSummary(row: Row): BatchSummary {
+    const itemCount = Number(row.item_count) || 0
+    const output = jsonObject<{ format?: unknown; scale?: unknown }>(B, row, "output", {})
+    return {
+      id: row.$id,
+      workspaceId: String(row.workspace_id),
+      name: String(row.name),
+      status: String(row.status) as BatchStatus,
+      mode: String(row.mode) as BatchMode,
+      templateId: strOrNull(row.template_id),
+      itemCount,
+      schedule: jsonObject<BatchScheduleConfig>(B, row, "schedule", {} as BatchScheduleConfig),
+      output: {
+        format: (typeof output.format === "string" ? output.format : "png") as Batch["output"]["format"],
+        scale: typeof output.scale === "number" ? output.scale : 1,
+      },
+      counts: { ...emptyBatchCounts(itemCount), ...jsonObject<Partial<BatchCounts>>(B, row, "counts", {}) },
+      retryCount: numOrNull(row.retry_count) ?? 0,
+      source: String(row.source) as RenderSource,
+      apiKeyId: strOrNull(row.api_key_id),
+      idempotencyKey: strOrNull(row.idempotency_key),
+      createdBy: String(row.created_by),
+      createdAt: iso(row.$createdAt),
+      updatedAt: iso(row.$updatedAt),
+      completedAt: isoOrNull(row.completed_at),
+      canceledAt: isoOrNull(row.canceled_at),
+    }
+  }
+  function toBatch(row: Row): Batch {
+    const spec = parseJson(B, row, "spec")
+    if (!spec || typeof spec !== "object") throw new DataIntegrityError(B, row.$id, "spec is not an object")
+    return {
+      ...toBatchSummary(row),
+      spec: spec as SlideshowSpec,
+      items: jsonArray<BatchItem>(B, row, "items"),
+      results: jsonArray<BatchItemResult>(B, row, "results"),
+      itemErrors: jsonObject<Record<string, string>>(B, row, "item_errors", {}),
+    }
+  }
+  function batchPatchColumns(patch: Parameters<BatchesRepository["update"]>[2]): Record<string, unknown> {
+    const data: Record<string, unknown> = {}
+    if (patch.status !== undefined) data.status = patch.status
+    if (patch.counts !== undefined) data.counts = JSON.stringify(patch.counts)
+    if (patch.results !== undefined) data.results = JSON.stringify(patch.results)
+    if (patch.itemErrors !== undefined) data.item_errors = JSON.stringify(patch.itemErrors)
+    if (patch.retryCount !== undefined) data.retry_count = patch.retryCount
+    if (patch.completedAt !== undefined) data.completed_at = patch.completedAt
+    if (patch.canceledAt !== undefined) data.canceled_at = patch.canceledAt
+    return data
+  }
+
+  const batchesRepo: BatchesRepository = {
+    async create(workspaceId, input) {
+      const rowId = input.idempotencyKey ? deterministicId("b", workspaceId, input.idempotencyKey) : newId()
+      const { row, created } = await createOrGet(B, rowId, {
+        workspace_id: workspaceId,
+        name: input.name,
+        status: "queued",
+        mode: input.mode,
+        template_id: input.templateId ?? null,
+        spec: JSON.stringify(input.spec),
+        items: JSON.stringify(input.items),
+        item_count: input.items.length,
+        schedule: JSON.stringify(input.schedule),
+        output: JSON.stringify(input.output ?? { format: "png", scale: 1 }),
+        counts: JSON.stringify(emptyBatchCounts(input.items.length)),
+        results: "[]",
+        item_errors: "{}",
+        retry_count: 0,
+        source: input.source,
+        api_key_id: input.apiKeyId ?? null,
+        idempotency_key: input.idempotencyKey ?? null,
+        created_by: input.createdBy,
+        completed_at: null,
+        canceled_at: null,
+      })
+      return { value: toBatch(row), created }
+    },
+    async get(workspaceId, id) {
+      const row = await ownedRow(B, workspaceId, id)
+      return row ? toBatch(row) : null
+    },
+    async list(workspaceId, query) {
+      const q = [Query.equal("workspace_id", workspaceId), Query.orderDesc("$createdAt"), Query.select(BATCH_SUMMARY_COLUMNS)]
+      if (query?.status) q.push(Query.equal("status", query.status))
+      const page = await pageRows(B, q, query)
+      return { items: page.items.map(toBatchSummary), nextCursor: page.nextCursor }
+    },
+    async update(workspaceId, id, patch) {
+      await mustOwnRow(B, "batch", workspaceId, id)
+      return toBatch(await updateRow(B, id, batchPatchColumns(patch)))
+    },
+    async listActive(limit, activeOptions) {
+      const { rows } = await listRows(B, [
+        Query.equal("status", ["queued", "running"]),
+        ...(activeOptions?.createdAfter ? [Query.greaterThan("$createdAt", activeOptions.createdAfter)] : []),
+        Query.orderAsc("$updatedAt"),
+        Query.select(BATCH_SUMMARY_COLUMNS),
+        Query.limit(clampLimit(limit)),
+      ])
+      return rows.map(toBatchSummary)
     },
   }
 
@@ -1243,6 +1401,11 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
       }
       return toJob(await updateRow(J, jobId, data))
     },
+    async cancel(workspaceId, id, error) {
+      const row = await ownedRow(J, workspaceId, id)
+      if (!row || row.status !== "queued") return null
+      return toJob(await updateRow(J, id, { status: "dead", error, completed_at: nowIso() }))
+    },
     async listDead({ type, since, limit }) {
       const n = Math.min(Math.max(1, limit), MAX_PAGE_SIZE)
       // `status` leads the existing claimable/expired indexes; both dead paths set completed_at.
@@ -1318,6 +1481,7 @@ export function createAppwriteRepositories(options: AppwriteRepositoryOptions = 
     collections: collectionsRepo,
     media: mediaRepo,
     posts: postsRepo,
+    batches: batchesRepo,
     settings: settingsRepo,
     notifications: notificationsRepo,
     apiKeys: apiKeysRepo,

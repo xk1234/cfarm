@@ -34,6 +34,8 @@ import type {
   SpecIssue,
 } from "@/lib/render/spec"
 import type { FontFaceInfo } from "@/lib/render/engine"
+import type { BatchDetailView, BatchPlanView, BatchSummaryView } from "@/lib/batches/service"
+import type { BatchStatus } from "@/lib/data/types"
 
 // ─────────────────────────────── routes ───────────────────────────────
 
@@ -45,6 +47,11 @@ export const apiRoutes = {
   template: (id: string) => `/api/v1/templates/${encodeURIComponent(id)}`,
   renders: "/api/v1/renders",
   render: (id: string) => `/api/v1/renders/${encodeURIComponent(id)}`,
+  batches: "/api/v1/batches",
+  batchesPreview: "/api/v1/batches/preview",
+  batch: (id: string) => `/api/v1/batches/${encodeURIComponent(id)}`,
+  batchRetry: (id: string) => `/api/v1/batches/${encodeURIComponent(id)}/retry`,
+  batchCancel: (id: string) => `/api/v1/batches/${encodeURIComponent(id)}/cancel`,
   collections: "/api/v1/collections",
   media: "/api/v1/media",
   /** POST multipart `file` (+ `collectionId`), or JSON `{ url }` to import. */
@@ -475,6 +482,67 @@ export async function searchStockImages(
       }
     })
     .filter((image) => image.imageUrl.startsWith("https://"))
+}
+
+// ─────────────────────────────── batches ───────────────────────────────
+
+export type { BatchDetailView, BatchPlanView, BatchSummaryView }
+
+/** `POST /api/v1/batches` and `/batches/preview` body (see lib/batches/service.ts). */
+export type BatchRequestInput = {
+  name?: string
+  templateId?: string
+  spec?: Record<string, unknown>
+  items?: Record<string, unknown>[]
+  csv?: string
+  mapping?: Record<string, string | null>
+  schedule: Record<string, unknown>
+  idempotencyKey?: string
+  seed?: string
+}
+
+export async function previewBatch(input: BatchRequestInput): Promise<BatchPlanView> {
+  const body = await requestJson<{ preview: BatchPlanView }>(apiRoutes.batchesPreview, { method: "POST", json: input })
+  return body.preview
+}
+
+/** 201 created / 200 replay; a 422 throws ApiClientError whose body carries `preview`. */
+export async function createBatchRemote(input: BatchRequestInput): Promise<BatchDetailView> {
+  const body = await requestJson<{ batch: BatchDetailView }>(apiRoutes.batches, { method: "POST", json: input })
+  return body.batch
+}
+
+export async function listBatches(
+  query: { cursor?: string | null; limit?: number; status?: BatchStatus } = {}
+): Promise<Page<BatchSummaryView>> {
+  const params = new URLSearchParams()
+  if (query.cursor) params.set("cursor", query.cursor)
+  if (query.limit) params.set("limit", String(query.limit))
+  if (query.status) params.set("status", query.status)
+  const qs = params.toString()
+  const body = await requestJson<{ batches: BatchSummaryView[]; nextCursor: string | null }>(
+    `${apiRoutes.batches}${qs ? `?${qs}` : ""}`
+  )
+  return { items: body.batches ?? [], nextCursor: body.nextCursor ?? null }
+}
+
+export async function getBatch(id: string): Promise<BatchDetailView> {
+  return (await requestJson<{ batch: BatchDetailView }>(apiRoutes.batch(id))).batch
+}
+
+export async function retryBatchRemote(
+  id: string
+): Promise<{ batch: BatchDetailView; retried: number[]; skipped: { index: number; reason: string }[] }> {
+  return requestJson(apiRoutes.batchRetry(id), { method: "POST" })
+}
+
+export async function cancelBatchRemote(id: string): Promise<{
+  batch: BatchDetailView
+  canceled: number[]
+  kept: { index: number; reason: string }[]
+  failures: { index: number; postId: string; error: string }[]
+}> {
+  return requestJson(apiRoutes.batchCancel(id), { method: "POST" })
 }
 
 // ─────────────────────────────── publishing ───────────────────────────────

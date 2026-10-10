@@ -22,7 +22,10 @@ import { JOB_LEASE_EXHAUSTED_ERROR, type Job, type JobType, type Repositories } 
 import { notifyRenderFinished } from "@/lib/renders/service"
 
 import { isPermanentJobError, PermanentJobError, RetryJobError } from "./errors"
-import { getJobHandler, type JobLogger } from "./handlers"
+import { sweepActiveBatches } from "@/lib/batches/service"
+import type { Publisher } from "@/lib/publishing/publisher"
+
+import { getJobHandler, type JobContext, type JobLogger } from "./handlers"
 
 export type WorkerOptions = {
   repos: Repositories
@@ -44,10 +47,21 @@ export type WorkerOptions = {
   types?: readonly JobType[]
   log?: JobLogger
   now?: () => Date
+  /** Test seams passed to handlers (production handlers resolve their own defaults). */
+  publisher?: Publisher
+  renderSpec?: JobContext["renderSpec"]
+  assetLoader?: JobContext["assetLoader"]
 }
 
 export type TickResult = { claimed: number; succeeded: number; failed: number; swept: SweepResult | null }
-export type SweepResult = { notifications: number; posts: number; leasesPurged: number; rendersFailed: number }
+export type SweepResult = {
+  notifications: number
+  posts: number
+  leasesPurged: number
+  rendersFailed: number
+  /** Active batches advanced/refreshed. */
+  batches: number
+}
 
 /** Recorded on a render whose job died because its lease expired on the final attempt. */
 export const RENDER_LEASE_EXHAUSTED_MESSAGE = "Render job exhausted its attempts (worker lease expired)."
@@ -109,6 +123,10 @@ export function createWorker(options: WorkerOptions) {
         renewLease,
         log,
         signal,
+        publisher: options.publisher,
+        now: options.now,
+        renderSpec: options.renderSpec,
+        assetLoader: options.assetLoader,
       })
       if (lost.signal.aborted) {
         log.warn("job finished after its lease was lost; result discarded", { jobId: job.id, type: job.type })
@@ -181,7 +199,7 @@ export function createWorker(options: WorkerOptions) {
     const runSweep = force || t - lastSweep >= sweepEveryMs
     const runPurge = force || t - lastPurge >= purgeEveryMs
     if (!runSweep && !runPurge) return null
-    const result: SweepResult = { notifications: 0, posts: 0, leasesPurged: 0, rendersFailed: 0 }
+    const result: SweepResult = { notifications: 0, posts: 0, leasesPurged: 0, rendersFailed: 0, batches: 0 }
     const at = new Date(t).toISOString()
     if (runSweep) {
       lastSweep = t
@@ -204,6 +222,10 @@ export function createWorker(options: WorkerOptions) {
         })
         if (created) result.posts++
       }
+      result.batches = await sweepActiveBatches({ repos, publisher: options.publisher, now }).catch((error) => {
+        log.error("batch sweep failed", { error: errorMessage(error) })
+        return 0
+      })
       result.rendersFailed = await failRendersOfDeadJobs(t).catch((error) => {
         // Never let reconciliation block the notification/post sweeps above.
         log.error("dead render sweep failed", { error: errorMessage(error) })

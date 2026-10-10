@@ -59,7 +59,7 @@ export type TemplateQuery = PageQuery & { includeArchived?: boolean }
 
 export const RENDER_STATUSES = ["queued", "rendering", "succeeded", "failed"] as const
 export type RenderStatus = (typeof RENDER_STATUSES)[number]
-export const RENDER_SOURCES = ["ui", "api", "mcp", "schedule"] as const
+export const RENDER_SOURCES = ["ui", "api", "mcp", "schedule", "batch"] as const
 export type RenderSource = (typeof RENDER_SOURCES)[number]
 
 export type RenderOutputSlide = {
@@ -121,6 +121,10 @@ export type Render = {
   error: string | null
   jobId: string | null
   renderHash: string | null
+  /** Set when the render belongs to a batch (lib/batches). */
+  batchId: string | null
+  /** 0-based item index within the batch. */
+  batchIndex: number | null
   createdBy: string
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
@@ -139,6 +143,8 @@ export type NewRender = {
   format?: OutputFormat
   scale?: number
   renderHash?: string | null
+  batchId?: string | null
+  batchIndex?: number | null
   createdBy: string
   /** Default "queued". */
   status?: Extract<RenderStatus, "queued" | "rendering">
@@ -248,6 +254,9 @@ export type Post = {
   error: string | null
   /** Idempotency: unique per workspace. */
   intentKey: string
+  /** Set when the post belongs to a batch (lib/batches). */
+  batchId: string | null
+  batchIndex: number | null
   createdBy: string
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
@@ -261,12 +270,15 @@ export type NewPost = {
   caption: string
   platformOptions?: Record<string, unknown>
   intentKey: string
+  batchId?: string | null
+  batchIndex?: number | null
   createdBy: string
 }
 export type PostPatch = Partial<
   Pick<
     Post,
     | "status"
+    | "provider"
     | "publishAt"
     | "publishedAt"
     | "caption"
@@ -277,6 +289,152 @@ export type PostPatch = Partial<
     | "error"
   >
 >
+
+// ─────────────────────────────── batches ───────────────────────────────
+
+export const BATCH_STATUSES = [
+  "queued",
+  "running",
+  "completed",
+  "completed_with_errors",
+  "failed",
+  "canceled",
+] as const
+export type BatchStatus = (typeof BATCH_STATUSES)[number]
+/** Statuses after which the batch makes no further progress on its own. */
+export const BATCH_FINISHED_STATUSES: readonly BatchStatus[] = ["completed", "completed_with_errors", "failed", "canceled"]
+
+export const BATCH_ITEM_STATUSES = [
+  "pending",
+  "rendering",
+  "rendered",
+  "scheduling",
+  "scheduled",
+  "published",
+  "failed",
+  "canceled",
+] as const
+export type BatchItemStatus = (typeof BATCH_ITEM_STATUSES)[number]
+
+/** `schedule` = SocialBu posts at publishAt; `draft` = TikTok "upload as draft" at publishAt. */
+export const BATCH_MODES = ["schedule", "draft"] as const
+export type BatchMode = (typeof BATCH_MODES)[number]
+
+/** Normalised schedule config stored on the batch (lib/batches/schedule.ts). */
+export type BatchScheduleConfig = {
+  accountIds: string[]
+  /** IANA timezone, e.g. `America/New_York`. */
+  timezone: string
+  /** `YYYY-MM-DD` in `timezone`. */
+  startDate: string
+  /** Local `HH:MM` times, ascending. Derived from postsPerDay + window when those were given. */
+  timesOfDay: string[]
+  postsPerDay: number | null
+  window: { start: string; end: string } | null
+  maxPerAccountPerDay: number
+  skipOccupied: boolean
+  /** An existing post of the same account closer than this blocks a slot. */
+  minGapMinutes: number
+  /** Deterministic positive offset added to each slot. */
+  jitterMinutes: { min: number; max: number }
+  /** Slots earlier than now + this are skipped (render + upload time). */
+  minLeadMinutes: number
+  mode: BatchMode
+  /** TikTok `privacy_status` override; omitted = public (account default). */
+  privacyStatus: string | null
+}
+
+export type BatchItem = {
+  /** Slot values as submitted. */
+  slotValues: SlotValues
+  /** Slot values with `{collection, pick: "random"}` bound to media ids (no reuse within the batch). */
+  boundSlotValues: SlotValues
+  caption: string
+  /** SocialBu options per provider for this item, e.g. `{ tiktok: { auto_add_music: true } }`. */
+  platformOptions: Record<string, Record<string, unknown>>
+  seed: string | null
+  title: string | null
+  accountId: string
+  publishAt: IsoDateTime
+  /** Local wall time in the schedule timezone, `YYYY-MM-DD HH:mm`. */
+  localTime: string
+  slideCount: number
+}
+
+export type BatchCounts = {
+  total: number
+  /** Not rendered yet (pending + rendering). */
+  queued: number
+  /** Items whose render succeeded. */
+  rendered: number
+  /** Accepted by SocialBu and waiting for publishAt. */
+  scheduled: number
+  published: number
+  failed: number
+  canceled: number
+}
+
+export type BatchItemResult = {
+  index: number
+  status: BatchItemStatus
+  renderId: string | null
+  postId: string | null
+  accountId: string
+  publishAt: IsoDateTime
+  providerPostId: string | null
+  error: string | null
+}
+
+export type Batch = {
+  id: string
+  workspaceId: WorkspaceId
+  name: string
+  status: BatchStatus
+  mode: BatchMode
+  templateId: string | null
+  /** Template spec snapshot every item renders from. */
+  spec: SlideshowSpec
+  items: BatchItem[]
+  itemCount: number
+  schedule: BatchScheduleConfig
+  output: { format: OutputFormat; scale: number }
+  counts: BatchCounts
+  /** Snapshot written by the batch refresh; GET recomputes it live. */
+  results: BatchItemResult[]
+  /** Item index → error raised before a render existed (e.g. a media id was deleted). */
+  itemErrors: Record<string, string>
+  retryCount: number
+  source: RenderSource
+  apiKeyId: string | null
+  idempotencyKey: string | null
+  createdBy: string
+  createdAt: IsoDateTime
+  updatedAt: IsoDateTime
+  completedAt: IsoDateTime | null
+  canceledAt: IsoDateTime | null
+}
+export type BatchSummary = Omit<Batch, "spec" | "items" | "results" | "itemErrors">
+export type NewBatch = {
+  name: string
+  mode: BatchMode
+  templateId?: string | null
+  spec: SlideshowSpec
+  items: BatchItem[]
+  schedule: BatchScheduleConfig
+  output?: { format: OutputFormat; scale: number }
+  source: RenderSource
+  apiKeyId?: string | null
+  idempotencyKey?: string | null
+  createdBy: string
+}
+export type BatchPatch = Partial<
+  Pick<Batch, "status" | "counts" | "results" | "itemErrors" | "retryCount" | "completedAt" | "canceledAt">
+>
+export type BatchQuery = PageQuery & { status?: BatchStatus }
+
+export function emptyBatchCounts(total: number): BatchCounts {
+  return { total, queued: total, rendered: 0, scheduled: 0, published: 0, failed: 0, canceled: 0 }
+}
 
 // ─────────────────────────────── settings ───────────────────────────────
 
@@ -315,6 +473,7 @@ export const NOTIFICATION_EVENTS = [
   "post.failed",
   "render.succeeded",
   "render.failed",
+  "batch.finished",
 ] as const
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number]
 
@@ -356,6 +515,8 @@ export const API_KEY_SCOPES = [
   "media:write",
   "posts:read",
   "posts:write",
+  "batches:read",
+  "batches:write",
 ] as const
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number]
 
@@ -383,7 +544,7 @@ export type NewApiKey = {
 
 // ─────────────────────────────── jobs + leases ───────────────────────────────
 
-export const JOB_TYPES = ["render-slideshow", "publish-post", "notify"] as const
+export const JOB_TYPES = ["render-slideshow", "publish-post", "notify", "batch-start"] as const
 export type JobType = (typeof JOB_TYPES)[number]
 export const JOB_STATUSES = ["queued", "running", "succeeded", "failed", "dead"] as const
 export type JobStatus = (typeof JOB_STATUSES)[number]
@@ -393,11 +554,14 @@ export type JobPayloads = {
   "render-slideshow": { renderId: string; quality?: number }
   "publish-post": { postId: string }
   notify: { notificationId: string }
+  /** Creates the batch's renders and enqueues their render jobs (idempotent). */
+  "batch-start": { batchId: string }
 }
 export const JobPayloadSchemas: { [K in JobType]: z.ZodType<JobPayloads[K]> } = {
   "render-slideshow": z.object({ renderId: z.string().min(1), quality: z.number().min(0).max(1).optional() }),
   "publish-post": z.object({ postId: z.string().min(1) }),
   notify: z.object({ notificationId: z.string().min(1) }),
+  "batch-start": z.object({ batchId: z.string().min(1) }),
 }
 
 export type Job<T extends JobType = JobType> = {

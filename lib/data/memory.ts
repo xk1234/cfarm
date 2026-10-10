@@ -16,6 +16,7 @@ import {
   DataConflictError,
   DataNotFoundError,
   type ApiKeysRepository,
+  type BatchesRepository,
   type BlobStorage,
   type ClaimOptions,
   type CollectionsRepository,
@@ -35,7 +36,10 @@ import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_WORKSPACE_SETTINGS,
   MAX_PAGE_SIZE,
+  emptyBatchCounts,
   type ApiKey,
+  type Batch,
+  type BatchSummary,
   type BlobContent,
   type Collection,
   type Job,
@@ -95,6 +99,7 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
   const collections = new Map<string, Collection>()
   const media = new Map<string, Media>()
   const posts = new Map<string, Post>()
+  const batches = new Map<string, Batch>()
   const settings = new Map<string, WorkspaceSettings>()
   const notifications = new Map<string, Notification>()
   const apiKeys = new Map<string, ApiKey>()
@@ -205,6 +210,8 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
         error: null,
         jobId: null,
         renderHash: input.renderHash ?? null,
+        batchId: input.batchId ?? null,
+        batchIndex: input.batchIndex ?? null,
         createdBy: input.createdBy,
         createdAt: at,
         updatedAt: at,
@@ -257,6 +264,11 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
     async softDelete(workspaceId, id) {
       const r = mustOwn(renders, "render", workspaceId, id)
       r.deletedAt = r.updatedAt = iso()
+    },
+    async listByBatch(workspaceId, batchId) {
+      return [...renders.values()]
+        .filter((r) => r.workspaceId === workspaceId && r.batchId === batchId && !r.deletedAt)
+        .map(({ spec: _s, slotValues: _v, ...summary }): RenderSummary => clone(summary))
     },
   }
 
@@ -465,6 +477,8 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
         permalink: null,
         error: null,
         intentKey: input.intentKey,
+        batchId: input.batchId ?? null,
+        batchIndex: input.batchIndex ?? null,
         createdBy: input.createdBy,
         createdAt: at,
         updatedAt: at,
@@ -492,6 +506,9 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
         .sort(newestFirst)
         .map(clone)
     },
+    async listByBatch(workspaceId, batchId) {
+      return [...posts.values()].filter((p) => p.workspaceId === workspaceId && p.batchId === batchId).map(clone)
+    },
     async update(workspaceId, id, patch) {
       const p = mustOwn(posts, "post", workspaceId, id)
       Object.assign(p, clone(patch))
@@ -510,6 +527,73 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
         .sort((a, b) => (a.publishAt! < b.publishAt! ? -1 : 1))
         .slice(0, limit)
         .map(clone)
+    },
+  }
+
+  // ─── batches ───
+  const batchSummary = ({ spec: _s, items: _i, results: _r, itemErrors: _e, ...summary }: Batch): BatchSummary =>
+    clone(summary)
+  const batchesRepo: BatchesRepository = {
+    async create(workspaceId, input) {
+      if (input.idempotencyKey) {
+        const existing = [...batches.values()].find(
+          (b) => b.workspaceId === workspaceId && b.idempotencyKey === input.idempotencyKey
+        )
+        if (existing) return { value: clone(existing), created: false }
+      }
+      const at = iso()
+      const b: Batch = {
+        id: newId(),
+        workspaceId,
+        name: input.name,
+        status: "queued",
+        mode: input.mode,
+        templateId: input.templateId ?? null,
+        spec: clone(input.spec),
+        items: clone(input.items),
+        itemCount: input.items.length,
+        schedule: clone(input.schedule),
+        output: clone(input.output ?? { format: "png", scale: 1 }),
+        counts: emptyBatchCounts(input.items.length),
+        results: [],
+        itemErrors: {},
+        retryCount: 0,
+        source: input.source,
+        apiKeyId: input.apiKeyId ?? null,
+        idempotencyKey: input.idempotencyKey ?? null,
+        createdBy: input.createdBy,
+        createdAt: at,
+        updatedAt: at,
+        completedAt: null,
+        canceledAt: null,
+      }
+      batches.set(b.id, b)
+      return { value: clone(b), created: true }
+    },
+    async get(workspaceId, id) {
+      const b = owned(batches, workspaceId, id)
+      return b ? clone(b) : null
+    },
+    async list(workspaceId, query) {
+      const items = [...batches.values()]
+        .filter((b) => b.workspaceId === workspaceId && (!query?.status || b.status === query.status))
+        .sort(newestFirst)
+        .map(batchSummary)
+      return paginate(items, query)
+    },
+    async update(workspaceId, id, patch) {
+      const b = mustOwn(batches, "batch", workspaceId, id)
+      Object.assign(b, clone(patch))
+      b.updatedAt = iso()
+      return clone(b)
+    },
+    async listActive(limit, activeOptions) {
+      const after = activeOptions?.createdAfter
+      return [...batches.values()]
+        .filter((b) => (b.status === "queued" || b.status === "running") && (!after || b.createdAt > after))
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : a.updatedAt > b.updatedAt ? 1 : 0))
+        .slice(0, Math.max(0, limit))
+        .map(batchSummary)
     },
   }
 
@@ -786,6 +870,15 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
       }
       return clone(job)
     },
+    async cancel(workspaceId, id, error) {
+      const job = owned(jobs, workspaceId, id)
+      if (!job || job.status !== "queued") return null
+      const at = iso()
+      job.status = "dead"
+      job.error = error
+      job.completedAt = job.updatedAt = at
+      return clone(job)
+    },
     async listDead({ type, since, limit }) {
       const finished = (j: Job) => j.completedAt ?? j.updatedAt
       return [...jobs.values()]
@@ -839,6 +932,7 @@ export function createMemoryRepositories(options: MemoryRepositoryOptions = {}):
     collections: collectionsRepo,
     media: mediaRepo,
     posts: postsRepo,
+    batches: batchesRepo,
     settings: settingsRepo,
     notifications: notificationsRepo,
     apiKeys: apiKeysRepo,

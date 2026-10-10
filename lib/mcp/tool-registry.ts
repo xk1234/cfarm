@@ -6,6 +6,7 @@ export const LUMENCLIP_MCP_TOOL_CATEGORIES = [
   "outputs",
   "publishing",
   "scheduling",
+  "batches",
 ] as const
 
 export type LumenClipMcpToolCategory = (typeof LUMENCLIP_MCP_TOOL_CATEGORIES)[number]
@@ -31,6 +32,12 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_output_publish", category: "publishing", scope: "posts:write" },
   { name: "lumenclip_output_mark_published", category: "publishing", scope: "posts:write" },
   { name: "lumenclip_schedule_get", category: "scheduling", scope: "posts:read" },
+  { name: "lumenclip_batch_preview", category: "batches", scope: "batches:read" },
+  { name: "lumenclip_batch_create", category: "batches", scope: "batches:write" },
+  { name: "lumenclip_batch_get", category: "batches", scope: "batches:read" },
+  { name: "lumenclip_batches_list", category: "batches", scope: "batches:read" },
+  { name: "lumenclip_batch_retry", category: "batches", scope: "batches:write" },
+  { name: "lumenclip_batch_cancel", category: "batches", scope: "batches:write" },
 ] as const satisfies readonly {
   name: string
   category: LumenClipMcpToolCategory

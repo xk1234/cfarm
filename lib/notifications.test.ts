@@ -38,6 +38,8 @@ function post(overrides: Partial<Post> = {}): Post {
     permalink: null,
     error: null,
     intentKey: "k",
+    batchId: null,
+    batchIndex: null,
     createdBy: WS,
     createdAt: clock.toISOString(),
     updatedAt: clock.toISOString(),

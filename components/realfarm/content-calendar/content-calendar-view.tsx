@@ -87,7 +87,11 @@ export function ContentCalendarView({
         <span className="font-semibold tabular-nums">{timeLabel(post)}</span>{" "}
         <span className="capitalize">{post.accountName ?? post.provider}</span>
         {compact ? null : (
-          <span className="text-app-muted-text"> · {post.renderTitle ?? "Render"} · {POST_STATUS_LABELS[post.status]}</span>
+          <span className="text-app-muted-text">
+            {" "}
+            · {post.renderTitle ?? "Render"}
+            {post.batchId ? " · Batch" : ""} · {POST_STATUS_LABELS[post.status]}
+          </span>
         )}
       </button>
       {!compact && post.status === "scheduled" ? (
