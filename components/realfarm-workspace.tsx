@@ -8,6 +8,7 @@ import {
   type ViewKey,
 } from "@/components/realfarm/navigation"
 import {
+  batchHref,
   renderHref,
   workspaceLocationFromUrl,
   workspaceViewHref,
@@ -29,6 +30,18 @@ const RenderDetailView = dynamic(() =>
   import("@/components/render/render-detail-view").then(
     (module) => module.RenderDetailView
   )
+)
+const BatchesView = dynamic(() =>
+  import("@/components/batches/batches-view").then((module) => module.BatchesView)
+)
+// Client-only: the form defaults to the browser's timezone/date and restores
+// an autosaved draft, which the server cannot know.
+const NewBatchView = dynamic(
+  () => import("@/components/batches/new-batch-view").then((module) => module.NewBatchView),
+  { ssr: false }
+)
+const BatchDetailView = dynamic(() =>
+  import("@/components/batches/batch-detail-view").then((module) => module.BatchDetailView)
 )
 const ContentCalendarView = dynamic(() =>
   import("@/components/realfarm/content-calendar/content-calendar-view").then(
@@ -60,18 +73,23 @@ export function RealFarmWorkspace({
     view?: ViewKey
     collectionId?: string
     renderId?: string
+    batchId?: string
   }
 }) {
-  const [view, setView] = useState<ViewKey>(
-    initialNavigation?.view === "render" && !initialNavigation.renderId
-      ? "home"
-      : (initialNavigation?.view ?? "home")
-  )
+  const [view, setView] = useState<ViewKey>(() => {
+    const initial = initialNavigation?.view ?? "home"
+    if (initial === "render" && !initialNavigation?.renderId) return "home"
+    if (initial === "batch" && !initialNavigation?.batchId) return "batches"
+    return initial
+  })
   const [selectedCollectionId, setSelectedCollectionId] = useState(
     initialNavigation?.collectionId ?? null
   )
   const [selectedRenderId, setSelectedRenderId] = useState(
     initialNavigation?.renderId ?? null
+  )
+  const [selectedBatchId, setSelectedBatchId] = useState(
+    initialNavigation?.batchId ?? null
   )
   const [settingsTab, setSettingsTab] = useState<WorkspaceSettingsTab | null>(
     null
@@ -97,6 +115,7 @@ export function RealFarmWorkspace({
       setView(location.view)
       setSelectedCollectionId(location.collectionId ?? null)
       setSelectedRenderId(location.renderId ?? null)
+      setSelectedBatchId(location.batchId ?? null)
     }
 
     window.addEventListener("popstate", restoreWorkspaceLocation)
@@ -114,6 +133,12 @@ export function RealFarmWorkspace({
     setSelectedRenderId(renderId)
     setView("render")
     pushWorkspaceUrl(renderHref(renderId))
+  }
+
+  function showBatch(batchId: string) {
+    setSelectedBatchId(batchId)
+    setView("batch")
+    pushWorkspaceUrl(batchHref(batchId))
   }
 
   function showCollection(collectionId: string | null) {
@@ -160,6 +185,27 @@ export function RealFarmWorkspace({
               renderId={selectedRenderId}
               onBack={() => changeView("home")}
               onOpenSettings={() => openSettings("socialbu")}
+            />
+          ) : null}
+          {view === "batches" && (
+            <BatchesView
+              onNewBatch={() => changeView("batch-new")}
+              onOpenBatch={showBatch}
+            />
+          )}
+          {view === "batch-new" && (
+            <NewBatchView
+              onBack={() => changeView("batches")}
+              onCreated={showBatch}
+              onOpenSettings={() => openSettings("socialbu")}
+            />
+          )}
+          {view === "batch" && selectedBatchId ? (
+            <BatchDetailView
+              key={selectedBatchId}
+              batchId={selectedBatchId}
+              onBack={() => changeView("batches")}
+              onOpenRender={showRender}
             />
           ) : null}
           {view === "schedule" && (

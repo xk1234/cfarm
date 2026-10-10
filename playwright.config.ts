@@ -53,6 +53,9 @@ export default defineConfig({
           LUMENCLIP_E2E_USER_ID: "user_e2e",
           FILE_URL_SECRET: "e2e-local-file-url-secret",
           BASE_URL: baseURL,
+          // No worker process locally: the web server drains queued jobs
+          // (batch renders) itself. Never honoured in production.
+          LUMENCLIP_INLINE_JOBS: "1",
           NEXT_TELEMETRY_DISABLED: "1",
           // Providers stay unconfigured so the UI shows its offline states.
           SOCIALBU_API_TOKEN: "",

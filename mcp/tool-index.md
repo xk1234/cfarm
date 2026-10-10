@@ -24,6 +24,12 @@
 | [`lumenclip_output_publish`](#lumenclip_output_publish) | publishing | Publish or schedule a rendered output |
 | [`lumenclip_output_mark_published`](#lumenclip_output_mark_published) | publishing | Record a manual publication |
 | [`lumenclip_schedule_get`](#lumenclip_schedule_get) | scheduling | Check the publishing schedule |
+| [`lumenclip_batch_preview`](#lumenclip_batch_preview) | batches | Preview a carousel batch |
+| [`lumenclip_batch_create`](#lumenclip_batch_create) | batches | Create a carousel batch (render + schedule) |
+| [`lumenclip_batch_get`](#lumenclip_batch_get) | batches | Get a batch |
+| [`lumenclip_batches_list`](#lumenclip_batches_list) | batches | List batches |
+| [`lumenclip_batch_retry`](#lumenclip_batch_retry) | batches | Retry a batch's failed items |
+| [`lumenclip_batch_cancel`](#lumenclip_batch_cancel) | batches | Cancel a batch |
 
 ## Slideshows
 
@@ -222,3 +228,72 @@ Returns scheduled, publishing, published, failed and canceled posts in a time wi
 | --- | --- | --- | --- |
 | `from` | string | no | Window start with offset, e.g. "2026-10-09T09:00:00+08:00". Defaults to now. |
 | `days` | integer | no | Days to include, e.g. 14. Default `14`. |
+
+## Batches
+
+### lumenclip_batch_preview
+
+Validates every item against the template and computes each item's publish slot and account without creating anything. Call before lumenclip_batch_create and show the schedule to the user.
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `name` | string | no |  |
+| `templateId` | string | no | Template id from lumenclip_templates_list (XOR spec). |
+| `spec` | object | no | Inline template spec (XOR templateId). |
+| `items` | object[] | no | One carousel per item (XOR csv). Random collection picks never repeat within a batch while unused images remain. |
+| `csv` | string | no | CSV text instead of items: header columns = slot paths (slides.0.caption), caption, title, seed, platformOptions. |
+| `mapping` | object | no | CSV column → target path. |
+| `schedule` | object | yes | When and where to post. |
+| `output` | object | no |  |
+| `seed` | string | no | Seeds random picks and jitter (default derived from the request). |
+
+### lumenclip_batch_create
+
+All-or-nothing: if any item is invalid nothing is created and per-item errors are returned. Otherwise renders every item in the background and schedules each as a SocialBu photo post at its slot. Repeat-safe with idempotencyKey. Only call after the user confirmed the preview.
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `name` | string | no |  |
+| `templateId` | string | no | Template id from lumenclip_templates_list (XOR spec). |
+| `spec` | object | no | Inline template spec (XOR templateId). |
+| `items` | object[] | no | One carousel per item (XOR csv). Random collection picks never repeat within a batch while unused images remain. |
+| `csv` | string | no | CSV text instead of items: header columns = slot paths (slides.0.caption), caption, title, seed, platformOptions. |
+| `mapping` | object | no | CSV column → target path. |
+| `schedule` | object | yes | When and where to post. |
+| `output` | object | no |  |
+| `seed` | string | no | Seeds random picks and jitter (default derived from the request). |
+| `idempotencyKey` | string | no |  |
+
+### lumenclip_batch_get
+
+Returns a batch's status, counts and every item's render (slide URLs) and SocialBu post state.
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `batchId` | string | yes |  |
+
+### lumenclip_batches_list
+
+Lists batches newest first with their counts (queued, rendered, scheduled, published, failed).
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `cursor` | string | no | Opaque cursor from a previous page's nextCursor. |
+| `limit` | integer | no | Page size, e.g. 50. Default `50`. |
+| `status` | `"queued"` \| `"running"` \| `"completed"` \| `"completed_with_errors"` \| `"failed"` \| `"canceled"` | no |  |
+
+### lumenclip_batch_retry
+
+Re-renders failed renders and resubmits failed SocialBu posts (moving past slots to the next free slot).
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `batchId` | string | yes |  |
+
+### lumenclip_batch_cancel
+
+Stops queued renders and deletes the batch's not-yet-published SocialBu posts. Published items are kept. Only call when the user asks to cancel.
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `batchId` | string | yes |  |

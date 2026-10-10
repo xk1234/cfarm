@@ -29,6 +29,8 @@ function post(overrides: Partial<Post> = {}): Post {
     permalink: null,
     error: null,
     intentKey: "k",
+    batchId: null,
+    batchIndex: null,
     createdBy: "u1",
     createdAt: "2026-10-09T00:00:00.000Z",
     updatedAt: "2026-10-09T00:00:00.000Z",

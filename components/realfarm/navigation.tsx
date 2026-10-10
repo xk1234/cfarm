@@ -14,6 +14,7 @@ import {
   IconPhoto,
   IconPlus,
   IconSettings,
+  IconStack2,
   IconX,
 } from "@tabler/icons-react"
 
@@ -44,13 +45,16 @@ type NavItem = {
 const navItems: NavItem[] = [
   { key: "home", label: "Renders", icon: IconLayoutGrid },
   { key: "new", label: "New render", icon: IconPlus },
+  { key: "batches", label: "Batches", icon: IconStack2 },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
   { key: "collections", label: "Collections", icon: IconPhoto },
 ]
 
-/** The nav item that is current for a view (render details live under Renders). */
+/** The nav item that is current for a view (details live under their list). */
 export function activeNavKey(view: ViewKey): ViewKey {
-  return view === "render" ? "home" : view
+  if (view === "render") return "home"
+  if (view === "batch" || view === "batch-new") return "batches"
+  return view
 }
 
 export function Sidebar({

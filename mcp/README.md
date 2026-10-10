@@ -30,6 +30,12 @@ is generated from `lib/mcp`, so run `pnpm mcp:docs` after changing a tool.
 - `lumenclip_output_publish` (publishing)
 - `lumenclip_output_mark_published` (publishing)
 - `lumenclip_schedule_get` (scheduling)
+- `lumenclip_batch_preview` (batches)
+- `lumenclip_batch_create` (batches)
+- `lumenclip_batch_get` (batches)
+- `lumenclip_batches_list` (batches)
+- `lumenclip_batch_retry` (batches)
+- `lumenclip_batch_cancel` (batches)
 <!-- END:callable-tools -->
 
 ## Authentication and transports

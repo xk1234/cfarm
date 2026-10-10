@@ -39,6 +39,7 @@ test.describe("workspace shell", () => {
     const nav = sidebar(page)
     const views: [string, RegExp, string][] = [
       ["New render", /\/app\/new$/, "New render"],
+      ["Batches", /\/app\/batches$/, "Batches"],
       ["Schedule", /\/app\?view=schedule$/, "Schedule"],
       ["Collections", /\/app\/collections$/, "Collections"],
       ["Renders", /\/app$/, "Renders"],

@@ -339,6 +339,117 @@ describe.each(backends)("repositories: %s", (_name, make) => {
     await repos.blobs.delete(WS, "renders", "r1-01")
     expect(await repos.blobs.head(WS, "renders", "r1-01")).toBeNull()
   })
+
+  it("stores batches with idempotency, summaries, patches and the active sweep list", async () => {
+    const c = clock()
+    const repos = make(c.now)
+    const schedule = {
+      accountIds: ["101"],
+      timezone: "UTC",
+      startDate: "2026-10-12",
+      timesOfDay: ["09:00"],
+      postsPerDay: null,
+      window: null,
+      maxPerAccountPerDay: 3,
+      skipOccupied: true,
+      minGapMinutes: 30,
+      jitterMinutes: { min: 0, max: 10 },
+      minLeadMinutes: 15,
+      mode: "schedule" as const,
+      privacyStatus: null,
+    }
+    const items = [
+      {
+        slotValues: { quote: "a" },
+        boundSlotValues: { quote: "a" },
+        caption: "c",
+        platformOptions: {},
+        seed: null,
+        title: null,
+        accountId: "101",
+        publishAt: "2026-10-12T09:00:00.000Z",
+        localTime: "2026-10-12 09:00",
+        slideCount: 1,
+      },
+    ]
+    const input = {
+      name: "Batch 1",
+      mode: "schedule" as const,
+      templateId: "starter-quote-cards",
+      spec: quoteTemplate as unknown as SlideshowSpec,
+      items,
+      schedule,
+      source: "api" as const,
+      idempotencyKey: "k1",
+      createdBy: WS,
+    }
+    const first = await repos.batches.create(WS, input)
+    expect(first.created).toBe(true)
+    expect(first.value).toMatchObject({ status: "queued", itemCount: 1, retryCount: 0, counts: { total: 1, queued: 1 } })
+    expect(first.value.items).toEqual(items)
+    expect((await repos.batches.create(WS, input)).value.id).toBe(first.value.id)
+    expect((await repos.batches.create(WS, input)).created).toBe(false)
+    c.advance(1000)
+    const second = (await repos.batches.create(WS, { ...input, idempotencyKey: null, name: "Batch 2" })).value
+    expect(await repos.batches.get(OTHER, first.value.id)).toBeNull()
+
+    const page = await repos.batches.list(WS)
+    expect(page.items.map((b) => b.id)).toEqual([second.id, first.value.id])
+    expect(page.items[0]).not.toHaveProperty("items")
+    expect(page.items[0]).not.toHaveProperty("spec")
+    expect(page.items[0]!.schedule.accountIds).toEqual(["101"])
+
+    c.advance(1000)
+    const updated = await repos.batches.update(WS, first.value.id, {
+      status: "completed",
+      counts: { total: 1, queued: 0, rendered: 1, scheduled: 1, published: 0, failed: 0, canceled: 0 },
+      results: [{ index: 0, status: "scheduled", renderId: "r", postId: "p", accountId: "101", publishAt: "2026-10-12T09:00:00.000Z", providerPostId: "9", error: null }],
+      itemErrors: { 0: "x" },
+      retryCount: 1,
+      completedAt: c.now().toISOString(),
+    })
+    expect(updated).toMatchObject({ status: "completed", retryCount: 1, itemErrors: { 0: "x" }, counts: { scheduled: 1 } })
+    expect(updated.results[0]!.providerPostId).toBe("9")
+    await expect(repos.batches.update(OTHER, first.value.id, { status: "failed" })).rejects.toBeInstanceOf(DataNotFoundError)
+    expect((await repos.batches.listActive(10)).map((b) => b.id)).toEqual([second.id])
+    expect(await repos.batches.listActive(10, { createdAfter: c.now().toISOString() })).toEqual([])
+
+    // Renders and posts carry their batch.
+    const { value: render } = await repos.renders.create(WS, {
+      spec: resolved,
+      source: "batch",
+      createdBy: WS,
+      batchId: second.id,
+      batchIndex: 0,
+      idempotencyKey: `batch:${second.id}:0:0`,
+    })
+    await repos.renders.create(WS, { spec: resolved, source: "ui", createdBy: WS })
+    expect((await repos.renders.listByBatch(WS, second.id)).map((r) => [r.id, r.batchIndex])).toEqual([[render.id, 0]])
+    const { value: post } = await repos.posts.upsertIntent(WS, {
+      renderId: render.id,
+      provider: "tiktok",
+      accountId: "101",
+      caption: "",
+      intentKey: `batch:${second.id}:0`,
+      batchId: second.id,
+      batchIndex: 0,
+      createdBy: WS,
+    })
+    expect(post).toMatchObject({ batchId: second.id, batchIndex: 0 })
+    expect((await repos.posts.listByBatch(WS, second.id)).map((p) => p.id)).toEqual([post.id])
+    expect(await repos.posts.listByBatch(OTHER, second.id)).toEqual([])
+    expect((await repos.posts.update(WS, post.id, { provider: "instagram" })).provider).toBe("instagram")
+  })
+
+  it("cancels only queued jobs of the caller's workspace", async () => {
+    const repos = make()
+    const { value: job } = await repos.jobs.enqueue({ workspaceId: WS, type: "render-slideshow", payload: { renderId: "r1" } })
+    expect(await repos.jobs.cancel(OTHER, job.id, "x")).toBeNull()
+    const canceled = await repos.jobs.cancel(WS, job.id, "Canceled with the batch.")
+    expect(canceled).toMatchObject({ status: "dead", error: "Canceled with the batch." })
+    expect(await repos.jobs.cancel(WS, job.id, "again")).toBeNull()
+    expect(await repos.jobs.claim("w", { limit: 5, leaseMs: 1000 })).toEqual([])
+  })
 })
 
 describe("appwrite adapter specifics", () => {

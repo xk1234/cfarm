@@ -23,6 +23,7 @@ const categoryLabels: Record<string, string> = {
   outputs: "Outputs",
   publishing: "Publishing",
   scheduling: "Scheduling",
+  batches: "Batches",
 }
 
 export function McpSettingsPanel() {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  batchHref,
   renderHref,
   workspaceLocationFromUrl,
   workspaceViewHref,
@@ -10,6 +11,8 @@ describe("workspace navigation", () => {
   it.each([
     ["home", "/app"],
     ["new", "/app/new"],
+    ["batches", "/app/batches"],
+    ["batch-new", "/app/batches/new"],
     ["schedule", "/app?view=schedule"],
     ["collections", "/app/collections"],
   ] as const)("maps %s to its shareable URL", (view, href) => {
@@ -25,6 +28,9 @@ describe("workspace navigation", () => {
       view: "render",
       renderId: "rnd 1",
     })
+    expect(workspaceLocationFromUrl("/app/batches")).toEqual({ view: "batches" })
+    expect(workspaceLocationFromUrl("/app/batches/new")).toEqual({ view: "batch-new" })
+    expect(workspaceLocationFromUrl(batchHref("b 1"))).toEqual({ view: "batch", batchId: "b 1" })
     expect(workspaceLocationFromUrl("/app/collections")).toEqual({
       view: "collections",
     })
