@@ -7,7 +7,13 @@
  */
 export { renderSpec, ENGINE_VERSION } from "../engine"
 export { zipRenderedSlides, exportSlug, slideFileName } from "../output/zip"
-export { createServerAssetLoader, type ServerAssetLoaderOptions } from "./assets"
-export { fetchRemoteImage, isBlockedAddress, type RemoteFetchOptions } from "./remote-fetch"
+// One server asset loader + SSRF-guarded fetch for every caller; it lives with the render service.
+export {
+  createServerAssetLoader,
+  fetchRemoteImage,
+  type RemoteFetchOptions,
+  type ServerAssetLoaderOptions,
+} from "@/lib/renders/assets"
+export { isBlockedAddress } from "@/lib/url-guard"
 export { prepareNodeRenderer } from "./platform"
 export { bundledFontDir } from "./fonts"

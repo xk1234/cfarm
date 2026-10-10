@@ -72,6 +72,22 @@ describe("image collections on repositories", () => {
     expect(listed.map((c) => c.name)).toEqual(["Bedrooms"])
   })
 
+  it("renames a saved collection by id instead of creating a second one", async () => {
+    const created = await upsertImageCollection(WS, { name: "Draft", created_at: "", images: [] }, { repos })
+    const renamed = await upsertImageCollection(
+      WS,
+      { id: created.id, name: "Final", created_at: "", images: [] },
+      { repos }
+    )
+    expect(renamed.id).toBe(created.id)
+    expect((await listImageCollections(WS, { repos })).map((c) => c.name)).toEqual(["Final"])
+
+    await upsertImageCollection(WS, { name: "Other", created_at: "", images: [] }, { repos })
+    await expect(
+      upsertImageCollection(WS, { id: created.id, name: "Other", created_at: "", images: [] }, { repos })
+    ).rejects.toMatchObject({ name: "DataConflictError" })
+  })
+
   it("rejects non-image responses and private addresses", async () => {
     const fetchImpl = fakeFetch({ "https://evil.test/x": { bytes: new Uint8Array([1]), type: "text/html" } })
     await expect(
@@ -136,7 +152,7 @@ describe("uploads library", () => {
     const again = await createUploadedAssetRecord(WS, { fileName: "copy.png", bytes: red }, { repos })
     expect(again.id).toBe(first.id)
     expect((await listAssetRecords(WS, {}, { repos })).map((a) => a.id)).toEqual([first.id])
-    expect(await listAssetRecords(WS, { kind: "audio" }, { repos })).toEqual([])
+    expect(await listAssetRecords(WS, { scope: "ugc_ad" }, { repos })).toEqual([])
     expect(await listAssetRecords(OTHER, {}, { repos })).toEqual([])
 
     await expect(

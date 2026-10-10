@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-import { UserButton } from "@clerk/nextjs"
+import { UserButton } from "@/components/auth/clerk-adapter"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -108,15 +108,16 @@ export function Sidebar({
           Documentation
         </Link>
         <button
+          type="button"
           onClick={onSettings}
           className="lc-focus-ring flex h-9 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-xs font-medium text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
         >
           <IconSettings className="size-4" />
-          <span className="truncate">{data.brand.owner}</span>
+          Settings
         </button>
-        <div className="mt-2 flex items-center gap-2.5 px-3 text-xs font-medium text-app-muted-text">
+        <div className="mt-2 flex min-w-0 items-center gap-2.5 px-3 text-xs font-medium text-app-muted-text">
           <UserButton />
-          Account
+          <span className="truncate">{data.brand.owner || "Account"}</span>
         </div>
       </div>
     </aside>

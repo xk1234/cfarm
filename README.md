@@ -99,3 +99,5 @@ Docs are organized by lifecycle — start at **`docs/README.md`** (index), which
 ## Testing
 
 `pnpm test` runs the vitest suite. Live tests in `lib/__live__/*.live.test.ts` are gated behind `RUN_LIVE=1` and may hit paid providers — they're skipped by default so the suite stays offline. Run them with `RUN_LIVE=1 pnpm test lib/__live__`. Use `pnpm typecheck` and `pnpm lint` alongside tests before opening changes.
+
+`pnpm e2e` runs the Playwright suite (`e2e/`) against `pnpm dev` on port 3917 with in-memory repositories and the local e2e auth seam (`lib/e2e-auth.ts`): `LUMENCLIP_DATA_BACKEND=memory` plus `LUMENCLIP_E2E_USER_ID` signs every request in as that user without Clerk, and `POST /api/e2e/seed` loads fixture collections and a finished render. The seam is off whenever `NODE_ENV=production` or the backend is Appwrite. `E2E_BROWSER_CHANNEL=chrome` uses the installed Chrome instead of downloading Chromium; `E2E_REUSE_SERVER=1` attaches to an already running e2e dev server.

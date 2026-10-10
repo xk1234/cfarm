@@ -8,7 +8,9 @@
  * - Renews the lease while a handler runs; completes or fails the job.
  * - Runs periodic sweeps in-process (no scheduler service): due in-app
  *   notifications → `notify` jobs, due scheduled posts without a provider
- *   post → `publish-post` jobs, and old lease rows → purge. Sweep enqueues use
+ *   post → `publish-post` jobs, renders whose `render-slideshow` job died
+ *   (e.g. lease exhausted after repeated crashes) → failed + notified, and
+ *   old lease rows → purge. Sweep enqueues use
  *   deterministic job ids, so several worker replicas never double-enqueue.
  * - Polls adaptively: drains while there is work, then backs off to the idle
  *   interval. `wake()` cuts the current sleep short.
@@ -16,7 +18,8 @@
 import { hostname } from "node:os"
 import { randomBytes } from "node:crypto"
 
-import type { Job, JobType, Repositories } from "@/lib/data"
+import { JOB_LEASE_EXHAUSTED_ERROR, type Job, type JobType, type Repositories } from "@/lib/data"
+import { notifyRenderFinished } from "@/lib/renders/service"
 
 import { isPermanentJobError, PermanentJobError, RetryJobError } from "./errors"
 import { getJobHandler, type JobLogger } from "./handlers"
@@ -36,13 +39,18 @@ export type WorkerOptions = {
   purgeEveryMs?: number
   /** Lease rows older than this are deleted (default 7 days). */
   leaseRetentionMs?: number
+  /** Dead `render-slideshow` jobs that died within this window are reconciled (default 24 h). */
+  deadRenderLookbackMs?: number
   types?: readonly JobType[]
   log?: JobLogger
   now?: () => Date
 }
 
 export type TickResult = { claimed: number; succeeded: number; failed: number; swept: SweepResult | null }
-export type SweepResult = { notifications: number; posts: number; leasesPurged: number }
+export type SweepResult = { notifications: number; posts: number; leasesPurged: number; rendersFailed: number }
+
+/** Recorded on a render whose job died because its lease expired on the final attempt. */
+export const RENDER_LEASE_EXHAUSTED_MESSAGE = "Render job exhausted its attempts (worker lease expired)."
 
 const consoleLogger: JobLogger = {
   info: (message, fields) => console.log(JSON.stringify({ level: "info", message, ...fields })),
@@ -69,6 +77,7 @@ export function createWorker(options: WorkerOptions) {
   const sweepEveryMs = options.sweepEveryMs ?? 60_000
   const purgeEveryMs = options.purgeEveryMs ?? 3_600_000
   const leaseRetentionMs = options.leaseRetentionMs ?? 7 * 24 * 3_600_000
+  const deadRenderLookbackMs = options.deadRenderLookbackMs ?? 24 * 3_600_000
   const log = options.log ?? consoleLogger
   const now = options.now ?? (() => new Date())
 
@@ -125,13 +134,54 @@ export function createWorker(options: WorkerOptions) {
     }
   }
 
+  /**
+   * A `render-slideshow` job can die without its handler running to the end:
+   * `claim()` marks it dead when the lease expired on the final attempt (the
+   * worker crashed mid-render), and a handler whose lease was lost never
+   * records anything. Its render would then stay queued/rendering forever, so
+   * fail it here and notify. Idempotent: settled renders are skipped.
+   */
+  async function failRendersOfDeadJobs(t: number): Promise<number> {
+    let failed = 0
+    const dead = await repos.jobs.listDead({
+      type: "render-slideshow",
+      since: new Date(t - deadRenderLookbackMs).toISOString(),
+      limit: 100,
+    })
+    for (const job of dead as Job<"render-slideshow">[]) {
+      if (!job.workspaceId) continue
+      try {
+        const render = await repos.renders.get(job.workspaceId, job.payload.renderId)
+        if (!render || render.deletedAt) continue
+        if (render.status !== "queued" && render.status !== "rendering") continue
+        // Another job owns this render now (it was re-enqueued); leave it alone.
+        if (render.jobId && render.jobId !== job.id) continue
+        const message =
+          job.error === JOB_LEASE_EXHAUSTED_ERROR || !job.error
+            ? RENDER_LEASE_EXHAUSTED_MESSAGE
+            : `Render job failed: ${job.error}`.slice(0, 4000)
+        const updated = await repos.renders.markFailed(job.workspaceId, render.id, message)
+        failed++
+        log.warn("render failed after its job died", { jobId: job.id, renderId: render.id })
+        try {
+          await notifyRenderFinished(repos, updated)
+        } catch (error) {
+          log.warn("render-failed notification failed", { renderId: render.id, error: errorMessage(error) })
+        }
+      } catch (error) {
+        log.error("could not reconcile dead render job", { jobId: job.id, error: errorMessage(error) })
+      }
+    }
+    return failed
+  }
+
   /** Enqueues due work; safe to run on every replica (deterministic job ids). */
   async function sweep(force = false): Promise<SweepResult | null> {
     const t = now().getTime()
     const runSweep = force || t - lastSweep >= sweepEveryMs
     const runPurge = force || t - lastPurge >= purgeEveryMs
     if (!runSweep && !runPurge) return null
-    const result: SweepResult = { notifications: 0, posts: 0, leasesPurged: 0 }
+    const result: SweepResult = { notifications: 0, posts: 0, leasesPurged: 0, rendersFailed: 0 }
     const at = new Date(t).toISOString()
     if (runSweep) {
       lastSweep = t
@@ -154,6 +204,11 @@ export function createWorker(options: WorkerOptions) {
         })
         if (created) result.posts++
       }
+      result.rendersFailed = await failRendersOfDeadJobs(t).catch((error) => {
+        // Never let reconciliation block the notification/post sweeps above.
+        log.error("dead render sweep failed", { error: errorMessage(error) })
+        return 0
+      })
     }
     if (runPurge) {
       lastPurge = t

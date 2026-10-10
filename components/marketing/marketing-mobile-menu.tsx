@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs"
+import { Show, SignInButton, SignUpButton, UserButton } from "@/components/auth/clerk-adapter"
 import { IconMenu2, IconX } from "@tabler/icons-react"
 import Image from "next/image"
 import Link from "next/link"

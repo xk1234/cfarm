@@ -4,6 +4,7 @@ import { cache } from "react"
 
 import { auth, clerkClient } from "@clerk/nextjs/server"
 
+import { e2eUser } from "@/lib/e2e-auth"
 import { isUserAllowed } from "@/lib/owner-access"
 
 export type AuthUser = {
@@ -47,6 +48,9 @@ function ownerIdFor(user: {
 }
 
 export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
+  // Local e2e seam (lib/e2e-auth.ts): never active in production or on Appwrite.
+  const testUser = e2eUser()
+  if (testUser) return { $id: testUser.id, email: testUser.email, name: testUser.name }
   const { userId } = await auth()
   if (!userId) return null
   // Single-user instance: other Clerk users get no workspace (lib/owner-access.ts).

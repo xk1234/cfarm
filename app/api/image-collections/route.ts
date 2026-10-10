@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { validate, providerFail, withHandler } from "@/lib/api"
+import { DataConflictError } from "@/lib/data"
 import {
   deleteImageCollections,
   listImageCollections,
@@ -13,10 +14,11 @@ import { requireWorkspaceId } from "@/lib/workspace"
 export const dynamic = "force-dynamic"
 
 const collectionSchema = z.object({
+  /** Saved collection id: a different `name` renames it. */
+  id: z.string().trim().min(1).optional(),
   name: z.string().trim().min(1, "name is required"),
   created_at: z.string(),
   pinned: z.boolean().optional().default(false),
-  mediaType: z.enum(["image", "video"]).optional(),
   images: z
     .array(
       z.object({
@@ -54,6 +56,7 @@ export const POST = withHandler(async (request: Request) => {
     const saved = await upsertImageCollection(workspaceId, collection)
     return NextResponse.json({ collection: saved }, { status: 201 })
   } catch (error) {
+    if (error instanceof DataConflictError) return providerFail(error, "Collection name is taken", 409)
     return providerFail(error, "Failed to save image collection", 400)
   }
 })

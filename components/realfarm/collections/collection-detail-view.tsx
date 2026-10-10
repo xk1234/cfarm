@@ -193,6 +193,7 @@ export function CollectionDetailView({
           {editingTitle ? (
             <input
               className="h-10 min-w-0 flex-1 rounded-[6px] border border-[#d9d8d0] bg-app-surface px-2 text-[18px] font-semibold outline-none sm:h-8 sm:min-w-[280px] sm:flex-none sm:text-[22px]"
+              aria-label="Collection name"
               value={titleDraft}
               autoFocus
               onChange={(event) => setTitleDraft(event.target.value)}
@@ -330,7 +331,7 @@ export function CollectionDetailView({
       {collection.images.length === 0 ? (
         <div className="app-empty-state grid min-h-[260px] place-items-center text-center text-[13px]">
           <span>
-            No {collection.mediaType === "video" ? "videos" : "images"} yet.
+            No images yet.
           </span>
         </div>
       ) : (

@@ -147,7 +147,8 @@ export type RenderQuery = PageQuery & { status?: RenderStatus; templateId?: stri
 
 // ─────────────────────────────── collections + media ───────────────────────────────
 
-export const MEDIA_KINDS = ["image", "video"] as const
+// Ingest accepts raster images only (lib/files/ingest.ts); renders are still slides.
+export const MEDIA_KINDS = ["image"] as const
 export type MediaKind = (typeof MEDIA_KINDS)[number]
 export const MEDIA_SOURCES = ["upload", "pexels", "pinterest", "url"] as const
 export type MediaSource = (typeof MEDIA_SOURCES)[number]

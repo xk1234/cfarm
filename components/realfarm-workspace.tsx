@@ -14,9 +14,8 @@ import {
 } from "@/components/realfarm/workspace-navigation"
 import type { WorkspaceSettingsTab } from "@/components/realfarm/user-settings-modal"
 import type { RealFarmData } from "@/lib/realfarm-data"
-import { fetchJsonWithTimeout } from "@/lib/client-api"
 import { useCollectionsData } from "@/components/realfarm/collections/use-collections-data"
-import { apiRoutes } from "@/components/realfarm/api-client"
+import { storedCollectionId } from "@/lib/realfarm-collections"
 
 const RendersView = dynamic(() =>
   import("@/components/render/renders-view").then((module) => module.RendersView)
@@ -77,20 +76,13 @@ export function RealFarmWorkspace({
   const [settingsTab, setSettingsTab] = useState<WorkspaceSettingsTab | null>(
     null
   )
-  const [workspaceAssets, setWorkspaceAssets] = useState(data.assets)
-  const [workspaceAssetsLoaded, setWorkspaceAssetsLoaded] = useState(
-    Object.values(data.assets).some((assets) => assets.length > 0)
-  )
   const {
     visibleCollections,
     collectionsLoaded,
     commitCollection,
     deleteCollections,
     toggleCollectionPin,
-  } = useCollectionsData({
-    assets: workspaceAssets,
-    enabled: view === "collections",
-  })
+  } = useCollectionsData({ enabled: view === "collections" })
   const selectedCollection =
     visibleCollections.find(
       (collection) => collection.id === selectedCollectionId
@@ -111,24 +103,6 @@ export function RealFarmWorkspace({
     return () =>
       window.removeEventListener("popstate", restoreWorkspaceLocation)
   }, [])
-
-  useEffect(() => {
-    if (view !== "collections" || workspaceAssetsLoaded) return
-    let active = true
-    void fetchJsonWithTimeout<{ assets?: RealFarmData["assets"] }>(
-      apiRoutes.mediaLibrary
-    )
-      .then((payload) => {
-        if (active && payload.assets) setWorkspaceAssets(payload.assets)
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setWorkspaceAssetsLoaded(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [view, workspaceAssetsLoaded])
 
   function changeView(nextView: ViewKey) {
     if (nextView === "collections") setSelectedCollectionId(null)
@@ -241,12 +215,28 @@ export function RealFarmWorkspace({
                   if (selectedCollection.virtual) {
                     return
                   }
-                  const nextCollection = { ...selectedCollection, title }
+                  // The client id is the name slug (as the server list
+                  // derives it), so a rename moves the collection's URL too.
+                  const nextCollection = {
+                    ...selectedCollection,
+                    id: storedCollectionId({ name: title }),
+                    title,
+                  }
+                  setSelectedCollectionId(nextCollection.id)
+                  replaceWorkspaceUrl(
+                    `/app/collections/${encodeURIComponent(nextCollection.id)}`
+                  )
                   void commitCollection(
                     selectedCollection,
                     nextCollection,
                     "Failed to rename the collection"
-                  )
+                  ).then((saved) => {
+                    if (saved) return
+                    setSelectedCollectionId(selectedCollection.id)
+                    replaceWorkspaceUrl(
+                      `/app/collections/${encodeURIComponent(selectedCollection.id)}`
+                    )
+                  })
                 }}
               />
             ) : (
@@ -275,6 +265,10 @@ export function RealFarmWorkspace({
       ) : null}
     </main>
   )
+}
+
+function replaceWorkspaceUrl(href: string) {
+  window.history.replaceState(null, "", href)
 }
 
 function pushWorkspaceUrl(href: string) {

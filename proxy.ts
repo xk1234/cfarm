@@ -1,6 +1,7 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
-import { NextResponse, type NextRequest } from "next/server"
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
 
+import { e2eAuthUserId } from "@/lib/e2e-auth"
 import { ACCESS_DENIED_MESSAGE, isUserAllowed } from "@/lib/owner-access"
 
 const PUBLIC_API_PATHS = [
@@ -41,14 +42,17 @@ function isProtectedPage(pathname: string) {
   return pathname === "/app" || pathname.startsWith("/app/")
 }
 
-export default clerkMiddleware(async (auth, request: NextRequest) => {
+function skipsAuth(pathname: string) {
+  return pathname.startsWith("/__clerk/") || isPublicApi(pathname)
+}
+
+/** Routing for a request whose identity (`userId`, null when signed out) is known. */
+export function routeRequest(request: NextRequest, userId: string | null) {
   const pathname = request.nextUrl.pathname
 
-  if (pathname.startsWith("/__clerk/") || isPublicApi(pathname)) {
+  if (skipsAuth(pathname)) {
     return NextResponse.next()
   }
-
-  const { userId } = await auth()
 
   if (userId && !isUserAllowed(userId)) {
     // Signed in, but not this instance's owner: no app, no API (lib/owner-access.ts).
@@ -88,7 +92,21 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   const login = new URL("/login", request.url)
   login.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
   return NextResponse.redirect(login)
+}
+
+const clerkProxy = clerkMiddleware(async (auth, request: NextRequest) => {
+  if (skipsAuth(request.nextUrl.pathname)) return NextResponse.next()
+  const { userId } = await auth()
+  return routeRequest(request, userId)
 })
+
+export default function proxy(request: NextRequest, event: NextFetchEvent) {
+  // Local e2e seam (lib/e2e-auth.ts): off in production and on Appwrite data,
+  // so Clerk handles every real request.
+  const e2eUserId = e2eAuthUserId()
+  if (e2eUserId) return routeRequest(request, e2eUserId)
+  return clerkProxy(request, event)
+}
 
 export const config = {
   matcher: [

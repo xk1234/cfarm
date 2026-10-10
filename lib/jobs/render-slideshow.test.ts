@@ -52,6 +52,14 @@ describe("render-slideshow job", () => {
     expect(fake.calls).toHaveLength(1)
   })
 
+  it("notifies when an inline (sync) render finishes", async () => {
+    const fake = createFakeRenderSpec()
+    const submitted = await submitRender({ repos, renderSpec: fake.renderSpec }, WS, { spec }, { source: "ui", createdBy: WS })
+    expect(submitted.mode).toBe("sync")
+    const inbox = await repos.notifications.list(WS, {})
+    expect(inbox.items.map((n) => [n.event, n.renderId])).toEqual([["render.succeeded", submitted.render.id]])
+  })
+
   it("encodes async renders at the requested output quality", async () => {
     const fake = createFakeRenderSpec()
     const submitted = await submitRender({ repos, renderSpec: fake.renderSpec }, WS, {

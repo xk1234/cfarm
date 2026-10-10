@@ -6,7 +6,7 @@
  *   transport is `guardedFetch`, which re-checks at connect time and pins the
  *   socket to the approved address (no DNS-rebinding window).
  * - Hard byte cap enforced while streaming, not just via Content-Length.
- * - Content type must match the requested media kind.
+ * - Content type must be an image (ingest accepts raster images only).
  * - Overall timeout.
  */
 import {
@@ -24,10 +24,7 @@ export class RemoteFetchError extends Error {
   }
 }
 
-export type RemoteMediaKind = "image" | "video" | "any"
-
 export type FetchRemoteMediaOptions = {
-  kind?: RemoteMediaKind
   maxBytes?: number
   timeoutMs?: number
   maxRedirects?: number
@@ -40,10 +37,8 @@ export type FetchRemoteMediaOptions = {
 
 export type RemoteMedia = { bytes: Uint8Array; mime: string; finalUrl: string }
 
-function mimeMatches(kind: RemoteMediaKind, mime: string): boolean {
-  if (kind === "image") return mime.startsWith("image/")
-  if (kind === "video") return mime.startsWith("video/")
-  return mime.startsWith("image/") || mime.startsWith("video/")
+function isImageMime(mime: string): boolean {
+  return mime.startsWith("image/")
 }
 
 async function readCapped(
@@ -86,7 +81,6 @@ export async function fetchRemoteMedia(
   rawUrl: string,
   options: FetchRemoteMediaOptions = {}
 ): Promise<RemoteMedia> {
-  const kind = options.kind ?? "image"
   const maxBytes = options.maxBytes ?? DEFAULT_REMOTE_MAX_BYTES
   const maxRedirects = options.maxRedirects ?? 3
   const fetchImpl = options.fetchImpl ?? guardedFetch
@@ -117,12 +111,7 @@ export async function fetchRemoteMedia(
         redirect: "manual",
         signal,
         headers: {
-          Accept:
-            kind === "video"
-              ? "video/*"
-              : kind === "image"
-                ? "image/avif,image/webp,image/*;q=0.9"
-                : "image/*,video/*",
+          Accept: "image/avif,image/webp,image/*;q=0.9",
           "User-Agent": "Mozilla/5.0 (compatible; LumenClip-media-import/1.0)",
           ...(options.referer ? { Referer: options.referer } : {}),
         },
@@ -144,10 +133,8 @@ export async function fetchRemoteMedia(
       .split(";")[0]
       .trim()
       .toLowerCase()
-    if (!mimeMatches(kind, mime)) {
-      throw new RemoteFetchError(
-        `Remote file is not ${kind === "video" ? "a video" : kind === "image" ? "an image" : "an image or video"}`
-      )
+    if (!isImageMime(mime)) {
+      throw new RemoteFetchError("Remote file is not an image")
     }
     return {
       bytes: await readCapped(response, maxBytes),

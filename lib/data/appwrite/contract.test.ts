@@ -234,6 +234,37 @@ describe.each(backends)("repositories: %s", (_name, make) => {
     expect(await repos.jobs.claim("w4", { limit: 1, leaseMs: 1_000 })).toEqual([])
   })
 
+  it("lists dead jobs across workspaces by type, newest first", async () => {
+    const c = clock()
+    const repos = make(c.now)
+    const render = async (ws: string, renderId: string) =>
+      (await repos.jobs.enqueue({ workspaceId: ws, type: "render-slideshow", payload: { renderId }, maxAttempts: 1 })).value
+    const early = await render(WS, "r1")
+    const notify = (await repos.jobs.enqueue({ workspaceId: WS, type: "notify", payload: { notificationId: "n1" }, maxAttempts: 1 })).value
+    const queued = await repos.jobs.enqueue({ workspaceId: WS, type: "render-slideshow", payload: { renderId: "r9" }, runAt: "2027-01-01T00:00:00.000Z" })
+
+    // early + notify die through fail(); the claim leases both.
+    expect(await repos.jobs.claim("w1", { limit: 5, leaseMs: 1_000 })).toHaveLength(2)
+    await repos.jobs.fail(early.id, "w1", "boom")
+    await repos.jobs.fail(notify.id, "w1", "boom")
+    c.advance(60_000)
+
+    // late dies through an exhausted lease in claim().
+    const late = await render(OTHER, "r2")
+    expect(await repos.jobs.claim("w2", { limit: 5, leaseMs: 1_000 })).toHaveLength(1)
+    c.advance(5_000)
+    expect(await repos.jobs.claim("w3", { limit: 5, leaseMs: 1_000 })).toEqual([])
+
+    const dead = await repos.jobs.listDead({ type: "render-slideshow", limit: 10 })
+    expect(dead.map((j) => j.id)).toEqual([late.id, early.id])
+    expect(dead[0]).toMatchObject({ workspaceId: OTHER, status: "dead", payload: { renderId: "r2" } })
+    expect(dead.map((j) => j.id)).not.toContain(queued.value.id)
+    expect((await repos.jobs.listDead({ limit: 10 })).map((j) => j.id).sort()).toEqual([early.id, late.id, notify.id].sort())
+    expect((await repos.jobs.listDead({ type: "render-slideshow", limit: 1 })).map((j) => j.id)).toEqual([late.id])
+    const since = new Date(c.now().getTime() - 30_000).toISOString()
+    expect((await repos.jobs.listDead({ type: "render-slideshow", since, limit: 10 })).map((j) => j.id)).toEqual([late.id])
+  })
+
   it("schedules posts and delivers in-app notifications", async () => {
     const repos = make()
     const intent = { renderId: "r1", provider: "tiktok", accountId: "42", caption: "hi", intentKey: "r1:42", createdBy: WS }

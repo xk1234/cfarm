@@ -8,15 +8,14 @@ import path from "node:path"
 import { clean } from "@/lib/guards"
 import { getRepositories, type Media, type Repositories, type WorkspaceId } from "@/lib/data"
 import { ingestMedia, mediaFileIdFromUrl, mediaFileUrl } from "@/lib/files/ingest"
-import type { MediaKind } from "@/lib/media-kind"
-
-export type AssetKind = MediaKind
+/** Ingest accepts raster images only (lib/files/ingest.ts). */
+export type AssetKind = "image"
 export type AssetSource = "upload"
 export type AssetStatus = "ready"
 export type AssetScope = "ugc_ad" | "ugc_demo" | "greenscreen" | "global"
 export type AssetCategory = "outfit" | "accessory" | "background" | "product" | "reference" | "sound" | "other"
 
-export const assetKinds: AssetKind[] = ["image", "video", "audio", "text"]
+export const assetKinds: AssetKind[] = ["image"]
 export const assetScopes: AssetScope[] = ["ugc_ad", "ugc_demo", "greenscreen", "global"]
 export const assetCategories: AssetCategory[] = [
   "outfit",
@@ -67,7 +66,7 @@ function toAssetRecord(media: Media): AssetRecord {
     mimeType: media.mimeType,
     fileName: media.name ?? undefined,
     fileUrl: url,
-    thumbnailUrl: media.kind === "image" ? url : undefined,
+    thumbnailUrl: url,
     ...(media.width ? { width: media.width } : {}),
     ...(media.height ? { height: media.height } : {}),
     createdAt: media.createdAt,
@@ -75,11 +74,11 @@ function toAssetRecord(media: Media): AssetRecord {
   }
 }
 
-async function uploadsLibrary(repos: Repositories, workspaceId: WorkspaceId, kind?: "image" | "video") {
+async function uploadsLibrary(repos: Repositories, workspaceId: WorkspaceId) {
   const out: Media[] = []
   let cursor: string | null = null
   do {
-    const page = await repos.media.list(workspaceId, { collectionId: null, kind, limit: 100, cursor })
+    const page = await repos.media.list(workspaceId, { collectionId: null, limit: 100, cursor })
     out.push(...page.items)
     cursor = page.nextCursor
   } while (cursor && out.length < 2_000)
@@ -91,11 +90,10 @@ export async function listAssetRecords(
   filters: AssetListFilters = {},
   options: { repos?: Repositories } = {}
 ): Promise<AssetRecord[]> {
-  // Only global, uncategorised image/video uploads exist after the refactor.
+  // Only global, uncategorised image uploads exist after the refactor.
   if ((filters.scope && filters.scope !== "global") || filters.category) return []
-  if (filters.kind === "audio" || filters.kind === "text") return []
   const repos = options.repos ?? getRepositories()
-  return (await uploadsLibrary(repos, workspaceId, filters.kind)).map(toAssetRecord)
+  return (await uploadsLibrary(repos, workspaceId)).map(toAssetRecord)
 }
 
 export async function createUploadedAssetRecord(
@@ -177,12 +175,6 @@ function mimeTypeForExtension(extension: string) {
       return "image/webp"
     case ".heic":
       return "image/heic"
-    case ".mov":
-      return "video/quicktime"
-    case ".mp4":
-      return "video/mp4"
-    case ".webm":
-      return "video/webm"
     default:
       return "application/octet-stream"
   }

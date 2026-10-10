@@ -948,7 +948,7 @@ Automation-side fields (`textMode`, `staticText`, `contentDirection`,
 | `lib/render/paint/fabric-painter.ts` | DisplayList → Fabric objects. Shared by node and browser; successor of `slideshow-fabric-canvas.ts`. |
 | `lib/render/node/render-slide.ts` | `fabric/node` StaticCanvas → PNG/JPEG/WebP buffer; successor of `slideshow-raster-renderer.ts` |
 | `lib/render/node/fonts.ts` | registry → `registerFont` for each face plus fontconfig (generalizes `font-config.ts`) |
-| `lib/render/node/assets.ts` | ImageSource → bytes: Appwrite Storage by file id, https with an SSRF guard (blocks private IPs and redirects to them, 25 MB / 50 MP cap, timeout, content sniffing), per-render cache |
+| `lib/renders/assets.ts` (re-exported by `lib/render/node`) | ImageSource → bytes: Appwrite Storage by file id, https with an SSRF guard (blocks private IPs and redirects to them, 25 MB / 50 MP cap, timeout, content sniffing), per-render cache |
 | `lib/render/browser/preview.ts` | browser Fabric canvas + `FontFace` loading + browser measurer |
 | `lib/render/fonts/registry.ts` | 21 faces from 70a6ca7 (`appwrite/functions/job-worker/assets/fonts/*`, moved to `assets/fonts/`): family, weight, style, file, licence |
 | `lib/render/output/zip.ts`, `output/pdf.ts` | server ZIP (from `slideshow-export` slug logic); PDF via `pdf-lib` if approved |
