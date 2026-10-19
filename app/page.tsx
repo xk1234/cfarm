@@ -1,4 +1,6 @@
-import Link from "next/link";
+import { loadWebsiteContent } from "@/lib/craft-content"
+import contentDefaults from "@/lib/craft-content-defaults.json"
+import Link from "next/link"
 import {
   IconArrowRight,
   IconBraces,
@@ -12,13 +14,13 @@ import {
   IconPlayerPlay,
   IconPlugConnected,
   IconTypography,
-} from "@tabler/icons-react";
+} from "@tabler/icons-react"
 
 import {
   CTASection,
   MarketingFooter,
   MarketingNav,
-} from "@/components/marketing/marketing-shell";
+} from "@/components/marketing/marketing-shell"
 
 const exampleSpec = `{
   "version": 1,
@@ -39,7 +41,7 @@ const exampleSpec = `{
                    "width": "84%", "anchor": "top" } }
     ]
   }]
-}`;
+}`
 
 const steps = [
   {
@@ -62,7 +64,7 @@ const steps = [
     title: "Render and ship",
     body: "Get one PNG per slide plus a ZIP, then publish or schedule the carousel to TikTok or Instagram.",
   },
-];
+]
 
 const features = [
   {
@@ -95,7 +97,7 @@ const features = [
     title: "Deterministic output",
     body: "The resolved spec is stored with every render, so a historical render always reproduces the same pixels.",
   },
-];
+]
 
 const faqs = [
   [
@@ -118,9 +120,20 @@ const faqs = [
     "Is my media private?",
     "Uploads and renders live in private storage and are served only through routes that check you own them. Share links use signed tokens.",
   ],
-];
+]
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const content = await loadWebsiteContent("cfarm", contentDefaults)
+  const cmsSteps = steps.map((item, index) => ({
+    ...item,
+    title: content[`steps-${index + 1}`].headline,
+    body: content[`steps-${index + 1}`].description,
+  }))
+  const cmsFeatures = features.map((item, index) => ({
+    ...item,
+    title: content[`features-${index + 1}`].headline,
+    body: content[`features-${index + 1}`].description,
+  }))
   return (
     <main className="min-h-[100dvh] bg-brand-canvas text-brand-ink">
       <a href="#main" className="sr-only focus:not-sr-only">
@@ -133,12 +146,10 @@ export default function LandingPage() {
           <div className="min-w-0">
             <div className="lc-spectrum mb-6 h-1 w-16 rounded-full" />
             <h1 className="max-w-[12ch] text-5xl leading-[0.96] font-semibold tracking-[-0.06em] sm:text-6xl lg:text-7xl">
-              Carousels rendered from JSON.
+              {content.hero.headline}
             </h1>
             <p className="mt-6 max-w-[54ch] text-lg leading-7 text-brand-muted">
-              LumenClip is a JSON-driven carousel rendering engine. Describe
-              every slide once as a spec, fill its image and text slots, and
-              get pixel-exact PNGs ready for TikTok and Instagram.
+              {content.hero.description}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -190,10 +201,16 @@ export default function LandingPage() {
         <section className="border-y border-brand-border bg-white">
           <div className="mx-auto grid max-w-[1280px] divide-y divide-brand-border px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4 lg:px-8">
             {[
-              ["One input", "A JSON spec is the only thing the renderer reads."],
+              [
+                "One input",
+                "A JSON spec is the only thing the renderer reads.",
+              ],
               ["One engine", "The preview and the server use the same code."],
               ["Up to 35 slides", "Enough for a full TikTok photo carousel."],
-              ["Private by default", "Every file is checked against its owner."],
+              [
+                "Private by default",
+                "Every file is checked against its owner.",
+              ],
             ].map(([title, body]) => (
               <div key={title} className="px-5 py-7 first:pl-0 last:pr-0">
                 <p className="text-sm font-semibold">{title}</p>
@@ -211,7 +228,7 @@ export default function LandingPage() {
               From spec to posted carousel.
             </h2>
             <div className="mt-14 grid gap-px overflow-hidden rounded-app-dialog bg-brand-border md:grid-cols-2 lg:grid-cols-4">
-              {steps.map((step) => (
+              {cmsSteps.map((step) => (
                 <article
                   key={step.title}
                   className="bg-white p-6 lg:min-h-[300px]"
@@ -234,7 +251,7 @@ export default function LandingPage() {
             Explicit layout, no hidden heuristics.
           </h2>
           <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature) => (
+            {cmsFeatures.map((feature) => (
               <article
                 key={feature.title}
                 className="rounded-2xl bg-brand-surface-muted p-7"
@@ -322,5 +339,5 @@ export default function LandingPage() {
       </div>
       <MarketingFooter />
     </main>
-  );
+  )
 }

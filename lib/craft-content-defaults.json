@@ -1,0 +1,46 @@
+{
+  "hero": {
+    "headline": "Carousels rendered from JSON.",
+    "description": "LumenClip is a JSON-driven carousel rendering engine. Describe every slide once as a spec, fill its image and text slots, and get pixel-exact PNGs ready for TikTok and Instagram."
+  },
+  "steps-1": {
+    "headline": "Describe the slides in JSON",
+    "description": "Canvas, fonts, theme, and every image, text, and shape layer are explicit fields. Nothing is guessed."
+  },
+  "steps-2": {
+    "headline": "Turn it into a template",
+    "description": "Declare named slots for images, copy, colours, and lists. A list slot repeats slides for variable-length carousels."
+  },
+  "steps-3": {
+    "headline": "Fill the slots",
+    "description": "Pick uploads, a collection image, a seeded random pick from a collection, or a Pexels or Pinterest result."
+  },
+  "steps-4": {
+    "headline": "Render and ship",
+    "description": "Get one PNG per slide plus a ZIP, then publish or schedule the carousel to TikTok or Instagram."
+  },
+  "features-1": {
+    "headline": "Bundled typefaces",
+    "description": "21 display, serif, script, and handwritten faces plus Inter, rendered with the real font files on the server."
+  },
+  "features-2": {
+    "headline": "Stacks and grids",
+    "description": "Absolute, stack, and grid groups with gaps, padding, corner radius, and clipping for collages and lists."
+  },
+  "features-3": {
+    "headline": "Validation with paths",
+    "description": "Every error carries a code and a JSON Pointer, so a bad field is easy to find in a pasted spec."
+  },
+  "features-4": {
+    "headline": "API keys and MCP",
+    "description": "Render from scripts with a workspace API key, or let an agent call the same tools over MCP."
+  },
+  "features-5": {
+    "headline": "Calendar",
+    "description": "Scheduled and published posts sit on one calendar, with in-app reminders before they go out."
+  },
+  "features-6": {
+    "headline": "Deterministic output",
+    "description": "The resolved spec is stored with every render, so a historical render always reproduces the same pixels."
+  }
+}
